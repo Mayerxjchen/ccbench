@@ -1,0 +1,16 @@
+#
+# PACKMOL input for 64 water molecules in a 12.4 Å cubic box
+# with periodic boundary conditions (PBC)
+#
+
+tolerance 2.2
+filetype xyz
+output water64_pbc.xyz
+
+# 启用周期性边界条件
+pbc 0.0 0.0 0.0 12.4 12.4 12.4
+
+structure water.xyz
+  number 64
+  inside box 0.0 0.0 0.0 12.4 12.4 12.4
+end structure

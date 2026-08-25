@@ -1,0 +1,6 @@
+Dataset: /app/data/training_data (methane, DeePMD/npy)
+Units: Angstrom
+
+max_interatomic_distance = 1.9227
+
+(Computed over all frames in the training set, minimum-image PBC.)

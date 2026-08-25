@@ -1,0 +1,54 @@
+import json
+import re
+from pathlib import Path
+
+OUT_PATH = Path("/app/out.txt")
+PARAMS_PATH = Path("/app/params.txt")
+GRAPH_PATH = Path("/app/graph.pb")
+INPUT_PATH = Path("/app/input.json")
+ALLOWED = [4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
+D_MAX = 1.9227
+EXPECTED_RCUT = 4.0
+
+
+def parse_rcut() -> float:
+    assert PARAMS_PATH.is_file(), "params.txt not found (expected RCUT=<value>)"
+    text = PARAMS_PATH.read_text()
+    match = re.search(r"^\s*RCUT\s*=\s*([\d.]+)\s*$", text, re.MULTILINE)
+    assert match, f"params.txt must contain RCUT=<value>, got:\n{text!r}"
+    return float(match.group(1))
+
+
+def test_out_file_exists():
+    assert OUT_PATH.is_file(), "out.txt not found"
+
+
+def test_graph_exists():
+    assert GRAPH_PATH.is_file(), "graph.pb not found"
+    assert GRAPH_PATH.stat().st_size > 1000, "graph.pb too small"
+
+
+def test_rcut_choice():
+    rcut = parse_rcut()
+    assert rcut in ALLOWED, f"rcut must be one of {ALLOWED}, got {rcut}"
+    assert rcut == EXPECTED_RCUT, (
+        f"Smallest allowed rcut with rcut >= d_max+2.0 ({D_MAX + 2.0:.3f}) is {EXPECTED_RCUT}, got {rcut}"
+    )
+
+
+def test_input_rcut_matches_params():
+    rcut = parse_rcut()
+    assert INPUT_PATH.is_file(), "input.json not found"
+    cfg = json.loads(INPUT_PATH.read_text())
+    got = float(cfg["model"]["descriptor"]["rcut"])
+    assert abs(got - rcut) < 1e-6, "input.json rcut must match params.txt"
+
+
+def test_output_format():
+    content = OUT_PATH.read_text().strip()
+    assert re.match(r"[\d.eE+-]+$", content), f"Output is not a valid number: {content!r}"
+
+
+def test_rmse_reasonable():
+    got = float(OUT_PATH.read_text().strip())
+    assert 0.0 < got < 10.0, f"Energy RMSE {got} out of reasonable range"

@@ -1,0 +1,28 @@
+{
+  "batch": "B5",
+  "title": "dftworld2-runs 清理",
+  "executed_at": "2026-08-22T16:30-16:50+08:00",
+  "archived_small_assets": {
+    "archive": "batch5-small-assets.tar.zst",
+    "sha256": "ac68dcca6025abbcd975f1adcfa7bbabb186d5808eb701d4e0038c62b7f6",
+    "covers": ["034 eval 运行目录×5 + 034-qualification", "032/assets(分析脚本+teacher_model.pb+CIPS lammps 数据)", "031/{trajectories,data,.matclaw,.markers,workflow}", "032/.matclaw", "033/{.matclaw,matclaw-033 嵌套杂项}"],
+    "verification": "PASS（remote-sha256-manifest-b5-small.txt vs local-rehash-b5.txt）"
+  },
+  "deleted_garbage": [
+    "031: 031-paper{,-001,-002,-003,-01}(~3.7G 构造期 oracle/paper 参考 run), 031-smoke*, probe, sttest/test, teacher_model.pb 根副本, models/(628M 未引用中间模型)",
+    "032: bench*×4, runs_gpu(306M), runs_*_pkg, probes*/probe_*(12 目录), diag×27, fetchdir/fetch_test/jobs/inputs/run/stagetest/test/tmp/work, 032-md01/032-test/032-testrun/032-x, 嵌套 matclaw-032, runs/温度扫描 250K..520K",
+    "033: 嵌套 matclaw-033(envprobe/stage 杂项), probe/env 脚本与 slurm 输出",
+    "034-ai2kit-water64-end-to-end-potential/（已归档）"
+  ],
+  "raw_workspace_deletion": {
+    "gate": "verify_evidence --restore always ×3 案例：evidence_complete=True；6 run 全部 valid=True restored=True failure=None",
+    "method_note": "ROOT=脚本路径推导，经 ~/verify-tmp 符号链接案例 payload + 拷贝 scripts 重定位执行；验证后已清理 verify-tmp",
+    "deleted": [
+      "matclaw-031/runs/formal-{2026081201,2026081202}/workspace",
+      "matclaw-032/runs/formal-{2026081206,2026081213}/workspace",
+      "matclaw-033/runs/formal-{2026081301,2026081305}/workspace"
+    ]
+  },
+  "kept_formal_evidence": ["matclaw-03{1,2,3}/evidence/", "matclaw-03{1,2,3}/store/*-primary|-replica", "matclaw-03{1,2,3}/payload", "matclaw-031/runtime/(locked CPU+GPU SIF)", "formal-* 记录文件"],
+  "note": "store/evidence 字节被旧 v2 manifest 引用且 infra 尚无 relocation receipt——按停止条件原地保留"
+}

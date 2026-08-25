@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-19T16:01:10.806782+00:00",
+  "sources": {
+    "si-001": {
+      "kind": "file",
+      "path": "/Users/chenxuanjie/案例测试/dftworld2/GO–water interfaces/go-water si.pdf",
+      "size_bytes": 3686710,
+      "sha256": "8a85b6e4b242607f765aa56ad1bf806547f0ae0c3f8bd8774e20e0d20957ff73",
+      "retrieved_at": "2026-08-19T16:01:10.806782+00:00"
+    },
+    "model-001": {
+      "kind": "file",
+      "path": "/Users/chenxuanjie/案例测试/dftworld2/GO–water interfaces/source_data/input_file/train/model.pkl",
+      "size_bytes": 47511165,
+      "sha256": "dd0caf22fce8acd18a154825773213e09913eb095bf99d47984c9897b031a201",
+      "retrieved_at": "2026-08-19T16:01:10.806782+00:00"
+    },
+    "dataset-001": {
+      "kind": "directory",
+      "path": "/Users/chenxuanjie/案例测试/dftworld2/GO–water interfaces/source_data/train_dataset",
+      "tree_sha256": "f6a72245de8275e3c5dbc166b9c983776736f8d05e58956cc15cc4b4f9917d73",
+      "retrieved_at": "2026-08-19T16:01:10.806782+00:00"
+    },
+    "config-001": {
+      "kind": "directory",
+      "path": "/Users/chenxuanjie/案例测试/dftworld2/GO–water interfaces/source_data/input_file",
+      "tree_sha256": "e9fbe12a0a04f21738e59d34d803717791b11702369618fea5270d7b5ecff20c",
+      "retrieved_at": "2026-08-19T16:01:10.806782+00:00"
+    },
+    "figshare-doi": {
+      "kind": "external_identity",
+      "value": "10.6084/m9.figshare.30472487",
+      "identity_status": "declared",
+      "retrieved_at": "2026-08-19T16:01:10.806782+00:00"
+    },
+    "figshare-version": {
+      "kind": "external_identity",
+      "value": "2",
+      "identity_status": "declared",
+      "retrieved_at": "2026-08-19T16:01:10.806782+00:00"
+    },
+    "paper-doi": {
+      "kind": "external_identity",
+      "value": "10.1021/acs.jpclett.5c03713",
+      "identity_status": "declared",
+      "retrieved_at": "2026-08-19T16:01:10.806782+00:00"
+    },
+    "si-doi": {
+      "kind": "external_identity",
+      "value": "10.1021/acs.jpclett.5c03713.s001",
+      "identity_status": "declared",
+      "retrieved_at": "2026-08-19T16:01:10.806782+00:00"
+    }
+  }
+}

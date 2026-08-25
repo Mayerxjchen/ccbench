@@ -1,0 +1,32 @@
+{
+  "batch": "B2+B3+B4",
+  "executed_at": "2026-08-22T16:05-16:20+08:00",
+  "b2_034_garbage": {
+    "receipt": "manifest/batch2-034-garbage.json",
+    "deleted_summary": [
+      "034/{verifier-staging 33G(tmp/pytest-of-<site-user> 占 32G), envs 13G, work, wheelhouse, preflight, ai2kit-slurmfix.tar, g8-install-smoke-a2..a6, g9-preflight-*, 失败 g9-cp2k-*, cand-smoke-g7-5, lmp-directed-g7-6, probe-lmp*, probe-g7-discovery, diag-cp2k-print, diag-gpu-sif, tools(101M 构建依赖缓存), src(g8 sdists), qualification-ws, qualify, build.log}",
+      "runtime-staging: 两个 docker-archive.tar (4.7G) + smoke-ws + build 脚本日志",
+      "runtime-staging 两个未 qualification 的 034 SIF（用户拍板删除；重建走正式 qualification）",
+      "qualification-assets（内容已迁 archive batch1-gate-assets.tar.zst sha256 275bcce8…）"
+    ],
+    "preserved": ["site-config-034-<site-login-node>.json + site034_transport.py 迁至 ~/site-configs/"],
+    "quota_delta_kb": {"before": 122307268, "mid": 70738364, "after_sifs": 65820224}
+  },
+  "b3_case_sources": {
+    "gates": {
+      "local_git_has_all_42": true,
+      "remote_unique_files": "无（1230 SAME / 15 DIFF=本地已演进旧快照且 c071344 本地可查 / 1 REMOTE-ONLY=本地有意删除且 c071344 可查）",
+      "dockerfile_check_sealed": "batch0-seal/dirty-files/remote-sha256.txt"
+    },
+    "method": "42 目录名显式枚举（names.txt），拒绝通配",
+    "result": "remaining_cases=0",
+    "hash_manifest_kept": "batch0-seal/cases/remote-case-hashes.txt (1246 文件)"
+  },
+  "b4_jobs": {
+    "archive_validation": "jobs-meta.tgz 236 文件；run-record.json×7 全部 JSON 解析通过、0 失败；result.json×21；summary×9",
+    "index": "manifest/jobs-archive-index/index.json（逐文件 sha256）",
+    "deleted": "/public/home/<site-user>/jobs（8,955,770,052 B 逻辑，含 Candidate workspace/skills_src/thread tmp/model ckpt/_archive）",
+    "quota_delta_kb": {"before": 60923500, "after": 53017460}
+  },
+  "running_total": {"start_kb": 126198504, "now_kb": 53017460, "freed_gb": 73.2}
+}

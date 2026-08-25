@@ -1,0 +1,17 @@
+schema_version: 1
+category: mlp
+case_kind: end_to_end_model_development
+execution:
+  class: hpc_controller
+objective: "Hidden static and dynamic validation of an MLP trained end to end"
+candidate_inputs:
+  - structure definitions
+  - DFT reference labels
+workflow_capabilities:
+  - structure_generation
+  - dft_dynamics
+  - model_training
+  - iterative_improvement
+  - hidden_static_accuracy
+  - hidden_dynamic_stability
+readiness: ready

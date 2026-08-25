@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "formal_runs_required": 2,
+  "same_commit_required": true,
+  "same_gpu_image_digest_required": true,
+  "distinct_seed_required": true,
+  "031": {
+    "source_mae_eV_A": 0.098,
+    "max_mae_eV_A": 0.10,
+    "max_source_relative_error": 0.25,
+    "max_cross_run_mae_eV_A": 0.01,
+    "min_active_iterations": 1
+  },
+  "032": {
+    "source_Tc_K": 261.3,
+    "max_source_abs_error_K": 10.0,
+    "max_cross_run_abs_error_K": 10.0,
+    "temperatures_K": [100, 150, 200, 250, 275, 300, 325, 350, 375, 400, 450, 500, 600],
+    "atom_count": 360
+  },
+  "033": {
+    "source_Ez_V_A": -0.16,
+    "max_Ez_abs_error_V_A": 0.02,
+    "source_temperature_K": 50,
+    "max_temperature_abs_error_K": 20,
+    "min_slope_ps_per_site": 0.3,
+    "max_cross_run_Ez_abs_error_V_A": 0.02,
+    "paper_rounds": 7,
+    "paper_jobs": 14,
+    "max_jobs_per_round": 2
+  }
+}

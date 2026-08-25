@@ -1,0 +1,59 @@
+{
+  "molecule": "H2O",
+  "method": "mace_mp / medium-mpa-0",
+  "calculator": {
+    "calculator_type": "mace_mp",
+    "model": "medium-mpa-0",
+    "device": "cpu",
+    "default_dtype": "float64"
+  },
+  "optimizer": {
+    "name": "BFGS",
+    "fmax": 0.01,
+    "steps": 1000
+  },
+  "geometry": "nonlinear",
+  "num_real_modes": 3,
+  "single_point_energy_eV": -13.786080327355158,
+  "vibrational_modes": [
+    {
+      "mode_index": 6,
+      "energy_mev": 207.54494811634504,
+      "energy_mev_str": "207.54494811634504",
+      "frequency_cm1": 1673.9629120054237,
+      "frequency_cm1_str": "1673.9629120054237",
+      "imaginary": false
+    },
+    {
+      "mode_index": 7,
+      "energy_mev": 461.8154197982689,
+      "energy_mev_str": "461.8154197982689",
+      "frequency_cm1": 3724.7925904761423,
+      "frequency_cm1_str": "3724.7925904761423",
+      "imaginary": false
+    },
+    {
+      "mode_index": 8,
+      "energy_mev": 484.1391752707933,
+      "energy_mev_str": "484.1391752707933",
+      "frequency_cm1": 3904.8458225920867,
+      "frequency_cm1_str": "3904.8458225920867",
+      "imaginary": false
+    }
+  ],
+  "pinning": {
+    "image": "dftworld-base-mace",
+    "image_digest": "sha256:c54103db3c6bf58a2427833361910a34715f643fa3f7aa28a081aa5672170c77",
+    "software": {
+      "ase": "3.25.0",
+      "numpy": "2.5.1",
+      "torch": "2.13.0",
+      "mace-torch": "0.3.13"
+    },
+    "input_xyz_sha256": {
+      "H2O.xyz": "e879b4a7b9cf04bc4e85e406a388c8bdb3b4f257f70b7abcbb5727c16f72d2ce"
+    },
+    "raw_artifact_sha256": "d3888ef3282baa6a7004a155779f97c16ad8dfab2f1e727112bd63ee2bf38c1b",
+    "optimized_xyz_sha256": "d637eb59466874b268a078dd4bebcba0917af4c4527cccb80712867ad98858ac"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "benchmark_id": "042-go-water-dpmp",
+  "schema": "042-compute-runtime-lock/v1",
+  "role": "compute_runtime_lock",
+  "note": "Frozen compute-runtime identity for the trusted bench-hpc contract. Filled from reference/runtime-evidence/version-capture.json (in-container version smoke, G1 evidence, 2026-08-20). deepmd-jax pinned to 48a981a (tensor_2nd parity with the paper's train.py); jax pinned to 0.5.3 because deepmd-jax@48a981a calls jax.sharding.PositionalSharding, removed in jax>=0.6.0. GPU variant (jax[cuda]) is the formal upgrade path, decided by Discovery, not pre-hardcoded.",
+  "gpus": 1,
+  "software": {
+    "deepmd_jax": "0.2",
+    "deepmd_jax_git": "48a981a3566e0fe6f43e626be96b9a362885fb0b",
+    "jax": "0.5.3",
+    "jaxlib": "0.5.3",
+    "flax": "0.10.6",
+    "optax": "0.2.8",
+    "jax_md": "0.2.29",
+    "jax_md_git": "a41c7d19f646",
+    "cp2k": "2025.2",
+    "python": "3.11.15",
+    "ai2_kit": "1.1.0"
+  },
+  "runtime_image": {
+    "tag": "dftworld-base-deepmd-jax:latest",
+    "image_id": "sha256:0d243b27fd256b01b4664436af36175da58257ddb7ff5e92a67bf3efa176844f",
+    "platform": "linux/amd64",
+    "note": "dftworld-base-ai2kit:0.1.0-cpu + deepmd-jax@48a981a + jax[cpu]==0.5.3 + jax-md@a41c7d19. CPU variant; GPU upgrade path is a Discovery decision (hpc.scientific_capabilities.optional=[gpu-training, jax-md-gpu])."
+  },
+  "dft": {
+    "method": "CP2K revPBE-D3 / plane-wave cutoff 400 Ry",
+    "basis_set": "GTH_BASIS_SETS",
+    "potential": "GTH_POTENTIALS",
+    "dispersion": "dftd3.dat"
+  },
+  "data_assets": [
+    {"path": "GTH_BASIS_SETS", "role": "CP2K GTH basis set data (revPBE)", "sha256": "76d1ccd5204390abfcadeb5c0d5e609ff3d151c1c1a583a02349af348ef919f7"},
+    {"path": "GTH_POTENTIALS", "role": "CP2K GTH pseudopotential data (revPBE)", "sha256": "5a9bfbc3b37a55917ade4fb704b80546d210d843759b94e3915e74acfc3fafb2"},
+    {"path": "dftd3.dat", "role": "D3 dispersion parameters (revPBE-D3)", "sha256": "1f5041914fb3a7fa6c97602d82da6cb9129c1c1dba675db23522de9c2837dafd"}
+  ]
+}

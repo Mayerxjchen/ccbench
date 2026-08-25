@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/evidence-manifest-v2.schema.json",
+  "title": "Run-level evidence manifest v2",
+  "description": "The durable record of one formal run. Retains all v1 scientific identity fields and adds evaluator/policy digests, per-artifact retention roles, and a content-addressed bundle stored in two independent locations. benchmark_valid requires a restorable, verified bundle — not merely this record.",
+  "type": "object",
+  "required": [
+    "schema_version", "case", "case_version", "run_id", "seed", "profile",
+    "evidence_class", "git_commit", "git_clean",
+    "started_at", "finished_at", "exit_status",
+    "gpu_image", "gpu_image_digest", "cpu_verifier_image", "cpu_verifier_image_digest",
+    "hardware", "software", "command", "workspace_identity",
+    "evaluator_bundle_sha256", "artifact_policy_sha256",
+    "artifacts", "bundle", "verifier_report"
+  ],
+  "properties": {
+    "schema_version": { "const": "2.0" },
+    "case": { "type": "string" },
+    "case_version": { "type": "string" },
+    "run_id": { "type": "string" },
+    "seed": { "type": "integer" },
+    "profile": { "type": "string" },
+    "evidence_class": { "enum": ["formal", "pilot"] },
+    "git_commit": { "type": "string" },
+    "git_clean": { "type": "boolean" },
+    "started_at": { "type": "string" },
+    "finished_at": { "type": "string" },
+    "exit_status": { "type": "integer" },
+    "gpu_image": { "type": "string" },
+    "gpu_image_digest": { "type": "string", "pattern": "^sha256:" },
+    "cpu_verifier_image": { "type": "string" },
+    "cpu_verifier_image_digest": { "type": "string", "pattern": "^sha256:" },
+    "hardware": { "type": "object" },
+    "software": { "type": "object" },
+    "command": { "type": "string" },
+    "workspace_identity": { "type": "string" },
+    "evaluator_bundle_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "artifact_policy_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "role", "size_bytes", "sha256"],
+        "properties": {
+          "path": { "type": "string" },
+          "role": {
+            "enum": ["scoring_required", "reproduction_required", "operational_log", "discardable"]
+          },
+          "size_bytes": { "type": "integer", "minimum": 0 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "required": [
+        "format", "sha256", "size_bytes",
+        "primary_uri", "primary_version",
+        "replica_uri", "replica_version", "verified_at"
+      ],
+      "properties": {
+        "format": { "const": "tar.zst" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "primary_uri": { "type": "string", "pattern": "^cas\\+file://" },
+        "primary_version": { "type": "string" },
+        "replica_uri": { "type": "string", "pattern": "^cas\\+file://" },
+        "replica_version": { "type": "string" },
+        "verified_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "verifier_report": {
+      "type": "object",
+      "required": ["valid"],
+      "properties": {
+        "valid": { "type": "boolean" },
+        "errors": { "type": "array", "items": { "type": "string" } },
+        "metrics": { "type": "object" },
+        "recomputed_estimate": { "type": "object" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

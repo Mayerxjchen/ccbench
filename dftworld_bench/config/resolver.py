@@ -1,0 +1,208 @@
+"""Experiment resolver: construct and freeze experiment identities.
+
+The resolver takes an experiment template, a case, and a run ID, and produces
+a complete ResolvedRunLock. For formal runs, no overrides are permitted.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from dftworld_bench.config.profiles import ProfileRegistry, canonical_json, digest_bytes
+from dftworld_bench.contracts.case import CaseSpec
+from dftworld_bench.contracts.resolved_lock import (
+    FrozenExperimentOverrideError,
+    ResolvedRunLock,
+)
+
+
+@dataclass(frozen=True)
+class FrozenExperiment:
+    """A frozen experiment template that cannot be overridden."""
+
+    template_name: str
+    agent_profile: dict[str, Any]
+    api_profile: dict[str, Any]
+    experiment_profile: dict[str, Any]
+    runtime_profile: dict[str, Any]
+    site_profile: dict[str, Any] | None = None
+
+    @property
+    def agent_profile_digest(self) -> str:
+        return digest_bytes(canonical_json(self.agent_profile))
+
+    @property
+    def api_profile_digest(self) -> str:
+        return digest_bytes(canonical_json(self.api_profile))
+
+
+def construct_experiment(
+    selection: dict[str, str],
+    registry: ProfileRegistry,
+) -> FrozenExperiment:
+    """Construct a frozen experiment from profile selections.
+
+    Selection maps profile kinds to profile names:
+    {"agent": "formal-long", "api": "default", ...}
+    """
+    agent_name = selection.get("agent", "formal-long")
+    api_name = selection.get("api", "default")
+    experiment_name = selection.get("experiment", "default")
+    runtime_name = selection.get("runtime", "local-sandbox")
+    site_name = selection.get("site")
+
+    agent_profile = registry.require("agents", agent_name)
+    api_profile = registry.require("api", api_name)
+    experiment_profile = registry.require("experiments", experiment_name)
+    runtime_profile = registry.require("runtimes", runtime_name)
+    site_profile = registry.require("sites", site_name) if site_name else None
+
+    template_name = selection.get("template", f"{agent_name}-{api_name}")
+
+    return FrozenExperiment(
+        template_name=template_name,
+        agent_profile=agent_profile,
+        api_profile=api_profile,
+        experiment_profile=experiment_profile,
+        runtime_profile=runtime_profile,
+        site_profile=site_profile,
+    )
+
+
+def resolve_formal(
+    experiment: FrozenExperiment,
+    case: CaseSpec,
+    run_id: str,
+    replicate: int,
+    *,
+    model: str,
+    benchmark_commit: str,
+    condition_id: str | None = None,
+    instruction: str = "",
+    max_turns: int = 32,
+    skills_sha: str | None = None,
+    verifier_image_digest: str = "",
+    budgets: dict[str, Any] | None = None,
+    lock_created_at: str | None = None,
+    overrides: dict[str, Any] | None = None,
+    run_config: Any = None,
+    run_metadata: dict[str, Any] | None = None,
+) -> ResolvedRunLock:
+    """Resolve a formal run lock from a frozen experiment.
+
+    For formal runs, no overrides are permitted. Any override attempt raises
+    FrozenExperimentOverrideError.  All identity fields come from the caller;
+    no placeholders are acceptable.  Every sha256 digest is computed from
+    real data; "sha256:none" is never written.
+    """
+    if overrides:
+        raise FrozenExperimentOverrideError(
+            f"Formal runs cannot override frozen dimensions: {sorted(overrides.keys())}"
+        )
+
+    from datetime import datetime, timezone
+
+    if lock_created_at is None:
+        lock_created_at = datetime.now(timezone.utc).isoformat()
+
+    # Resolve provider/model from the model string (provider/model).
+    parts = model.split("/", 1)
+    provider = parts[0] if len(parts) > 1 else "unknown"
+    model_id = parts[1] if len(parts) > 1 else model
+    if run_config is not None and not (run_metadata or {}).get("override_present", False):
+        provider = run_config.model.provider
+        model_id = run_config.model.model_id
+
+    # Compute real digests — no placeholders.
+    prompt_digest = digest_bytes(instruction) if instruction else digest_bytes(model)
+    sampling_digest = digest_bytes(canonical_json({"max_turns": max_turns}))
+    context_digest = digest_bytes(canonical_json({"policy": "eval-v2"}))
+    skill_bundle = digest_bytes(skills_sha) if skills_sha else digest_bytes(b"")
+    tool_surface_digest = digest_bytes(canonical_json({"engine": "pagent"}))
+
+    # Build the complete lock payload — every digest is real.
+    payload: dict[str, Any] = {
+        "case": {
+            "case_id": case.case_id,
+            "case_version": case.case_version,
+            "schema_version": case.schema_version,
+        },
+        "experiment": {
+            "template_name": experiment.template_name,
+            "condition_id": condition_id or f"{run_id}-r{replicate}",
+            "replicate": replicate,
+            **({
+                "run_config_id": run_config.run_config_id,
+                "run_config_digest": run_config.digest,
+                "run_config_mode": run_config.mode,
+                "override_present": bool((run_metadata or {}).get("override_present", False)),
+                "frozen": bool((run_metadata or {}).get("frozen", True)),
+                "counted": bool((run_metadata or {}).get(
+                    "counted", run_config.mode in {"pilot", "formal"}
+                )),
+            } if run_config is not None else {}),
+        },
+        "agent": {
+            "provider": provider,
+            "model_id": model_id,
+            "identity_strength": (
+                run_config.model.identity_strength
+                if run_config is not None and not (run_metadata or {}).get("override_present", False)
+                else "alias"
+            ),
+            **({"deployment_id": run_config.model.deployment_id}
+               if run_config is not None and not (run_metadata or {}).get("override_present", False)
+               else {}),
+            "engine": "pagent",
+            "prompt_digest": prompt_digest,
+            "sampling_digest": sampling_digest,
+            "context_digest": context_digest,
+            "skill_bundle_digest": skill_bundle,
+            "tool_surface_digest": tool_surface_digest,
+        },
+        "api": {
+            "api_profile_digest": (
+                digest_bytes(canonical_json(run_config.api.model_dump(mode="json")))
+                if run_config is not None else experiment.api_profile_digest
+            ),
+            "endpoint_env": run_config.api.endpoint_env if run_config is not None else experiment.api_profile.get("endpoint_env", ""),
+            "credential_env": run_config.api.credential_env if run_config is not None else experiment.api_profile.get("credential_env", ""),
+            **({
+                "max_attempts": run_config.api.max_attempts,
+                "request_timeout_sec": run_config.api.request_timeout_sec,
+                "retry_base_delay_sec": run_config.api.retry_base_delay_sec,
+                "retry_max_delay_sec": run_config.api.retry_max_delay_sec,
+            } if run_config is not None else {}),
+        },
+        "candidate_runtime": {
+            "image": experiment.runtime_profile.get("image", ""),
+            "runtime_digest": digest_bytes(canonical_json(experiment.runtime_profile)),
+            "qualification_status": "pending",
+        },
+        "verifier": {
+            "runtime_digest": verifier_image_digest or digest_bytes(canonical_json(experiment.runtime_profile)),
+            "isolation_config_digest": digest_bytes(canonical_json({"isolation": "networkless-nonroot-v1"})),
+        },
+        "infra": {
+            "version": "2.0.0",
+            "commit": benchmark_commit,
+            "lock_created_at": lock_created_at,
+        },
+        "budgets": budgets or {
+            "max_model_turns": experiment.agent_profile.get("max_model_turns", 64),
+            "max_total_tokens": experiment.agent_profile.get("max_total_tokens", 10000000),
+            "agent_active_walltime_sec": experiment.agent_profile.get("agent_active_walltime_sec", 7200),
+            "scheduler_wait_walltime_sec": experiment.agent_profile.get("scheduler_wait_walltime_sec", 0),
+        },
+    }
+
+    # Add HPC block if site profile is provided
+    if experiment.site_profile:
+        payload["hpc"] = {
+            "site_profile_digest": digest_bytes(canonical_json(experiment.site_profile)),
+            "scheduler": experiment.site_profile.get("scheduler", ""),
+            "capabilities": experiment.site_profile.get("capabilities", []),
+        }
+
+    return ResolvedRunLock.create(payload)

@@ -1,0 +1,32 @@
+schema_version: 1
+category: mlp
+case_kind: end_to_end_model_development
+execution:
+  class: hpc_controller
+objective: Hidden end-to-end potential development on HPC
+identity:
+  case_id: 043-hpc-end-to-end
+  task_name: benchmark/043-hpc-end-to-end
+  title: HPC end-to-end model development
+  description: Develop a full interatomic potential under an HPC controller.
+  case_version: 1.0.0
+runtime:
+  candidate_image: dftworld-base-deepmd
+  build_timeout_sec: 1800
+  agent_timeout_sec: 14400
+  verifier_timeout_sec: 7200
+  cpus: 8
+  memory_mb: 16384
+  storage_mb: 40960
+  gpus: 1
+  allow_internet: false
+submission:
+  root: final
+candidate_files:
+- source: public/**
+  destination: .
+  strip_prefix: public
+hpc:
+  contract_version: hpc-v1
+  required_capabilities:
+  - slurm

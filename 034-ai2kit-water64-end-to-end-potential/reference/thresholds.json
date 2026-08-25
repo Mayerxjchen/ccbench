@@ -1,0 +1,79 @@
+{
+  "benchmark_id": "034-ai2kit-water64-end-to-end-potential",
+  "status": "draft_awaiting_reference_reruns",
+  "draft": true,
+  "design_note": "不要现在拍板 (do NOT freeze these now). These are DRAFT scientific thresholds. The reference calibration anchors on a REAL-HPC dual reference (hpc-ref-01 and hpc-ref-02 via scripts/ablation/hpc/g9_reference_submit.sh + g9_reference_fetch.sh): the same AIMD500 candidate profile (paper, AIMD_STEPS=500, TRAIN_STEPS=15000, MODEL_NUM=2, AL_ROUNDS=2, MD_TEMP='330 430', CP2K_NP=4) with IDENTICAL fixed resources, differing only in the declared root seed (a deterministic two-realization anchor, Task 5). Until that dual reference completes and the expert final model is scored on the real hidden validation set, the verifier may read these bounds but any pass/fail decision is provisional. The reference path never writes this file.",
+  "freeze_note": "Freeze ONLY after: (1) BOTH hpc-ref-01 and hpc-ref-02 complete COMPLETED on the real cluster with the model-compatibility smoke (validation/dp-test/dp-test.done) present in each workspace; (2) the expert final model is scored on the hidden set (tests/hidden/, derived from the expert AIMD mother set — no HPC needed for the hidden set itself); (3) the anchor step writes new bounds from the dual-reference evidence. Until then all bounds below are placeholders centered on the expert's own dp-test / NVT / RDF numbers from /public/home/<site-user>/ai2kit.",
+  "reward": "1.0 iff L0-L9 all pass. L0 verifies autonomous structure provenance; L1-L6 are structural/authenticity gates; L7-L9 are scientific gates whose bounds are read from this file. Benchmark reference calibration explicitly bypasses only L0.",
+  "levels": {
+    "L0": {
+      "description": "autonomous structure generation: the submission records the generator, command, seed, checks and SHA-linked CP2K handoff for an independently generated periodic 64-H2O structure; hidden/reference coordinate identities are denied",
+      "expected_composition": {"O": 64, "H": 128},
+      "cell_angstrom": [12.4, 12.4, 12.4],
+      "cell_tolerance_angstrom": 0.05,
+      "min_intermolecular_distance_angstrom": 1.2,
+      "OH_bond_range_angstrom": [0.75, 1.25],
+      "HOH_angle_range_degree": [85.0, 125.0],
+      "denied_initial_sha256": ["b1d5ed709d0128ea83662f9387033bdf478078c0338b51ff58dcc863b24ad0e3"],
+      "denied_initial_coords_sha256": ["85ed03dea6f283614b2ddaea806be326250cb94e6fbf302f4b15e7854c0d6425"]
+    },
+    "L1": {
+      "description": "initial-system identity: the structure actually used for reference generation is 64 H2O / 192 atoms / [O,H] and a periodic cell consistent with system.json (12.4 A). Prevents system swapping.",
+      "natoms": 192,
+      "expected_composition": {"O": 64, "H": 128},
+      "cell_tolerance_angstrom": 0.5
+    },
+    "L2": {
+      "description": "structure preparation/relaxation: the AIMD reference trajectory starts from a physically sane structure (no hard close contacts, SCF converges, trajectory stable). Running GEO_OPT first is the expert path and is recorded as a diagnostic (used_geometry_optimization).",
+      "min_pair_distance_angstrom": 1.2,
+      "diagnostic_key": "used_geometry_optimization"
+    },
+    "L3": {
+      "description": "reference-data authenticity: real CP2K outputs (pos/frc/cell/ener) exist with consistent frame counts, energies finite/physical, forces finite/nonzero, distinct frames, and every labeled training frame traces to a real CP2K AIMD output (no fabricated extxyz).",
+      "min_frames": 1,
+      "energy_per_atom_bounds_eV": [-300, 0],
+      "max_force_eV_A": 1000
+    },
+    "L4": {
+      "description": "reference sampling quality: enough frames, sampled across a physical temperature distribution (not a single static geometry), structurally diverse, no duplicated/pathological frames.",
+      "min_training_frames": 10,
+      "min_temp_std_K": 3.0,
+      "temperature_band_K": [200, 500]
+    },
+    "L5": {
+      "description": "DeePMD model authenticity: a real DeePMD model that loads and infers, type_map [O,H], and multiple submitted models are not byte-identical copies.",
+      "type_map": ["O", "H"],
+      "min_models": 1
+    },
+    "L6": {
+      "description": "genuine iterative improvement loop: at least ONE closed loop of model-driven new-config acquisition -> first-principles labeling -> dataset growth -> retraining. Method (ai2-kit CLL, LAMMPS explore + model-deviation screen + CP2K label + DP train, or any other sound implementation) is open; the closed loop is not.",
+      "min_rounds": 1,
+      "diagnostic_key": "active_learning_rounds"
+    },
+    "L7": {
+      "description": "hidden E/F: deepmd inference on dft-validation.extxyz (190 expert AIMD frames) vs hidden reference",
+      "energy_rmse_eV_per_atom_max": 0.01,
+      "force_rmse_eV_A_max": 0.06,
+      "draft_basis": "expert self-reported force RMSE 4.288e-2 eV/A on the 140-frame held-out; the hidden set is the full 190-frame mother set (off the agent's training distribution), so the draft cap is ~1.5x the expert value. Energy RMSE is computed after mean-offset alignment (DeepMD e_shift is training-mean-relative). Re-check against real hidden-set scoring."
+    },
+    "L8": {
+      "description": "hidden 300 K NVT run by the verifier (LAMMPS + deepmd pair style) with the primary model",
+      "no_nan": true,
+      "no_lost_atoms": true,
+      "mean_temp_band_K": [250, 350],
+      "nominal_temp_K": 300,
+      "min_steps": 100,
+      "draft_basis": "verifier runs its own short NVT; tolerances are generous so the check tests physical stability, not thermostat calibration. 250-350 K band matches the AIMD production-stage temperature range observed by the expert (251.6-362.5 K, mean 299.8 K)."
+    },
+    "L9": {
+      "description": "hidden RDF: O-O / O-H / H-H first-peak positions from the verifier's NVT trajectory aligned with the hidden-DFT RDF (rdf-reference.json); no nonphysical short-range peaks",
+      "OO_first_peak_angstrom": [2.6, 3.0],
+      "OH_first_peak_angstrom": [0.90, 1.05],
+      "HH_first_peak_angstrom": [1.45, 1.70],
+      "max_peak_shift_angstrom": 0.15,
+      "no_nonphysical_short_range": true,
+      "rdf_reference_angstrom": {"OO": 2.81, "OH": 0.99, "HH": 1.57},
+      "draft_basis": "hidden RDF reference computed from the 190-frame expert AIMD (OO 2.81 / OH 0.99 / HH 1.57 A, matching the expert-reported AIMD peaks 2.80/0.98/1.58). Windows are centered on these; max_peak_shift is the allowed model-vs-reference deviation."
+    }
+  }
+}

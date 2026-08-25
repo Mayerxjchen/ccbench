@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/platform-profile.schema.json",
+  "title": "Platform profile",
+  "description": "What one site advertises to a benchmark client: its queues and the resource ceiling of each. The client asks for resources; the gateway maps them onto a queue within this profile.",
+  "type": "object",
+  "required": ["name", "default_queue", "queues"],
+  "additionalProperties": false,
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "default_queue": { "type": "string", "minLength": 1 },
+    "queues": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "resource-profile.schema.json" }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+=== C1 scientific stack ===
+--- cp2k version line ---
+SIRIUS 7.7.0, git hash: https://api.github.com/repos/electronic-structure/SIRIUS/git/ref/tags/v7.7.0
+ CP2K version 2025.2
+[C] ok: c1 stack
+=== C2 cp2k ENERGY/FORCE ===
+[C] ok: c2 cp2k ENERGY_FORCE converged (see c2/energy-force.txt)
+=== C4 lammps+deepmd MD ===
+[C] ok: c4 lammps+deepmd MD ran (frames=4)
+=== C5 pseudo-slurm E2E ===
+job=2
+[C] ok: c5 pseudo-slurm E2E -> COMPLETED (job 2)
+
+=== C_GATES_ALL_PASS ===
+evidence: /tmp/c-smoke/smoke.log

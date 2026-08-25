@@ -1,0 +1,4 @@
+{
+  "smoke": {"formal_result": false, "supercell": [2, 2, 1], "max_iterations": 1, "teacher_temperatures_K": [100, 300, 500, 800], "teacher_md_steps": 20, "initial_frames_per_temperature": 1, "heldout_temperature_K": 400, "heldout_md_steps": 20, "exploration_md_steps": 20, "training_steps": 10, "selection_cap": 8, "seed": 20260401},
+  "paper": {"formal_result": true, "supercell": [3, 3, 1], "max_iterations": 5, "teacher_temperatures_K": [100, 300, 500, 800], "teacher_md_steps": 10000, "initial_frames_per_temperature": 200, "heldout_temperature_K": 400, "heldout_md_steps": 5000, "heldout_trajectory_interval": 50, "exploration_md_steps": 5000, "training_steps_by_iteration": [2000, 2000, 3000], "committee_seeds": [42, 123], "student_training": {"descriptor_neuron": [25, 50, 100], "axis_neuron": 16, "fitting_net": [128, 128, 128], "model_seeds": [1, 1]}, "protocol_seed": 2026081208, "selection_cap": 200, "seed": 20260401}
+}

@@ -1,0 +1,23 @@
+{
+  "adapter_version": "0.1.0",
+  "case_id": "043-hpc-end-to-end",
+  "design_sha256": "sha256:4f4f772d2f187f7d81fc08a74e4eb1bc0057032b665f1a411eab401a7357e2a1",
+  "execution": "hpc_controller",
+  "factory_gates": {
+    "candidate_smoke_valid": false,
+    "design_valid": true,
+    "diagnosis_complete": false,
+    "discovery_complete": false,
+    "runtime_contract_valid": false,
+    "runtime_valid": false,
+    "target_adapter_valid": true,
+    "verifier_command_valid": false
+  },
+  "generated_files": {
+    ".dockerignore": "sha256:8abf2476fc972b1eace09af16b196492e5a08cfde38d2fdcb1ce77fa3cf61742",
+    "Dockerfile": "sha256:bd521e0f2ba66381752a07d66054825bad6997e2af49973fc5d20e1a67442615",
+    "task.toml": "sha256:e441e6410f56f09ca7d0e40c9963f7f6e121e9866bcc85729c414f1e9a83256f"
+  },
+  "schema_version": "target-lock/v1",
+  "target": "dftworld"
+}

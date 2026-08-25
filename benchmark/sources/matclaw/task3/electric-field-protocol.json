@@ -1,0 +1,72 @@
+{
+  "calculator_composition": "SumCalculator([DeePMD, UniformElectricForce])",
+  "charges_e": {
+    "Cu": 0.765,
+    "In": -0.085,
+    "P": -0.085,
+    "S": -0.085
+  },
+  "equivalent_field_unit": "V/angstrom",
+  "evidence": [
+    {
+      "field": "content",
+      "jsonl_line": 1,
+      "matched_text": [
+        "SumCalculator([DeePMD, UniformElectricForce])",
+        "F_DP(i) + q_i * E",
+        "-sum(q_i * r_i . E)",
+        "eV/A/e"
+      ],
+      "role": "system",
+      "step": 0
+    },
+    {
+      "field": "content",
+      "jsonl_line": 2,
+      "matched_text": [
+        "Cu = +0.765, In = P = S = -0.085",
+        "/pscratch/sd/c/cz2014/cips_distill/frozen_model.pb"
+      ],
+      "role": "user",
+      "step": 1
+    },
+    {
+      "field": "content",
+      "jsonl_line": 10,
+      "matched_text": [
+        "charges = {\"Cu\": 0.765, \"In\": -0.085, \"P\": -0.085, \"S\": -0.085}",
+        "job1 = efield_md("
+      ],
+      "role": "tool-call",
+      "step": 4
+    },
+    {
+      "field": "content",
+      "jsonl_line": 11,
+      "matched_text": [
+        "73cee551-d516-4182-8de1-a52c052e0e1f",
+        "31332573-8d8a-46d5-80d3-19cdb4f10d66"
+      ],
+      "role": "tool-response",
+      "step": 4
+    }
+  ],
+  "external_energy": "-sum_i(q_i * r_i . E)",
+  "field_unit": "eV/angstrom/e",
+  "history_path": "repository/release/workspace_demo3_search/history.jsonl",
+  "history_sha256": "2683744a1247db6fe493df750c72e76ce8ed26385ee3981ead10e23fa9629ee5",
+  "implementation": {
+    "path": "repository/release/remote_jobs/_efield_calculator.py",
+    "sha256": "daea6ead8e0f0c3868066de0103f99cec2d4bcbe21ef8da5f205d29841919a4c",
+    "source_commit": "52557c077f5e3be8444a3f03ea10a647fbd442ca",
+    "verified_text": [
+      "self.results[\"forces\"] = charges[:, None] * self.field[None, :]",
+      "-np.sum(charges * (atoms.positions @ self.field))",
+      "return SumCalculator([dp, ext])"
+    ]
+  },
+  "provenance": "upstream_repository",
+  "schema_version": 1,
+  "teacher_model_locator": "/pscratch/sd/c/cz2014/cips_distill/frozen_model.pb",
+  "total_force": "F_total(i) = F_DP(i) + q_i * E"
+}

@@ -1,0 +1,16 @@
+{
+  "project": "source paper (DOI 10.1038/s42004-025-01776-9)",
+  "paper_doi": "10.1038/s42004-025-01776-9",
+  "paper_experiment": "name2file",
+  "instance_kind": "derived/hybrid adaptation (NOT a verbatim dataset instance)",
+  "original_instance_id": "5 (molecule/method) + paper_text (artifact semantics)",
+  "source_type": "hybrid (dataset_instance for molecule+method; paper_text for 'save optimized geometry as XYZ')",
+  "original_query_source": "bundled ground_truth.json id=5 (optimization_from_name, sulfur dioxide, mace_mp / medium-mpa-0): 'Run geometry optimization for sulfur dioxide and report its energy using the mace_mp calculator with the medium-mpa-0 model.'",
+  "original_reference_source": "ground_truth.json id=5 answer.result.single_point_energy = -16.815808019358535 eV (optimized energy, unit eV); structured_output.scalar_answer = -16.815808019358535 (property 'optimized energy'). Artifact semantics 'save optimized geometry as XYZ' from source paper main-text name2file flow (mace_mp geometry optimization + save to XYZ).",
+  "source_dataset_version": "ground_truth.json @ a42dd58dba (40 instances)",
+  "source_sha256": "a8e76ec8c427ec9a18de758f0492e3fdd2f01a7ea4b335249c40e8a01c47d742",
+  "method": "MACE-MP-0 (mace_mp / medium-mpa-0)",
+  "temperature_K": null,
+  "generator_image": "dftworld-base-mace",
+  "note": "G1: DERIVED/HYBRID ADAPTATION — explicitly NOT a verbatim instance recoverable from the bundled dataset. The bundled ground_truth.json has no name2file (save-artifact) instance; the closest molecule/method match is dataset id=5 (optimization_from_name, SO2, mace_mp medium-mpa-0), so molecule/method/optimized-energy are taken from id=5 and the 'save optimized geometry as XYZ' artifact semantics are taken from the paper main-text name2file flow. Per acceptance review, this case is labeled as a derived adaptation, not claimed as an original name2file instance. The fidelity contract is therefore: (1) optimized energy must equal the pinned-image MACE result for the id=5 molecule/method, (2) the delivered /app/optimized.xyz must be the converged geometry (real force check). Regenerated reference (pinned image) must agree with original energy to <0.1 eV; presence + parseability + composition of /app/optimized.xyz is the hard artifact gate."
+}

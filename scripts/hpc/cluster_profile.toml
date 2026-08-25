@@ -1,0 +1,28 @@
+# cluster_profile.toml - site-specific HPC configuration template.
+#
+# Copy this file OUTSIDE the repository (it is operator-private), fill in
+# every value for YOUR cluster, and pass its path via --profile.  All keys
+# are REQUIRED; a missing or wrong-typed key fails fast.
+# The SIF path and SHA live in the runtime lock (F3), not here.
+
+[ssh]
+host = "<site-alias>"          # ssh-config alias of your login node
+user = ""                      # empty = take it from ~/.ssh/config
+port = 22
+
+[ssh.options]
+# Per-invocation -o options (host ssh config is mounted read-only).
+
+[paths]
+remote_root = "/public/home/<site-user>/dftworld2-runs/matclaw-031"
+apptainer = "/path/to/apptainer"
+
+[slurm]
+partition = "gpu"              # gpu-class queue name at your site
+cpu_partition = "cpu"          # native cpu queue (empty = ACL-era routing)
+gres = "gpu:1"
+cpus_per_task = "8"
+nodes = "1"
+
+[runtime]
+expected_node_arch = "x86_64"

@@ -1,0 +1,7 @@
+schema_version: 1
+category: dummy
+case_kind: dummy_kind
+execution:
+  class: local_sandbox
+objective: "Dummy category extensibility proof"
+readiness: ready

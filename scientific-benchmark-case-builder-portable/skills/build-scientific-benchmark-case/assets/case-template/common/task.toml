@@ -1,0 +1,6 @@
+schema_version = 1
+task_id = "draft"
+title = "draft task"
+
+[submission]
+# define the public submission contract here

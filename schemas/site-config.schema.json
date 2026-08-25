@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/site-config.schema.json",
+  "title": "Site config",
+  "description": "Concrete site wiring for one HPC site. The run token is how a bench-hpc client authenticates to the gateway; it must never appear in benchmark output or run records.",
+  "type": "object",
+  "required": ["site", "gateway_url", "run_token", "ssh_alias", "scratch", "platform_profile"],
+  "additionalProperties": false,
+  "properties": {
+    "site": { "type": "string", "minLength": 1 },
+    "gateway_url": { "type": "string", "format": "uri" },
+    "run_token": { "type": "string", "minLength": 16 },
+    "ssh_alias": { "type": "string", "minLength": 1 },
+    "scratch": { "type": "string", "minLength": 1 },
+    "account": { "type": "string", "minLength": 1 },
+    "platform_profile": { "$ref": "platform-profile.schema.json" }
+  }
+}

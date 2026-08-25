@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "case_id": "031",
+  "state": "benchmark_valid",
+  "finalization_allowed": true,
+  "scoring_required": [
+    { "path": "result.json", "role": "scoring_required" },
+    { "path": "checkpoint.json", "role": "scoring_required" },
+    { "path": "active_learning/history.json", "role": "scoring_required" },
+    { "path": "teacher_model.pb", "role": "scoring_required" },
+    { "kind": "glob", "path": "data/heldout/**", "role": "scoring_required" },
+    { "kind": "glob", "path": "data/iteration_*/**", "role": "scoring_required" },
+    { "kind": "ref", "path": "history[].models[].path", "role": "scoring_required" },
+    { "kind": "ref", "path": "history[].exploration_trajectories[].path", "role": "scoring_required" },
+    { "kind": "ref", "source": "checkpoint.json", "path": "artifact_hashes.keys()", "role": "scoring_required" }
+  ],
+  "reproduction_required": [
+    { "path": "run_profiles.json", "role": "reproduction_required" }
+  ]
+}

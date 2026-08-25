@@ -1,0 +1,23 @@
+{
+  "schema": "dispatcher-cp2k-runtime-lock/v1",
+  "image_name": "dftworld-cp2k",
+  "note": "Frozen CP2K runtime identity for the D11 cp2k ENERGY gate. Built 2026-08-24 from the locally smoke-validated ai2kit CPU image via docker-save -> rsync -> apptainer build on a cpu-partition compute node. Acceptance battery all-pass: sha repeatable, inspect OK on login+compute, version 2025.2 / revision c3a8adfec5 inside container, DATA_DIR 57 files manifest-hashed, in-container H2O ENERGY converged with energy -17.153015203464228 Eh (matches local docker smoke -17.153015203464243 to 15 decimals).",
+  "source": {
+    "docker_image_id": "sha256:8a840aa2e477fcea05f60edb8cceb17e73fbb2bd568dd9abfff312e919034840",
+    "tag": "dftworld-base-ai2kit:0.1.0-cpu",
+    "platform": "linux/amd64",
+    "docker_archive_sha256": "7ef343811b9c85267f23fbb3a0d15004e2a10a1c57f200b22c013907d680502c",
+    "build": "apptainer build from docker-archive on cpu-partition node; intermediate archive deleted after acceptance"
+  },
+  "runtime": {
+    "sif_path_remote": "/public/home/<site-user>/dftworld2-runs/matclaw-031/runtime/cp2k-2025.2-cpu-amd64.sif",
+    "sif_sha256": "05f708b1b03d949af095a770c00ca7930fea293b161a2383d71ea99e5cfef5dd"
+  },
+  "cp2k": {
+    "binary": "/opt/cp2k/bin/cp2k.psmp",
+    "version": "2025.2",
+    "source_revision": "c3a8adfec5",
+    "data_dir": "/opt/cp2k/share/cp2k/data",
+    "data_manifest_sha256": "cd74c8c3768fa02a3488a6a995624f8b2e531748c018cfdc4ff23fa6c744b417"
+  }
+}

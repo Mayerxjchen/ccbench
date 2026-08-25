@@ -1,0 +1,91 @@
+{
+  "benchmark_id": "029-name2gibbs-co2",
+  "acceptance_standard": "benchmark/sources/chemgraph/acceptance_standard.md v1.1",
+  "source": {
+    "paper_verified": true,
+    "instance_verified": true,
+    "prompt_verified": true,
+    "original_reference_verified": true
+  },
+  "source_detail": {
+    "source_type": "dataset_instance",
+    "original_instance_id": 7,
+    "original_query": "Report the thermochemical properties (Gibbs free energy) of carbon dioxide at 800 K using GFN2-xTB.",
+    "original_h_eV": -279.8479687871829,
+    "original_s_eV_per_K": 0.00267553279139694,
+    "original_g_eV": -281.98839502030046,
+    "regenerated_h_eV": -279.847979091694,
+    "regenerated_s_eV_per_K": 0.0026755155798422942,
+    "regenerated_g_eV": -281.98839155556783,
+    "original_vs_regenerated_abs_diff_eV": 1.03e-05,
+    "source_dataset_sha256": "a8e76ec8c427ec9a18de758f0492e3fdd2f01a7ea4b335249c40e8a01c47d742"
+  },
+  "isolation": {
+    "public_only": true,
+    "hidden_assets_inaccessible": true
+  },
+  "reference": {
+    "regenerated": true,
+    "original_consistent": true,
+    "reproducible": true
+  },
+  "reference_detail": {
+    "image": "dftworld-base-xtb",
+    "software": {
+      "ase": "3.25.0",
+      "tblite": "0.4.0",
+      "rdkit": "2024.03.5",
+      "pymatgen": "2026.5.4"
+    },
+    "reproducibility_run1_g_eV": -281.98839155556766,
+    "reproducibility_run2_g_eV": -281.98839155556783,
+    "max_deviation_eV": 1.7e-13,
+    "evaluator_tolerance_eV": 0.05,
+    "tolerance_basis": "measured reproducibility ~1.7e-13 eV + scientific numerical tolerance (original-vs-regenerated diff ~1e-5 eV)"
+  },
+  "oracle": {
+    "passes": true
+  },
+  "evaluator": {
+    "oracle_passes": true,
+    "negative_fixtures_fail": true,
+    "alternative_solution_passes": true
+  },
+  "evaluator_detail": {
+    "n_layers": 6,
+    "layers": [
+      "L1 Artifact",
+      "L2 Execution",
+      "L3 Identity",
+      "L4 Consistency",
+      "L5 Scientific",
+      "L6 Reference"
+    ],
+    "negative_fixtures": [
+      "F1 wrong_molecule(H2O) -> L3 FAIL",
+      "F2 wrong_temperature(298) -> L3 FAIL",
+      "F3 missing_entropy -> L1 FAIL",
+      "F4 electronic_only(S=0) -> L5 FAIL",
+      "F5 g_off(0.5 eV) -> L4+L5+L6 FAIL",
+      "F6 forged_gibbs -> L4+L5 FAIL"
+    ],
+    "alternative_solution": "LBFGS optimizer + independent temp dir; G=-281.988392 eV -> PASS"
+  },
+  "benchmark_valid": true,
+  "agent_smoke_tested": false,
+  "ablation_tested": false,
+  "last_regression": {
+    "date": "2026-08-09",
+    "oracle_pytest_pass": true,
+    "oracle_pytest_count": 11,
+    "hardcoded_answer_fixture_fails": true,
+    "hardcoded_answer_fail_count": 3,
+    "forged_method_fixture": "not-gfn2 / not-xtb -> L3 FAIL (1 failed, 10 passed)",
+    "verifier_reward_oracle": 1,
+    "verifier_reward_cheat": 0,
+    "container_images": [
+      "dftworld-base-mace",
+      "dftworld-base-xtb"
+    ]
+  }
+}

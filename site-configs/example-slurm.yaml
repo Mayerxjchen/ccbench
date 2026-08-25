@@ -1,0 +1,28 @@
+# Example site config for a real Slurm site attached to the trusted bench-hpc
+# gateway.  Validate against schemas/site-config.schema.json before use.
+#
+# Trust model: the run_token authenticates the bench-hpc client to the gateway
+# and is run-scoped (one token per run).  It must never appear in benchmark
+# output or run records.  The gateway runs on the site host and owns all
+# SSH/scheduler credentials; nothing ssh-shaped is ever mounted into an agent
+# container.
+site: example-hpc
+gateway_url: https://gw.example-hpc.internal:8443
+run_token: 0123456789abcdef0123456789abcdef   # minLength 16, per-run
+ssh_alias: example-hpc                          # gateway-side ssh host alias
+scratch: /data/bench                            # shared filesystem workspace root
+account: mlip-bench                             # slurm --account (optional)
+platform_profile:
+  name: example-hpc
+  default_queue: gpu
+  queues:
+    - name: gpu
+      max_cpus: 32
+      max_memory_gb: 128
+      max_gpus: 1
+      max_walltime_minutes: 1440
+    - name: cpu
+      max_cpus: 64
+      max_memory_gb: 256
+      max_gpus: 0
+      max_walltime_minutes: 2880

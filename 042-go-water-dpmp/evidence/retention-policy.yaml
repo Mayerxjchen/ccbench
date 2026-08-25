@@ -1,0 +1,23 @@
+# Case 042 evidence retention policy.
+#
+# What counts as release evidence and how long it is kept. Only real-run,
+# independently re-checkable artifacts bound by sha256 into evidence/manifest.json
+# close a gate. 'Code written' / 'should run' / 'ran elsewhere' are NOT evidence.
+schema_version: 1
+benchmark_id: 042-go-water-dpmp
+retention:
+  source_lock: keep            # sources.lock.json + hashes
+  spec_artifacts: keep         # extract-spec 4 artifacts
+  design_artifacts: keep       # case-design.yaml, task.toml
+  hidden_validation: keep      # hidden-frames + density-reference + manifest
+  runtime_evidence: keep       # container smoke logs, image version capture
+  reference_runs: keep         # bounded reference workspaces (sealed)
+  calibration_runs: keep       # n_runs>=2 threshold anchor workspaces
+  stale_scratch: discard       # tmp dirs, __pycache__, dev scratch
+classification:
+  - kind: real_run
+    rule: "bound to a sealed run record + sha256 in evidence/manifest.json"
+  - kind: derived
+    rule: "deterministically regenerable from a real_run (e.g. hidden hold-out)"
+  - kind: assertion
+    rule: "NOT acceptable alone (e.g. 'looks fine', 'JSON says PASS')"

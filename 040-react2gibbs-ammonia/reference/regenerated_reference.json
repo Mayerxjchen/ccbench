@@ -1,0 +1,54 @@
+{
+  "reaction": "N2 + 3 H2 -> 2 NH3",
+  "temperature": 400.0,
+  "pressure_pa": 101325.0,
+  "method": "GFN2-xTB",
+  "species": {
+    "N2": {
+      "energy_ev": -156.8446718519896,
+      "enthalpy_ev": -156.5728129544975,
+      "entropy_ev_per_k": 0.0020731467576820075,
+      "gibbs_free_energy_ev": -157.4020716575703,
+      "geometry": "linear",
+      "symmetry_number": 2
+    },
+    "H2": {
+      "energy_ev": -26.74025283525227,
+      "enthalpy_ev": -26.386794318073843,
+      "entropy_ev_per_k": 0.0014463828205932806,
+      "gibbs_free_energy_ev": -26.965347446311156,
+      "geometry": "linear",
+      "symmetry_number": 2
+    },
+    "NH3": {
+      "energy_ev": -120.44423469995525,
+      "enthalpy_ev": -119.38978735821577,
+      "entropy_ev_per_k": 0.0021012992055820727,
+      "gibbs_free_energy_ev": -120.2303070404486,
+      "geometry": "nonlinear",
+      "symmetry_number": 3
+    }
+  },
+  "reaction_gibbs_energy_ev": -2.1625000843934146,
+  "pinning": {
+    "image": "dftworld-base-xtb",
+    "image_digest": "sha256:4e1b395ae86f20738d78ccc446146b43dd89d4e0771091998b07859f0a86eb1d",
+    "software": {
+      "ase": "3.25.0",
+      "numpy": "2.5.1",
+      "tblite": "0.4.0",
+      "pymatgen": "2026.5.4"
+    },
+    "input_xyz_sha256": {
+      "H2.xyz": "9efc16fdb4be86bef34b36d58f287dc6babce39be347099a40eadfa76047c0f7",
+      "N2.xyz": "65d3743de2283b58ed8f9158ec301be7f4cb71dd59d9b6ff6e48b6411c50cef6",
+      "NH3.xyz": "bb2a29dbdcc77361acab085c1166935d4c73db3e0cf31ab1cd3587e9fcac40a6"
+    },
+    "raw_artifact_sha256": "7416614cfbc2b9249cd532aa1cb3b5f4fe2d36dfec3144023a3967d6aa1fca6a",
+    "optimized_xyz_sha256": {
+      "N2": "5f6458e9546db057463bd9944581825007b5f23247e6062129318fa4188fcccc",
+      "H2": "c906eb7623436a47fb3df99e6c1f7b5823338898243a5e447b42f5b91c1e61a2",
+      "NH3": "4c30c724e411683e21417dbcea838221d11a406db9128eab8fe6a9ed33ff2c18"
+    }
+  }
+}

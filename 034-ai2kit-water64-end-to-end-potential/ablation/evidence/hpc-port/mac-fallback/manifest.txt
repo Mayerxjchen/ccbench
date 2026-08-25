@@ -1,0 +1,46 @@
+034 Mac fallback checkpoint manifest
+Captured: 2026-08-11T13:20:50+08:00
+Source workspace: /tmp/034-ref-01
+Evidence copy: checkpoint/
+Profile: paper
+AIMD steps: 500
+Training steps: 15000
+Models: 2
+AL rounds: 2
+MD temperatures: 330 430 K
+CP2K MPI ranks: 4
+State at capture: GEO_OPT step 113 running; step 112 not converged
+
+SHA-256:
+311fdd0e23c77cb45c57bf22b201e334ba1e104e01f20df9f2a673c493364f0b  checkpoint/geopt/geopt.slurm
+040acea1ea3d791bb5ad3083e27c90a8a38c8cbcd73c04ef87b86fde6bab4a61  checkpoint/geopt/input/coord_n_cell.inc
+08813f80cdfde49139a8530d898016802e3fd2e002c1bb4ed8022966971d158d  checkpoint/geopt/input/geopt.inp
+08813f80cdfde49139a8530d898016802e3fd2e002c1bb4ed8022966971d158d  checkpoint/geopt/output/geopt.inp
+ec800a66cbf7f65ac64cb60dd24d0687452b21fe8f1b6d72e94bc9316ed37fcf  checkpoint/geopt/output/output
+738da8f23cebcbb820f6492dca45170ac02c0dbbfaf9a0bf2031a158bfdf9a1f  checkpoint/geopt/output/water64_geopt-1.restart
+c416cd4979c19ea5c6a136833294a66769024eb761e0560018167390b6236057  checkpoint/geopt/output/water64_geopt-1.restart.bak-1
+e1d0fcd4d565d85d65108df2bb791a3cbec45950da3a3769ccd334d8bc7405a9  checkpoint/geopt/output/water64_geopt-BFGS.Hessian
+02896648419e13b55e369a09fac6b94fe6d76c4cea3aac6064e0500cadfffabf  checkpoint/geopt/output/water64_geopt-pos-1.xyz
+387b11616d2a96f21306c68b68cbb0bf942e57c68d5d60bd03dfa7904dc2bdc8  checkpoint/geopt/slurm.out
+414970830216c4c0a2d75f8002e6ff9fb31017a899a26dc97485c1680f98fb14  checkpoint/logs/container.out
+0a7cea757aaac5c073a67d0fb1c24602d9219ba802d1819767d96f0ad870f723  checkpoint/logs/launch.sh
+
+Stop verification:
+- `docker ps -a --filter name=^/034-ref-run-01$` returned no container.
+- No `cp2k.psmp -i geopt.inp` process remained.
+- `/tmp/034-ref-01` remained present and readable.
+- The container used AutoRemove, so removal after stop was expected.
+
+Post-stop snapshot SHA-256:
+311fdd0e23c77cb45c57bf22b201e334ba1e104e01f20df9f2a673c493364f0b  checkpoint-post-stop/geopt/geopt.slurm
+040acea1ea3d791bb5ad3083e27c90a8a38c8cbcd73c04ef87b86fde6bab4a61  checkpoint-post-stop/geopt/input/coord_n_cell.inc
+08813f80cdfde49139a8530d898016802e3fd2e002c1bb4ed8022966971d158d  checkpoint-post-stop/geopt/input/geopt.inp
+08813f80cdfde49139a8530d898016802e3fd2e002c1bb4ed8022966971d158d  checkpoint-post-stop/geopt/output/geopt.inp
+e62180fa8c0f90058c521e4aae4b3973bea271aa364b6afe6393f68a1c894ed3  checkpoint-post-stop/geopt/output/output
+1e728f7e665b030989ac6490b8b2e2835d522aaaa653a2f2f7db8e64330d5c7e  checkpoint-post-stop/geopt/output/water64_geopt-1.restart
+738da8f23cebcbb820f6492dca45170ac02c0dbbfaf9a0bf2031a158bfdf9a1f  checkpoint-post-stop/geopt/output/water64_geopt-1.restart.bak-1
+b81efb78def3089fba78f30f8d1806b6b6c404c5acc25d04861ebe99aa1a08b6  checkpoint-post-stop/geopt/output/water64_geopt-BFGS.Hessian
+2f1fb72c78a892b53dd50d4754b79b4c2e301372a3ee0729dfdb7d97a52c5b57  checkpoint-post-stop/geopt/output/water64_geopt-pos-1.xyz
+387b11616d2a96f21306c68b68cbb0bf942e57c68d5d60bd03dfa7904dc2bdc8  checkpoint-post-stop/geopt/slurm.out
+414970830216c4c0a2d75f8002e6ff9fb31017a899a26dc97485c1680f98fb14  checkpoint-post-stop/logs/container.out
+0a7cea757aaac5c073a67d0fb1c24602d9219ba802d1819767d96f0ad870f723  checkpoint-post-stop/logs/launch.sh

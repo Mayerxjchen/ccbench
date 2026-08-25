@@ -1,0 +1,13 @@
+# Case 042 category requirements — MLP end-to-end GO–water DPMP
+schema_version: 1
+category: mlp
+case_kinds:
+  - end_to_end_model_development
+workflow_capabilities:
+  - structure_generation
+  - dft_dynamics
+  - model_training
+  - iterative_improvement
+  - hidden_static_accuracy
+  - hidden_dynamic_stability
+  - hidden_physical_observable

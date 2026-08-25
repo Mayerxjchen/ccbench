@@ -1,0 +1,26 @@
+# Case 033 frozen scientific resource identity (adaptive electric-field /
+# temperature search for CIPS domain-wall propagation).  One A100-equivalent
+# GPU, 8 CPUs / 16 GiB / 50 GiB matching the [environment] block of task.toml.
+# The shared matclaw GPU SIF is pinned by sha256 from
+# evidence/matclaw/formal/runtime-gpu-amd64.lock.json; teacher inputs
+# (CIPS monolayer structure + teacher_model.pb) carry their provenance hashes
+# and are re-staged + re-hashed in each new run directory.
+name: domain-wall-hpc
+gpus: 1
+cpus: 8
+memory_mb: 16384
+storage_mb: 51200
+walltime_minutes: 1560
+
+runtime:
+  sif_path_remote: /public/home/<site-user>/dftworld2-runs/matclaw-031/runtime/matclaw-cips-2.2.11-gpu-amd64.sif
+  sif_sha256: 99aefeff8f457cd6b4f57e1592db511f167ab493730f970bfd7baa68993250c3
+
+# Digests recorded verbatim from reference/source.lock.json (paper provenance).
+data_assets:
+  - path: cips_monolayer.cif
+    role: CIPS monolayer structure (source.lock.json provenance)
+    sha256: c1fac0de0180624d818886602aa33721f708c757900fde24581f4e723b036180
+  - path: teacher_model.pb
+    role: DeePMD teacher potential (source.lock.json provenance)
+    sha256: a3e7cf9c8168c649ee1ba6e39a7212f3f9db29fc0162b093beb908927e956b4d

@@ -1,0 +1,74 @@
+{
+  "ablation_execution": "DEFERRED",
+  "gates": {
+    "P1": {
+      "note": "public_files == {\"system.json\"}: ['system.json']",
+      "status": "PASS"
+    },
+    "P10": {
+      "note": "cancel recovery belongs to the deferred multi-trial transport",
+      "status": "DEFERRED"
+    },
+    "P11": {
+      "note": "real sync-back requires two COMPLETE_READY reference archives",
+      "status": "PENDING"
+    },
+    "P12": {
+      "note": "transcript completeness belongs to the deferred ablation",
+      "status": "DEFERRED"
+    },
+    "P13": {
+      "note": "token accounting belongs to the deferred ablation",
+      "status": "DEFERRED"
+    },
+    "P14": {
+      "note": "hidden scientific verifier is condition-blind",
+      "status": "PASS"
+    },
+    "P15": {
+      "note": "autonomous leak audit=PASS",
+      "status": "PASS"
+    },
+    "P16": {
+      "note": "no-skill pilot not executed in case-construction scope",
+      "status": "DEFERRED"
+    },
+    "P17": {
+      "note": "with-skill pilot not executed in case-construction scope",
+      "status": "DEFERRED"
+    },
+    "P2": {
+      "note": "coordinate_file_count=0",
+      "status": "PASS"
+    },
+    "P3": {
+      "note": "agent image copies only public/",
+      "status": "PASS"
+    },
+    "P4": {
+      "note": "with_skill_skill_count=9",
+      "status": "PASS"
+    },
+    "P5": {
+      "note": "no_skill_skill_md_count=0 is enforced by --no-skills workspace isolation tests",
+      "status": "PASS"
+    },
+    "P6": {
+      "note": "paired-condition equality belongs to the deferred ablation",
+      "status": "DEFERRED"
+    },
+    "P7": {
+      "note": "ssh_alias=hpc private_key_file_count=0 real_hpc_auth=PASS",
+      "status": "PASS"
+    },
+    "P8": {
+      "note": "real_slurm_roundtrip=PENDING complete_references=0",
+      "status": "PENDING"
+    },
+    "P9": {
+      "note": "session continuation belongs to the deferred ablation",
+      "status": "DEFERRED"
+    }
+  },
+  "schema": "pagent-case-construction-ready/v2"
+}

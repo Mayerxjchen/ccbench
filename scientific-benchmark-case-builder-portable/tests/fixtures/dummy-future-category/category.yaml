@@ -1,0 +1,8 @@
+schema_version: 1
+category: dummy
+state: supported
+case_kinds:
+  - dummy_kind
+references_root: references/categories/dummy
+scripts_root: scripts/categories/dummy
+template_root: assets/case-template/categories/dummy

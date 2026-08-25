@@ -1,0 +1,56 @@
+# ============================================================
+# LAMMPS NVT stability validation — 64 H2O, 300 K.
+# DATA_FILE, TEMP, N_STEPS, SEED, restart are passed via `lmp -v`.
+# @DP_MODELS@ is injected by nvt/run.sh (sed) with the final committee;
+# @PLUGIN_PATH@ likewise with the container's libdeepmd_lmp.so.
+# ============================================================
+
+# ---- output frequencies (env-gated) ----
+variable    THERMO_FREQ  equal 100
+variable    DUMP_FREQ    equal @NVT_DUMP_FREQ@
+
+# ---- Nose-Hoover thermostat ----
+variable    TAU_T        equal 0.1
+
+# ============================================================
+units           metal
+atom_style      atomic
+boundary        p p p
+
+atom_modify     map yes
+neighbor        1.0 bin
+box             tilt large
+
+# ---- read initial structure or restart ----
+if "${restart} > 0" then "read_restart md.restart.*" else "read_data ${DATA_FILE} extra/atom/types 0"
+
+mass 1  15.999   # O
+mass 2  1.008    # H
+
+change_box all triclinic
+
+# ---- DeepMD plugin ----
+plugin load @PLUGIN_PATH@
+
+# ---- DeepMD pair style (committee, model deviation) ----
+pair_style deepmd @DP_MODELS@ out_freq ${DUMP_FREQ} out_file model_devi.out
+pair_coeff * *
+
+if "${restart} == 0" then "velocity all create ${TEMP} ${SEED}"
+
+# ---- NVT ensemble ----
+fix 1 all nvt temp ${TEMP} ${TEMP} ${TAU_T}
+
+# ---- thermo output ----
+thermo_style custom step temp pe ke etotal press vol lx ly lz xy xz yz
+thermo       ${THERMO_FREQ}
+log          thermo.dat
+
+# ---- trajectory dump (coords + forces, for RDF) ----
+dump 1 all custom ${DUMP_FREQ} dump.lammpstrj id type x y z fx fy fz
+
+# ---- restart ----
+restart 10000 md.restart
+
+timestep 0.000500
+run      ${N_STEPS} upto

@@ -1,0 +1,11 @@
+[
+  {
+    "run_id": "2026-08-20__05-58-06__033-matclaw-cips-domain-wall-search",
+    "case_id": "033-matclaw-cips-domain-wall-search",
+    "experiment_id": "skill-ablation-v1",
+    "condition_id": "with-skill",
+    "replicate": 1,
+    "reason": "LLM卡死，gateway API探测僵住，需修复controller/超时机制后重跑",
+    "invalidated_at": "2026-08-20T14:55:00Z"
+  }
+]

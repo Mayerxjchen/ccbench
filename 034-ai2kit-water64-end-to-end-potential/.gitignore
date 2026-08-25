@@ -1,0 +1,20 @@
+# ============================================================================
+# 034 case .gitignore — what must NOT enter the isolated branch / git.
+# ============================================================================
+
+# Mac fallback checkpoint originals (T1 evidence, user decision 2026-08-11):
+# kept on disk as evidence but excluded from git.  SHA-256 for every file is
+# committed in ablation/evidence/hpc-port/mac-fallback/manifest.txt, which is
+# the traceable link back to the on-disk originals.
+ablation/evidence/hpc-port/mac-fallback/checkpoint/
+ablation/evidence/hpc-port/mac-fallback/checkpoint-post-stop/
+
+# Remote HPC reference-run evidence (T8+): the launcher writes its generated
+# job script + meta here, and after a real run rsyncs the fetched graded
+# workspace under reference/runtime-evidence/hpc-*/ws/.  The workspace is heavy
+# and regenerable on the cluster, so it never enters git.
+reference/runtime-evidence/hpc-*/
+
+# Python bytecode / caches
+__pycache__/
+*.pyc

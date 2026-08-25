@@ -1,0 +1,10 @@
+# Runtime profiles: image and qualification requirements.
+# These are infrastructure-owned; cases declare requirements, not images.
+
+[runtimes.local-sandbox]
+image = "dftworld-base:latest"
+qualification = "local-smoke"
+
+[runtimes.hpc-controller]
+image = "dftworld-controller:latest"
+qualification = "hpc-smoke"

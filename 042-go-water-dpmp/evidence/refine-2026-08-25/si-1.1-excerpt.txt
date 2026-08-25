@@ -1,0 +1,33 @@
+SI §1.1 verbatim (jz5c03713_si_001, accessed via local PDF):
+
+1.1. Construction of Initial Structures ................................................................. S3 
+1.2. Molecular Dynamics Simulations ................................................................ S4 
+1.3. ML Model Constructions ............................................................................. S5 
+1.4. ML Model Validations ................................................................................. S7 
+1.5. SFG Spectra Calculations .......................................................................... S10 
+1.6. H-bonding Lifetime Calculations .............................................................. S12 
+2. Structural Analysis of Different GO–waterr Interfaces ........................................ S13 
+3. SFG Spectra of Different GO–waterr Interfaces ................................................... S15 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Downloaded from pubs.​acs.​org/​jpclcd/​article-supplement/​5088937/​pdf/​jz5c03713_si_001/​ by guest on 18 August 2026
+
+ 
+S3 
+1. Methods  
+1.1. Construction of Initial Structures 
+We first constructed the graphene–water and GO–water interfaces with varying 
+oxidation levels—12.5%, 25%, and 50% based on thes

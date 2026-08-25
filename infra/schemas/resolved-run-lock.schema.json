@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dftworld.ai/schemas/resolved-run-lock.schema.json",
+  "title": "Resolved Run Lock v2",
+  "description": "Immutable, complete identity for a single benchmark run",
+  "type": "object",
+  "properties": {
+    "case": {
+      "type": "object",
+      "description": "Case identity and version",
+      "properties": {
+        "case_id": {"type": "string"},
+        "case_version": {"type": "string"},
+        "schema_version": {"type": "string"}
+      },
+      "required": ["case_id", "case_version", "schema_version"]
+    },
+    "experiment": {
+      "type": "object",
+      "description": "Experiment template and condition",
+      "properties": {
+        "template_name": {"type": "string"},
+        "condition_id": {"type": "string"},
+        "replicate": {"type": "integer", "minimum": 1}
+      },
+      "required": ["template_name", "condition_id", "replicate"]
+    },
+    "agent": {
+      "type": "object",
+      "description": "Agent identity and configuration",
+      "properties": {
+        "provider": {"type": "string"},
+        "model_id": {"type": "string"},
+        "deployment_id": {"type": "string"},
+        "provider_model_version": {"type": "string"},
+        "identity_strength": {"type": "string", "enum": ["exact", "alias", "alias-only"]},
+        "engine": {"type": "string"},
+        "prompt_digest": {"type": "string"},
+        "sampling_digest": {"type": "string"},
+        "context_digest": {"type": "string"},
+        "skill_bundle_digest": {"type": "string"},
+        "tool_surface_digest": {"type": "string"}
+      },
+      "required": ["provider", "model_id", "identity_strength"]
+    },
+    "api": {
+      "type": "object",
+      "description": "API endpoint and retry configuration",
+      "properties": {
+        "api_profile_digest": {"type": "string"},
+        "endpoint_env": {"type": "string"},
+        "credential_env": {"type": "string"}
+      },
+      "required": ["api_profile_digest"]
+    },
+    "candidate_runtime": {
+      "type": "object",
+      "description": "Runtime image and qualification",
+      "properties": {
+        "image": {"type": "string"},
+        "runtime_digest": {"type": "string"},
+        "qualification_status": {"type": "string"}
+      },
+      "required": ["image", "runtime_digest"]
+    },
+    "hpc": {
+      "type": "object",
+      "description": "HPC site and job configuration",
+      "properties": {
+        "site_profile_digest": {"type": "string"},
+        "scheduler": {"type": "string"},
+        "capabilities": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "verifier": {
+      "type": "object",
+      "description": "Verifier configuration",
+      "properties": {
+        "runtime_digest": {"type": "string"},
+        "isolation_config_digest": {"type": "string"}
+      },
+      "required": ["runtime_digest"]
+    },
+    "infra": {
+      "type": "object",
+      "description": "Infrastructure version and identity",
+      "properties": {
+        "version": {"type": "string"},
+        "commit": {"type": "string"},
+        "lock_created_at": {"type": "string", "format": "date-time"}
+      },
+      "required": ["version", "commit"]
+    },
+    "budgets": {
+      "type": "object",
+      "description": "Budget limits for this run",
+      "properties": {
+        "max_model_turns": {"type": "integer", "minimum": 1},
+        "max_total_tokens": {"type": "integer", "minimum": 1},
+        "agent_active_walltime_sec": {"type": "number", "minimum": 0},
+        "scheduler_wait_walltime_sec": {"type": "number", "minimum": 0}
+      },
+      "required": ["max_model_turns", "max_total_tokens"]
+    },
+    "lock_digest": {
+      "type": "string",
+      "description": "SHA-256 digest of the canonical lock payload"
+    }
+  },
+  "required": [
+    "case", "experiment", "agent", "api", "candidate_runtime",
+    "verifier", "infra", "budgets"
+  ],
+  "additionalProperties": false
+}

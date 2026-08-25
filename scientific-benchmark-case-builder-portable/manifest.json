@@ -1,0 +1,13 @@
+{
+  "name": "scientific-benchmark-case-builder-portable",
+  "version": "2.1.0",
+  "description": "Portable scientific benchmark case builder skill with Runnable Draft, Discovery classification, and cross-layer quality gates. Ships exactly one skill and the MLP category.",
+  "skills": [
+    "build-scientific-benchmark-case"
+  ],
+  "legacy": {
+    "name": "literature-to-mlp-spec",
+    "migration": "old command: /literature-to-mlp-spec; new command: /build-scientific-benchmark-case mode=extract-spec category=mlp",
+    "default_install": "preserves legacy; --remove-legacy deletes it"
+  }
+}

@@ -1,0 +1,117 @@
+G7.5 candidate-module-load smoke — fetch + review
+==================================================
+fetched: 2026-08-11 (third single read-only connection, user release of G7.5b)
+job: 3533467  state=COMPLETED  (2026-08-11T17:18:36 -> 17:18:51, 15 s; node cu005)
+remote_dir: /public/home/<site-user>/034/cand-smoke-g7-5-20260811
+raw evidence: scripts/ablation/hpc/evidence/cand-smoke-g7-5-20260811/fetch.txt
+smoke bundle: candidate_smoke.slurm.template + abi.in + run_candidate_smoke_once.sh
+params: HPC_STACK=modules CP2K_MODULE=cp2k/2024.3 LAMMPS_MODULE=lammps/2022.6.23-plugin
+        HPC_CONDA_ENV=/public/home/<site-user>/.conda/envs/ai2kit
+        MODULE_INIT=/etc/profile.d/modules.sh
+
+G7.4b [x] local smoke bundle + contract tests (22/22 GREEN, 3 review-gap fixes)
+G7.5a [x] one-connection submit (job 3533467)
+G7.5b [x] one-connection read-only fetch (queried ONCE; job COMPLETED -> full fetch)
+G7.5c [x] result review (this file)
+G7   [ ] complete — pending user review of these verdicts
+G8   [ ] private env verify/offline-create — LOCKED (now REQUIRED, see below)
+
+MODEL_IDENTITY
+--------------
+MODEL_IDENTITY=OK.  frozen.pb sha256 = 04d8df86...1e797, abi.in sha256 =
+bd8ada07...a24590 — computed on the compute node AND echoed back by remote
+sha256sum; both equal the locally pinned hashes.  Pinned-byte contract held
+end-to-end (local runner pre-check + compute-node re-check + post-hoc remote
+hash).  The ABI gate was therefore eligible to run.
+
+PROBE 1 — CONDA private env (READ-ONLY)
+---------------------------------------
+CONDA_ENV_PRESENT=YES (/public/home/<site-user>/.conda/envs/ai2kit, Python 3.10.20)
+real imports (compute node): deepmd import ok, ai2_kit import ok.
+VERSION PINS FAIL:
+    deepmd-kit = 3.1.3   (contract requires 2.2.11)   MATCH=NO
+    ai2-kit    = 1.0.9   (contract requires 1.1.0)    MATCH=NO
+CLI probes (absolute prefix):
+    dp         runs -> "DeePMD-kit v3.1.3"
+    ai2-kit    RUN_FAILED: exit+usage on `--version` (click-style group CLI;
+               expects `--help`, version not exposed via --version)
+    omb        RUN_FAILED: exit+usage on `--version` (same click-group shape;
+               needs `--help`, version via a subcommand, not --version)
+VERDICT: CONDA_CONTRACT=NO  (recorded in conda-contract.result)
+Interpretation — this is a genuine, decisive finding:
+  (a) The existing `ai2kit` env does NOT match the pinned contract. Reuse is
+      impossible as-is; G8 must OFFLINE-CREATE a 034-specific private env with
+      deepmd-kit==2.2.11 / ai2-kit==1.1.0 / oh-my-batch==0.7.6 (exactly the
+      "必要时离线新建" branch the user redefined in G8). Existing env and base
+      remain untouched (base_untouched=yes; probe used absolute prefix only).
+  (b) The two RUN_FAILED CLI verdicts are a PROBE-FLAG flaw, not a binary
+      absence: ai2-kit and omb both executed (they printed Usage) — they simply
+      do not accept `--version`. The CONDA_CONTRACT=NO verdict stands regardless
+      because the version pins fail.  G8 probe improvement: query version via
+      `--help`/`version` subcommand or `importlib.metadata` for ai2-kit and omb.
+  (c) The env bundles its own plugin: libdeepmd_lmpplugin.so present under
+      site-packages/deepmd/lib/.  This is the G7.4-declared LAMMPS fallback, but
+      it is built against deepmd 3.1.3 — a 2.2.11-format frozen.pb will likely
+      NOT load (deepmd 3.x dropped the old graph/`frozen.pb` front-end).  Any
+      fallback evaluation must be separately gated and use a compatible model.
+
+PROBE 2 — CP2K module (cp2k/2024.3)
+-----------------------------------
+CP2K_LOAD=OK.  Module dependency stack observed (NO pre-forced OpenMPI):
+    intel/2023.2 (auto-loaded) + cp2k/2024.3.
+Real binary: /public/software/cp2k-2024.3/cp2k/exe/Linux-x86-64-intelx/cp2k.psmp
+Version:      CP2K version 2024.3 (rev git:6712648)
+cp2kflags:    omp libint fftw3 libxc elpa parallel scalapack xsmm max_contr=4
+              plumed2 mkl   (full-featured PSMP parallel build)
+ldd MPI stack: libmpi.so.12 / libmpifort.so.12 from
+              intel oneapi-2023.2/mpi/2021.10.0; NO 'not found' entries.
+srun launch:  CP2K_SRUN_LAUNCH=OK (srun -n 1 cp2k.psmp --version succeeds).
+CP2K_DATA_DIR=UNSET (module does not set it), but the binary carries compile-time
+              -D__DATA_DIR=/public/software/cp2k-2024.3/cp2k/data, so GTH basis
+              files are available from the baked-in path.  NOTE: the probe's
+              `find ${CP2K_DATA_DIR:-/nonexistent}` search was vacuous for the
+              same reason — G9 should assert basis files via the compiled-in
+              data dir.
+VERDICT: CP2K A-path = VERIFIED.  Module load + real binary + version + Intel
+              MPI stack + srun launch all pass.  No G8 action needed for CP2K.
+
+PROBE 3 — LAMMPS module (lammps/2022.6.23-plugin)
+-------------------------------------------------
+LAMMPS_LOAD=OK.  Module dependency stack observed:
+    intel/oneapi2021.1 dev/cmake/3.26.3 gcc/9.3 + lammps/2022.6.23-plugin.
+module show: prepend PATH /public/software/lammps/lammps-23Jun2022-plugin/build
+LAMMPS_BIN=MISSING — `command -v lmp` found NOTHING despite the PATH prepend.
+    => registration check never ran; ABI run never attempted.
+LAMMPS_PLUGIN_PATH=UNSET; no plugin .so located under it (UNSET path).
+ABI_COMPATIBLE=NO  (recorded in candidate-abi.result; abi.log not produced)
+Interpretation — decisive finding for the LAMMPS path:
+  (a) The plugin-mode build's executable is either named differently
+      (e.g. lmp_mpi/lammps or under a subdir of .../build) or absent from the
+      prepended dir.  Registration-vs-ABI was never even reachable.
+  (b) G8 step (under a new approved read-only connection): `ls` the
+      /public/software/lammps/lammps-23Jun2022-plugin/build tree to find the
+      actual plugin-mode binary; if found, re-run registration + `run 0` ABI
+      gate (with a model compatible with the plugin's deepmd ABI).  If no usable
+      binary, the G7.4-declared fallback applies: evaluate the private env's
+      libdeepmd_lmpplugin.so — separately gated, 3.1.3 ABI caveat in Probe 1(c).
+
+AUX / HYGIENE
+-------------
+- Job exited COMPLETED (not failed): the smoke records verdicts rather than
+  crashing, so COMPLETED does NOT mean "all green" — the verdicts above do.
+- Remote sha256sum of the two result files + smoke output recorded in fetch.txt.
+- macOS AppleDouble sidecars (._abi.in, ._frozen.pb, ._candidate_smoke.slurm,
+  163 B each) were carried into the bundle and staged to the cluster. Harmless
+  (the job reads the real names) but noise.  Future bundles: exclude `._*`
+  (e.g. COPYFILE_DISABLE=1 or `tar --exclude='._*'`).
+
+G8 CONSEQUENCES (flagged for the user decision; NOT executed)
+--------------------------------------------------------------
+1. CONDA: existing `ai2kit` env FAILS the pinned contract (3.1.3/1.0.9).
+   G8 = offline-create the 034-specific private env (deepmd-kit==2.2.11,
+   ai2-kit==1.1.0, oh-my-batch==0.7.6), reusing /public/home/<site-user>/.cache/pip
+   and any offline artifacts; never base, never mutate the existing env.
+2. LAMMPS module: binary discovery required before any fallback decision.
+3. CP2K module: verified as-is — no G8 action.
+4. G9 (dual reference AIMD500 runs) may proceed on this CP2K module once G8/G7
+   gates are reviewed and released; G9/G10/G11 remain LOCKED.

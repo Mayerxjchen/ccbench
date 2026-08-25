@@ -1,0 +1,24 @@
+{
+  "molecule_name": "acetaldehyde",
+  "input_smiles": "CC=O",
+  "n_atoms": 7,
+  "symbols": [
+    "C",
+    "C",
+    "O",
+    "H",
+    "H",
+    "H",
+    "H"
+  ],
+  "embed_seed": 42,
+  "fmax": 0.02,
+  "symmetrynumber": 1,
+  "temperature_K": 298.15,
+  "pressure_Pa": 101325,
+  "potentialenergy_eV": -281.8203299964488,
+  "gibbs_free_energy_eV": -281.0239,
+  "rdkit_version": "2026.03.5",
+  "ase_version": "3.29.0",
+  "tblite_version": "0.7.0"
+}

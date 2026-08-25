@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/result.schema.json",
+  "title": "Benchmark result",
+  "description": "Classified outcome of one attempt. INFRA_INVALID is excluded from scientific denominators and retryable; exceptions are never collapsed into reward = 0.",
+  "type": "object",
+  "required": ["run_id", "result_class", "failure_code", "reason", "retryable"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "result_class": {
+      "enum": ["VALID_RESULT", "AGENT_FAILURE", "INFRA_INVALID"]
+    },
+    "failure_code": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "PASS", "SCIENTIFIC_FAIL",
+        "AGENT_TIMEOUT", "AGENT_BUDGET_EXHAUSTED",
+        "RESOURCE_EXCEEDED", "NO_SUBMISSION", "INVALID_SUBMISSION", "BAD_INPUT",
+        "SANDBOX_FAILURE", "HARNESS_FAILURE", "GATEWAY_FAILURE", "ADAPTER_FAILURE",
+        "HPC_FAILURE", "VERIFIER_FAILURE",
+        "API_TRANSIENT_EXHAUSTED", "API_RATE_LIMIT_EXHAUSTED",
+        "API_AUTH_CONFIG", "API_QUOTA", "API_CONFIGURATION"
+      ]
+    },
+    "reason": { "type": "string" },
+    "retryable": { "type": "boolean" },
+    "is_counted_scientifically": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

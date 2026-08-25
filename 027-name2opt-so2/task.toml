@@ -1,0 +1,48 @@
+schema_version = "1.2"
+
+artifacts = []
+
+[execution]
+class = "local_sandbox"
+
+[candidate]
+instruction = "instruction.md"
+submission_root = "."
+legacy_submission_layout = true
+max_agent_seconds = 1500.0
+
+[task]
+name = "benchmark/027-name2opt-so2"
+description = "Run geometry optimization for sulfur dioxide (SO2) with the mace_mp medium-mpa-0 model and report its optimized energy"
+authors = []
+keywords = ["mace", "optimization", "energy"]
+
+[metadata]
+
+[verifier]
+timeout_sec = 1500.0
+
+[verifier.env]
+
+[environment]
+build_timeout_sec = 900.0
+os = "linux"
+cpus = 2
+memory_mb = 4096
+storage_mb = 10240
+gpus = 0
+allow_internet = false
+mcp_servers = []
+
+[environment.env]
+
+[solution]
+
+[solution.env]
+
+[runtime]
+requirements = [{ name = "mace" }]
+
+[submission_contract]
+required = []
+non_empty = true

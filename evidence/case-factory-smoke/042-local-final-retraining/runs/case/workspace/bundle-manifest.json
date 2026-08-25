@@ -1,0 +1,33 @@
+{
+  "case_id": "benchmark/042-local-final-retraining",
+  "case_version": "1.0.0",
+  "files": [
+    {
+      "path": "instruction.md",
+      "sha256": "0f2903321c8b6d394fc2ffcc108ee6344ab02d51d1912540203693311c86bb21",
+      "size": 46
+    },
+    {
+      "path": "seed.txt",
+      "sha256": "084c799cd551dd1d8d5c5f9a5d593b2e931f5e36122ee5c793c1d08a19839cc0",
+      "size": 3
+    },
+    {
+      "path": "structures.xyz",
+      "sha256": "82faf90366e228a8c943399035c32112b6304289685fd85a24758de876eab59d",
+      "size": 51
+    }
+  ],
+  "leak_scan": [
+    "reference",
+    "solution",
+    "tests",
+    "verifier",
+    "thresholds",
+    "fixtures",
+    ".git",
+    "expert_notes"
+  ],
+  "public_digest": "e971bc049cdac90a4e9ee16b488a02c4e0371d7394054c9cfcd8777e647fbc48",
+  "schema_version": "1.2"
+}

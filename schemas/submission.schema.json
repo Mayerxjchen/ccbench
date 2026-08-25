@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/submission.schema.json",
+  "title": "Sealed submission manifest",
+  "description": "The trusted collector's manifest over the quarantined, normalized submission. Never derived from untrusted candidate output; describes only files the quarantine actually collected.",
+  "type": "object",
+  "required": ["schema_version", "legacy_layout", "exclusions", "files", "total_bytes", "sealed_at"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "legacy_layout": { "type": "boolean" },
+    "exclusions": { "type": "array", "items": { "type": "string" } },
+    "total_bytes": { "type": "integer", "minimum": 0 },
+    "sealed_at": { "type": "string" },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "size", "sha256", "mode"],
+        "properties": {
+          "path": { "type": "string" },
+          "size": { "type": "integer", "minimum": 0 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "mode": { "type": "integer" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

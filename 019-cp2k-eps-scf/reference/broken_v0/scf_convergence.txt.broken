@@ -1,0 +1,13 @@
+CP2K OT SCF — H2O total energy vs EPS_SCF (CUTOFF fixed at 400 Ry)
+E_ref = -17.219495884120 Ha
+
+Target: |E - E_ref| <= 1.0e-5 Ha
+
+EPS_SCF      E (Ha)              |E - E_ref| (Ha)   meets target?
+--------     ----------------    ----------------   -------------
+1.0E-4       -17.219120000000    3.8e-4             no
+1.0E-5       -17.219480000000    1.6e-5             no
+1.0E-6       -17.219495884120    ~0                 yes
+1.0E-7       -17.219495884120    ~0                 yes
+
+Pick the coarsest EPS_SCF in the table that meets the target.

@@ -1,0 +1,17 @@
+P1	PASS	fresh workspace seeded from dftworld-base-ai2kit:0.1.0-cpu-cancelfix; /app has water64.xyz+system.json+HPC_ENVIRONMENT.md; no stale manifest/reward
+P2	PASS	seeded container exposes only /app (public inputs):  ; no host/reference/solution/.env leak
+P5	PASS	skill bundle hash matches frozen lock (bundle_sha256=356fec25f00e02c73fbc6e074054831fbb601cb8f5645da3b611be566ec84de0)
+P3	PASS	fresh sandbox has 0 SKILL.md (host has 9; --no-skills never injects them)
+P4	PASS	snapshot_portable_skills copies the frozen bundle (9 skill dirs)
+P6	PASS	NS/WS share one tool policy (skill flag gates only use_skill, not the tool set); per-run tool-list diff audited at P15
+P7	PASS	job transport reachable inside sandbox: sbatch-ok ssh-missing 
+P8	PASS	slurm round-trip OK: sbatch->exec->output (job wrote hello-slurm)
+P10	PASS	scancel accepted job (state: CANCELLED)
+P11	PASS	artifact written inside sandbox visible on host bind
+P9	PENDING	session continuation — verified during the P16/P17 pilots (pagentv4 resume)
+P12	PENDING	transcript/tool-call log completeness — audited against a pilot thread dir
+P13	PENDING	token usage accounting — audited against a pilot usage record
+P14	PASS	verifier.py has no condition/experiment/skill references — grading is condition-blind
+P15	PASS	NS/WS share identical verifier contract + tool policy; per-run exact-diff of submitted manifests runs at P16/P17
+P16	PENDING	no-skill pilot to reward — launch via run_pagent_pilot.sh after reference calibration
+P17	PENDING	with-skill pilot to reward — launch via run_pagent_pilot.sh after reference calibration

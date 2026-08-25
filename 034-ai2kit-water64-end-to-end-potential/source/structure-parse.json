@@ -1,0 +1,48 @@
+{
+  "benchmark_id": "034-ai2kit-water64-end-to-end-potential",
+  "role": "independent_structure_parse",
+  "input": "reference/expert-trajectory/initial/water64.xyz",
+  "input_sha256": "b1d5ed709d0128ea83662f9387033bdf478078c0338b51ff58dcc863b24ad0e3",
+  "parsed": {
+    "natoms_header": 192,
+    "natoms_parsed": 192,
+    "comment": "Built with Packmol",
+    "element_counts": {
+      "H": 128,
+      "O": 64
+    },
+    "cell_angstrom": null,
+    "coords_all_finite": true,
+    "per_species_bounds_A": {
+      "H": [
+        0.013122,
+        -0.004843,
+        -0.01522,
+        12.365777,
+        12.442941,
+        12.129645
+      ],
+      "O": [
+        -0.062492,
+        0.254767,
+        -0.002836,
+        11.98026,
+        12.263105,
+        12.187616
+      ]
+    },
+    "first_atom": [
+      "O",
+      "3.823393",
+      "6.087924",
+      "2.392599"
+    ],
+    "last_atom": [
+      "H",
+      "5.034406",
+      "11.229455",
+      "4.681832"
+    ]
+  },
+  "output_sha256": "a1ac8bfeb550cea6fbb00cc7f3bf8d8ac7f0451d82f1e02203590112ed96b1fd"
+}

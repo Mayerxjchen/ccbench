@@ -1,0 +1,23 @@
+# Case 032 formal profile — the demanding scientific configuration.
+#
+# These values are the sealed scientific identity: paper MATCLAW profile, 7200s
+# verifier timeout matching [verifier] of task.toml, and the structure /
+# teacher-model / paper provenance carried verbatim from reference/source.lock.json.
+# Only a formal run that passes every test_outputs.py gate counts as scientific
+# success; smoke never does.
+name: formal
+scientific: true
+matclaw_profile: paper
+verifier_timeout_sec: 7200
+workspace: workspace_demo2b_curie_with_convergence
+
+structure:
+  file: CuInP2S6.cif
+  sha256: b9e3b0c4470274d5e3e1ce19e7c8834bda323e50483eef9791b1e744bbd629de
+
+teacher_model:
+  file: teacher_model.pb
+  sha256: a3e7cf9c8168c649ee1ba6e39a7212f3f9db29fc0162b093beb908927e956b4d
+
+paper:
+  arxiv: 2604.02688v3

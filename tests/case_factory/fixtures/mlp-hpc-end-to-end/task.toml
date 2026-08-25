@@ -1,0 +1,57 @@
+schema_version = "1.2"
+case_version = "1.0.0"
+artifacts = []
+
+[execution]
+class = "hpc_controller"
+
+[candidate]
+instruction = "instruction.md"
+submission_root = "final"
+legacy_submission_layout = false
+image = "dftworld-base-deepmd"
+
+[[candidate.files]]
+source = "public/**"
+destination = "."
+strip_prefix = "public"
+
+[hpc]
+contract_version = "hpc-v1"
+required_capabilities = ["slurm"]
+
+[task]
+name = "benchmark/043-hpc-end-to-end"
+title = "HPC end-to-end model development"
+description = "Develop a full interatomic potential under an HPC controller."
+authors = []
+keywords = []
+
+[metadata]
+
+[verifier]
+timeout_sec = 7200
+
+[verifier.env]
+
+[agent]
+timeout_sec = 14400
+
+[environment]
+build_timeout_sec = 1800
+os = "linux"
+cpus = 8
+memory_mb = 16384
+storage_mb = 40960
+gpus = 1
+allow_internet = false
+mcp_servers = []
+
+[environment.env]
+
+[solution.env]
+
+[generated]
+target = "dftworld"
+adapter_version = "0.1.0"
+design_sha256 = "sha256:4f4f772d2f187f7d81fc08a74e4eb1bc0057032b665f1a411eab401a7357e2a1"

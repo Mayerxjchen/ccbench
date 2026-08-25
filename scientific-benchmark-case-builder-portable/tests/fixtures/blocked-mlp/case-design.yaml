@@ -1,0 +1,11 @@
+schema_version: 1
+category: mlp
+case_kind: final_model_retraining
+readiness: blocked
+execution:
+  class: local_sandbox
+objective: draft
+blockers:
+  - field: "model.architecture"
+    reason: "architecture not evidenced by sources"
+    status: unresolved

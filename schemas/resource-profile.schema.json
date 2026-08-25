@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/resource-profile.schema.json",
+  "title": "Resource profile",
+  "description": "Per-queue resource ceiling. A JobSpec's resources must be within one profile; these are the upper bounds the trusted gateway enforces before a job ever reaches the scheduler.",
+  "type": "object",
+  "required": [
+    "name",
+    "max_cpus",
+    "max_memory_gb",
+    "max_gpus",
+    "max_walltime_minutes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "qos": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Scheduler QOS the adapter renders as --qos for this queue; comes only from the frozen SiteProfile resolution."
+    },
+    "max_cpus": { "type": "integer", "minimum": 1 },
+    "max_memory_gb": { "type": "integer", "minimum": 1 },
+    "max_gpus": { "type": "integer", "minimum": 0 },
+    "max_walltime_minutes": { "type": "integer", "minimum": 1 }
+  }
+}

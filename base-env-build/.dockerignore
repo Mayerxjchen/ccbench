@@ -1,0 +1,11 @@
+# skills bundle 镜像只关心 skills/,排除其余计算镜像的 build context
+base
+cp2k
+chem
+deepmd
+packmol
+packmol-src
+*.md
+*.sh
+*.json
+.DS_Store

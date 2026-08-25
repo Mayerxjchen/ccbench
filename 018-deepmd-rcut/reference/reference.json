@@ -1,0 +1,20 @@
+{
+  "distance_definition": "minimum-image PBC",
+  "training_frames": 161,
+  "validation_frames": 40,
+  "atoms_per_frame": 5,
+  "margin": 2.0,
+  "allowed_rcut": [
+    4.0,
+    4.5,
+    5.0,
+    5.5,
+    6.0,
+    6.5,
+    7.0
+  ],
+  "d_max_training": 1.9226645579814574,
+  "rcut_threshold": 3.9226645579814576,
+  "expected_rcut": 4.0,
+  "generated_by": "/work/reference/generate_reference.py"
+}

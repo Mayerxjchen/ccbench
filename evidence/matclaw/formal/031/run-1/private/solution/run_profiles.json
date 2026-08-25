@@ -1,0 +1,42 @@
+{
+  "smoke": {
+    "selection_band_eV_A": [0.05, 0.15],
+    "min_active_iterations": 1,
+    "exploration_batches": [
+      {"temperature_K": 200, "md_steps": 20, "driver_member": 0, "seed_offset": 1},
+      {"temperature_K": 600, "md_steps": 20, "driver_member": 1, "seed_offset": 2},
+      {"temperature_K": 1000, "md_steps": 20, "driver_member": 0, "seed_offset": 3},
+      {"temperature_K": 350, "md_steps": 20, "driver_member": 1, "seed_offset": 4}
+    ]
+  },
+  "paper": {
+    "selection_band_eV_A": [0.05, 0.15],
+    "min_active_iterations": 1,
+    "exploration_rounds": [
+      [{"temperature_K": 200, "md_steps": 5000, "trajectory_interval": 10, "driver_member": 0, "seed_offset": 1}],
+      [
+        {"temperature_K": 600, "md_steps": 5000, "trajectory_interval": 10, "driver_member": 1, "seed_offset": 2},
+        {"temperature_K": 1000, "md_steps": 5000, "trajectory_interval": 10, "driver_member": 0, "seed_offset": 3}
+      ],
+      [{"temperature_K": 350, "md_steps": 5000, "trajectory_interval": 10, "driver_member": 1, "seed_offset": 4}],
+      [{"temperature_K": 700, "md_steps": 5000, "trajectory_interval": 10, "driver_member": 0, "seed_offset": 5}],
+      [{"temperature_K": 250, "md_steps": 5000, "trajectory_interval": 10, "driver_member": 1, "seed_offset": 6}]
+    ]
+  },
+  "smoke_alt": {
+    "max_exploration_attempts": 3,
+    "exploration_attempts": {
+      "0": [[1400], [100], [300, 600]]
+    }
+  },
+  "paper_alt": {
+    "max_exploration_attempts": 4,
+    "exploration_attempts": {
+      "0": [[600, 800], [1000], [1200], [1400]],
+      "1": [[600, 800], [1000], [1200], [1400]],
+      "2": [[600, 800], [1000], [1200], [1400]],
+      "3": [[600, 800], [1000], [1200], [1400]],
+      "4": [[600, 800], [1000], [1200], [1400]]
+    }
+  }
+}

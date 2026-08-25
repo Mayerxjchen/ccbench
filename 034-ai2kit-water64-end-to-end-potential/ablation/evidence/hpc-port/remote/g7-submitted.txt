@@ -1,0 +1,17 @@
+G7 discovery probe — SUBMITTED (not complete)
+=============================================
+submitted: 2026-08-11 (session 2, user release)
+run_id:    g7-discovery-20260811
+target:    <site-user>@<site-host-ip> (one SSH process, BatchMode, ControlMaster=no)
+remote_dir: /public/home/<site-user>/034/probe-g7-discovery-20260811
+job_id:    3532669
+local evidence: scripts/ablation/hpc/evidence/probe-g7-discovery-20260811/submission.txt
+
+Boundaries honored:
+- Exactly ONE SSH process; no retry on failure.
+- Read-only discovery only: probe_login.sh (sinfo/sacctmgr/module/python/conda/pip config)
+  + one read-only Slurm compute probe (probe_compute.slurm).
+- No polling, no second connection, no environment install, no G8.
+
+State: G7 = SUBMITTED / IN-PROGRESS.  Computing-node output is not yet fetched.
+Fetching results requires a SECOND connection and a NEW explicit user release.

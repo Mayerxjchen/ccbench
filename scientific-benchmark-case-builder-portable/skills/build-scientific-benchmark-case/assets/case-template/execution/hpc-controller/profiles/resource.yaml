@@ -1,0 +1,6 @@
+schema_version: 1
+profile: resource
+status: draft
+nodes: null
+gpus: null
+memory: null

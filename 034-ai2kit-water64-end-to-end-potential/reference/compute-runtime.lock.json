@@ -1,0 +1,43 @@
+{
+  "benchmark_id": "034-ai2kit-water64-end-to-end-potential",
+  "schema": "034-compute-runtime-lock/v1",
+  "role": "compute_runtime_lock",
+  "note": "Frozen compute-runtime identity for the trusted bench-hpc contract.  Software versions match reference/source.lock.json and the real command output in reference/runtime-evidence/c-smoke/c1-versions.txt.  Data-asset digests are recorded verbatim from the reconstruction plan Task 12 Step 3; each new remote run directory re-stages these files and re-hashes them before CP2K starts.  The broken compile-time /tmp/hehr/cp2k-2023.2/data path is never referenced.",
+  "gpus": 1,
+  "software": {
+    "ai2_kit": "1.1.0",
+    "deepmd_kit": "2.2.11",
+    "lammps": "2Aug2023 Update 3",
+    "cp2k": "2025.2",
+    "python": "3.11.15",
+    "oh_my_batch": "0.7.6"
+  },
+  "runtime_image": {
+    "tag": "dftworld-base-ai2kit:0.1.0-cpu-controller",
+    "image_id": "8a840aa2e477",
+    "note": "Recorded from reference/runtime-evidence/c-smoke (VALIDATION.json).  The full sha256 repo digest is captured at the first real gateway run and stored in the run record; the JobSpec runtime is digest-pinned there."
+  },
+  "dft": {
+    "method": "CP2K BLYP-D3 / TZV2P-GTH",
+    "basis_set": "GTH_BASIS_SETS",
+    "potential": "GTH_POTENTIALS",
+    "dispersion": "dftd3.dat"
+  },
+  "data_assets": [
+    {
+      "path": "GTH_BASIS_SETS",
+      "role": "CP2K GTH basis set data",
+      "sha256": "76d1ccd5204390abfcadeb5c0d5e609ff3d151c1c1a583a02349af348ef919f7"
+    },
+    {
+      "path": "GTH_POTENTIALS",
+      "role": "CP2K GTH pseudopotential data",
+      "sha256": "a4307115bacdaa253e0faa24b3f9f7ba7c1dc60585cbd83691c65ff51d0db9fd"
+    },
+    {
+      "path": "dftd3.dat",
+      "role": "D3 dispersion parameters (BLYP-D3)",
+      "sha256": "1f5041914fb3a7fa6c97602d82da6cb9129c1c1dba675db23522de9c2837dafd"
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "run_id": "case-case-construction-smoke-0001",
+  "case_id": "case",
+  "execution_class": "local_sandbox",
+  "agent_model": "isolated-scripted-candidate-v2",
+  "experiment_id": "case-construction-smoke",
+  "condition_id": "no-skill",
+  "skills_source": "none",
+  "skills_sha": null,
+  "image": "dftworld-base-mace",
+  "benchmark_commit": "unknown",
+  "profile": "local",
+  "submission_root": "final",
+  "verifier": "dftworld-base-mace",
+  "platform": "local_docker",
+  "job_id": null,
+  "site_config_digest": "sha256:local",
+  "replicate": 1,
+  "attempt": 1,
+  "thread_dir": "/Users/chenxuanjie/案例测试/dftworld2/evidence/case-factory-smoke/042-local-final-retraining/runs/case",
+  "legacy_normalized": false,
+  "usage": {
+    "tool_calls": 0,
+    "tokens": 0,
+    "elapsed_sec": 0.585
+  },
+  "lifecycle_events": [
+    {
+      "phase": "CREATED",
+      "at": "2026-08-19T09:48:37.658720+00:00"
+    },
+    {
+      "phase": "CANDIDATE_STARTING",
+      "at": "2026-08-19T09:48:37.658720+00:00"
+    },
+    {
+      "phase": "CANDIDATE_RUNNING",
+      "at": "2026-08-19T09:48:37.658720+00:00"
+    },
+    {
+      "phase": "CANDIDATE_STOPPING",
+      "at": "2026-08-19T09:48:37.658720+00:00"
+    },
+    {
+      "phase": "CANDIDATE_FROZEN",
+      "at": "2026-08-19T09:48:37.658720+00:00"
+    },
+    {
+      "phase": "SUBMISSION_COLLECTED",
+      "at": "2026-08-19T09:48:37.658720+00:00"
+    },
+    {
+      "phase": "CANDIDATE_DESTROYED",
+      "at": "2026-08-19T09:48:37.658720+00:00"
+    },
+    {
+      "phase": "QUARANTINED",
+      "at": "2026-08-19T09:48:37.658720+00:00"
+    },
+    {
+      "phase": "VERIFYING",
+      "at": "2026-08-19T09:48:37.658720+00:00"
+    },
+    {
+      "phase": "COMPLETED",
+      "at": "2026-08-19T09:48:37.658720+00:00"
+    },
+    {
+      "phase": "COMPLETED",
+      "at": "2026-08-19T09:48:37.658720+00:00"
+    }
+  ],
+  "result": {
+    "run_id": "case-case-construction-smoke-0001",
+    "result_class": "VALID_RESULT",
+    "failure_code": "PASS",
+    "reason": "declared final output present",
+    "retryable": false,
+    "is_counted_scientifically": true
+  }
+}

@@ -1,0 +1,39 @@
+# HPC site profiles: frozen policy identity, credential-free.
+#
+# This file is an EXAMPLE encoding the the site (<site-alias>) policy as pure policy:
+# account, queues/QOS, gres ceiling, Apptainer requirement, runtime store.
+# Connection secrets (host key material, passwords) live outside Git and are
+# resolved only by the trusted Harness through the credential provider named
+# by credential_profile_id. Copy to a private location and fill in real
+# values there; never commit credentials alongside this shape.
+
+[sites.site-v1]
+schema_version = 1
+site_id = "site-v1"
+scheduler = "slurm"
+account = "acct-blocked"
+
+[sites.site-v1.connection]
+credential_profile_id = "<site-alias>-key-1"      # key INTO the provider, never a key
+target_binding = "ssh://REDACTED-HOST:22"  # sanitized target identity
+remote_user = "REDACTED-USER"
+remote_root_policy = "/data/bench/{run_id}"
+
+# NOTE: account acct-blocked is NOT in the cpu partition AllowAccounts whitelist.
+# CPU-type workloads (echo, parsers, lightweight preflight) are mapped to the
+# gpu queue with gres=gpu:1.  The RunRecord must note "GPU requested, workload
+# did not use GPU" to preserve ablation identity.  No native cpu queue is
+# declared until the account gains cpu partition access.
+
+[sites.site-v1.queues.gpu]
+partition = "gpu-q"
+qos = "long"
+max_cpus = 32
+max_memory_gb = 128
+max_gpus = 1
+max_walltime_minutes = 1440
+
+[sites.site-v1.runtime_policy]
+requires_apptainer = true
+runtime_store = "/data/bench/runtimes"
+gres_template = "--gres=gpu:1"

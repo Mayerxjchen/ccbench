@@ -1,0 +1,66 @@
+schema_version: 1
+
+sources:
+  paper-001:
+    source_kind: paper
+    title: Example MLIP Paper
+    doi: 10.0000/example
+    sha256: null
+
+  si-001:
+    source_kind: supporting_information
+    parent_source: paper-001
+    sha256: example-si-sha256
+
+  repo-001:
+    source_kind: repository_config
+    repository: https://example.invalid/mlip-reproduction
+    commit: 0123456789abcdef0123456789abcdef01234567
+
+  dataset-001:
+    source_kind: dataset_metadata
+    record_id: example-dataset-v1
+    version: 1
+
+evidence:
+  ev-target:
+    source_id: paper-001
+    source_kind: paper
+    locator:
+      section: Methods
+    claim: target.primary
+
+  ev-dataset:
+    source_id: dataset-001
+    source_kind: dataset_metadata
+    locator:
+      version: 1
+      file: manifest.json
+    claim: dataset.artifact
+
+  ev-cutoff:
+    source_id: repo-001
+    source_kind: repository_config
+    locator:
+      commit: 0123456789abcdef0123456789abcdef01234567
+      path: train.yaml
+      yaml_path: model.cutoff
+    claim: model.architecture.cutoff
+
+  ev-training:
+    source_id: repo-001
+    source_kind: repository_config
+    locator:
+      commit: 0123456789abcdef0123456789abcdef01234567
+      path: train.yaml
+      yaml_path: training
+    claim: training
+
+  ev-validation:
+    source_id: si-001
+    source_kind: supporting_information
+    locator:
+      section: Model validation
+    claim: validation.model_level
+
+conflicts: []

@@ -1,0 +1,3 @@
+Unit conversions used in this benchmark (fixed values):
+
+1 Hartree (Ha) = 27.211386245988 eV

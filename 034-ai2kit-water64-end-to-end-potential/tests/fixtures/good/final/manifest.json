@@ -1,0 +1,25 @@
+{
+  "model_family": "DeePMD",
+  "structure_generation": {
+    "initial_structure": "work/initial/generated.extxyz",
+    "generator": "independent-grid-water-builder",
+    "generator_version": "1.0",
+    "command": "python tests/fixtures/structure-origin/generate_fixture.py work/initial/generated.extxyz",
+    "seed": 41,
+    "checks": {
+      "composition": "PASS",
+      "periodic_geometry": "PASS"
+    },
+    "initial_structure_sha256": "d6da9d4b810d83e473bcd2adaeef7e1c3b831a0cdbd724fa97af3df108134731",
+    "cp2k_input_structure_sha256": "d6da9d4b810d83e473bcd2adaeef7e1c3b831a0cdbd724fa97af3df108134731"
+  },
+  "model_files": [
+    "final/models/final.pb"
+  ],
+  "workflow_root": "final/workflow",
+  "training_data_provenance": "CP2K AIMD generated from the supplied structure (190 frames) + 2 active-learning label sets",
+  "validation_artifacts": [],
+  "environment_manifest": "ai2-kit 1.1.0, dp 2.2.11, lammps 2023.8, cp2k 2024.3",
+  "status": "completed",
+  "profile": "paper"
+}

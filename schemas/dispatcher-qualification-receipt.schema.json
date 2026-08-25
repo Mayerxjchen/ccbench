@@ -1,0 +1,389 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/dispatcher-qualification-receipt.schema.json",
+  "title": "HPC dispatcher qualification receipt",
+  "description": "Content-addressed evidence bundle from a real-site dispatcher canary. The receipt carries NO verdict fields: qualification_status, formal_qualified and per-gate labels are derived by the verifier from the bound evidence (dftworld_bench.experiments.qualification_receipt). Every security-relevant claim must be anchored to something independently recomputable offline: on-disk runtime lock, rebuilt SiteProfile digest, code-identity digests, the append-only audit chain, settlement report digests, artifact bytes, or internal cross-consistency.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_id",
+    "profile_site",
+    "site_profile_digest",
+    "source_commit",
+    "code_identity",
+    "runtime_lock",
+    "authorization_scope",
+    "evidence"
+  ],
+  "description_note": "'digest' is optional at schema level because it is computed over the body that contains it; the builder always seals one and the verifier fails any receipt whose digest is missing or does not recompute.",
+  "properties": {
+    "kind": {
+      "const": "hpc-dispatcher-qualification/site-v1"
+    },
+    "schema_id": {
+      "const": "https://mlip-bench.example/schemas/dispatcher-qualification-receipt.schema.json"
+    },
+    "profile_site": {
+      "type": "string",
+      "minLength": 1,
+      "description": "SSH host of the qualified site (private config identity)."
+    },
+    "site_profile_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "source_commit": {
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "git rev-parse HEAD of the tree that produced the evidence."
+    },
+    "code_identity": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "pattern": "^sha256:[0-9a-f]{64}$" },
+      "description": "relpath -> digest of every trusted module on the qualification path; verifier re-hashes each under root."
+    },
+    "runtime_lock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sif_path_remote", "sif_sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sif_path_remote": { "type": "string", "minLength": 1 },
+        "sif_sha256": { "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "authorization_scope": { "type": "string", "minLength": 1 },
+    "evidence": { "$ref": "#/$defs/evidence" },
+    "digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "sha256 over the canonical JSON of this receipt without the digest field."
+    }
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase",
+        "authorization",
+        "site_profile_digest",
+        "resolved_workloads",
+        "native_cpu_partition_accessible",
+        "sentinel_cleanup",
+        "single_mount_check",
+        "jobs",
+        "cp2k_gate"
+      ],
+      "properties": {
+        "phase": { "const": "canary" },
+        "authorization": { "type": "string", "minLength": 1 },
+        "site_profile_digest": { "pattern": "^sha256:[0-9a-f]{64}$" },
+        "resolved_workloads": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cpu", "gpu"],
+          "properties": {
+            "cpu": { "$ref": "#/$defs/resolvedWorkload" },
+            "gpu": { "$ref": "#/$defs/resolvedWorkload" }
+          },
+          "description": "Both workload routes must resolve against the rebuilt SiteProfile; cpu must map to the native cpu queue (gpus=0) now that the account's cpu ACL is restored."
+        },
+        "native_cpu_partition_accessible": { "type": "boolean" },
+        "sentinel_cleanup": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["removed", "leftover"],
+          "properties": {
+            "removed": { "type": "array", "items": { "type": "string" } },
+            "leftover": {
+              "type": "array",
+              "maxItems": 0,
+              "description": "Any leftover sentinel fails the canary; schema-level, so derivation need not special-case it."
+            }
+          }
+        },
+        "single_mount_check": { "type": "string", "minLength": 1 },
+        "jobs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/job" }
+        },
+        "cp2k_gate": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Verdict-free like everything else: absent 'evidence' means NOT_RUN; present evidence is derived by the verifier into PASS or FAIL. There is no declarable status field — that is the structural anti-forgery property.",
+          "properties": {
+            "detail": { "type": "string" },
+            "evidence": { "$ref": "#/$defs/cp2kEvidence" }
+          }
+        }
+      }
+    },
+    "probeResultsCpu": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspace_rw",
+        "home_sentinel_absent",
+        "credential_sentinel_absent",
+        "other_run_dir_absent",
+        "runs_root_not_listable"
+      ],
+      "properties": {
+        "workspace_rw": { "const": true },
+        "home_sentinel_absent": { "const": true },
+        "credential_sentinel_absent": { "const": true },
+        "other_run_dir_absent": { "const": true },
+        "runs_root_not_listable": { "const": true }
+      }
+    },
+    "probeResultsGpu": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspace_rw",
+        "home_sentinel_absent",
+        "credential_sentinel_absent",
+        "other_run_dir_absent",
+        "runs_root_not_listable",
+        "gpu_device_name",
+        "gpu_memory_total_mb"
+      ],
+      "properties": {
+        "workspace_rw": { "const": true },
+        "home_sentinel_absent": { "const": true },
+        "credential_sentinel_absent": { "const": true },
+        "other_run_dir_absent": { "const": true },
+        "runs_root_not_listable": { "const": true },
+        "gpu_device_name": { "type": "string", "minLength": 1 },
+        "gpu_memory_total_mb": { "type": "integer", "exclusiveMinimum": 0 }
+      }
+    },
+    "resolvedWorkload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workload_type", "queue_name", "partition", "account", "qos",
+        "gres", "mapping_note"
+      ],
+      "properties": {
+        "workload_type": { "enum": ["cpu", "gpu"] },
+        "queue_name": { "type": "string", "minLength": 1 },
+        "partition": { "type": "string", "minLength": 1 },
+        "account": { "type": "string", "minLength": 1 },
+        "qos": { "type": ["string", "null"] },
+        "gres": { "type": ["string", "null"] },
+        "mapping_note": { "type": "string" }
+      }
+    },
+    "cp2kEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "job",
+        "input",
+        "output_artifact",
+        "parsed",
+        "runtime_lock"
+      ],
+      "properties": {
+        "job": {
+          "$ref": "#/$defs/job",
+          "description": "The CP2K canary's full job record; derives under the same rules as a canary job (own audit ledger, settlement, accounting, probes, artifacts)."
+        },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "text", "sha256"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Artifact name of the staged input inside artifacts_dir; must appear in the job fetch_manifest."
+            },
+            "text": { "type": "string", "minLength": 1 },
+            "sha256": { "pattern": "^[0-9a-f]{64}$" }
+          }
+        },
+        "output_artifact": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Artifact name of the fetched cp2k output; must appear in the job fetch_manifest and re-parse against the claims."
+        },
+        "parsed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version_string", "energy_eh", "scf_converged"],
+          "properties": {
+            "version_string": {
+              "type": "string",
+              "minLength": 1,
+              "description": "e.g. 'CP2K version 2025.2', as parsed from the output."
+            },
+            "energy_eh": {
+              "type": "string",
+              "pattern": "^-?[0-9]+\\.[0-9]+$",
+              "description": "Total FORCE_EVAL energy in hartree, exact decimal string."
+            },
+            "scf_converged": { "const": true }
+          }
+        },
+        "runtime_lock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "sif_path_remote", "sif_sha256"],
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "sif_path_remote": { "type": "string", "minLength": 1 },
+            "sif_sha256": { "pattern": "^[0-9a-f]{64}$" }
+          }
+        }
+      }
+    },
+    "job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canary", "run_id", "operation_id", "attempt", "job_id",
+        "scheduler_job_id", "runtime_decl", "state", "exit_code",
+        "gpus_requested", "accounting", "probe_class", "probe_results",
+        "stdout_tail", "stderr_tail",
+        "settlement", "fetch_manifest", "artifacts_dir", "audit_log"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": { "probe_class": { "const": "cpu" } },
+            "required": ["probe_class"]
+          },
+          "then": {
+            "properties": { "probe_results": { "$ref": "#/$defs/probeResultsCpu" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "probe_class": { "const": "gpu" } },
+            "required": ["probe_class"]
+          },
+          "then": {
+            "properties": { "probe_results": { "$ref": "#/$defs/probeResultsGpu" } }
+          }
+        }
+      ],
+      "properties": {
+        "canary": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 },
+        "operation_id": { "type": "string", "minLength": 1 },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "job_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Adapter ledger id; must appear in the run's audit SUBMIT_ACCEPTED entries."
+        },
+        "scheduler_job_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Scheduler-side job id the accounting lines are keyed by."
+        },
+        "runtime_decl": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*@sha256:[0-9a-f]{64}$",
+          "description": "<image>@sha256:<frozen sif sha256> — the image name is stack-specific, the digest must bind the job's runtime lock."
+        },
+        "state": { "const": "SUCCEEDED" },
+        "exit_code": { "const": 0 },
+        "gpus_requested": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "GPUs in the submitted spec resources; TRES reconciliation requires ReqTRES/AllocTRES GPU counts to equal this exactly."
+        },
+        "probe_class": {
+          "enum": ["cpu", "gpu"],
+          "description": "cpu jobs run containment probes only (no nvidia-smi on cpu-partition nodes); gpu jobs additionally prove device visibility."
+        },
+        "accounting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["raw_state", "exit_code_raw", "req_tres", "alloc_tres", "source"],
+          "properties": {
+            "raw_state": { "type": "string", "minLength": 1 },
+            "exit_code_raw": {
+              "type": "string",
+              "pattern": "^[0-9]+:[0-9]+$",
+              "description": "Raw sacct ExitCode (returned:first_failed)."
+            },
+            "req_tres": { "type": "string", "minLength": 1 },
+            "alloc_tres": { "type": "string", "minLength": 1 },
+            "source": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The exact accounting command the lines came from."
+            }
+          }
+        },
+        "probe_results": {
+          "type": "object",
+          "description": "Shape selected by probe_class (see allOf above)."
+        },
+        "stdout_tail": { "type": "string" },
+        "stderr_tail": { "type": "string" },
+        "settlement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["report", "digest"],
+          "properties": {
+            "report": {
+              "type": "object",
+              "required": ["run_id", "attempts", "cancelled_jobs", "usage"],
+              "properties": {
+                "run_id": { "type": "string" },
+                "attempts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["operation_id", "attempt", "job_id", "state"]
+                  }
+                },
+                "cancelled_jobs": { "type": "array" },
+                "usage": { "type": "object" }
+              }
+            },
+            "digest": { "pattern": "^sha256:[0-9a-f]{64}$" }
+          }
+        },
+        "fetch_manifest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entries"],
+          "properties": {
+            "job_id": { "type": "string" },
+            "entries": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path", "sha256", "size_bytes"],
+                "properties": {
+                  "path": { "type": "string", "minLength": 1 },
+                  "sha256": { "pattern": "^[0-9a-f]{64}$" },
+                  "size_bytes": { "type": "integer", "minimum": 0 }
+                }
+              }
+            }
+          }
+        },
+        "artifacts_dir": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Directory under the receipt dir holding the fetched artifacts named in fetch_manifest."
+        },
+        "audit_log": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Run's audit.jsonl relative to the receipt dir; hash-chained ledger the verifier replays."
+        }
+      }
+    }
+  }
+}

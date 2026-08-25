@@ -1,0 +1,64 @@
+# Skill-ablation v1 protocol (frozen).
+#
+# Predeclared experiment policy for the first trustworthy No-Skill / With-Skill
+# comparison.  Written BEFORE any pilot or formal score is observed; changing
+# any field here after observations exist invalidates the comparison.
+#
+# STATUS: frozen.  The referenced release (ablation-ready-benchmark-v0) is
+# frozen at its git source_commit with every component digest recomputable
+# from disk.  Scope covers cases 001-033: 031/032/033 are benchmark_valid;
+# 034 is in construction and excluded from v0.  The provisional infrastructure
+# pilot (experiment_id skill-ablation-v1-pilot) may run on a benchmark-valid
+# case now to validate the pairing machinery, but no formal No-Skill/With-Skill
+# observation counts outside the frozen protocol.
+schema: skill-ablation-protocol/v1
+status: frozen
+name: skill-ablation-v1
+release: ablation-ready-benchmark-v0
+
+# Paired trials: one no-skill + one with-skill attempt of the same case,
+# on the SAME site and SAME profile.  The only permitted difference between
+# the two arms is Skill availability (see treatment_difference).
+paired_trials:
+  same_site: true
+  same_profile: true
+
+# Fixed replicate count per (case, condition).  More runs are never added to
+# nudge an outcome; a full protocol amendment is required instead.
+replicates: 3
+
+conditions:
+  - id: no-skill
+    skills_source: none
+    skills_sha: null
+  - id: with-skill
+    skills_source: bundled
+    skills_sha: "sha256:984bcc8d4b2775c7f8d0f4a475e46c7e9b2e03b348bd14e4a42c90c0c12668e9"
+
+retry_policy:
+  # Infrastructure-invalid attempts (HPC down, gateway fault, image failure)
+  # may be replaced by a NEW attempt with a NEW run ID.  That is a different
+  # observation, not a re-run of the same attempt.
+  infra_invalid: replace-with-new-run-id
+  # A scientific failure or Agent failure may NOT be silently re-run to get a
+  # better number.  Any re-run requires a protocol amendment with a new
+  # experiment ID.
+  scientific_failure: no-silent-rerun
+  agent_failure: no-silent-rerun
+
+# The ONLY permitted treatment difference between paired arms.
+treatment_difference: skill-availability-only
+
+pilot:
+  # Pilot trials validate the machinery on real jobs.  They use a distinct
+  # experiment ID and are NEVER included in the formal result.
+  experiment_id: skill-ablation-v1-pilot
+  excluded_from_formal: true
+  scope: one no-skill + one with-skill trial per HPC case (031-033)
+
+formal:
+  experiment_id: skill-ablation-v1
+  release_digest_required: true
+  # INFRA_INVALID observations are excluded from scientific denominators and
+  # recorded here, never in the formal pair set.
+  invalid_runs_ledger: invalid-runs.json

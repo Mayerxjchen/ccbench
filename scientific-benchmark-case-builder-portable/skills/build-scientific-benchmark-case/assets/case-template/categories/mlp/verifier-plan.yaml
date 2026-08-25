@@ -1,0 +1,7 @@
+schema_version: 1
+category: mlp
+layers: []
+fixtures:
+  positive: []
+  negative: []
+  alternative_valid: []

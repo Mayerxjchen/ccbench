@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "042-go-water-dpmp",
+  "status": "draft",
+  "freeze_note": "Draft tolerances anchored on the paper profile (DPMP, deepmd-jax) and the published dataset statistics. V4 values are deliberately loose (0.05 eV/atom E, 0.25 eV/A F) so a scientifically sound agent run is not mis-killed before calibration. FREEZE REQUIRES n_runs>=2 independent expert reruns of the full GO-water DPMP pipeline (see VALIDATION.json G10); then thresholds are tightened to the observed expert spread.",
+  "levels": {
+    "V0": {
+      "required_fields": ["model_family", "framework", "model_files", "structure_origin", "reference_labeling", "status"],
+      "model_family_contains": "DPMP",
+      "framework_contains": "jax",
+      "allowed_interfaces": ["water", "air-water", "air-water-long", "graphene-water", "graphene-water-long", "graphene-O12", "graphene-O25", "graphene-O50"]
+    },
+    "V1": {
+      "energy_per_atom_bounds_eV": [-2000, 0],
+      "max_force_eV_A": 1000.0,
+      "trace_pct_min": 90.0,
+      "min_aimd_frames": 1
+    },
+    "V2": {},
+    "V3": {
+      "min_rounds": 1,
+      "min_retraining_rounds": 2,
+      "require_new_labeled_configs": true
+    },
+    "V4": {
+      "energy_rmse_eV_per_atom_max": 0.05,
+      "force_rmse_eV_A_max": 0.25,
+      "max_nonfinite_fraction": 0.01,
+      "alignment": "mean-offset aligned energy RMSE, eV/atom; raw force RMSE, eV/A",
+      "units_note": "energies in eV total (published units); per-atom after division by natoms"
+    },
+    "V5": {
+      "min_steps": 20,
+      "no_nan": true,
+      "no_lost_atoms": true,
+      "mean_temp_band_K": [250, 350],
+      "require_temperature": true,
+      "nominal_temperature_K": 300,
+      "nvt_steps_env_default": 5000,
+      "dt_fs": 0.5
+    },
+    "V6": {
+      "first_peak_window_angstrom": [2.5, 4.5],
+      "depletion_width_window_angstrom": [2.0, 4.0],
+      "no_unphysical_near_plane": true,
+      "near_plane_max_frac_of_peak": 0.10,
+      "reference_first_peak_angstrom": 3.35,
+      "reference_depletion_width_angstrom": 2.65,
+      "interface": "graphene-water",
+      "density_units": "oxygen number density (nm^-3) vs minimum-image distance from graphite plane",
+      "peak_detection_note": "first hydration-layer peak = global max of smoothed O density in d in [2.0, Lz/2) A; depletion = 25% rise edge. Pristine graphene excludes water O to ~2.5 A, so the 1.45 A spike in the raw histogram is sparse-count noise, not a layer."
+    }
+  }
+}

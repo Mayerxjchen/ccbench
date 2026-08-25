@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dftworld.ai/schemas/run-event.schema.json",
+  "title": "Run event",
+  "description": "One hash-chained, append-only event in an operation's event log.",
+  "type": "object",
+  "required": [
+    "event_seq", "event_id", "operation_id", "kind",
+    "previous_event_digest", "timestamp", "payload", "event_digest"
+  ],
+  "properties": {
+    "event_seq": { "type": "integer", "minimum": 1 },
+    "event_id": { "type": "string" },
+    "operation_id": { "type": "string" },
+    "kind": { "type": "string" },
+    "previous_event_digest": { "type": ["string", "null"] },
+    "timestamp": { "type": "string" },
+    "payload": { "type": "object" },
+    "event_digest": { "type": "string" }
+  },
+  "additionalProperties": false
+}

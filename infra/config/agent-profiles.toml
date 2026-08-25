@@ -1,0 +1,26 @@
+# Agent profiles: budget and timing limits for different run types.
+# These are infrastructure-owned; cases never reference them directly.
+
+[agents.pilot-infra]
+max_model_turns = 128
+max_total_tokens = 25000000
+agent_active_walltime_sec = 7200
+scheduler_wait_walltime_sec = 172800
+
+[agents.discovery-long]
+max_model_turns = 256
+max_total_tokens = 50000000
+agent_active_walltime_sec = 43200
+scheduler_wait_walltime_sec = 604800
+
+[agents.formal-long]
+max_model_turns = 512
+max_total_tokens = 100000000
+agent_active_walltime_sec = 86400
+scheduler_wait_walltime_sec = 604800
+
+[agents.local-standard]
+max_model_turns = 64
+max_total_tokens = 10000000
+agent_active_walltime_sec = 7200
+scheduler_wait_walltime_sec = 0

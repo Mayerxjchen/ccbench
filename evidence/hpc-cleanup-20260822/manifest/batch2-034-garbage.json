@@ -1,0 +1,39 @@
+{
+  "batch": "B2",
+  "title": "034 构造垃圾",
+  "prereqs": [
+    "squeue -u <site-user> 为空",
+    "Batch 1 迁移 .migration-verified 通过（hpc-ref/hidden-score/_solution 迁毕）",
+    "verifier-staging 内 tests/hidden 与 tests-m710/hidden 哈希 == 本地 git（3.8M×2）",
+    "runtime-staging SIF qualification 判定完成"
+  ],
+  "items": [
+    {"path": "/public/home/<site-user>/034/verifier-staging/", "kind": "dir", "size": "33G", "reason": "清单§五：verifier staging；hidden tests 先哈希比对 git；out/* verifier 结果小件已由本地 G-gate evidence 覆盖"},
+    {"path": "/public/home/<site-user>/034/envs/", "kind": "dir", "size": "13G", "reason": "清单§五：构建环境"},
+    {"path": "/public/home/<site-user>/034/work/", "kind": "dir", "size": "1.7G", "reason": "清单§五"},
+    {"path": "/public/home/<site-user>/034/wheelhouse/", "kind": "dir", "size": "1.1G", "reason": "清单§五"},
+    {"path": "/public/home/<site-user>/034/preflight/", "kind": "dir", "size": "3.4M", "reason": "清单§五；内嵌 case/solution 为 git 内容"},
+    {"path": "/public/home/<site-user>/034/ai2kit-slurmfix.tar", "kind": "file", "size": "1.7G", "reason": "无 manifest 引用的临时 tar（pseudo-slurm 0.1.0-slurmfix 构建产物，镜像已存在）"},
+    {"path": "/public/home/<site-user>/034/g8-install-smoke-20260812-a2..a6/", "kind": "dir-glob", "size": "~1.1M", "reason": "清单§五 g8-install-smoke-*"},
+    {"path": "/public/home/<site-user>/034/g9-preflight-*/", "kind": "dir-glob", "size": "~2.9M", "reason": "清单§五 g9-preflight-*"},
+    {"path": "/public/home/<site-user>/034/g9-cp2k-*/", "kind": "dir-glob", "size": "~9M", "reason": "清单§五 失败的 g9-cp2k-*（omp1-a3/rerun-a3/diag/module-diag/closure-probe）"},
+    {"path": "/public/home/<site-user>/034/cand-smoke-g7-5-20260811/", "kind": "dir", "size": "208K", "reason": "清单§五"},
+    {"path": "/public/home/<site-user>/034/lmp-directed-g7-6-20260811/", "kind": "dir", "size": "228K", "reason": "清单§五"},
+    {"path": "/public/home/<site-user>/034/probe-lmp/", "kind": "dir", "size": "20K", "reason": "probe"},
+    {"path": "/public/home/<site-user>/034/probe-lmp2/", "kind": "dir", "size": "80K", "reason": "probe"},
+    {"path": "/public/home/<site-user>/034/probe-g7-discovery-20260811/", "kind": "dir", "size": "40K", "reason": "probe"},
+    {"path": "/public/home/<site-user>/034/diag-cp2k-print/", "kind": "dir", "size": "108K", "reason": "diag"},
+    {"path": "/public/home/<site-user>/034/diag-gpu-sif/", "kind": "dir", "size": "12K", "reason": "diag"},
+    {"path": "/public/home/<site-user>/034/runtime-staging/*-docker-archive.tar", "kind": "file-glob", "size": "4.7G", "reason": "清单§五：docker archive 删除（gpu 3.0G + cpu 1.7G）"},
+    {"path": "/public/home/<site-user>/034/runtime-staging/smoke-ws/ 等 build 脚本与 slurm 输出", "kind": "dir+files", "size": "<1M", "reason": "runtime-staging 分类处理的杂项"}
+  ],
+  "runtime_staging_sifs": [
+    {"path": "/public/home/<site-user>/034/runtime-staging/034-ai2kit-cpu-amd64.sif", "size": "1.6G", "sha256": "aa6c0f995b7091281d631aa75824ce847b8b923024cc250f7f679999b9d53960", "decision": "qualification 通过→内容寻址 store；未通过→删"},
+    {"path": "/public/home/<site-user>/034/runtime-staging/034-ai2kit-gpu-amd64.sif", "size": "3.0G", "sha256": "5630039b6f53f243486da68a399be88f383caa2730c1842300e3607eb59d67a0", "decision": "同上"}
+  ],
+  "not_in_this_batch": [
+    "034/hpc-ref-* 与 hidden-score —— Batch 1 迁移完成后按 relocation receipt 删除",
+    "034/qualify/ qualification-assets/ src/ tools/ —— 内容未分类，逐项检查后归入 B2 补充或保留",
+    "dftworld2-runs/034-ai2kit-water64-end-to-end-potential/ —— 属 Batch 5"
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "archive_member": "CIPS_data/model/frozen_model/frozen_model.pb",
+  "artifacts": [
+    {
+      "path": "common/teacher-model/CIPS_data.zip",
+      "sha256": "1a8ebdd410fc6d6f417c5c0cd5a3fafce430530e57882bf9fcb03563886c42de",
+      "size": 39811218
+    },
+    {
+      "path": "common/teacher-model/frozen_model.pb",
+      "sha256": "a3e7cf9c8168c649ee1ba6e39a7212f3f9db29fc0162b093beb908927e956b4d",
+      "size": 13364800
+    },
+    {
+      "path": "common/teacher-model/type_map.raw",
+      "sha256": "ddd5c423f4f087be6301609fdfd5ac93a2241b3254f7bd732d33457b1f091d8e",
+      "size": 10
+    },
+    {
+      "path": "paper/he-physrevb-108-024305.pdf",
+      "sha256": "cf7d0aadd6fb9a1e9a1e4080ca6c75fcd1ae3e9818270f82263a8183ae0fcd77",
+      "size": 8443562
+    }
+  ],
+  "load_test": {
+    "ase_version": "3.26.0",
+    "deepmd_version": "2.2.11",
+    "engine": "DeePMD-kit DeepPot",
+    "model_path": "frozen_model.pb",
+    "model_sha256": "a3e7cf9c8168c649ee1ba6e39a7212f3f9db29fc0162b093beb908927e956b4d",
+    "model_type_map": [
+      "Cu",
+      "In",
+      "P",
+      "S"
+    ],
+    "num_atoms": 10,
+    "numpy_version": "1.26.4",
+    "outputs": {
+      "all_finite": true,
+      "energy_max": -27.371490343454212,
+      "energy_min": -27.371490343454212,
+      "energy_shape": [
+        1,
+        1
+      ],
+      "force_max": 0.25571619191152867,
+      "force_min": -0.26871671700874455,
+      "force_shape": [
+        1,
+        10,
+        3
+      ],
+      "virial_max": -0.007758639941570677,
+      "virial_min": -1.8803906556418397,
+      "virial_shape": [
+        1,
+        9
+      ]
+    },
+    "passed": true,
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "python_version": "3.11.15",
+    "structure_path": "CuInP2S6.cif",
+    "structure_sha256": "b9e3b0c4470274d5e3e1ce19e7c8834bda323e50483eef9791b1e744bbd629de",
+    "tensorflow_version": "2.16.2",
+    "type_map": [
+      "Cu",
+      "In",
+      "P",
+      "S"
+    ],
+    "type_map_path": "type_map.raw",
+    "type_map_sha256": "ddd5c423f4f087be6301609fdfd5ac93a2241b3254f7bd732d33457b1f091d8e"
+  },
+  "paper": {
+    "data_reference": 39,
+    "doi": "10.1103/PhysRevB.108.024305",
+    "path": "paper/he-physrevb-108-024305.pdf",
+    "repository_source": "repository/release/workspace_demo1b_distill_pdf/He_paper.pdf",
+    "sha256": "cf7d0aadd6fb9a1e9a1e4080ca6c75fcd1ae3e9818270f82263a8183ae0fcd77",
+    "size": 8443562
+  },
+  "provenance": "upstream_author_dataset",
+  "recovered_at": "2026-08-10",
+  "schema_version": 1,
+  "source": {
+    "authors": [
+      "Ri He",
+      "Hua Wang",
+      "Shi Liu",
+      "Zhi cheng Zhong"
+    ],
+    "content_disposition_filename": "CIPS_data.zip",
+    "download_url": "https://aisquare-zjk.oss-cn-zhangjiakou.aliyuncs.com/data/models/45119491-7e8d-4628-997a-bc596564bce4",
+    "license": {
+      "status": "not_exposed_by_public_search_api",
+      "value": null
+    },
+    "provider": "AIS Square",
+    "published_at": "2023-07-08T00:00:00+08:00",
+    "record_id": 109,
+    "record_name": "vdW_CuInP2S6_optB86b",
+    "record_url": "https://www.aissquare.com/models/detail?pageType=models&name=vdW_CuInP2S6_optB86b&id=109",
+    "reported_size": 39811218,
+    "search_api_url": "https://backend.aissquare.com/search?searchKey=vdW_CuInP2S6_optB86b&page=1&pageSize=10",
+    "version": "1"
+  },
+  "status": "recovered",
+  "type_map": [
+    "Cu",
+    "In",
+    "P",
+    "S"
+  ],
+  "type_map_member": "CIPS_data/dataset/init.000/type_map.raw",
+  "type_map_verified": true
+}

@@ -1,0 +1,16 @@
+{
+  "benchmark_construction_unblocked": true,
+  "repository_commit_pinned": true,
+  "source_recovery_complete": true,
+  "structure_recovered": true,
+  "task1_workspace_recovered": true,
+  "task2_raw_trajectories_recovered": false,
+  "task2_workspace_recovered": true,
+  "task3_electric_field_protocol_verified": true,
+  "task3_raw_trajectories_recovered": false,
+  "task3_structure_recovered": true,
+  "task3_workspace_recovered": true,
+  "teacher_model_load_test_passed": true,
+  "teacher_model_recovered": true,
+  "teacher_model_type_map_verified": true
+}

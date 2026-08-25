@@ -1,0 +1,41 @@
+import re
+from pathlib import Path
+
+OUT_PATH = Path("/app/out.txt")
+PARAMS_PATH = Path("/app/params.txt")
+REF_ENERGY = -17.219495884120
+
+
+def parse_cutoff() -> int:
+    assert PARAMS_PATH.is_file(), "params.txt not found (expected CUTOFF=<integer>)"
+    text = PARAMS_PATH.read_text()
+    match = re.search(r"^\s*CUTOFF\s*=\s*(\d+)\s*$", text, re.MULTILINE)
+    assert match, f"params.txt must contain CUTOFF=<integer>, got:\n{text!r}"
+    return int(match.group(1))
+
+
+def test_out_file_exists():
+    assert OUT_PATH.is_file(), "out.txt not found"
+
+
+def test_cutoff_choice():
+    cutoff = parse_cutoff()
+    assert cutoff == 320, f"Smallest table cutoff meeting 1e-5 Ha is 320 Ry, got {cutoff}"
+
+
+def test_input_cutoff_matches_params():
+    cutoff = parse_cutoff()
+    inp = Path("/app/H2O.inp").read_text()
+    match = re.search(r"CUTOFF\s+(\d+)", inp)
+    assert match, "H2O.inp missing CUTOFF"
+    assert int(match.group(1)) == cutoff, "CUTOFF in input must match params.txt"
+
+
+def test_energy_format():
+    content = OUT_PATH.read_text().strip()
+    assert re.match(r"-?\d+\.\d+", content), f"Output is not a valid number: {content!r}"
+
+
+def test_energy_correct():
+    got = float(OUT_PATH.read_text().strip())
+    assert abs(got - REF_ENERGY) < 1e-4, f"Expected ~{REF_ENERGY}, got {got}"

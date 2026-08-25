@@ -1,0 +1,28 @@
+{
+  "benchmark_id": "034-ai2kit-water64-end-to-end-potential",
+  "benchmark_valid": false,
+  "status": "NOT VALIDATED",
+  "updated": "2026-08-10",
+  "gates": {
+    "A_source_freeze": false,
+    "B_isolation": true,
+    "C_runtime": false,
+    "D_prompt_fidelity": true,
+    "E_geopt_oracle": false,
+    "F_aimd_oracle": false,
+    "G_active_learning_oracle": false,
+    "H_expert_validation": false,
+    "I_hidden_validation": true,
+    "J_output_contract": true,
+    "K_hidden_verifier": false,
+    "L_threshold_calibration": false,
+    "M_negative_fixtures": false,
+    "N_alternative_valid": false,
+    "O_eval_reward_chain": false,
+    "P_reproducibility": false,
+    "Q_ablation_parity": false,
+    "R_final_freeze": false
+  },
+  "note": "A/B/D/I/J are infra-level items proven by artifacts already in the case (leak_audit PASS, prompt abstractness, hidden-set self-consistency). B/E/F/G/H/C/K/L/M/N/O/P/Q/R need real container runs (image in flight). Expert scientific evidence is strong but is NOT benchmark acceptance. See VALIDATION.json for per-item evidence.",
+  "authoritative_source": "VALIDATION.json"
+}

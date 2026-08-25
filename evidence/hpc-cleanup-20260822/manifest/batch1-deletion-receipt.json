@@ -1,0 +1,31 @@
+{
+  "batch": "B1",
+  "title": "hidden/reference/verifier 资产迁移后删除",
+  "executed_at": "2026-08-22T15:20:00+08:00",
+  "squeue_check": "empty (header only)",
+  "quota_before_kb": 126166604,
+  "quota_after_kb": 123752800,
+  "freed_physical": "2.41 GB（逻辑 3.68GB；ws 内 deepmd 模型硬链接共享，物理只计一次）",
+  "relocation_receipts": [
+    "relocation-receipt-batch1.json（主集，archive sha256 6c6bfa05…，PASS 2441/2441）",
+    "batch1-old-refs.tar.zst sha256 b550ce69…（PASS 350/350）",
+    "batch1-hidden-score.tar.zst sha256 a162878d…（PASS 26/26）"
+  ],
+  "deleted": [
+    "/public/home/<site-user>/034/hpc-ref-01-20260818c",
+    "/public/home/<site-user>/034/hpc-ref-02-20260818b",
+    "/public/home/<site-user>/034/hpc-alt-20260819a",
+    "/public/home/<site-user>/034/hpc-ref-01-20260818",
+    "/public/home/<site-user>/034/hpc-ref-02-20260818",
+    "/public/home/<site-user>/034/hpc-ref-01-20260813-a1",
+    "/public/home/<site-user>/034/hpc-ref-01-20260813-a2",
+    "/public/home/<site-user>/034/hpc-ref-02-20260813-a1",
+    "/public/home/<site-user>/034/hpc-ref-02-20260813-a2",
+    "/public/home/<site-user>/034/hidden-score",
+    "/public/home/<site-user>/dftworld2-runs/matclaw-031/_solution",
+    "/public/home/<site-user>/dftworld2-runs/matclaw-032/solution",
+    "/public/home/<site-user>/dftworld2-runs/matclaw-033/solution"
+  ],
+  "post_delete_spotcheck": "hpc-ref-01-20260818c / hidden-score / matclaw-031/_solution / matclaw-033/solution 均已不存在",
+  "local_archive_forms": "archive tar.zst + 解包证据树两种形态保留于 /Users/chenxuanjie/案例测试/hpc-cleanup-20260822-archive/"
+}

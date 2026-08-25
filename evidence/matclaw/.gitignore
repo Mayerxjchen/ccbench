@@ -1,0 +1,10 @@
+# Raw scientific bundles are local/remote evidence, not Git payloads.
+# Content-addressed CAS stores (primary + replica) stay local/remote.
+store/
+formal/**/artifacts/
+formal/**/workspace/
+formal/**/bundle-staging/
+formal/**/restored/
+formal/**/*.tar.zst
+diagnostic/**/artifacts/
+diagnostic/**/workspace/

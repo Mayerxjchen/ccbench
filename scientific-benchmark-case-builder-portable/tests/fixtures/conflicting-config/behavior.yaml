@@ -1,0 +1,2 @@
+must: [preserve_unresolved_conflict, attach_both_evidence_records, stop_before_execution]
+must_not: [silently_choose_config, silently_choose_si, average_values, auto_execute_training]

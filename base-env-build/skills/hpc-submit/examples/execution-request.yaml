@@ -1,0 +1,17 @@
+# bench-hpc execution request (v2) — the descriptor you submit.
+# Identity: (run, OPERATION_ID, ATTEMPT). The gateway re-verifies every
+# input byte against its digest at staging.
+schema_version: 2
+operation_id: scf-round-01
+attempt: 1
+runtime: example-registry/engine-image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+command: ["engine-binary", "-i", "input.inp", "-o", "out/"]
+resources: {cpus: 8, memory_gb: 32, gpus: 0, walltime_minutes: 120}
+inputs:
+  - path: input.inp
+    sha256: "1111111111111111111111111111111111111111111111111111111111111111"
+    size_bytes: 512
+outputs:
+  - "out/"
+environment:
+  ENGINE_DATA_DIR: "/opt/engine/data"

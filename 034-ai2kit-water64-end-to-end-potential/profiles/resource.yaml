@@ -1,0 +1,32 @@
+# Case 034 frozen scientific resource identity.
+#
+# Every data asset is digest-pinned.  These CP2K basis/potential/dispersion
+# files are the GTH data the AIMD and active-learning label runs depend on;
+# the hashes are recorded verbatim from the reconstruction plan Task 12.  Each
+# new remote run directory re-stages these files and re-hashes them before
+# CP2K starts — the broken compile-time `/tmp/hehr/cp2k-2023.2/data` path is
+# never referenced.
+name: water64-hpc
+gpus: 1
+cpus: 16
+memory_mb: 32768
+storage_mb: 102400
+walltime_minutes: 2880
+
+dft:
+  method: "CP2K BLYP-D3 / TZV2P-GTH"
+  basis_set: GTH_BASIS_SETS
+  potential: GTH_POTENTIALS
+  dispersion: dftd3.dat
+
+# Digests recorded verbatim from the reconstruction plan (Task 12 Step 3).
+data_assets:
+  - path: GTH_BASIS_SETS
+    role: CP2K GTH basis set data
+    sha256: 76d1ccd5204390abfcadeb5c0d5e609ff3d151c1c1a583a02349af348ef919f7
+  - path: GTH_POTENTIALS
+    role: CP2K GTH pseudopotential data
+    sha256: a4307115bacdaa253e0faa24b3f9f7ba7c1dc60585cbd83691c65ff51d0db9fd
+  - path: dftd3.dat
+    role: D3 dispersion parameters (BLYP-D3)
+    sha256: 1f5041914fb3a7fa6c97602d82da6cb9129c1c1dba675db23522de9c2837dafd

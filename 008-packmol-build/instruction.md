@@ -1,0 +1,1 @@
+There is a `packmol-21.2.1.tar.gz` source package in the workspace (`/app`). Please extract it, compile and install packmol. After successful compilation, run `packmol < /dev/null 2>&1 | head -n 5` and save the output to `/app/packmol_version.txt`. Execute the commands step by step.

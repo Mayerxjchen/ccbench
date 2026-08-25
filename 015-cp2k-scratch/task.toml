@@ -1,0 +1,47 @@
+schema_version = "1.2"
+
+artifacts = []
+
+[execution]
+class = "local_sandbox"
+
+[candidate]
+instruction = "instruction.md"
+submission_root = "."
+legacy_submission_layout = true
+
+[task]
+name = "benchmark/015-cp2k-scratch"
+description = "Calculate the single-point energy of a water molecule using CP2K"
+authors = []
+keywords = []
+
+[metadata]
+
+[verifier]
+timeout_sec = 600.0
+
+[verifier.env]
+
+[environment]
+build_timeout_sec = 600.0
+os = "linux"
+cpus = 2
+memory_mb = 4096
+storage_mb = 10240
+gpus = 0
+allow_internet = true
+mcp_servers = []
+
+[environment.env]
+
+[solution]
+
+[solution.env]
+
+[runtime]
+requirements = [{ name = "cp2k" }]
+
+[submission_contract]
+required = []
+non_empty = true

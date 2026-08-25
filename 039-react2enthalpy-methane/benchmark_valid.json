@@ -1,0 +1,17 @@
+{
+  "benchmark_valid": true,
+  "reference_reproducible": true,
+  "oracle_pass": true,
+  "negative_fixtures_pass": true,
+  "alternative_solution_pass": true,
+  "agent_smoke_tested": true,
+  "agent_smoke_detail": {
+    "run_id": "2026-08-09__09-34-59",
+    "model": "openai/deepseek/deepseek-v4-flash",
+    "reward": 1.0,
+    "evidence_manifest": "039-react2enthalpy-methane/reference/agent_smoke_evidence.json",
+    "genuine_execution": "Agent independently ran GFN2-xTB optimization, vibrations, and IdealGasThermo for all four species with spin=0; delivered atom-wise force-converged standard XYZ files."
+  },
+  "ablation_tested": false,
+  "revalidation_note": "Hardened 2026-08-09: independent recompute from delivered geometry, force-convergence check (max_i ||F_i||<0.01 eV/A), exact schema, strict method/T/P checks. Regression: oracle pytest 13PASS / REWARD=1, hardcoded-answer cheat 3FAIL / REWARD=0, reference values bit-stable (029/030 within ~1e-9 TBLite jitter)."
+}

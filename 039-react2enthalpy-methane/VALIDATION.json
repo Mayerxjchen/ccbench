@@ -1,0 +1,100 @@
+{
+  "benchmark_id": "039-react2enthalpy-methane",
+  "acceptance_standard": "benchmark/sources/chemgraph/acceptance_standard.md v1.1",
+  "source": {
+    "paper_verified": true,
+    "instance_verified": true,
+    "prompt_verified": true,
+    "original_reference_verified": true
+  },
+  "source_detail": {
+    "source_type": "paper_text",
+    "paper_dh_eV": -12.51,
+    "regenerated_dh_eV": -12.509294631984005,
+    "paper_vs_regenerated_abs_diff_eV": 0.0007,
+    "dataset_cross_check": "species G values at 400K agree with dataset id=38 to <1e-5 eV"
+  },
+  "isolation": {
+    "public_only": true,
+    "hidden_assets_inaccessible": true
+  },
+  "reference": {
+    "regenerated": true,
+    "original_consistent": true,
+    "reproducible": true
+  },
+  "reference_detail": {
+    "image": "dftworld-base-xtb",
+    "software": {
+      "ase": "3.25.0",
+      "tblite": "0.4.0",
+      "rdkit": "2024.3.5",
+      "pymatgen": "2026.5.4"
+    },
+    "reproducibility_run1_dh_eV": -12.509294634373589,
+    "reproducibility_run2_dh_eV": -12.509294631984005,
+    "max_deviation_eV": 2.4e-09,
+    "evaluator_tolerance_eV": 0.05,
+    "tolerance_basis": "measured reproducibility ~1e-9 eV + scientific numerical tolerance (paper diff ~7e-4 eV)"
+  },
+  "oracle": {
+    "passes": true
+  },
+  "evaluator": {
+    "oracle_passes": true,
+    "negative_fixtures_fail": true,
+    "alternative_solution_passes": true
+  },
+  "evaluator_detail": {
+    "n_layers": 6,
+    "layers": [
+      "L1 Artifact",
+      "L2 Execution",
+      "L3 Identity",
+      "L4 Consistency",
+      "L5 Scientific",
+      "L6 Reference"
+    ],
+    "negative_fixtures": [
+      "F1 wrong_reaction -> L3 FAIL",
+      "F2 wrong_temperature(298) -> L3 FAIL",
+      "F3 missing_species(O2) -> L1 FAIL",
+      "F4 electronic_only(S=0) -> L5 FAIL",
+      "F5 dh_off(0.5 eV) -> L4+L6 FAIL",
+      "F6 forged_gibbs -> L5 FAIL"
+    ],
+    "alternative_solution": "LBFGS optimizer + per-species independent dirs; dH=-12.509295 eV -> PASS"
+  },
+  "benchmark_valid": true,
+  "fidelity_exception": {
+    "recorded": "2026-08-09",
+    "subject": "two prompt/evaluator mismatches in 029: (1) O2 spin=0 (closed shell / singlet) for all species; (2) delivered geometries must meet the 0.01 eV/A atom-wise force threshold",
+    "why": "(1) reference regenerated from source ase_core pipeline uses spin=0 for all species; gas-phase O2 ground state is triplet (spin=2). An agent computing triplet O2 (chemically correct but not the locked setting) failed the evaluator by ~0.14 eV on dH in historical local run 2026-08-09__08-25-12 (reward=0.0). (2) evaluator L5 requires max_i ||F_i|| < 0.01 eV/A on delivered geometries, but the prompt specified no cutoff; historical local run 2026-08-09__08-36-10 used fmax=0.02 and delivered optimized_CO2.xyz above the evaluator threshold — all H/G/S and dH matched the reference, but L5 failed. Both were unspecified non-default settings in the prompt, not reference errors and not evidence of model incapability.",
+    "resolution": "instruction.md now requires spin=0 for all species (including O2) and max_i ||F_i|| < 0.01 eV/A for each delivered geometry. BFGS with fmax=0.01 is documented as the pinned reference workflow, while any optimizer meeting the same observable force criterion is accepted. Reference values are unchanged.",
+    "future_note": "For a chemistry-judgment benchmark, add separate triplet-O2 and/or looser-fmax variants with their own regenerated references instead of altering 029."
+  },
+  "agent_smoke_tested": true,
+  "agent_smoke_detail": {
+    "run_id": "2026-08-09__09-34-59",
+    "model": "openai/deepseek/deepseek-v4-flash",
+    "reward": 1.0,
+    "tool_calls": 32,
+    "elapsed_sec": 183.3467910420004,
+    "evidence_manifest": "039-react2enthalpy-methane/reference/agent_smoke_evidence.json",
+    "evidence": "Agent independently wrote and ran a GFN2-xTB optimization/Vibrations/IdealGasThermo workflow for CH4, O2, CO2, and H2O; used multiplicity=1 (spin=0) for every species; recomputed all deliverables; and verified max_i ||F_i|| < 0.01 eV/A before the evaluator returned reward=1.0."
+  },
+  "ablation_tested": false,
+  "last_regression": {
+    "date": "2026-08-09",
+    "oracle_pytest_pass": true,
+    "oracle_pytest_count": 13,
+    "hardcoded_answer_fixture_fails": true,
+    "hardcoded_answer_fail_count": 3,
+    "verifier_reward_oracle": 1,
+    "verifier_reward_cheat": 0,
+    "container_images": [
+      "dftworld-base-mace",
+      "dftworld-base-xtb"
+    ]
+  }
+}

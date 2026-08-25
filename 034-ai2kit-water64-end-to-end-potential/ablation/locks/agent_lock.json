@@ -1,0 +1,9 @@
+{
+  "ablation_execution": "DEFERRED",
+  "agent": "pagent",
+  "execution_backend": "real_hpc_controller",
+  "model": "openai/deepseek/deepseek-v4-flash",
+  "pagent_commit": "d4a642f",
+  "pagent_version": "0.7.12",
+  "schema": "034-agent-lock/v2"
+}

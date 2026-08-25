@@ -1,0 +1,344 @@
+{
+  "benchmark_id": "034-ai2kit-water64-end-to-end-potential",
+  "description": "Frozen expert-trajectory lineage (Acceptance Board A2). Every artifact: path, size, sha256, provenance.",
+  "generated": "2026-08-10T09:42:39.370326+00:00",
+  "artifacts": [
+    {
+      "path": "README.md",
+      "size": 3990,
+      "sha256": "dda2d071c5a2a5c37cd67a84a3f0d91e7a0d009e55a82aa94b51876ea73c5dc1",
+      "provenance": "archived expert README.md artifact"
+    },
+    {
+      "path": "active-learning/config/cp2k/cp2k.inp",
+      "size": 1503,
+      "sha256": "3d4f1f17d71f506f2d7f115e98ea683a29774ca4d009d5371229c27683b47395",
+      "provenance": "ai2-kit CLL loop (DeepMD train -> LAMMPS explore -> model-deviation screen -> CP2K label -> retrain), 5 iterations"
+    },
+    {
+      "path": "active-learning/config/cp2k/run.sh",
+      "size": 1612,
+      "sha256": "2014554cb9a2b6e0bb1add663fdb57e6e04d0ca605d3ddfc041b2c3ae8069f64",
+      "provenance": "ai2-kit CLL loop (DeepMD train -> LAMMPS explore -> model-deviation screen -> CP2K label -> retrain), 5 iterations"
+    },
+    {
+      "path": "active-learning/config/cp2k/slurm-header.sh",
+      "size": 265,
+      "sha256": "6768a80dd8003d34eedbb2ffd3287eb81f84d09e4a4a65b063e7170a8b409a3c",
+      "provenance": "ai2-kit CLL loop (DeepMD train -> LAMMPS explore -> model-deviation screen -> CP2K label -> retrain), 5 iterations"
+    },
+    {
+      "path": "active-learning/config/deepmd/input.json",
+      "size": 1225,
+      "sha256": "91574150cc7202cc03ce13de3d462cb90abb9a6068e972c5c9d252614a9c38f7",
+      "provenance": "ai2-kit CLL loop (DeepMD train -> LAMMPS explore -> model-deviation screen -> CP2K label -> retrain), 5 iterations"
+    },
+    {
+      "path": "active-learning/config/deepmd/run.sh",
+      "size": 1259,
+      "sha256": "d2c6c31baa8a3de52157281524c12327fcf55fe33308dc2c719b08a798d7b85c",
+      "provenance": "ai2-kit CLL loop (DeepMD train -> LAMMPS explore -> model-deviation screen -> CP2K label -> retrain), 5 iterations"
+    },
+    {
+      "path": "active-learning/config/deepmd/slurm-header.sh",
+      "size": 924,
+      "sha256": "6e1ef3512318209438b485cac2211461c7beedb01944b4f047e97cab5e5221ca",
+      "provenance": "ai2-kit CLL loop (DeepMD train -> LAMMPS explore -> model-deviation screen -> CP2K label -> retrain), 5 iterations"
+    },
+    {
+      "path": "active-learning/config/lammps/lammps.in",
+      "size": 1253,
+      "sha256": "416d2c4dee418b2540677831d6e5c83133470ad239c7843410f8e6f0c6f9f984",
+      "provenance": "ai2-kit CLL loop (DeepMD train -> LAMMPS explore -> model-deviation screen -> CP2K label -> retrain), 5 iterations"
+    },
+    {
+      "path": "active-learning/config/lammps/run.sh",
+      "size": 1181,
+      "sha256": "49ec89be27a44ce80ed51499108183562023670c4a3f8a9d30ee986409850f6e",
+      "provenance": "ai2-kit CLL loop (DeepMD train -> LAMMPS explore -> model-deviation screen -> CP2K label -> retrain), 5 iterations"
+    },
+    {
+      "path": "active-learning/config/lammps/slurm-header.sh",
+      "size": 957,
+      "sha256": "2d221c327af69897dccadb1a11bbe887c5534028fb5bd37059a5375a361affca",
+      "provenance": "ai2-kit CLL loop (DeepMD train -> LAMMPS explore -> model-deviation screen -> CP2K label -> retrain), 5 iterations"
+    },
+    {
+      "path": "active-learning/run.sh",
+      "size": 2668,
+      "sha256": "afbb7e823f8b3a34466e740586dda0044c6bbc16eceb4441ac1bbecd4ef984d4",
+      "provenance": "ai2-kit CLL loop (DeepMD train -> LAMMPS explore -> model-deviation screen -> CP2K label -> retrain), 5 iterations"
+    },
+    {
+      "path": "active-learning/screening-stats.tsv",
+      "size": 301,
+      "sha256": "78e90123d5fadc11856e5e399623205c4fd16805070b481533d6b27131cf646e",
+      "provenance": "ai2-kit CLL loop (DeepMD train -> LAMMPS explore -> model-deviation screen -> CP2K label -> retrain), 5 iterations"
+    },
+    {
+      "path": "active-learning/workflow/iter-classic-dp-lammps-cp2k.sh",
+      "size": 6331,
+      "sha256": "e8fc326e780f0fe92d20290e2af74940bff250d192714ced1ab79e21727bf86c",
+      "provenance": "ai2-kit CLL loop (DeepMD train -> LAMMPS explore -> model-deviation screen -> CP2K label -> retrain), 5 iterations"
+    },
+    {
+      "path": "active-learning/workflow/prod-dp-lammps.sh",
+      "size": 1363,
+      "sha256": "1c8782053477242ad4bc4924261ab5af01502ad4f4570c04eb6c8c4a00c8fe07",
+      "provenance": "ai2-kit CLL loop (DeepMD train -> LAMMPS explore -> model-deviation screen -> CP2K label -> retrain), 5 iterations"
+    },
+    {
+      "path": "active-learning/workflow/setup.sh",
+      "size": 1158,
+      "sha256": "08e89f438634507b64796e910cec68c3de1eb9e7cc127d4ae43fe14a01a0e129",
+      "provenance": "ai2-kit CLL loop (DeepMD train -> LAMMPS explore -> model-deviation screen -> CP2K label -> retrain), 5 iterations"
+    },
+    {
+      "path": "aimd/input/aimd.inp",
+      "size": 2163,
+      "sha256": "035826eff0376db57043653d142cb79e3cf02a83952c9b6d91931950b7c0bba3",
+      "provenance": "CP2K AIMD NVT 300 K from the geopt-optimized structure; 214 raw frames -> 190-frame mother set"
+    },
+    {
+      "path": "aimd/input/coord_n_cell.inc",
+      "size": 12234,
+      "sha256": "28b08c95c37e136a66388930c2d4a0914870d5d28838bb0b2fc185f974106f6b",
+      "provenance": "CP2K AIMD NVT 300 K from the geopt-optimized structure; 214 raw frames -> 190-frame mother set"
+    },
+    {
+      "path": "aimd/input/slurm.sh",
+      "size": 884,
+      "sha256": "2975c2c6fe1fec0c0d36bf01f6a69466c259a5ae7a124988efd55443f0067797",
+      "provenance": "CP2K AIMD NVT 300 K from the geopt-optimized structure; 214 raw frames -> 190-frame mother set"
+    },
+    {
+      "path": "aimd/processed/README.md",
+      "size": 941,
+      "sha256": "6c8bad1b8525539b7180273ae866f22abd49ab96653c0337463f03896da16cc8",
+      "provenance": "CP2K AIMD NVT 300 K from the geopt-optimized structure; 214 raw frames -> 190-frame mother set"
+    },
+    {
+      "path": "aimd/processed/aimd.xyz",
+      "size": 3910935,
+      "sha256": "1b63da0c0f334c775abff68241403c7058f19d81d0cce615a5d1718bd19c70ee",
+      "provenance": "CP2K AIMD NVT 300 K from the geopt-optimized structure; 214 raw frames -> 190-frame mother set"
+    },
+    {
+      "path": "aimd/processed/filter.tsv",
+      "size": 7666,
+      "sha256": "0ba9b0be841e41008a73264c5c4a8324bbb5a8b203c6b3b19260a5bf7cbcf40a",
+      "provenance": "CP2K AIMD NVT 300 K from the geopt-optimized structure; 214 raw frames -> 190-frame mother set"
+    },
+    {
+      "path": "aimd/raw/coord_n_cell.inc",
+      "size": 12234,
+      "sha256": "28b08c95c37e136a66388930c2d4a0914870d5d28838bb0b2fc185f974106f6b",
+      "provenance": "CP2K AIMD NVT 300 K from the geopt-optimized structure; 214 raw frames -> 190-frame mother set"
+    },
+    {
+      "path": "aimd/raw/water64_aimd-1.cell",
+      "size": 48590,
+      "sha256": "f5dd38107c7e6601e07a74f68cc7f09060cc8e4a0bc0ca44d2add3aac8d4ea30",
+      "provenance": "CP2K AIMD NVT 300 K from the geopt-optimized structure; 214 raw frames -> 190-frame mother set"
+    },
+    {
+      "path": "aimd/raw/water64_aimd-1.ener",
+      "size": 1406023,
+      "sha256": "3b4ddadcc46075c43c101242e4f04600883efc90f9551343f79f0b67124e3751",
+      "provenance": "CP2K AIMD NVT 300 K from the geopt-optimized structure; 214 raw frames -> 190-frame mother set"
+    },
+    {
+      "path": "aimd/raw/water64_aimd-1.restart",
+      "size": 37522,
+      "sha256": "e6c0d8d5c4ec53ed0f454fd18d1e93e6ac4a07a44458a480ecda1c86e656fc5a",
+      "provenance": "CP2K AIMD NVT 300 K from the geopt-optimized structure; 214 raw frames -> 190-frame mother set"
+    },
+    {
+      "path": "aimd/raw/water64_aimd-frc-1.xyz",
+      "size": 2685700,
+      "sha256": "db6a164b03dbc0b1c61d93d09c386fa400cc5dcb27d8d7ad9b266e30cf6e9912",
+      "provenance": "CP2K AIMD NVT 300 K from the geopt-optimized structure; 214 raw frames -> 190-frame mother set"
+    },
+    {
+      "path": "aimd/raw/water64_aimd-pos-1.xyz",
+      "size": 2685700,
+      "sha256": "68849a0c9adbe3f94222a1359f69c5d8f11d7f33884c4ab476a1fde6f9519e6e",
+      "provenance": "CP2K AIMD NVT 300 K from the geopt-optimized structure; 214 raw frames -> 190-frame mother set"
+    },
+    {
+      "path": "geopt/input/coord_n_cell.inc",
+      "size": 12197,
+      "sha256": "c85af0cf50922318921827378858c2888994025b8a973ce2c8d1f78593706236",
+      "provenance": "CP2K GEO_OPT of the initial structure (BLYP-D3/TZV2P-GTH); 394 steps, E=-1102.5766305742 Ha"
+    },
+    {
+      "path": "geopt/input/geopt.inp",
+      "size": 1960,
+      "sha256": "0d841ee9a4d924fd63f1578bb5de6e26116b4a1872b3ebba8ce9d3c523168899",
+      "provenance": "CP2K GEO_OPT of the initial structure (BLYP-D3/TZV2P-GTH); 394 steps, E=-1102.5766305742 Ha"
+    },
+    {
+      "path": "geopt/input/slurm.sh",
+      "size": 692,
+      "sha256": "6340f4895d2baa1d7d0e1ddf43f52bef658c4bb1490e5a51380372fcd31385e3",
+      "provenance": "CP2K GEO_OPT of the initial structure (BLYP-D3/TZV2P-GTH); 394 steps, E=-1102.5766305742 Ha"
+    },
+    {
+      "path": "geopt/output/output",
+      "size": 20271355,
+      "sha256": "232bdbc26ab3d8e9a3c67f792dc60c8afbcd23d48a524cc8d50f5be5f51ad9f5",
+      "provenance": "CP2K GEO_OPT of the initial structure (BLYP-D3/TZV2P-GTH); 394 steps, E=-1102.5766305742 Ha"
+    },
+    {
+      "path": "geopt/output/slurm.out",
+      "size": 56,
+      "sha256": "631e7c33caf6fa64ec2441619117ea89c4d9cd8778ecd12a37b40d1b495ac6b4",
+      "provenance": "CP2K GEO_OPT of the initial structure (BLYP-D3/TZV2P-GTH); 394 steps, E=-1102.5766305742 Ha"
+    },
+    {
+      "path": "geopt/output/water64_geopt-1.restart",
+      "size": 20118,
+      "sha256": "be18627e4ed74d049d27c076122ae10d00e71bf58e72ce2b8cc262034a6fd224",
+      "provenance": "CP2K GEO_OPT of the initial structure (BLYP-D3/TZV2P-GTH); 394 steps, E=-1102.5766305742 Ha"
+    },
+    {
+      "path": "geopt/output/water64_geopt-1.restart.bak-1",
+      "size": 20118,
+      "sha256": "836836167734832975701a54f4ead7e7afed96d3598e13a71245f1f403f6868c",
+      "provenance": "CP2K GEO_OPT of the initial structure (BLYP-D3/TZV2P-GTH); 394 steps, E=-1102.5766305742 Ha"
+    },
+    {
+      "path": "geopt/output/water64_geopt-BFGS.Hessian",
+      "size": 2658816,
+      "sha256": "82c3a73a9b2af4d25b101b2189da385435fcc1c4534c64ab3d953ff6d89d8a8e",
+      "provenance": "CP2K GEO_OPT of the initial structure (BLYP-D3/TZV2P-GTH); 394 steps, E=-1102.5766305742 Ha"
+    },
+    {
+      "path": "geopt/output/water64_geopt-pos-1.xyz",
+      "size": 4936426,
+      "sha256": "b54733fe9407cca7f60389dc660a37d2a8930e55c3d88e9415f446475c9ecf61",
+      "provenance": "CP2K GEO_OPT of the initial structure (BLYP-D3/TZV2P-GTH); 394 steps, E=-1102.5766305742 Ha"
+    },
+    {
+      "path": "initial/packmol_water64.inp",
+      "size": 308,
+      "sha256": "62df412ad42ebce3f39ef9af315a91ee2ac175d887278d5e372dbc85f9527cf3",
+      "provenance": "PACKMOL 64-H2O fill (data/packmol/); source of public water64.xyz"
+    },
+    {
+      "path": "initial/water.xyz",
+      "size": 112,
+      "sha256": "eaf9ffaac4b7b3844928c32c77abdb321b601d1cfada54597ccb1ad6a71f3fef",
+      "provenance": "PACKMOL 64-H2O fill (data/packmol/); source of public water64.xyz"
+    },
+    {
+      "path": "initial/water64.xyz",
+      "size": 10831,
+      "sha256": "b1d5ed709d0128ea83662f9387033bdf478078c0338b51ff58dcc863b24ad0e3",
+      "provenance": "PACKMOL 64-H2O fill (data/packmol/); source of public water64.xyz"
+    },
+    {
+      "path": "reproduction-notes.md",
+      "size": 15510,
+      "sha256": "92615ceb8eceed6b451e8417e35f4a87b958699e3428b81d87f2ea084360051c",
+      "provenance": "archived expert reproduction-notes.md artifact"
+    },
+    {
+      "path": "tools/clean_rerun.sh",
+      "size": 4690,
+      "sha256": "2b4e7947b048c455cea155a260c9aa8e2f4aeaf0e83f282dff4b697985efe608",
+      "provenance": "archived expert tools artifact"
+    },
+    {
+      "path": "tools/cp2k2extxyz.py",
+      "size": 23086,
+      "sha256": "69f88e53e7802fb790a6741c2901ae351bf89d7d949ca0078751a82be67caf41",
+      "provenance": "archived expert tools artifact"
+    },
+    {
+      "path": "tools/xyz2cp2k_inc.py",
+      "size": 7483,
+      "sha256": "72c30655e26298e0627f15c5ef649783e5ebe9205e37521cddc4f21038688494",
+      "provenance": "archived expert tools artifact"
+    },
+    {
+      "path": "validation/analysis/README.md",
+      "size": 2780,
+      "sha256": "e0d94860e6ec20eb0b050dd6e490a0ce6c47c7c3d8a1a0622b9a1ca5d9847238",
+      "provenance": "dp-test / NVT / RDF of the final potential"
+    },
+    {
+      "path": "validation/analysis/analyze_nvt.py",
+      "size": 6672,
+      "sha256": "6b89cdb0d15f0db40cf28cf2ed2c520eb44161be29ca481c319a6f64ab80594f",
+      "provenance": "dp-test / NVT / RDF of the final potential"
+    },
+    {
+      "path": "validation/analysis/compare_rdf.sh",
+      "size": 9665,
+      "sha256": "48d7926364e12aab832efe2540583312288b87d2bf4644c36c750ace43c92118",
+      "provenance": "dp-test / NVT / RDF of the final potential"
+    },
+    {
+      "path": "validation/analysis/dp-test.py",
+      "size": 11961,
+      "sha256": "2d3709d733e3086160b8193a63e78cf0df86c9fab3cb487b7a2654e106a05038",
+      "provenance": "dp-test / NVT / RDF of the final potential"
+    },
+    {
+      "path": "validation/analysis/model-devi-plot.py",
+      "size": 7103,
+      "sha256": "b2cf1cf96277ea86eea2785cbef665409c71e0715bd965eef29211b15939e5f7",
+      "provenance": "dp-test / NVT / RDF of the final potential"
+    },
+    {
+      "path": "validation/analysis/plot_rdf.py",
+      "size": 6259,
+      "sha256": "b689f62a1023e5db8d02d35bd9821febb51515658304ad8c1d0ca6c269d679d3",
+      "provenance": "dp-test / NVT / RDF of the final potential"
+    },
+    {
+      "path": "validation/analysis/prepare_test_data.py",
+      "size": 6235,
+      "sha256": "24be8254f960dca91784210a091984847c0684d023a529c91c5bacb5a317b223",
+      "provenance": "dp-test / NVT / RDF of the final potential"
+    },
+    {
+      "path": "validation/analysis/run_dp_test.sh",
+      "size": 4991,
+      "sha256": "11236c4743a40b7d5d61d308e608cc500d49307cc31347920c02e303df90780d",
+      "provenance": "dp-test / NVT / RDF of the final potential"
+    },
+    {
+      "path": "validation/analysis/run_nvt.sh",
+      "size": 3131,
+      "sha256": "d7738208154be65284204045fe01f92d976ae88dcae24d030f40bb2d2cb1e786",
+      "provenance": "dp-test / NVT / RDF of the final potential"
+    },
+    {
+      "path": "validation/config/nvt/nvt.in",
+      "size": 1936,
+      "sha256": "76f220863eba6574be80beccb0a46c01d8ba8ece8684250e8e8f53d1f4410fd9",
+      "provenance": "dp-test / NVT / RDF of the final potential"
+    },
+    {
+      "path": "validation/config/nvt/run.sh",
+      "size": 338,
+      "sha256": "9d3d595ea79538885fa3fa6e8c19994ea5e3c516fecb0769d2812c2b816ac5fb",
+      "provenance": "dp-test / NVT / RDF of the final potential"
+    },
+    {
+      "path": "validation/config/nvt/slurm-header.sh",
+      "size": 920,
+      "sha256": "3ea84765515a2a663c4587537403e4520e90eefe251eeb74f45b42bd71a93c82",
+      "provenance": "dp-test / NVT / RDF of the final potential"
+    },
+    {
+      "path": "validation/metrics.md",
+      "size": 1741,
+      "sha256": "67ba66a0634c040058669197808afedf68b4c20e3da4b4d48a52f3bb931604e8",
+      "provenance": "dp-test / NVT / RDF of the final potential"
+    }
+  ],
+  "note": "The expert results in this tree are strong SCIENTIFIC evidence, not benchmark acceptance. Acceptance requires independent re-run + verification + freeze inside the real 034 container (see ../../VALIDATION.json)."
+}

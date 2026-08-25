@@ -1,0 +1,1541 @@
+{
+  "schema_version": "1",
+  "case_id": "042-go-water-dpmp",
+  "state": "constructed",
+  "evaluator_bundle_sha256": "6ab87ff36cd7d8494899d516840f4fcf7d5b1ee2b2c908b7e3b20766db5869e3",
+  "bundle_sha256": "6ab87ff36cd7d8494899d516840f4fcf7d5b1ee2b2c908b7e3b20766db5869e3",
+  "files": [
+    {
+      "path": "profiles/formal.yaml",
+      "sha256": "94267b0c0ce8245e511eadf54b23d884bbe30d5ff27acb183255af7d7e8ff639"
+    },
+    {
+      "path": "profiles/platform.yaml",
+      "sha256": "0b53c5d894f7218d08edb29168ef4f84dc826029d661b90b47edc76df16e230b"
+    },
+    {
+      "path": "profiles/resource.yaml",
+      "sha256": "b8579b9aa3460e7a7f08c02e37a950c6b591b7f9563824276a042041e8036d46"
+    },
+    {
+      "path": "profiles/smoke.yaml",
+      "sha256": "1ac1c2d5aa902cd1ef1f99f388a700b8ca9af9d2773278948b1a3bfccb847e95"
+    },
+    {
+      "path": "reference/compute-runtime.lock.json",
+      "sha256": "a961b6804aef423863519406e1f8c95f90add6b507c71b0f8bbe9cde657dd2d4"
+    },
+    {
+      "path": "reference/hidden-validation/density-reference.json",
+      "sha256": "d4c2739ae492f203f1186e2de00d576e142e67653638f308412556c1dea9b646"
+    },
+    {
+      "path": "reference/hidden-validation/generator/generate_hidden_validation.py",
+      "sha256": "a20982ea7ad7fc7d2f41160c851eb68284a60256250b3adba7dac81a0f31bf2d"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/air-water/set.000/box.npy",
+      "sha256": "08563cc313d2a970644cb30823f62ec0b96f97ae47f5523de71215f170ed2315"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/air-water/set.000/coord.npy",
+      "sha256": "0de26f75563ea1944183bcf6299e9b68f4a642c8dce0aa01f08fbb0f2eca0cea"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/air-water/set.000/energy.npy",
+      "sha256": "227221cacbc89950ce242475b26d1bfd292475b1d0910c357279c2fe32ec16ce"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/air-water/set.000/force.npy",
+      "sha256": "0dc57bd5d8d633311d1526deed603851563d033adf170266de3af77976313efd"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/air-water/type.raw",
+      "sha256": "ab9e8b22b19a0798b23e88bdd9973480020636b6f431e8d233271ce5d150139f"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/air-water/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O12/set.000/box.npy",
+      "sha256": "bf114d308b65945f80ac8985f6acc30bba55912beb02dddfe5ea3ba3da5311ce"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O12/set.000/coord.npy",
+      "sha256": "b5729dd826431642704049e4f8c65570c2be0936b4987f3a0b14b416f88ee0b6"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O12/set.000/energy.npy",
+      "sha256": "19b557f6e7eb44b21e6e591a4fba6e48959f8f16390d1b7da97b8eab718b5940"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O12/set.000/force.npy",
+      "sha256": "220025b60c958b9cc8149c6c306dc47de78200b7e3eddf5a17356c712a8a71a4"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O12/type.raw",
+      "sha256": "5b47b06cdae6501dbd214b88e87caa56bdce433e1bf006f44b2bf36aa98d7e0a"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O12/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O25/set.000/box.npy",
+      "sha256": "7752a1a42072cb8f116ec8dfb9dd0fb73448debf0a023b5df7eb6c456dbc528d"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O25/set.000/coord.npy",
+      "sha256": "37e271212ae6b74e083b01ed50a7b210b9339c3dff387d99b7f490b9d1d00a77"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O25/set.000/energy.npy",
+      "sha256": "ccd2e9f7f24aa22b189090581299aa07d6b4a465de34d0fe91552eabe5325195"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O25/set.000/force.npy",
+      "sha256": "3ad2b991628aeb24f409515c1127513f074b54f4922f5119521e80a4f8f866f4"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O25/type.raw",
+      "sha256": "5601f1af7e25a5cfd845055cf5a31648593ecd27ec7a8da45c3c8b1e84d05ed0"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O25/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O50/set.000/box.npy",
+      "sha256": "8ef79d5afa2ffc5282ff40de76e88138abcd41c56d144c75cdbbadfaada99d91"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O50/set.000/coord.npy",
+      "sha256": "b24ba66cb6a6543e1f57a721337635b54be623da1dc1cc94dab34f49975416d3"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O50/set.000/energy.npy",
+      "sha256": "6bee9da204ddc5cc64872e262ef753ced2bd16a4e6292072b16f9ad33defbd10"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O50/set.000/force.npy",
+      "sha256": "ab29df85f0fa6338a89023d5135d402ca2a096f683c28b8b09148a31f50ac73d"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O50/type.raw",
+      "sha256": "65376213c78d97ed98299b8f4abf48dc3a5f2252fcf010dd8e3a2d0e564feb87"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-O50/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-water/set.000/box.npy",
+      "sha256": "a831f6e7eba1443648aa08c727b678666d031f0fbf88b19cdf0ecb6549d92d82"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-water/set.000/coord.npy",
+      "sha256": "239ec33d0ed25a04cad38b6e343d5cca84571fdf9b047d50b683c7a84ee0607b"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-water/set.000/energy.npy",
+      "sha256": "215aefc29ffcd02262f84d35c614bfbfee2a2d4396f7909b19ee7c3ffd6d3a4f"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-water/set.000/force.npy",
+      "sha256": "681d3217bb9d154307a81d5bca91f462b2a1a87c1ad7dc585ca1d8a2c6ba1864"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-water/type.raw",
+      "sha256": "8d3ec20809327d49f8ed55885e4af2372023119602467fcf499a66a456318ab0"
+    },
+    {
+      "path": "reference/hidden-validation/hidden-frames/graphene-water/type_map.raw",
+      "sha256": "1766105c2b11a9ebe92f7a21e3ca4f8d663ed5423f8291af89a894cfad29503b"
+    },
+    {
+      "path": "reference/hidden-validation/manifest.json",
+      "sha256": "49c13b6d642e3c6b92ca5743f1b199830f19984146dffa21af4763e0b16efaee"
+    },
+    {
+      "path": "reference/reference.json",
+      "sha256": "9efc1a5baed96197da6cf37430c496202eae9498c57989cb8a829f6ae5cd7dac"
+    },
+    {
+      "path": "reference/runtime-evidence/version-capture.json",
+      "sha256": "8d42c8d6d6b34f9c448b199b6a7c82a0e9bb50fc921f07b43ccadaca7c5a93e0"
+    },
+    {
+      "path": "reference/source.lock.json",
+      "sha256": "ebb1028f2edfe97ecfbb36c0aa341738e5acdfdc8b76d33033cb8bf7a45c23d3"
+    },
+    {
+      "path": "reference/thresholds.json",
+      "sha256": "10b47b334ea65a4b2f2a53cc5d6c4452255ccb14b471cceef0cf4867fe069a6e"
+    },
+    {
+      "path": "solution/expert/00-structure-generation/build_all_interfaces.py",
+      "sha256": "5ab57f94e327b823cfa9e70042897059bedc8854a75b0b333f546ddb56aba4f4"
+    },
+    {
+      "path": "solution/expert/01-aimd/aimd.inp",
+      "sha256": "6ad07e647d3a69c8e7cc5419e5cb88631ae0a9c872b3616f391463c0dcb790fc"
+    },
+    {
+      "path": "solution/expert/01-aimd/convert.py",
+      "sha256": "c86a9503ea4e4d20f4ca4957f8ce9c49c8148f712f86716e36cbaddbf0fde2c7"
+    },
+    {
+      "path": "solution/expert/01-aimd/run.sh",
+      "sha256": "fe72a6865f5d51c34380677646a2c3184c0c6e8d6c1742bda1a25af47aa0967f"
+    },
+    {
+      "path": "solution/expert/02-train/run.sh",
+      "sha256": "f0d954f000c218f4793651b0d1db103dcedd17a48f1df4489ffd655df96f386b"
+    },
+    {
+      "path": "solution/expert/02-train/train.py",
+      "sha256": "45e8d69b8da2ace3ffc0289638d5b8e36b8c90ebf9511aa418e9c92bf8eda3cb"
+    },
+    {
+      "path": "solution/expert/03-active-learning/cp2k_input.py",
+      "sha256": "ca3224559f2feaf218cf2226b74fa906992328d16d0e9418bc3bd65a40b477f5"
+    },
+    {
+      "path": "solution/expert/03-active-learning/parse_cp2k_label.py",
+      "sha256": "3adb1c3f0b8674a1cf6c2c4ab71689eecc5ff3069248ea6b9ee5621e4890d866"
+    },
+    {
+      "path": "solution/expert/03-active-learning/run.sh",
+      "sha256": "93812313c0c5de16a29c9b8cbd176b3f45b811d34c3a0a1b323aa3bcefd0024a"
+    },
+    {
+      "path": "solution/expert/04-validation/run.sh",
+      "sha256": "bce2365fec09c35cb2330c2b7ca582917dd3e022cf81dfbb086bb48c58bfdf63"
+    },
+    {
+      "path": "solution/expert/README.md",
+      "sha256": "a60236f568328aabacfae2401f1bfe78439888bd31b07391c0ab953ce43ab72d"
+    },
+    {
+      "path": "solution/expert/env.sh",
+      "sha256": "4abc1dbcc7f57577f85a24787c70b394facb778f1345b540852a1cfc6153ca6d"
+    },
+    {
+      "path": "solution/expert/manifest_writer.py",
+      "sha256": "7ecdb149d6ca214a4543f297093fe922391d7aeb3b0374e955aa955869eaa65d"
+    },
+    {
+      "path": "solution/expert/run.sh",
+      "sha256": "e0c7d503cbf52ad832a2bb559794d27b8f4dbe57cefcd149f97e39041d652744"
+    },
+    {
+      "path": "solution/expert/tools/gen_coord_inc.py",
+      "sha256": "40611bde82dd4ee97ba75ad3c14ab778c35bca8df86774007fb5b29fd2ea9e15"
+    },
+    {
+      "path": "solution/expert/wait_job.sh",
+      "sha256": "f923e8fd32dec7032ddb4d280ef34fa8a8b1b975fef5ae0fef27a97da310e1f4"
+    },
+    {
+      "path": "tests/fixtures/alternative-valid/README.md",
+      "sha256": "864d52375fb254d24b522c065bcf482f04c3060d43598f008046464f03161f37"
+    },
+    {
+      "path": "tests/fixtures/generate_fixture.py",
+      "sha256": "0df9e0c55a439ef0af03edb305793c9d2834c2c47d1a95ea528f4935f5f586e9"
+    },
+    {
+      "path": "tests/fixtures/negative/README.md",
+      "sha256": "279becaaaf4791046b94779a06a6ddde7a5a64429c0bf38f8d30b7b9cd0034ad"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/final/manifest.json",
+      "sha256": "fb08e2eba6d7184e40c2a01a5c2cfc374035e70339273a64600964b0c93d0007"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/final/models/model.pkl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/final/report.md",
+      "sha256": "a28880f4e58e0c83c69607d24202556d75d1d2ec02e625e59dceef89de101187"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/final/workflow/01-aimd/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/final/workflow/02-train/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/final/workflow/03-active-learning/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/final/workflow/04-validation/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/structures/graphene-water/box.raw",
+      "sha256": "48417f09c91d48da1484775c04d35f0d6d502149a1b9c099209d57cfcaa4a5b1"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/structures/graphene-water/coord.raw",
+      "sha256": "186ed08c25da6740fdfb183725fb487feaa0cf465433a63ab4c90244230dd833"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/structures/graphene-water/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/active-learning/round-001/iter-001/input.json",
+      "sha256": "dac75b31d941e560d52273d0a47c4e78968933079029b647ffbf68c7acc82dae"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/active-learning/round-001/iter-001/lcurve.out",
+      "sha256": "2cd2b80f7ecfb7803114c3e4de501ed624e654226758b3b535c0e5c3b3e44e5a"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/active-learning/round-002/iter-001/explore-iter-002.lammpstrj",
+      "sha256": "b383ff5ddee1124f4fdff8d04aa39fbcb26f4b0bef3a6c54d23e7bc79b1fdc1d"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/active-learning/round-002/iter-001/input.json",
+      "sha256": "dac75b31d941e560d52273d0a47c4e78968933079029b647ffbf68c7acc82dae"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/active-learning/round-002/iter-001/lcurve.out",
+      "sha256": "2cd2b80f7ecfb7803114c3e4de501ed624e654226758b3b535c0e5c3b3e44e5a"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/active-learning/round-002/iter-001/model_devi.out",
+      "sha256": "4c3c2ab84ea95996daedf5526f5ac96651d336fab6d3ba8778111626a6f2aaab"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/labels/aimd-1.cell",
+      "sha256": "3d2372c16971500c5c2c31e2aa3ed8d83205ce50df2062fad6a805cb88545a09"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/labels/aimd-1.ener",
+      "sha256": "d44912926745e8fe8eb9c5f3d83d6d8e6b817287b16f728652d6712bde082697"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/labels/aimd-frc-1.xyz",
+      "sha256": "ae67a9c9643e8b791650b77c0fb8ce4076f1d5840acf1edfb13cadccba6ce36b"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/labels/aimd-pos-1.xyz",
+      "sha256": "73f17e4993955d6022533afbe50be27d27e7aa83fc2022b84fcf1088af9cafba"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/labels/al-round-001/al-001-1.cell",
+      "sha256": "6ba47885a81f4db72e04bc1cac1519cb2f4e1be78a52925fa37718fc809bdc36"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/labels/al-round-001/al-001-1.ener",
+      "sha256": "3641a9b95f6652203f0c1a1194eb08ea3a4c82c69367cffcbec352b5f8abc455"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/labels/al-round-001/al-001-frc-1.xyz",
+      "sha256": "7aa070226db5e7fc0cb793d403d899de45b0a6af2d27a38d30cdb552f0ac42e7"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/labels/al-round-001/al-001-pos-1.xyz",
+      "sha256": "129de9345b8c508fa2ede7aaab6730b1b4f153cf426d42ff967706afe853b4ba"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/train/round-001/set.000/box.npy",
+      "sha256": "b955039c872ce53efd3fb8346810bbc3df5654991a238a4748414c65913960bb"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/train/round-001/set.000/coord.npy",
+      "sha256": "58a4eba5f5006e3aa6a3f9a9b2e226b14e12440cdfeee2130f5b3be4b756090d"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/train/round-001/set.000/energy.npy",
+      "sha256": "a2ae7e5af5b29da22a8777e44eaa5a7267b9f9bb2bd3d78100a4152e4a0fd6e1"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/train/round-001/set.000/force.npy",
+      "sha256": "de1cd20703813841281cd125a73ebebf75154a80767003a990e0c532f32eda01"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/train/round-001/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/train/round-001/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/train/round-002/set.000/box.npy",
+      "sha256": "74b3787d3814799c3a05b2e6e2cad31d95a91d14107f56a80a2e6fa9ca5835ae"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/train/round-002/set.000/coord.npy",
+      "sha256": "6d795d5abdc06b542acedb42834581200aa8b0cda7103953d74656f3341bf1dc"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/train/round-002/set.000/energy.npy",
+      "sha256": "e659cbc7cf501910b6d070825c5c3cd52d08fa28a47c31f9c9c783567a86b4e2"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/train/round-002/set.000/force.npy",
+      "sha256": "ed1d34044ae4b0ef8348f885ea060ec2cad9b7f363f4f1fcbd4d2d2e54b200b1"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/train/round-002/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/corrupt-model/work/train/round-002/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/final/manifest.json",
+      "sha256": "33e218c54ca22e5b5a91b3970dcac2aedd23837cdb8f701023343a89c3bf3bba"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/final/models/model-b.pkl",
+      "sha256": "9ea764ef654dc61f19ab23af219e5aa420b68157b1d135dc297ab0527941f951"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/final/models/model.pkl",
+      "sha256": "9ea764ef654dc61f19ab23af219e5aa420b68157b1d135dc297ab0527941f951"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/final/report.md",
+      "sha256": "a28880f4e58e0c83c69607d24202556d75d1d2ec02e625e59dceef89de101187"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/final/workflow/01-aimd/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/final/workflow/02-train/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/final/workflow/03-active-learning/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/final/workflow/04-validation/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/structures/graphene-water/box.raw",
+      "sha256": "48417f09c91d48da1484775c04d35f0d6d502149a1b9c099209d57cfcaa4a5b1"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/structures/graphene-water/coord.raw",
+      "sha256": "186ed08c25da6740fdfb183725fb487feaa0cf465433a63ab4c90244230dd833"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/structures/graphene-water/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/active-learning/round-001/iter-001/input.json",
+      "sha256": "dac75b31d941e560d52273d0a47c4e78968933079029b647ffbf68c7acc82dae"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/active-learning/round-001/iter-001/lcurve.out",
+      "sha256": "2cd2b80f7ecfb7803114c3e4de501ed624e654226758b3b535c0e5c3b3e44e5a"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/active-learning/round-002/iter-001/explore-iter-002.lammpstrj",
+      "sha256": "b383ff5ddee1124f4fdff8d04aa39fbcb26f4b0bef3a6c54d23e7bc79b1fdc1d"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/active-learning/round-002/iter-001/input.json",
+      "sha256": "dac75b31d941e560d52273d0a47c4e78968933079029b647ffbf68c7acc82dae"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/active-learning/round-002/iter-001/lcurve.out",
+      "sha256": "2cd2b80f7ecfb7803114c3e4de501ed624e654226758b3b535c0e5c3b3e44e5a"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/active-learning/round-002/iter-001/model_devi.out",
+      "sha256": "4c3c2ab84ea95996daedf5526f5ac96651d336fab6d3ba8778111626a6f2aaab"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/labels/aimd-1.cell",
+      "sha256": "3d2372c16971500c5c2c31e2aa3ed8d83205ce50df2062fad6a805cb88545a09"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/labels/aimd-1.ener",
+      "sha256": "d44912926745e8fe8eb9c5f3d83d6d8e6b817287b16f728652d6712bde082697"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/labels/aimd-frc-1.xyz",
+      "sha256": "ae67a9c9643e8b791650b77c0fb8ce4076f1d5840acf1edfb13cadccba6ce36b"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/labels/aimd-pos-1.xyz",
+      "sha256": "73f17e4993955d6022533afbe50be27d27e7aa83fc2022b84fcf1088af9cafba"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/labels/al-round-001/al-001-1.cell",
+      "sha256": "6ba47885a81f4db72e04bc1cac1519cb2f4e1be78a52925fa37718fc809bdc36"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/labels/al-round-001/al-001-1.ener",
+      "sha256": "3641a9b95f6652203f0c1a1194eb08ea3a4c82c69367cffcbec352b5f8abc455"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/labels/al-round-001/al-001-frc-1.xyz",
+      "sha256": "7aa070226db5e7fc0cb793d403d899de45b0a6af2d27a38d30cdb552f0ac42e7"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/labels/al-round-001/al-001-pos-1.xyz",
+      "sha256": "129de9345b8c508fa2ede7aaab6730b1b4f153cf426d42ff967706afe853b4ba"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/train/round-001/set.000/box.npy",
+      "sha256": "b955039c872ce53efd3fb8346810bbc3df5654991a238a4748414c65913960bb"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/train/round-001/set.000/coord.npy",
+      "sha256": "58a4eba5f5006e3aa6a3f9a9b2e226b14e12440cdfeee2130f5b3be4b756090d"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/train/round-001/set.000/energy.npy",
+      "sha256": "a2ae7e5af5b29da22a8777e44eaa5a7267b9f9bb2bd3d78100a4152e4a0fd6e1"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/train/round-001/set.000/force.npy",
+      "sha256": "de1cd20703813841281cd125a73ebebf75154a80767003a990e0c532f32eda01"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/train/round-001/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/train/round-001/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/train/round-002/set.000/box.npy",
+      "sha256": "74b3787d3814799c3a05b2e6e2cad31d95a91d14107f56a80a2e6fa9ca5835ae"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/train/round-002/set.000/coord.npy",
+      "sha256": "6d795d5abdc06b542acedb42834581200aa8b0cda7103953d74656f3341bf1dc"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/train/round-002/set.000/energy.npy",
+      "sha256": "e659cbc7cf501910b6d070825c5c3cd52d08fa28a47c31f9c9c783567a86b4e2"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/train/round-002/set.000/force.npy",
+      "sha256": "ed1d34044ae4b0ef8348f885ea060ec2cad9b7f363f4f1fcbd4d2d2e54b200b1"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/train/round-002/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/duplicate-models/work/train/round-002/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/final/manifest.json",
+      "sha256": "fb08e2eba6d7184e40c2a01a5c2cfc374035e70339273a64600964b0c93d0007"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/final/models/model.pkl",
+      "sha256": "9ea764ef654dc61f19ab23af219e5aa420b68157b1d135dc297ab0527941f951"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/final/report.md",
+      "sha256": "a28880f4e58e0c83c69607d24202556d75d1d2ec02e625e59dceef89de101187"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/final/workflow/01-aimd/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/final/workflow/02-train/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/final/workflow/03-active-learning/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/final/workflow/04-validation/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/structures/graphene-water/box.raw",
+      "sha256": "48417f09c91d48da1484775c04d35f0d6d502149a1b9c099209d57cfcaa4a5b1"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/structures/graphene-water/coord.raw",
+      "sha256": "186ed08c25da6740fdfb183725fb487feaa0cf465433a63ab4c90244230dd833"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/structures/graphene-water/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/active-learning/round-001/iter-001/input.json",
+      "sha256": "dac75b31d941e560d52273d0a47c4e78968933079029b647ffbf68c7acc82dae"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/active-learning/round-001/iter-001/lcurve.out",
+      "sha256": "2cd2b80f7ecfb7803114c3e4de501ed624e654226758b3b535c0e5c3b3e44e5a"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/active-learning/round-002/iter-001/explore-iter-002.lammpstrj",
+      "sha256": "b383ff5ddee1124f4fdff8d04aa39fbcb26f4b0bef3a6c54d23e7bc79b1fdc1d"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/active-learning/round-002/iter-001/input.json",
+      "sha256": "dac75b31d941e560d52273d0a47c4e78968933079029b647ffbf68c7acc82dae"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/active-learning/round-002/iter-001/lcurve.out",
+      "sha256": "2cd2b80f7ecfb7803114c3e4de501ed624e654226758b3b535c0e5c3b3e44e5a"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/active-learning/round-002/iter-001/model_devi.out",
+      "sha256": "4c3c2ab84ea95996daedf5526f5ac96651d336fab6d3ba8778111626a6f2aaab"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/labels/aimd-1.cell",
+      "sha256": "3d2372c16971500c5c2c31e2aa3ed8d83205ce50df2062fad6a805cb88545a09"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/labels/aimd-1.ener",
+      "sha256": "d44912926745e8fe8eb9c5f3d83d6d8e6b817287b16f728652d6712bde082697"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/labels/aimd-frc-1.xyz",
+      "sha256": "ae67a9c9643e8b791650b77c0fb8ce4076f1d5840acf1edfb13cadccba6ce36b"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/labels/al-round-001/al-001-1.cell",
+      "sha256": "6ba47885a81f4db72e04bc1cac1519cb2f4e1be78a52925fa37718fc809bdc36"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/labels/al-round-001/al-001-1.ener",
+      "sha256": "3641a9b95f6652203f0c1a1194eb08ea3a4c82c69367cffcbec352b5f8abc455"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/labels/al-round-001/al-001-frc-1.xyz",
+      "sha256": "7aa070226db5e7fc0cb793d403d899de45b0a6af2d27a38d30cdb552f0ac42e7"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/labels/al-round-001/al-001-pos-1.xyz",
+      "sha256": "129de9345b8c508fa2ede7aaab6730b1b4f153cf426d42ff967706afe853b4ba"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/train/round-001/set.000/box.npy",
+      "sha256": "b955039c872ce53efd3fb8346810bbc3df5654991a238a4748414c65913960bb"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/train/round-001/set.000/coord.npy",
+      "sha256": "58a4eba5f5006e3aa6a3f9a9b2e226b14e12440cdfeee2130f5b3be4b756090d"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/train/round-001/set.000/energy.npy",
+      "sha256": "a2ae7e5af5b29da22a8777e44eaa5a7267b9f9bb2bd3d78100a4152e4a0fd6e1"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/train/round-001/set.000/force.npy",
+      "sha256": "de1cd20703813841281cd125a73ebebf75154a80767003a990e0c532f32eda01"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/train/round-001/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/train/round-001/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/train/round-002/set.000/box.npy",
+      "sha256": "74b3787d3814799c3a05b2e6e2cad31d95a91d14107f56a80a2e6fa9ca5835ae"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/train/round-002/set.000/coord.npy",
+      "sha256": "6d795d5abdc06b542acedb42834581200aa8b0cda7103953d74656f3341bf1dc"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/train/round-002/set.000/energy.npy",
+      "sha256": "e659cbc7cf501910b6d070825c5c3cd52d08fa28a47c31f9c9c783567a86b4e2"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/train/round-002/set.000/force.npy",
+      "sha256": "ed1d34044ae4b0ef8348f885ea060ec2cad9b7f363f4f1fcbd4d2d2e54b200b1"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/train/round-002/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/forged-labels/work/train/round-002/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/final/manifest.json",
+      "sha256": "fb08e2eba6d7184e40c2a01a5c2cfc374035e70339273a64600964b0c93d0007"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/final/report.md",
+      "sha256": "a28880f4e58e0c83c69607d24202556d75d1d2ec02e625e59dceef89de101187"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/final/workflow/01-aimd/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/final/workflow/02-train/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/final/workflow/03-active-learning/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/final/workflow/04-validation/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/structures/graphene-water/box.raw",
+      "sha256": "48417f09c91d48da1484775c04d35f0d6d502149a1b9c099209d57cfcaa4a5b1"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/structures/graphene-water/coord.raw",
+      "sha256": "186ed08c25da6740fdfb183725fb487feaa0cf465433a63ab4c90244230dd833"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/structures/graphene-water/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/active-learning/round-001/iter-001/input.json",
+      "sha256": "dac75b31d941e560d52273d0a47c4e78968933079029b647ffbf68c7acc82dae"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/active-learning/round-001/iter-001/lcurve.out",
+      "sha256": "2cd2b80f7ecfb7803114c3e4de501ed624e654226758b3b535c0e5c3b3e44e5a"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/active-learning/round-002/iter-001/explore-iter-002.lammpstrj",
+      "sha256": "b383ff5ddee1124f4fdff8d04aa39fbcb26f4b0bef3a6c54d23e7bc79b1fdc1d"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/active-learning/round-002/iter-001/input.json",
+      "sha256": "dac75b31d941e560d52273d0a47c4e78968933079029b647ffbf68c7acc82dae"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/active-learning/round-002/iter-001/lcurve.out",
+      "sha256": "2cd2b80f7ecfb7803114c3e4de501ed624e654226758b3b535c0e5c3b3e44e5a"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/active-learning/round-002/iter-001/model_devi.out",
+      "sha256": "4c3c2ab84ea95996daedf5526f5ac96651d336fab6d3ba8778111626a6f2aaab"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/labels/aimd-1.cell",
+      "sha256": "3d2372c16971500c5c2c31e2aa3ed8d83205ce50df2062fad6a805cb88545a09"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/labels/aimd-1.ener",
+      "sha256": "d44912926745e8fe8eb9c5f3d83d6d8e6b817287b16f728652d6712bde082697"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/labels/aimd-frc-1.xyz",
+      "sha256": "ae67a9c9643e8b791650b77c0fb8ce4076f1d5840acf1edfb13cadccba6ce36b"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/labels/aimd-pos-1.xyz",
+      "sha256": "73f17e4993955d6022533afbe50be27d27e7aa83fc2022b84fcf1088af9cafba"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/labels/al-round-001/al-001-1.cell",
+      "sha256": "6ba47885a81f4db72e04bc1cac1519cb2f4e1be78a52925fa37718fc809bdc36"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/labels/al-round-001/al-001-1.ener",
+      "sha256": "3641a9b95f6652203f0c1a1194eb08ea3a4c82c69367cffcbec352b5f8abc455"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/labels/al-round-001/al-001-frc-1.xyz",
+      "sha256": "7aa070226db5e7fc0cb793d403d899de45b0a6af2d27a38d30cdb552f0ac42e7"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/labels/al-round-001/al-001-pos-1.xyz",
+      "sha256": "129de9345b8c508fa2ede7aaab6730b1b4f153cf426d42ff967706afe853b4ba"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/train/round-001/set.000/box.npy",
+      "sha256": "b955039c872ce53efd3fb8346810bbc3df5654991a238a4748414c65913960bb"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/train/round-001/set.000/coord.npy",
+      "sha256": "58a4eba5f5006e3aa6a3f9a9b2e226b14e12440cdfeee2130f5b3be4b756090d"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/train/round-001/set.000/energy.npy",
+      "sha256": "a2ae7e5af5b29da22a8777e44eaa5a7267b9f9bb2bd3d78100a4152e4a0fd6e1"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/train/round-001/set.000/force.npy",
+      "sha256": "de1cd20703813841281cd125a73ebebf75154a80767003a990e0c532f32eda01"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/train/round-001/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/train/round-001/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/train/round-002/set.000/box.npy",
+      "sha256": "74b3787d3814799c3a05b2e6e2cad31d95a91d14107f56a80a2e6fa9ca5835ae"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/train/round-002/set.000/coord.npy",
+      "sha256": "6d795d5abdc06b542acedb42834581200aa8b0cda7103953d74656f3341bf1dc"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/train/round-002/set.000/energy.npy",
+      "sha256": "e659cbc7cf501910b6d070825c5c3cd52d08fa28a47c31f9c9c783567a86b4e2"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/train/round-002/set.000/force.npy",
+      "sha256": "ed1d34044ae4b0ef8348f885ea060ec2cad9b7f363f4f1fcbd4d2d2e54b200b1"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/train/round-002/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/manifest-only/work/train/round-002/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/final/manifest.json",
+      "sha256": "fb08e2eba6d7184e40c2a01a5c2cfc374035e70339273a64600964b0c93d0007"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/final/models/model.pkl",
+      "sha256": "9ea764ef654dc61f19ab23af219e5aa420b68157b1d135dc297ab0527941f951"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/final/report.md",
+      "sha256": "a28880f4e58e0c83c69607d24202556d75d1d2ec02e625e59dceef89de101187"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/final/workflow/01-aimd/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/final/workflow/02-train/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/final/workflow/03-active-learning/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/final/workflow/04-validation/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/structures/graphene-water/box.raw",
+      "sha256": "48417f09c91d48da1484775c04d35f0d6d502149a1b9c099209d57cfcaa4a5b1"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/structures/graphene-water/coord.raw",
+      "sha256": "186ed08c25da6740fdfb183725fb487feaa0cf465433a63ab4c90244230dd833"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/structures/graphene-water/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/active-learning/round-001/iter-001/input.json",
+      "sha256": "dac75b31d941e560d52273d0a47c4e78968933079029b647ffbf68c7acc82dae"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/active-learning/round-001/iter-001/lcurve.out",
+      "sha256": "2cd2b80f7ecfb7803114c3e4de501ed624e654226758b3b535c0e5c3b3e44e5a"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/active-learning/round-002/iter-001/explore-iter-002.lammpstrj",
+      "sha256": "b383ff5ddee1124f4fdff8d04aa39fbcb26f4b0bef3a6c54d23e7bc79b1fdc1d"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/active-learning/round-002/iter-001/model_devi.out",
+      "sha256": "4c3c2ab84ea95996daedf5526f5ac96651d336fab6d3ba8778111626a6f2aaab"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/labels/aimd-1.cell",
+      "sha256": "3d2372c16971500c5c2c31e2aa3ed8d83205ce50df2062fad6a805cb88545a09"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/labels/aimd-1.ener",
+      "sha256": "d44912926745e8fe8eb9c5f3d83d6d8e6b817287b16f728652d6712bde082697"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/labels/aimd-frc-1.xyz",
+      "sha256": "ae67a9c9643e8b791650b77c0fb8ce4076f1d5840acf1edfb13cadccba6ce36b"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/labels/aimd-pos-1.xyz",
+      "sha256": "73f17e4993955d6022533afbe50be27d27e7aa83fc2022b84fcf1088af9cafba"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/labels/al-round-001/al-001-1.cell",
+      "sha256": "6ba47885a81f4db72e04bc1cac1519cb2f4e1be78a52925fa37718fc809bdc36"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/labels/al-round-001/al-001-1.ener",
+      "sha256": "3641a9b95f6652203f0c1a1194eb08ea3a4c82c69367cffcbec352b5f8abc455"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/labels/al-round-001/al-001-frc-1.xyz",
+      "sha256": "7aa070226db5e7fc0cb793d403d899de45b0a6af2d27a38d30cdb552f0ac42e7"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/labels/al-round-001/al-001-pos-1.xyz",
+      "sha256": "129de9345b8c508fa2ede7aaab6730b1b4f153cf426d42ff967706afe853b4ba"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/train/round-001/set.000/box.npy",
+      "sha256": "b955039c872ce53efd3fb8346810bbc3df5654991a238a4748414c65913960bb"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/train/round-001/set.000/coord.npy",
+      "sha256": "58a4eba5f5006e3aa6a3f9a9b2e226b14e12440cdfeee2130f5b3be4b756090d"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/train/round-001/set.000/energy.npy",
+      "sha256": "a2ae7e5af5b29da22a8777e44eaa5a7267b9f9bb2bd3d78100a4152e4a0fd6e1"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/train/round-001/set.000/force.npy",
+      "sha256": "de1cd20703813841281cd125a73ebebf75154a80767003a990e0c532f32eda01"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/train/round-001/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/train/round-001/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/train/round-002/set.000/box.npy",
+      "sha256": "74b3787d3814799c3a05b2e6e2cad31d95a91d14107f56a80a2e6fa9ca5835ae"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/train/round-002/set.000/coord.npy",
+      "sha256": "6d795d5abdc06b542acedb42834581200aa8b0cda7103953d74656f3341bf1dc"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/train/round-002/set.000/energy.npy",
+      "sha256": "e659cbc7cf501910b6d070825c5c3cd52d08fa28a47c31f9c9c783567a86b4e2"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/train/round-002/set.000/force.npy",
+      "sha256": "ed1d34044ae4b0ef8348f885ea060ec2cad9b7f363f4f1fcbd4d2d2e54b200b1"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/train/round-002/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/new-labels-unused/work/train/round-002/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/final/manifest.json",
+      "sha256": "668fa4e4ba81bf54f90f851e51d069be59963ba3b8ff748011ed4619fabc2f77"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/final/models/model.pkl",
+      "sha256": "9ea764ef654dc61f19ab23af219e5aa420b68157b1d135dc297ab0527941f951"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/final/report.md",
+      "sha256": "a28880f4e58e0c83c69607d24202556d75d1d2ec02e625e59dceef89de101187"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/final/workflow/01-aimd/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/final/workflow/02-train/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/final/workflow/03-active-learning/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/final/workflow/04-validation/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/structures/graphene-water/box.raw",
+      "sha256": "48417f09c91d48da1484775c04d35f0d6d502149a1b9c099209d57cfcaa4a5b1"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/structures/graphene-water/coord.raw",
+      "sha256": "186ed08c25da6740fdfb183725fb487feaa0cf465433a63ab4c90244230dd833"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/structures/graphene-water/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/active-learning/round-001/iter-001/input.json",
+      "sha256": "dac75b31d941e560d52273d0a47c4e78968933079029b647ffbf68c7acc82dae"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/active-learning/round-001/iter-001/lcurve.out",
+      "sha256": "2cd2b80f7ecfb7803114c3e4de501ed624e654226758b3b535c0e5c3b3e44e5a"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/labels/aimd-1.cell",
+      "sha256": "3d2372c16971500c5c2c31e2aa3ed8d83205ce50df2062fad6a805cb88545a09"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/labels/aimd-1.ener",
+      "sha256": "d44912926745e8fe8eb9c5f3d83d6d8e6b817287b16f728652d6712bde082697"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/labels/aimd-frc-1.xyz",
+      "sha256": "ae67a9c9643e8b791650b77c0fb8ce4076f1d5840acf1edfb13cadccba6ce36b"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/labels/aimd-pos-1.xyz",
+      "sha256": "73f17e4993955d6022533afbe50be27d27e7aa83fc2022b84fcf1088af9cafba"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/labels/al-round-001/al-001-1.cell",
+      "sha256": "6ba47885a81f4db72e04bc1cac1519cb2f4e1be78a52925fa37718fc809bdc36"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/labels/al-round-001/al-001-1.ener",
+      "sha256": "3641a9b95f6652203f0c1a1194eb08ea3a4c82c69367cffcbec352b5f8abc455"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/labels/al-round-001/al-001-frc-1.xyz",
+      "sha256": "7aa070226db5e7fc0cb793d403d899de45b0a6af2d27a38d30cdb552f0ac42e7"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/labels/al-round-001/al-001-pos-1.xyz",
+      "sha256": "129de9345b8c508fa2ede7aaab6730b1b4f153cf426d42ff967706afe853b4ba"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/train/round-001/set.000/box.npy",
+      "sha256": "b955039c872ce53efd3fb8346810bbc3df5654991a238a4748414c65913960bb"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/train/round-001/set.000/coord.npy",
+      "sha256": "58a4eba5f5006e3aa6a3f9a9b2e226b14e12440cdfeee2130f5b3be4b756090d"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/train/round-001/set.000/energy.npy",
+      "sha256": "a2ae7e5af5b29da22a8777e44eaa5a7267b9f9bb2bd3d78100a4152e4a0fd6e1"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/train/round-001/set.000/force.npy",
+      "sha256": "de1cd20703813841281cd125a73ebebf75154a80767003a990e0c532f32eda01"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/train/round-001/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/train/round-001/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/train/round-002/set.000/box.npy",
+      "sha256": "74b3787d3814799c3a05b2e6e2cad31d95a91d14107f56a80a2e6fa9ca5835ae"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/train/round-002/set.000/coord.npy",
+      "sha256": "6d795d5abdc06b542acedb42834581200aa8b0cda7103953d74656f3341bf1dc"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/train/round-002/set.000/energy.npy",
+      "sha256": "e659cbc7cf501910b6d070825c5c3cd52d08fa28a47c31f9c9c783567a86b4e2"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/train/round-002/set.000/force.npy",
+      "sha256": "ed1d34044ae4b0ef8348f885ea060ec2cad9b7f363f4f1fcbd4d2d2e54b200b1"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/train/round-002/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/no-loop/work/train/round-002/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/final/manifest.json",
+      "sha256": "fb08e2eba6d7184e40c2a01a5c2cfc374035e70339273a64600964b0c93d0007"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/final/models/model.pkl",
+      "sha256": "9ea764ef654dc61f19ab23af219e5aa420b68157b1d135dc297ab0527941f951"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/final/report.md",
+      "sha256": "a28880f4e58e0c83c69607d24202556d75d1d2ec02e625e59dceef89de101187"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/final/workflow/01-aimd/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/final/workflow/02-train/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/final/workflow/03-active-learning/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/final/workflow/04-validation/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/structures/graphene-water/box.raw",
+      "sha256": "48417f09c91d48da1484775c04d35f0d6d502149a1b9c099209d57cfcaa4a5b1"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/structures/graphene-water/coord.raw",
+      "sha256": "186ed08c25da6740fdfb183725fb487feaa0cf465433a63ab4c90244230dd833"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/structures/graphene-water/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/active-learning/round-001/iter-001/input.json",
+      "sha256": "dac75b31d941e560d52273d0a47c4e78968933079029b647ffbf68c7acc82dae"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/active-learning/round-001/iter-001/lcurve.out",
+      "sha256": "2cd2b80f7ecfb7803114c3e4de501ed624e654226758b3b535c0e5c3b3e44e5a"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/active-learning/round-002/iter-001/explore-iter-002.lammpstrj",
+      "sha256": "b383ff5ddee1124f4fdff8d04aa39fbcb26f4b0bef3a6c54d23e7bc79b1fdc1d"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/active-learning/round-002/iter-001/input.json",
+      "sha256": "dac75b31d941e560d52273d0a47c4e78968933079029b647ffbf68c7acc82dae"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/active-learning/round-002/iter-001/lcurve.out",
+      "sha256": "2cd2b80f7ecfb7803114c3e4de501ed624e654226758b3b535c0e5c3b3e44e5a"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/active-learning/round-002/iter-001/model_devi.out",
+      "sha256": "4c3c2ab84ea95996daedf5526f5ac96651d336fab6d3ba8778111626a6f2aaab"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/labels/aimd-1.cell",
+      "sha256": "3d2372c16971500c5c2c31e2aa3ed8d83205ce50df2062fad6a805cb88545a09"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/labels/aimd-1.ener",
+      "sha256": "d44912926745e8fe8eb9c5f3d83d6d8e6b817287b16f728652d6712bde082697"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/labels/aimd-frc-1.xyz",
+      "sha256": "ae67a9c9643e8b791650b77c0fb8ce4076f1d5840acf1edfb13cadccba6ce36b"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/labels/aimd-pos-1.xyz",
+      "sha256": "6c2e7eec695dc1d45c6f46d9a80e3e4a1cbe83216c0d6fdfe8a1135fbadc08bb"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/labels/al-round-001/al-001-1.cell",
+      "sha256": "6ba47885a81f4db72e04bc1cac1519cb2f4e1be78a52925fa37718fc809bdc36"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/labels/al-round-001/al-001-1.ener",
+      "sha256": "3641a9b95f6652203f0c1a1194eb08ea3a4c82c69367cffcbec352b5f8abc455"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/labels/al-round-001/al-001-frc-1.xyz",
+      "sha256": "7aa070226db5e7fc0cb793d403d899de45b0a6af2d27a38d30cdb552f0ac42e7"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/labels/al-round-001/al-001-pos-1.xyz",
+      "sha256": "129de9345b8c508fa2ede7aaab6730b1b4f153cf426d42ff967706afe853b4ba"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/train/round-001/set.000/box.npy",
+      "sha256": "b955039c872ce53efd3fb8346810bbc3df5654991a238a4748414c65913960bb"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/train/round-001/set.000/coord.npy",
+      "sha256": "58a4eba5f5006e3aa6a3f9a9b2e226b14e12440cdfeee2130f5b3be4b756090d"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/train/round-001/set.000/energy.npy",
+      "sha256": "a2ae7e5af5b29da22a8777e44eaa5a7267b9f9bb2bd3d78100a4152e4a0fd6e1"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/train/round-001/set.000/force.npy",
+      "sha256": "de1cd20703813841281cd125a73ebebf75154a80767003a990e0c532f32eda01"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/train/round-001/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/train/round-001/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/train/round-002/set.000/box.npy",
+      "sha256": "74b3787d3814799c3a05b2e6e2cad31d95a91d14107f56a80a2e6fa9ca5835ae"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/train/round-002/set.000/coord.npy",
+      "sha256": "6d795d5abdc06b542acedb42834581200aa8b0cda7103953d74656f3341bf1dc"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/train/round-002/set.000/energy.npy",
+      "sha256": "e659cbc7cf501910b6d070825c5c3cd52d08fa28a47c31f9c9c783567a86b4e2"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/train/round-002/set.000/force.npy",
+      "sha256": "ed1d34044ae4b0ef8348f885ea060ec2cad9b7f363f4f1fcbd4d2d2e54b200b1"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/train/round-002/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/negative/nonphysical-energy/work/train/round-002/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/positive/README.md",
+      "sha256": "87dc57371f7c4170beaf4bb19f8d30ba00db680fe12a5dc17619e01abade3456"
+    },
+    {
+      "path": "tests/fixtures/positive/good/final/manifest.json",
+      "sha256": "fb08e2eba6d7184e40c2a01a5c2cfc374035e70339273a64600964b0c93d0007"
+    },
+    {
+      "path": "tests/fixtures/positive/good/final/models/model.pkl",
+      "sha256": "9ea764ef654dc61f19ab23af219e5aa420b68157b1d135dc297ab0527941f951"
+    },
+    {
+      "path": "tests/fixtures/positive/good/final/report.md",
+      "sha256": "a28880f4e58e0c83c69607d24202556d75d1d2ec02e625e59dceef89de101187"
+    },
+    {
+      "path": "tests/fixtures/positive/good/final/workflow/01-aimd/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/positive/good/final/workflow/02-train/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/positive/good/final/workflow/03-active-learning/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/positive/good/final/workflow/04-validation/run.sh",
+      "sha256": "c7eb215db98c9bdfe4950111c6bb9fcd210cc3c3d0d2e8a0875b588e30d57f70"
+    },
+    {
+      "path": "tests/fixtures/positive/good/structures/graphene-water/box.raw",
+      "sha256": "48417f09c91d48da1484775c04d35f0d6d502149a1b9c099209d57cfcaa4a5b1"
+    },
+    {
+      "path": "tests/fixtures/positive/good/structures/graphene-water/coord.raw",
+      "sha256": "186ed08c25da6740fdfb183725fb487feaa0cf465433a63ab4c90244230dd833"
+    },
+    {
+      "path": "tests/fixtures/positive/good/structures/graphene-water/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/active-learning/round-001/iter-001/input.json",
+      "sha256": "dac75b31d941e560d52273d0a47c4e78968933079029b647ffbf68c7acc82dae"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/active-learning/round-001/iter-001/lcurve.out",
+      "sha256": "2cd2b80f7ecfb7803114c3e4de501ed624e654226758b3b535c0e5c3b3e44e5a"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/active-learning/round-002/iter-001/explore-iter-002.lammpstrj",
+      "sha256": "b383ff5ddee1124f4fdff8d04aa39fbcb26f4b0bef3a6c54d23e7bc79b1fdc1d"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/active-learning/round-002/iter-001/input.json",
+      "sha256": "dac75b31d941e560d52273d0a47c4e78968933079029b647ffbf68c7acc82dae"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/active-learning/round-002/iter-001/lcurve.out",
+      "sha256": "2cd2b80f7ecfb7803114c3e4de501ed624e654226758b3b535c0e5c3b3e44e5a"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/active-learning/round-002/iter-001/model_devi.out",
+      "sha256": "4c3c2ab84ea95996daedf5526f5ac96651d336fab6d3ba8778111626a6f2aaab"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/labels/aimd-1.cell",
+      "sha256": "3d2372c16971500c5c2c31e2aa3ed8d83205ce50df2062fad6a805cb88545a09"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/labels/aimd-1.ener",
+      "sha256": "d44912926745e8fe8eb9c5f3d83d6d8e6b817287b16f728652d6712bde082697"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/labels/aimd-frc-1.xyz",
+      "sha256": "ae67a9c9643e8b791650b77c0fb8ce4076f1d5840acf1edfb13cadccba6ce36b"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/labels/aimd-pos-1.xyz",
+      "sha256": "73f17e4993955d6022533afbe50be27d27e7aa83fc2022b84fcf1088af9cafba"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/labels/al-round-001/al-001-1.cell",
+      "sha256": "6ba47885a81f4db72e04bc1cac1519cb2f4e1be78a52925fa37718fc809bdc36"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/labels/al-round-001/al-001-1.ener",
+      "sha256": "3641a9b95f6652203f0c1a1194eb08ea3a4c82c69367cffcbec352b5f8abc455"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/labels/al-round-001/al-001-frc-1.xyz",
+      "sha256": "7aa070226db5e7fc0cb793d403d899de45b0a6af2d27a38d30cdb552f0ac42e7"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/labels/al-round-001/al-001-pos-1.xyz",
+      "sha256": "129de9345b8c508fa2ede7aaab6730b1b4f153cf426d42ff967706afe853b4ba"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/train/round-001/set.000/box.npy",
+      "sha256": "b955039c872ce53efd3fb8346810bbc3df5654991a238a4748414c65913960bb"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/train/round-001/set.000/coord.npy",
+      "sha256": "58a4eba5f5006e3aa6a3f9a9b2e226b14e12440cdfeee2130f5b3be4b756090d"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/train/round-001/set.000/energy.npy",
+      "sha256": "a2ae7e5af5b29da22a8777e44eaa5a7267b9f9bb2bd3d78100a4152e4a0fd6e1"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/train/round-001/set.000/force.npy",
+      "sha256": "de1cd20703813841281cd125a73ebebf75154a80767003a990e0c532f32eda01"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/train/round-001/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/train/round-001/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/train/round-002/set.000/box.npy",
+      "sha256": "74b3787d3814799c3a05b2e6e2cad31d95a91d14107f56a80a2e6fa9ca5835ae"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/train/round-002/set.000/coord.npy",
+      "sha256": "6d795d5abdc06b542acedb42834581200aa8b0cda7103953d74656f3341bf1dc"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/train/round-002/set.000/energy.npy",
+      "sha256": "e659cbc7cf501910b6d070825c5c3cd52d08fa28a47c31f9c9c783567a86b4e2"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/train/round-002/set.000/force.npy",
+      "sha256": "ed1d34044ae4b0ef8348f885ea060ec2cad9b7f363f4f1fcbd4d2d2e54b200b1"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/train/round-002/type.raw",
+      "sha256": "36c27994ec6743394a06c037f779018c45c13ed78361b4f72c9ed21404f86333"
+    },
+    {
+      "path": "tests/fixtures/positive/good/work/train/round-002/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/hidden/density-reference.json",
+      "sha256": "d4c2739ae492f203f1186e2de00d576e142e67653638f308412556c1dea9b646"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/air-water/set.000/box.npy",
+      "sha256": "08563cc313d2a970644cb30823f62ec0b96f97ae47f5523de71215f170ed2315"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/air-water/set.000/coord.npy",
+      "sha256": "0de26f75563ea1944183bcf6299e9b68f4a642c8dce0aa01f08fbb0f2eca0cea"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/air-water/set.000/energy.npy",
+      "sha256": "227221cacbc89950ce242475b26d1bfd292475b1d0910c357279c2fe32ec16ce"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/air-water/set.000/force.npy",
+      "sha256": "0dc57bd5d8d633311d1526deed603851563d033adf170266de3af77976313efd"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/air-water/type.raw",
+      "sha256": "ab9e8b22b19a0798b23e88bdd9973480020636b6f431e8d233271ce5d150139f"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/air-water/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O12/set.000/box.npy",
+      "sha256": "bf114d308b65945f80ac8985f6acc30bba55912beb02dddfe5ea3ba3da5311ce"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O12/set.000/coord.npy",
+      "sha256": "b5729dd826431642704049e4f8c65570c2be0936b4987f3a0b14b416f88ee0b6"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O12/set.000/energy.npy",
+      "sha256": "19b557f6e7eb44b21e6e591a4fba6e48959f8f16390d1b7da97b8eab718b5940"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O12/set.000/force.npy",
+      "sha256": "220025b60c958b9cc8149c6c306dc47de78200b7e3eddf5a17356c712a8a71a4"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O12/type.raw",
+      "sha256": "5b47b06cdae6501dbd214b88e87caa56bdce433e1bf006f44b2bf36aa98d7e0a"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O12/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O25/set.000/box.npy",
+      "sha256": "7752a1a42072cb8f116ec8dfb9dd0fb73448debf0a023b5df7eb6c456dbc528d"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O25/set.000/coord.npy",
+      "sha256": "37e271212ae6b74e083b01ed50a7b210b9339c3dff387d99b7f490b9d1d00a77"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O25/set.000/energy.npy",
+      "sha256": "ccd2e9f7f24aa22b189090581299aa07d6b4a465de34d0fe91552eabe5325195"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O25/set.000/force.npy",
+      "sha256": "3ad2b991628aeb24f409515c1127513f074b54f4922f5119521e80a4f8f866f4"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O25/type.raw",
+      "sha256": "5601f1af7e25a5cfd845055cf5a31648593ecd27ec7a8da45c3c8b1e84d05ed0"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O25/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O50/set.000/box.npy",
+      "sha256": "8ef79d5afa2ffc5282ff40de76e88138abcd41c56d144c75cdbbadfaada99d91"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O50/set.000/coord.npy",
+      "sha256": "b24ba66cb6a6543e1f57a721337635b54be623da1dc1cc94dab34f49975416d3"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O50/set.000/energy.npy",
+      "sha256": "6bee9da204ddc5cc64872e262ef753ced2bd16a4e6292072b16f9ad33defbd10"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O50/set.000/force.npy",
+      "sha256": "ab29df85f0fa6338a89023d5135d402ca2a096f683c28b8b09148a31f50ac73d"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O50/type.raw",
+      "sha256": "65376213c78d97ed98299b8f4abf48dc3a5f2252fcf010dd8e3a2d0e564feb87"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-O50/type_map.raw",
+      "sha256": "9aeaffd0a00d82a7a91f7f61225a249d6339aba2f9757f9a7d2c50dde207fc21"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-water/set.000/box.npy",
+      "sha256": "a831f6e7eba1443648aa08c727b678666d031f0fbf88b19cdf0ecb6549d92d82"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-water/set.000/coord.npy",
+      "sha256": "239ec33d0ed25a04cad38b6e343d5cca84571fdf9b047d50b683c7a84ee0607b"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-water/set.000/energy.npy",
+      "sha256": "215aefc29ffcd02262f84d35c614bfbfee2a2d4396f7909b19ee7c3ffd6d3a4f"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-water/set.000/force.npy",
+      "sha256": "681d3217bb9d154307a81d5bca91f462b2a1a87c1ad7dc585ca1d8a2c6ba1864"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-water/type.raw",
+      "sha256": "8d3ec20809327d49f8ed55885e4af2372023119602467fcf499a66a456318ab0"
+    },
+    {
+      "path": "tests/hidden/hidden-frames/graphene-water/type_map.raw",
+      "sha256": "1766105c2b11a9ebe92f7a21e3ca4f8d663ed5423f8291af89a894cfad29503b"
+    },
+    {
+      "path": "tests/hidden/manifest.json",
+      "sha256": "49c13b6d642e3c6b92ca5743f1b199830f19984146dffa21af4763e0b16efaee"
+    },
+    {
+      "path": "tests/hidden/thresholds.json",
+      "sha256": "10b47b334ea65a4b2f2a53cc5d6c4452255ccb14b471cceef0cf4867fe069a6e"
+    },
+    {
+      "path": "tests/test.sh",
+      "sha256": "e47ddcd1061a5c9e4bc7baf0e1e7cb9bcf88f01993eccab9d83d6badc6f8288f"
+    },
+    {
+      "path": "tests/test_cp2k_input.py",
+      "sha256": "0cfe14caf3c40eee6541ec764542aa868cecfbabfbaee4687925a49d95561c34"
+    },
+    {
+      "path": "tests/test_outputs.py",
+      "sha256": "c71cfbe992ae14c62b92294666b1b1c369ee15a4888f37cc776a5c562ba80a9e"
+    },
+    {
+      "path": "tests/test_parse_cp2k_label.py",
+      "sha256": "b8300b52cff019e9932fb2094ecfebedc7422396df3c8d87532188aaaf4245c8"
+    },
+    {
+      "path": "tests/test_structure_origin.py",
+      "sha256": "8d2ba922f311612178b637efbc3397a02640b50d18c7890158d04c5241c0ac53"
+    },
+    {
+      "path": "tests/test_v4_aggregation_and_scope.py",
+      "sha256": "b66533e8c58af30a008a4ccf7b41ec765c6fc93214cd31e54ffbefec68e78b4e"
+    },
+    {
+      "path": "tests/verifier.py",
+      "sha256": "8c4568b6ebf7a467fa295ad6fa89bfcdfbb929afdf15d81ee4a6264c5324d1a2"
+    }
+  ]
+}

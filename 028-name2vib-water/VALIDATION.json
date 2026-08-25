@@ -1,0 +1,108 @@
+{
+  "benchmark_id": "028-name2vib-water",
+  "acceptance_standard": "benchmark/sources/chemgraph/acceptance_standard.md v1.1",
+  "source": {
+    "paper_verified": true,
+    "instance_verified": true,
+    "prompt_verified": true,
+    "original_reference_verified": true
+  },
+  "source_detail": {
+    "source_type": "dataset_instance",
+    "original_instance_id": 6,
+    "original_query": "Report the vibrational frequencies of water using the mace_mp calculator with the medium-mpa-0 model.",
+    "original_filtered_modes_meV": [
+      207.53984955909357,
+      461.6946537572708,
+      484.0428021965612
+    ],
+    "original_filtered_modes_cm1": [
+      1673.921789367551,
+      3723.818546658187,
+      3904.0685213209904
+    ],
+    "regenerated_modes_meV": [
+      207.54494811634504,
+      461.8154197982689,
+      484.1391752707933
+    ],
+    "original_vs_regenerated_max_abs_diff_meV": 0.120766,
+    "source_dataset_sha256": "a8e76ec8c427ec9a18de758f0492e3fdd2f01a7ea4b335249c40e8a01c47d742"
+  },
+  "isolation": {
+    "public_only": true,
+    "hidden_assets_inaccessible": true
+  },
+  "reference": {
+    "regenerated": true,
+    "original_consistent": true,
+    "reproducible": true
+  },
+  "reference_detail": {
+    "image": "dftworld-base-mace",
+    "software": {
+      "ase": "3.25.0",
+      "mace_torch": "0.3.13",
+      "rdkit": "2025.3.3",
+      "pymatgen": "2025.3.10"
+    },
+    "calculator": "mace_mp model=medium-mpa-0 device=cpu default_dtype=float64",
+    "reproducibility_run1_meV": [
+      207.54494811634504,
+      461.8154197982689,
+      484.1391752707933
+    ],
+    "reproducibility_run2_meV": [
+      207.54494811634504,
+      461.8154197982689,
+      484.1391752707933
+    ],
+    "max_deviation_meV": 0.0,
+    "evaluator_tolerance_meV": 1.0,
+    "tolerance_basis": "measured reproducibility = 0 meV (deterministic) + original-vs-regenerated diff ~0.12 meV"
+  },
+  "oracle": {
+    "passes": true
+  },
+  "evaluator": {
+    "oracle_passes": true,
+    "negative_fixtures_fail": true,
+    "alternative_solution_passes": true
+  },
+  "evaluator_detail": {
+    "n_layers": 6,
+    "layers": [
+      "L1 Artifact",
+      "L2 Execution",
+      "L3 Identity",
+      "L4 Consistency",
+      "L5 Scientific",
+      "L6 Reference"
+    ],
+    "negative_fixtures": [
+      "F1 wrong_molecule(CO2) -> L3 FAIL",
+      "F2 wrong_method(GFN2-xTB) -> L3 FAIL",
+      "F3 fewer_modes(2) -> L5 FAIL",
+      "F4 hardcoded_freqs(1600/3600/3800) -> L6 FAIL",
+      "F5 empty_modes([]) -> L1 FAIL",
+      "F6 freq_off(+50 cm-1) -> L6 FAIL"
+    ],
+    "alternative_solution": "LBFGS optimizer + independent mode-filter implementation; freqs 1673.963/3724.793/3904.846 cm-1 -> PASS"
+  },
+  "benchmark_valid": true,
+  "agent_smoke_tested": false,
+  "ablation_tested": false,
+  "last_regression": {
+    "date": "2026-08-09",
+    "oracle_pytest_pass": true,
+    "oracle_pytest_count": 10,
+    "hardcoded_answer_fixture_fails": true,
+    "hardcoded_answer_fail_count": 2,
+    "verifier_reward_oracle": 1,
+    "verifier_reward_cheat": 0,
+    "container_images": [
+      "dftworld-base-mace",
+      "dftworld-base-xtb"
+    ]
+  }
+}

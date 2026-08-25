@@ -1,0 +1,15 @@
+# Case 031 required platform / HPC contract.
+#
+# Mirrors the [hpc] block of task.toml: the case needs a real batch scheduler
+# with GPU nodes and artifact fetch.  The concrete site (queue, account) is
+# chosen by the site operator's site-config; this file declares what 031
+# requires of any eligible platform.
+contract_version: hpc-execution/v1
+name: gpu-slurm
+architecture: linux/amd64
+default_queue: gpu
+gpus: 1
+required_capabilities:
+  - batch_jobs
+  - gpu
+  - artifact_fetch

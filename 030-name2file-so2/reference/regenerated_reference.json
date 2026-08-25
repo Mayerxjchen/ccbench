@@ -1,0 +1,64 @@
+{
+  "molecule": "SO2",
+  "method": "mace_mp / medium-mpa-0",
+  "converged": true,
+  "optimized_energy_ev": -16.815808388438125,
+  "structure_file": "optimized.xyz",
+  "original_energy_ev": -16.815808019358535,
+  "original_vs_regenerated_abs_diff_ev": 3.6907959000131996e-07,
+  "calculator": {
+    "calculator_type": "mace_mp",
+    "model": "medium-mpa-0",
+    "device": "cpu",
+    "default_dtype": "float64"
+  },
+  "optimizer": {
+    "name": "BFGS",
+    "fmax": 0.01,
+    "steps": 1000
+  },
+  "final_structure": {
+    "symbols": [
+      "S",
+      "O",
+      "O"
+    ],
+    "positions": [
+      [
+        -0.0,
+        -0.0,
+        0.370313403125452
+      ],
+      [
+        0.0,
+        1.244061347466364,
+        -0.370290701562726
+      ],
+      [
+        0.0,
+        -1.244061347466364,
+        -0.370290701562726
+      ]
+    ]
+  },
+  "generator_image": "dftworld-base-mace",
+  "software_versions": {
+    "ase": "3.25.0",
+    "mace_torch": "0.3.13",
+    "torch": "2.13.0",
+    "numpy": "2.5.1"
+  },
+  "pinning": {
+    "image": "dftworld-base-mace",
+    "image_digest": "sha256:c54103db3c6bf58a2427833361910a34715f643fa3f7aa28a081aa5672170c77",
+    "software": {
+      "ase": "3.25.0",
+      "mace_torch": "0.3.13",
+      "torch": "2.13.0",
+      "numpy": "2.5.1"
+    },
+    "input_xyz_sha256": "45b525edb935a6386bbae1527d3ab99c7aff82faaff8bc2babfb85b99bf0937a",
+    "optimized_xyz_sha256": "bf2f3703fff2295f14a407e3a9316d976dffe1b53deefc8f07b66c434e178d6a",
+    "raw_artifact_sha256": "6e4ff8cb470aee7218a8ba5f0bb3ee7b550b1270955ee491d36dfe3a1ce32fa2"
+  }
+}

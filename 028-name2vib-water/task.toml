@@ -1,0 +1,48 @@
+schema_version = "1.2"
+
+artifacts = []
+
+[execution]
+class = "local_sandbox"
+
+[candidate]
+instruction = "instruction.md"
+submission_root = "."
+legacy_submission_layout = true
+max_agent_seconds = 1500.0
+
+[task]
+name = "benchmark/028-name2vib-water"
+description = "Report the vibrational frequencies of water using the mace_mp calculator with the medium-mpa-0 model"
+authors = []
+keywords = ["mace", "vibrations"]
+
+[metadata]
+
+[verifier]
+timeout_sec = 1500.0
+
+[verifier.env]
+
+[environment]
+build_timeout_sec = 900.0
+os = "linux"
+cpus = 2
+memory_mb = 4096
+storage_mb = 10240
+gpus = 0
+allow_internet = false
+mcp_servers = []
+
+[environment.env]
+
+[solution]
+
+[solution.env]
+
+[runtime]
+requirements = [{ name = "mace" }]
+
+[submission_contract]
+required = []
+non_empty = true

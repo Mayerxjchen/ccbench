@@ -1,0 +1,130 @@
+{
+  "method": "byte-preserving copy cross-parsed with pymatgen and ASE",
+  "schema_version": 1,
+  "structures": [
+    {
+      "ase": {
+        "cell_parameters": [
+          6.167028287195,
+          6.166672277355,
+          33.4652124,
+          90.0,
+          90.0,
+          119.992791636536
+        ],
+        "element_counts": {
+          "Cu": 1,
+          "In": 1,
+          "P": 2,
+          "S": 6
+        },
+        "formula": "CuInP2S6",
+        "num_atoms": 10,
+        "periodic_boundary_conditions": [
+          true,
+          true,
+          true
+        ]
+      },
+      "canonical_reduced_formula": "CuInP2S6",
+      "filename": "CuInP2S6.cif",
+      "parser_agreement": {
+        "atom_count": true,
+        "formula": true
+      },
+      "provenance": "upstream_repository",
+      "pymatgen": {
+        "element_counts": {
+          "Cu": 1,
+          "In": 1,
+          "P": 2,
+          "S": 6
+        },
+        "formula": "In1 Cu1 P2 S6",
+        "lattice_abc_angstrom": [
+          6.167028287195,
+          6.166672277355,
+          33.4652124
+        ],
+        "lattice_angles_degree": [
+          90.0,
+          90.0,
+          119.992791636536
+        ],
+        "num_sites": 10,
+        "periodic_boundary_conditions": [
+          true,
+          true,
+          true
+        ],
+        "reduced_formula": "InCu(PS3)2",
+        "volume_angstrom3": 1102.25624406297
+      },
+      "sha256": "b9e3b0c4470274d5e3e1ce19e7c8834bda323e50483eef9791b1e744bbd629de",
+      "size": 1493,
+      "source_path": "repository/release/.ref/CuInP2S6.cif"
+    },
+    {
+      "ase": {
+        "cell_parameters": [
+          6.105132910528,
+          10.571092,
+          33.024086979383,
+          90.0,
+          90.0,
+          90.0
+        ],
+        "element_counts": {
+          "Cu": 2,
+          "In": 2,
+          "P": 4,
+          "S": 12
+        },
+        "formula": "Cu2In2P4S12",
+        "num_atoms": 20,
+        "periodic_boundary_conditions": [
+          true,
+          true,
+          true
+        ]
+      },
+      "canonical_reduced_formula": "CuInP2S6",
+      "filename": "cips_monolayer.cif",
+      "parser_agreement": {
+        "atom_count": true,
+        "formula": true
+      },
+      "provenance": "upstream_repository",
+      "pymatgen": {
+        "element_counts": {
+          "Cu": 2,
+          "In": 2,
+          "P": 4,
+          "S": 12
+        },
+        "formula": "In2 Cu2 P4 S12",
+        "lattice_abc_angstrom": [
+          6.105132910528,
+          10.571092,
+          33.024086979383
+        ],
+        "lattice_angles_degree": [
+          90.0,
+          90.0,
+          90.0
+        ],
+        "num_sites": 20,
+        "periodic_boundary_conditions": [
+          true,
+          true,
+          true
+        ],
+        "reduced_formula": "InCu(PS3)2",
+        "volume_angstrom3": 2131.305938679403
+      },
+      "sha256": "c1fac0de0180624d818886602aa33721f708c757900fde24581f4e723b036180",
+      "size": 2347,
+      "source_path": "repository/release/.ref/cips_monolayer.cif"
+    }
+  ]
+}

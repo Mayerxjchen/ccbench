@@ -1,0 +1,446 @@
+# MLIP Reproduction Specification — Case 042 GO–water DPMP
+# Evidence-backed extraction. Bookkeeping only; no scientific adequacy claim.
+schema_version: 1
+
+paper:
+  title:
+    value: Machine-Learning Accelerated Computational Spectroscopy Reveals Vibrational Signature of the Oxidation Level of Graphene in Contact with Water
+    claim_status: observed
+    evidence: [ev-paper-identity]
+  doi:
+    value: 10.1021/acs.jpclett.5c03713
+    claim_status: observed
+    evidence: [ev-paper-identity]
+  journal:
+    value: The Journal of Physical Chemistry Letters
+    claim_status: observed
+    evidence: [ev-paper-identity]
+  year:
+    value: 2026
+    claim_status: observed
+    evidence: [ev-paper-identity]
+  authors:
+    value: [Xianglong Du, Jun Cheng, Fujie Tang]
+    claim_status: observed
+    evidence: [ev-paper-identity]
+  source_id: paper-001
+
+reproduction_scope:
+  target: full_data_generation_and_training
+  case_kind: end_to_end_model_development
+  includes:
+    - initial structure construction (SI 1.1)
+    - DFT reference labeling (revPBE-D3 / CP2K)
+    - active-learning data collection (ai2-kit / DP-GEN workflow)
+    - final DPMP model training (JAX, 1e6 steps)
+    - model-level verification (hidden static accuracy)
+  excludes:
+    - downstream spectroscopy (SFG spectra, H-bond lifetime, density profile)
+    - production MLMD trajectory analysis
+  interpretation:
+    claim_status: inferred
+    evidence: [ev-si-datacollection]
+    note: Published 14140-frame dataset already embodies the full generation pipeline; design stage decides how much data generation the candidate must re-execute versus consume the published artifact.
+
+target:
+  primary:
+    reported_name: DPMP model
+    model_family: deep_potential
+    variant: message_passing
+    role: production
+    intended_use: production MD and SFG spectra for GO–water interfaces
+    evidence: [ev-si-dpmp-arch, ev-config-trainpy, ev-si-model-validation]
+  related_models:
+    - reported_name: DPSR model
+      model_family: deep_potential
+      variant: short_range
+      role: data_generation
+      required_for_scope: true
+      evidence: [ev-si-dpsr-arch, ev-si-datacollection]
+
+system:
+  elements:
+    value: [O, H, C]
+    claim_status: observed
+    evidence: [ev-dataset-elements]
+  compositions:
+    value: GO–water at 12.5%/25%/50% oxidation; bulk water; air–water; graphene–water
+    claim_status: observed
+    evidence: [ev-si-system-construction, ev-si-mlmd-cells]
+  interfaces:
+    - bulk_water
+    - air_water
+    - graphene_water
+    - go_water
+  charge_states:
+    value: null
+    claim_status: unknown
+    evidence: []
+  thermodynamic_conditions:
+    value: NVT 300 K (production MLMD, 500 ps); exploration at 300/330/360 K NVT and NPT in early stage
+    claim_status: observed
+    evidence: [ev-si-mlmd-cells, ev-si-datacollection]
+
+dataset:
+  scientific_scope:
+    systems: [water, air-water, air-water-long, graphene-water, graphene-water-long, graphene-O12, graphene-O25, graphene-O50]
+    generation_summary: ai2-kit/DP-GEN active-learning workflow; 4782 initial + 9358 GO–water structures
+  inventory:
+    total_frames:
+      value: 14140
+      claim_status: derived
+      evidence: [ev-dataset-inventory, ev-si-datacollection]
+    components:
+      - system: water
+        frames: 1630
+      - system: air-water
+        frames: 1350
+      - system: air-water-long
+        frames: 400
+      - system: graphene-water
+        frames: 848
+      - system: graphene-water-long
+        frames: 554
+      - system: graphene-O12
+        frames: 1343
+      - system: graphene-O25
+        frames: 4515
+      - system: graphene-O50
+        frames: 3500
+  splits:
+    training:
+      value: all 8 published systems (train.py val_data_path=None)
+      claim_status: observed
+      evidence: [ev-config-trainpy]
+    validation:
+      value: null
+      claim_status: unknown
+      evidence: []
+    test:
+      value: "paper-internal: 100 random structures per GO–water kind from training set"
+      claim_status: observed
+      evidence: [ev-si-model-validation]
+  artifact:
+    source_id: dataset-001
+    format:
+      value: deepmd_raw
+      claim_status: observed
+      evidence: [ev-dataset-rawformat]
+    manifest: set.000/{coord,force,energy,box}.npy + type.raw + type_map.raw per system
+    paths:
+      - GO–water interfaces/source_data/train_dataset/<system>/set.000/
+    content_hash:
+      tree_sha256: f6a72245de8275e3c5dbc166b9c983776736f8d05e58956cc15cc4b4f9917d73
+  data_generation:
+    required_for_scope: true
+    method: ai2-kit / DP-GEN active learning
+    active_learning:
+      value: stage one 4x DPSR (1e6 steps, LAMMPS exploration, deviation bounds 0.60/0.20 eV/A); stage two 4x DPMP (2e5 steps, JAX-MD exploration, NVT, >99% below lower bound)
+      claim_status: observed
+      evidence: [ev-si-datacollection]
+
+labels:
+  energy:
+    present: true
+    unit: eV
+    claim_status: observed
+    evidence: [ev-config-trainpy, ev-dataset-rawformat]
+  forces:
+    present: true
+    unit: eV/angstrom
+    claim_status: observed
+    evidence: [ev-config-trainpy, ev-dataset-rawformat]
+  virial:
+    present: false
+    claim_status: observed
+    evidence: [ev-dataset-rawformat]
+  stress:
+    present: false
+    claim_status: observed
+    evidence: [ev-dataset-rawformat]
+  charges:
+    present: null
+    claim_status: unknown
+    evidence: []
+  dipoles:
+    present: null
+    claim_status: unknown
+    evidence: []
+    note: train.py carries an atomic_dipole prefix argument but model_type=energy; dipole labels not observed in dataset.
+  other: []
+
+reference_method:
+  software:
+    value: CP2K
+    claim_status: inferred
+    evidence: [ev-si-aimd-reference]
+    note: CP2K cited in SI reference list; AIMD details in main manuscript.
+  version:
+    value: null
+    claim_status: unknown
+    evidence: []
+  theory_level:
+    value: DFT
+    claim_status: observed
+    evidence: [ev-si-aimd-reference]
+  xc_functional:
+    value: revPBE
+    claim_status: observed
+    evidence: [ev-si-aimd-reference]
+  dispersion:
+    value: D3
+    claim_status: observed
+    evidence: [ev-si-aimd-reference]
+  basis:
+    value: null
+    claim_status: unknown
+    evidence: []
+  pseudopotential:
+    value: null
+    claim_status: unknown
+    evidence: []
+  plane_wave_cutoff:
+    value: 400
+    unit: Ry
+    claim_status: observed
+    evidence: [ev-si-aimd-reference]
+    note: Set for AIMD cost acceleration.
+  k_points:
+    value: null
+    claim_status: unknown
+    evidence: []
+  charge:
+    value: null
+    claim_status: unknown
+    evidence: []
+  spin:
+    value: null
+    claim_status: unknown
+    evidence: []
+  corrections:
+    value: hydrogen mass 2.014 a.u., 1 fs timestep (AIMD)
+    claim_status: observed
+    evidence: [ev-si-aimd-reference]
+
+implementation:
+  framework:
+    value: deepmd_jax
+    claim_status: observed
+    evidence: [ev-config-trainpy]
+  backend:
+    value: jax
+    claim_status: observed
+    evidence: [ev-config-trainpy]
+  version:
+    value: null
+    claim_status: unknown
+    evidence: []
+  repository:
+    value: null
+    claim_status: unknown
+    evidence: []
+    note: Author config/code published inside the figshare dataset, not a standalone git repository observed.
+  entrypoint:
+    value: [train/train.py, evaluate/evaluate.py, simulation/simulate.py]
+    claim_status: observed
+    evidence: [ev-config-trainpy, ev-config-evaluate, ev-config-simulate]
+  environment:
+    value: deepmd-jax + jax (GPU) required; jax-md for MD. Existing dftworld-base-deepmd ships deepmd-kit (TF) only — runtime gap; new dftworld-base-deepmd-jax image is the design-stage resolution.
+    claim_status: observed
+    evidence: [ev-config-trainpy, ev-config-simulate]
+
+model:
+  family:
+    value: deep_potential
+    claim_status: observed
+    evidence: [ev-si-dpmp-arch]
+  variant:
+    value: message_passing
+    claim_status: observed
+    evidence: [ev-si-dpmp-arch]
+  architecture:
+    cutoff:
+      value: 6.0
+      unit: angstrom
+      claim_status: observed
+      evidence: [ev-si-dpmp-arch, ev-config-trainpy]
+    parameters:
+      value:
+        model_type: energy
+        mp: true
+        embed_widths: [48, 48, 96]
+        embed_mp_widths: [96, 96, 96]
+        fit_widths: [96, 96, 96]
+        axis_neurons: 16
+        compress: true
+      claim_status: observed
+      evidence: [ev-si-dpmp-arch, ev-config-trainpy]
+  precision:
+    value: null
+    claim_status: unknown
+    evidence: []
+  initialization:
+    value: random seed (np.random.randint(1, 1e10)) — not fixed
+    claim_status: observed
+    evidence: [ev-config-trainpy]
+
+training:
+  steps:
+    value: 1000000
+    claim_status: observed
+    evidence: [ev-config-trainpy, ev-si-dpmp-arch]
+  optimizer:
+    value: adam (beta2=0.99, decay_steps=5000)
+    claim_status: observed
+    evidence: [ev-config-trainpy]
+  learning_rate:
+    initial:
+      value: 0.001
+      claim_status: observed
+      evidence: [ev-config-trainpy]
+    final:
+      value: 1e-8
+      claim_status: observed
+      evidence: [ev-config-trainpy, ev-si-dpmp-arch]
+    schedule:
+      value: exponential decay, decay_steps 5000
+      claim_status: observed
+      evidence: [ev-config-trainpy]
+  batch_size:
+    value: 1
+    claim_status: observed
+    evidence: [ev-config-trainpy]
+  loss:
+    value:
+      s_pref_e: 0.02
+      l_pref_e: 1
+      s_pref_f: 1000
+      l_pref_f: 1
+      print_loss_smoothing: 20
+    claim_status: observed
+    evidence: [ev-config-trainpy]
+  seed:
+    value: null
+    claim_status: unknown
+    evidence: [ev-config-trainpy]
+    note: Script uses np.random.randint(1,1e10); bitwise-identical weights not claimed by the paper.
+  checkpointing:
+    value: compress true (compress_Ngrids=1024, compress_r_min=0.6), save_path model.pkl
+    claim_status: observed
+    evidence: [ev-config-trainpy]
+  initialization:
+    value: null
+    claim_status: unknown
+    evidence: []
+  data_binding:
+    train_systems:
+      value: [water, air-water, air-water-long, graphene-water, graphene-water-long, graphene-O12, graphene-O25, graphene-O50]
+      claim_status: observed
+      evidence: [ev-config-trainpy]
+    validation_systems:
+      value: null
+      claim_status: observed
+      evidence: [ev-config-trainpy]
+    test_systems:
+      value: null
+      claim_status: unknown
+      evidence: []
+    sampling_weights:
+      value: null
+      claim_status: unknown
+      evidence: []
+    shuffle:
+      value: null
+      claim_status: unknown
+      evidence: []
+
+validation:
+  model_level:
+    dataset_or_split:
+      value: "paper-internal: 100 random structures per GO–water kind from training set; case-hidden split designed independently at design stage"
+      claim_status: observed
+      evidence: [ev-si-model-validation]
+    metrics:
+      value: [force_rmse, force_r2]
+      claim_status: observed
+      evidence: [ev-si-model-validation]
+    reference_values:
+      value: null
+      claim_status: unknown
+      evidence: []
+      note: Figure S2 is graphical; numeric RMSE/R2 not recovered from text layer.
+    procedure:
+      value: predict forces on held-out test structures; evaluate.py provides the author path; hidden verifier is independent (MLP-V4)
+      claim_status: observed
+      evidence: [ev-si-model-validation, ev-config-evaluate]
+  trajectory_level:
+    conditions:
+      value: NVT 300 K, 500 ps, JAX-MD
+      claim_status: observed
+      evidence: [ev-si-mlmd-cells, ev-config-simulate]
+    metrics:
+      value: null
+      claim_status: unknown
+      evidence: []
+  property_level:
+    observables:
+      value: [SFG spectra, H-bond lifetime, density profile]
+      claim_status: observed
+      evidence: [ev-si-model-validation]
+    metrics:
+      value: null
+      claim_status: unknown
+      evidence: []
+    note: Excluded from case scope (downstream analysis); hidden_physical_observable is a design-stage candidate (e.g. RDF/density) per end_to_end capability mapping.
+
+access:
+  paper:
+    status: restricted
+    source: ACS subscription
+  supporting_information:
+    status: available
+    source: local copy (SI PDF)
+  repository:
+    status: unknown
+    source: null
+  dataset:
+    status: available
+    source: figshare 10.6084/m9.figshare.30472487 v2 (local copy)
+  pretrained_model:
+    status: available
+    source: local model.pkl
+
+licenses:
+  code:
+    license:
+      value: CC BY 4.0
+      claim_status: inferred
+      evidence: [ev-figshare-license]
+      note: Author config/code shipped inside the CC BY 4.0 figshare record; record-level license covers archive contents.
+    redistribution:
+      value: permitted
+      claim_status: inferred
+      evidence: [ev-figshare-license]
+  dataset:
+    license:
+      value: CC BY 4.0
+      claim_status: observed
+      evidence: [ev-figshare-license]
+    redistribution:
+      value: permitted
+      claim_status: observed
+      evidence: [ev-figshare-license]
+  model:
+    license:
+      value: CC BY 4.0
+      claim_status: inferred
+      evidence: [ev-figshare-license]
+      note: model.pkl shipped inside the same CC BY 4.0 figshare record.
+    redistribution:
+      value: permitted
+      claim_status: inferred
+      evidence: [ev-figshare-license]
+  paper:
+    license: ACS subscription
+    redistribution: restricted
+    evidence: []

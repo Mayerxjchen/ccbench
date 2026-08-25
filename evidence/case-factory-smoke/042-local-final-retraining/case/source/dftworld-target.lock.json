@@ -1,0 +1,23 @@
+{
+  "adapter_version": "0.1.0",
+  "case_id": "042-local-final-retraining",
+  "design_sha256": "sha256:acdbc33fa526f0ca48e6a7fdf3e8f1725334fe89a218eab3ba35feee03e8e6c8",
+  "execution": "local_sandbox",
+  "factory_gates": {
+    "candidate_smoke_valid": true,
+    "design_valid": true,
+    "diagnosis_complete": false,
+    "discovery_complete": false,
+    "runtime_contract_valid": true,
+    "runtime_valid": true,
+    "target_adapter_valid": true,
+    "verifier_command_valid": true
+  },
+  "generated_files": {
+    ".dockerignore": "sha256:8abf2476fc972b1eace09af16b196492e5a08cfde38d2fdcb1ce77fa3cf61742",
+    "Dockerfile": "sha256:5233e58e65e0bb039f751e77c2468896919c7b905d8062559d08c908e5e17909",
+    "task.toml": "sha256:24d7a633f05b0d5882e16f8f003f20c63d9cfe91e3e404b8ba1936565590d231"
+  },
+  "schema_version": "target-lock/v1",
+  "target": "dftworld"
+}

@@ -1,0 +1,30 @@
+{
+  "source_type": "paper_text",
+  "experiment": "react2enthalpy",
+  "reaction": "CH4 + 2 O2 -> CO2 + 2 H2O",
+  "temperature_K": 400,
+  "method": "GFN2-xTB",
+  "paper_reported_dH_eV": -12.51,
+  "paper_evidence": "source paper main text reports methane combustion dH ~ -12.51 eV at 400 K with GFN2-xTB.",
+  "regenerated_dH_eV": -12.509294634373589,
+  "regenerated_image": "dftworld-base-xtb",
+  "regenerated_software": {
+    "ase": "3.25.0",
+    "tblite": "0.4.0",
+    "rdkit": "2024.3.5",
+    "pymatgen": "2026.5.4"
+  },
+  "cross_check_vs_dataset": {
+    "dataset_instance": "id=38 (Carbonic Acid Formation, GFN2-xTB, 400K)",
+    "CO2_gibbs_ev": {
+      "dataset": -280.9793530752565,
+      "regenerated": -280.97935635623145,
+      "abs_diff": 3.3e-06
+    },
+    "H2O_gibbs_ev": {
+      "dataset": -138.1130516753147,
+      "regenerated": -138.11305887686873,
+      "abs_diff": 7.2e-06
+    }
+  }
+}

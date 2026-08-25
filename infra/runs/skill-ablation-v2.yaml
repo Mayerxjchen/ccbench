@@ -1,0 +1,33 @@
+schema_version: 1
+run_config_id: skill-ablation-v2
+mode: pilot
+model:
+  provider: deepseek
+  model_id: deepseek-v4-pro
+  deployment_id: default
+  identity_strength: alias-only
+api:
+  endpoint_env: DEEPSEEK_BASE_URL
+  credential_env: DEEPSEEK_API_KEY
+  max_attempts: 4
+  retry_base_delay_sec: 1.0
+  retry_max_delay_sec: 30.0
+  request_timeout_sec: 180.0
+  input_usd_micros_per_million_tokens: 0
+  output_usd_micros_per_million_tokens: 0
+agent_by_execution_class:
+  local_sandbox:
+    max_model_turns: 64
+    max_total_tokens: 10000000
+    active_walltime_sec: 7200
+    scheduler_wait_walltime_sec: 0
+  hpc_controller:
+    max_model_turns: 512
+    max_total_tokens: 100000000
+    active_walltime_sec: 86400
+    scheduler_wait_walltime_sec: 604800
+treatments:
+  no-skill:
+    skills_enabled: false
+  with-skill:
+    skills_enabled: true

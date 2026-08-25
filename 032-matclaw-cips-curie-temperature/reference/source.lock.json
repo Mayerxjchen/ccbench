@@ -1,0 +1,6 @@
+{
+  "paper": {"arxiv": "2604.02688v3", "sha256": "28349bc2cf74a93d12a505c99864d1b4bdb2754f19dbee7848fe00288df33ce6"},
+  "repository": {"release_commit": "52557c077f5e3be8444a3f03ea10a647fbd442ca", "workspace": "workspace_demo2b_curie_with_convergence"},
+  "structure": {"file": "CuInP2S6.cif", "sha256": "b9e3b0c4470274d5e3e1ce19e7c8834bda323e50483eef9791b1e744bbd629de"},
+  "teacher_model": {"file": "teacher_model.pb", "sha256": "a3e7cf9c8168c649ee1ba6e39a7212f3f9db29fc0162b093beb908927e956b4d", "type_map": ["Cu", "In", "P", "S"]}
+}

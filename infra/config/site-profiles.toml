@@ -1,0 +1,16 @@
+# Site profiles: HPC site configuration and capabilities.
+# These are infrastructure-owned; cases declare requirements, not sites.
+
+[sites.local]
+type = "local"
+capabilities = ["cpu", "gpu"]
+
+[sites.<site-alias>]
+type = "hpc"
+scheduler = "slurm"
+capabilities = ["batch_jobs", "gpu", "artifact_fetch"]
+fetch_method = "scp"
+# Frozen policy identity lives in the HpcSiteProfile (see
+# infra/config/hpc-site-profiles.example.toml for the credential-free shape);
+# connection secrets resolve only through the trusted Harness provider.
+site_profile_id = "site-v1"

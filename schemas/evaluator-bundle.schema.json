@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/evaluator-bundle.schema.json",
+  "title": "Case-level evaluator bundle identity",
+  "description": "One immutable identity per case over the hidden evaluator assets: tests/, solution/, hidden reference inputs, thresholds, and frozen profile files. Formal-run manifests reference this digest instead of carrying a private copy of the evaluator.",
+  "type": "object",
+  "required": ["schema_version", "case_id", "bundle_sha256", "evaluator_bundle_sha256", "files"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "case_id": { "type": "string" },
+    "bundle_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "evaluator_bundle_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Alias of bundle_sha256 emitted by build_evaluator_manifest.py; formal-run manifests reference the evaluator identity under this key."
+    },
+    "state": {
+      "enum": ["construction", "constructed", "benchmark_valid"]
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": { "type": "string" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

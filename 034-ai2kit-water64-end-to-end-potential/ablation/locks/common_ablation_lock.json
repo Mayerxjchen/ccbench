@@ -1,0 +1,75 @@
+{
+  "hidden_validation": {
+    "dft-validation.extxyz": "1b63da0c0f334c775abff68241403c7058f19d81d0cce615a5d1718bd19c70ee",
+    "rdf-reference.json": "a1e1877efb248c5ad98a406119c666f7d2b62621d10403f9a2dd0de3b9f67b40",
+    "thresholds.json": "cf875d255e886a2d92ea46d1f755e5abd1b4cef63f623582a9bfe309d7d4797e"
+  },
+  "hpc_bootstrap_policy": {
+    "alias": "hpc",
+    "config": "/run/pagent-hpc/ssh_config",
+    "policy_sha256": "3b4ae065c7094a0202c94d9c5cde35571a9080382e4013a6a59b23ffc7b750a7",
+    "socket": "/run/pagent-hpc/agent.sock",
+    "source_sha256": "daa15f949ead2bd68ff67e6c05be6b224cf12818eba9b04454931594e2a2b29c"
+  },
+  "instruction": {
+    "sha256": "6e35f53be2bfe1e665f06f273abb1eb294dbf11c48feb0306ab209edcbe84e32"
+  },
+  "public_spec": {
+    "coordinate_files": 0,
+    "files": {
+      "system.json": "0abba2ab03e6f2038444f106004b9620bb90fb31974a2c3dcd1d6fa0fda75b17"
+    }
+  },
+  "real_hpc_resource_policy": {
+    "gpus": 0,
+    "max_active_jobs": 8,
+    "max_storage_bytes": 214748364800,
+    "max_total_jobs": 64,
+    "max_walltime_seconds_per_job": 172800,
+    "partitions": [
+      "cpu"
+    ]
+  },
+  "sandbox_resource_policy": {
+    "allow_internet": false,
+    "cpus": 16,
+    "gpus": 1,
+    "memory_mb": 32768,
+    "storage_mb": 102400
+  },
+  "schema": "034-autonomous-case-lock/v2",
+  "skill_bundle": {
+    "bundle_sha256": "fb4859a802b14cfa8210529c8d8ed1155d9255830c036ef6945b2a14f47bad12",
+    "skill_count": 10,
+    "skills": {
+      "ai2kit": "bf83eccf0d45940803e93ca855f06308ce0250b09b938509aafbecf65bd0323a",
+      "comp-chem-workflow": "8ee00a61143cbc0cd931a7d3efea0ef330775c12b9a83c1565be6f96cd03ca57",
+      "cp2k": "2146eb5c1891e362820ff55ed6fb71d43edc56b3f38e4e51bdeb6117b2e0a1b7",
+      "deepmd": "b0b446222fe8f32e128c3fc2bd70e1ac951b9d1725e2b4541184bbc283530023",
+      "hpc-submit": "39222f4d80c952121b86ed9652aed0ea2cc6a03f2a0d19f28a321cebaca7337d",
+      "lammps": "ccdfba8da612c0cf5f4de2313abffa1b3cf553648ef4bece6653de9856819945",
+      "mlip": "c080b658629bd28edf59b3d3b3149f9387891f92ee6ffe8084df0f11688f441e",
+      "packmol": "bf1ac2385c7b02a09918a03260a40887d9f8d4a9e4c300124912432837c79eec",
+      "rsess": "b5a1fe8468c1a11a18abcb1d940ad48d587daca8134a9cce58c2c3984e82bbc8",
+      "structure-prep": "a4d505f50be77ee4f64af40803b54aff7571abb8be00058bf8523d3928b5b8da"
+    },
+    "source": "base-env-build/skills"
+  },
+  "thresholds": {
+    "hidden_sha256": "cf875d255e886a2d92ea46d1f755e5abd1b4cef63f623582a9bfe309d7d4797e",
+    "reference_sha256": "ac2812556405cf78351613eab7da5d868148c91821c509d0091bc4aebf76ed29"
+  },
+  "transport": {
+    "controller_dockerfile_sha256": "f225047b6c4fd94fe9f634edbef80c41377ff1be466e22670f02907a4ee27e5a",
+    "controller_image": "dftworld-base-ai2kit:0.1.0-cpu-controller",
+    "dockerfile_sha256": "a65dc2c623c7b567891892afb3c5d8874b156f6ed0bed8f71dbff6c2f579dfb1",
+    "eval_sha256": "c338df5d5c96f63af5817e64571938fdc9a429f09aa7f29485277a2006079db4",
+    "formal_backend": "real_hpc_controller",
+    "simulated_backend_scope": "test_only",
+    "skills_sha_module_sha256": "d7b68efefb5bc69e4a891b733e11e0ea80cc486b203975fb726c5aa61dcf7b0b",
+    "slurm_transport_sha256": "ea0c1b99a2b75c34a9d27d1b59141979ae6b578c93cc2a8d836b618024d18cbe"
+  },
+  "verifier": {
+    "sha256": "9b802a84bf6d913418430dc5c73cf5ccf0447d7767f798486a5a3d5215c0a795"
+  }
+}

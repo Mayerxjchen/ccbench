@@ -1,0 +1,12 @@
+# Experiment profiles: concurrency and replication settings.
+# These are infrastructure-owned; cases never reference them directly.
+
+[experiments.default]
+max_concurrent_runs = 4
+default_replicates = 1
+max_replicates = 10
+
+[experiments.pilot]
+max_concurrent_runs = 2
+default_replicates = 1
+max_replicates = 3

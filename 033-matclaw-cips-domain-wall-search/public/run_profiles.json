@@ -1,0 +1,13 @@
+{
+  "smoke": {"formal_result": false, "supercell": [1, 3, 1], "max_iterations": 2, "max_jobs_per_iteration": 2, "md_steps": 20, "seed": 20260403},
+  "paper": {
+    "formal_result": true,
+    "supercell": [1, 25, 1],
+    "max_iterations": 7,
+    "max_jobs_per_iteration": 2,
+    "md_steps": 19000,
+    "seed": 20260403,
+    "start": {"Ez_V_A": -0.01, "temperature_K": 200},
+    "bounds": {"Ez_V_A": [-0.3, 0.0], "temperature_K": [0, 250]}
+  }
+}

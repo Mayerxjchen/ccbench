@@ -1,0 +1,401 @@
+{
+  "source_lock_version": "1.0",
+  "locked_at": "2026-08-09",
+  "project": {
+    "name": "source paper",
+    "paper_doi": "10.1038/s42004-025-01776-9",
+    "paper_title": "An agentic framework for computational chemistry workflows",
+    "journal": "Communications Chemistry 2026, 9, 33",
+    "authors": [
+      "Thang D. Pham",
+      "Aditya Tanikanti",
+      "Murat Keçeli"
+    ],
+    "affiliation": "Argonne National Laboratory",
+    "github_repo": "https://github.com/argonne-lcf/chemgraph",
+    "repo_head_at_lock": "8ab2d9c"
+  },
+  "dataset": {
+    "file": "original_data/ground_truth.json",
+    "sha256": "a8e76ec8c427ec9a18de758f0492e3fdd2f01a7ea4b335249c40e8a01c47d742",
+    "n_instances": 40,
+    "source_commit": "a42dd58dba (2026-04-13, pre-removal)",
+    "removal_commit": "2810c0e02b (2026-06-30, 'Remove bundled ground_truth.json ... stale and produced by the buggy ground-truth generator')",
+    "removal_claim_assessment": "arithmetic of all 10 reaction_energy ΔG recomputed independently -> 10/10 self-consistent; data in a42dd58dba judged usable, 'stale/buggy' claim not substantiated for this version",
+    "categories": {
+      "smiles_lookup": 4,
+      "optimization_from_name": 4,
+      "vibrations_from_name": 2,
+      "thermochemistry_from_name": 4,
+      "dipole_from_name": 2,
+      "energy_from_name": 4,
+      "optimization_from_smiles": 2,
+      "vibrations_from_smiles": 2,
+      "thermochemistry_from_smiles": 2,
+      "dipole_from_smiles": 2,
+      "energy_from_smiles": 2,
+      "reaction_energy": 10
+    },
+    "software_versions_from_paper": {
+      "ase": "3.25.0",
+      "nwchem": "7.2.3",
+      "orca": "6.0",
+      "rdkit": "2024.3.5",
+      "tblite": "0.4.0",
+      "mace_torch": "0.3.13"
+    },
+    "note_no_dft_instances": "calculators found: mace_mp(medium-mpa-0), TBLite(GFN2-xTB). No NWChem/ORCA instances -> no DFT image needed for 025-030."
+  },
+  "instances": [
+    {
+      "id": "1",
+      "category": "smiles_lookup",
+      "software": "rdkit",
+      "query": "Provide the SMILES string corresponding to this molecule: sulfur dioxide",
+      "answer_ref": "original_data/ground_truth.json#id=1"
+    },
+    {
+      "id": "2",
+      "category": "smiles_lookup",
+      "software": "rdkit",
+      "query": "Provide the SMILES string corresponding to this molecule: Nitrogen Dioxide",
+      "answer_ref": "original_data/ground_truth.json#id=2"
+    },
+    {
+      "id": "3",
+      "category": "smiles_lookup",
+      "software": "rdkit",
+      "query": "Provide the SMILES string corresponding to this molecule: water",
+      "answer_ref": "original_data/ground_truth.json#id=3"
+    },
+    {
+      "id": "4",
+      "category": "smiles_lookup",
+      "software": "rdkit",
+      "query": "Provide the SMILES string corresponding to this molecule: carbon dioxide",
+      "answer_ref": "original_data/ground_truth.json#id=4"
+    },
+    {
+      "id": "5",
+      "category": "optimization_from_name",
+      "software": "mace_mp",
+      "query": "Run geometry optimization for sulfur dioxide and report its energy using the mace_mp calculator with the medium-mpa-0 model.",
+      "answer_ref": "original_data/ground_truth.json#id=5"
+    },
+    {
+      "id": "6",
+      "category": "vibrations_from_name",
+      "software": "mace_mp",
+      "query": "Report the vibrational frequencies of water using the mace_mp calculator with the medium-mpa-0 model.",
+      "answer_ref": "original_data/ground_truth.json#id=6"
+    },
+    {
+      "id": "7",
+      "category": "thermochemistry_from_name",
+      "software": "GFN2-xTB",
+      "query": "Report the thermochemical properties (Gibbs free energy) of carbon dioxide at 800 K using GFN2-xTB.",
+      "answer_ref": "original_data/ground_truth.json#id=7"
+    },
+    {
+      "id": "8",
+      "category": "dipole_from_name",
+      "software": "GFN2-xTB",
+      "query": "Report the dipole moment of carbon monoxide using GFN2-xTB.",
+      "answer_ref": "original_data/ground_truth.json#id=8"
+    },
+    {
+      "id": "9",
+      "category": "energy_from_name",
+      "software": "mace_mp",
+      "query": "Report the single-point energy of nitrogen using the mace_mp calculator with the medium-mpa-0 model.",
+      "answer_ref": "original_data/ground_truth.json#id=9"
+    },
+    {
+      "id": "10",
+      "category": "optimization_from_name",
+      "software": "GFN2-xTB",
+      "query": "Run geometry optimization for ethene and report its energy using GFN2-xTB.",
+      "answer_ref": "original_data/ground_truth.json#id=10"
+    },
+    {
+      "id": "11",
+      "category": "vibrations_from_name",
+      "software": "GFN2-xTB",
+      "query": "Report the vibrational frequencies of ethanol using GFN2-xTB.",
+      "answer_ref": "original_data/ground_truth.json#id=11"
+    },
+    {
+      "id": "12",
+      "category": "thermochemistry_from_name",
+      "software": "mace_mp",
+      "query": "Report the thermochemical properties (Gibbs free energy) of methane at 500 K using the mace_mp calculator with the medium-mpa-0 model.",
+      "answer_ref": "original_data/ground_truth.json#id=12"
+    },
+    {
+      "id": "13",
+      "category": "dipole_from_name",
+      "software": "GFN2-xTB",
+      "query": "Report the dipole moment of ammonia using GFN2-xTB.",
+      "answer_ref": "original_data/ground_truth.json#id=13"
+    },
+    {
+      "id": "14",
+      "category": "energy_from_name",
+      "software": "GFN2-xTB",
+      "query": "Report the single-point energy of methane using GFN2-xTB.",
+      "answer_ref": "original_data/ground_truth.json#id=14"
+    },
+    {
+      "id": "15",
+      "category": "energy_from_name",
+      "software": "mace_mp",
+      "query": "Report the single-point energy of nitrogen using the mace_mp calculator with the medium-mpa-0 model.",
+      "answer_ref": "original_data/ground_truth.json#id=15"
+    },
+    {
+      "id": "16",
+      "category": "optimization_from_name",
+      "software": "GFN2-xTB",
+      "query": "Run geometry optimization for propane and report its energy using GFN2-xTB.",
+      "answer_ref": "original_data/ground_truth.json#id=16"
+    },
+    {
+      "id": "17",
+      "category": "thermochemistry_from_name",
+      "software": "mace_mp",
+      "query": "Report the thermochemical properties (Gibbs free energy) of ammonia at 500 K using the mace_mp calculator with the medium-mpa-0 model.",
+      "answer_ref": "original_data/ground_truth.json#id=17"
+    },
+    {
+      "id": "18",
+      "category": "energy_from_name",
+      "software": "GFN2-xTB",
+      "query": "Report the single-point energy of ethane using GFN2-xTB.",
+      "answer_ref": "original_data/ground_truth.json#id=18"
+    },
+    {
+      "id": "19",
+      "category": "optimization_from_name",
+      "software": "mace_mp",
+      "query": "Run geometry optimization for ethanol and report its energy using the mace_mp calculator with the medium-mpa-0 model.",
+      "answer_ref": "original_data/ground_truth.json#id=19"
+    },
+    {
+      "id": "20",
+      "category": "thermochemistry_from_name",
+      "software": "GFN2-xTB",
+      "query": "Report the thermochemical properties (Gibbs free energy) of propane at 300 K using GFN2-xTB.",
+      "answer_ref": "original_data/ground_truth.json#id=20"
+    },
+    {
+      "id": "21",
+      "category": "optimization_from_smiles",
+      "software": "mace_mp",
+      "query": "Run geometry optimization using the mace_mp calculator with the medium-mpa-0 model for the molecule with SMILES: O=S=O and report its energy.",
+      "answer_ref": "original_data/ground_truth.json#id=21"
+    },
+    {
+      "id": "22",
+      "category": "vibrations_from_smiles",
+      "software": "mace_mp",
+      "query": "Report the vibrational frequencies using the mace_mp calculator with the medium-mpa-0 model for the molecule with SMILES: O.",
+      "answer_ref": "original_data/ground_truth.json#id=22"
+    },
+    {
+      "id": "23",
+      "category": "thermochemistry_from_smiles",
+      "software": "GFN2-xTB",
+      "query": "Report the thermochemical properties (Gibbs free energy) at 800 K using GFN2-xTB for the molecule with SMILES: O=C=O.",
+      "answer_ref": "original_data/ground_truth.json#id=23"
+    },
+    {
+      "id": "24",
+      "category": "dipole_from_smiles",
+      "software": "GFN2-xTB",
+      "query": "Report the dipole moment using GFN2-xTB for the molecule with SMILES: [C-]#[O+].",
+      "answer_ref": "original_data/ground_truth.json#id=24"
+    },
+    {
+      "id": "25",
+      "category": "energy_from_smiles",
+      "software": "mace_mp",
+      "query": "Report the single-point energy using the mace_mp calculator with the medium-mpa-0 model for the molecule with SMILES: N#N.",
+      "answer_ref": "original_data/ground_truth.json#id=25"
+    },
+    {
+      "id": "26",
+      "category": "energy_from_smiles",
+      "software": "GFN2-xTB",
+      "query": "Report the single-point energy using GFN2-xTB for the molecule with SMILES: CC.",
+      "answer_ref": "original_data/ground_truth.json#id=26"
+    },
+    {
+      "id": "27",
+      "category": "dipole_from_smiles",
+      "software": "GFN2-xTB",
+      "query": "Report the dipole moment using GFN2-xTB for the molecule with SMILES: O=CO.",
+      "answer_ref": "original_data/ground_truth.json#id=27"
+    },
+    {
+      "id": "28",
+      "category": "optimization_from_smiles",
+      "software": "GFN2-xTB",
+      "query": "Run geometry optimization using GFN2-xTB for the molecule with SMILES: [C-]#[O+] and report its energy.",
+      "answer_ref": "original_data/ground_truth.json#id=28"
+    },
+    {
+      "id": "29",
+      "category": "vibrations_from_smiles",
+      "software": "mace_mp",
+      "query": "Report the vibrational frequencies using the mace_mp calculator with the medium-mpa-0 model for the molecule with SMILES: OO.",
+      "answer_ref": "original_data/ground_truth.json#id=29"
+    },
+    {
+      "id": "30",
+      "category": "thermochemistry_from_smiles",
+      "software": "GFN2-xTB",
+      "query": "Report the thermochemical properties (Gibbs free energy) at 300 K using GFN2-xTB for the molecule with SMILES: CC(=O)N.",
+      "answer_ref": "original_data/ground_truth.json#id=30"
+    },
+    {
+      "id": "31",
+      "category": "reaction_energy",
+      "software": "mace_mp",
+      "query": "Report the Gibbs free energy of reaction for Methane Combustion at 300 K using the mace_mp calculator with the medium-mpa-0 model. Report the energy in eV. The balanced reaction is: Methane + 2 Oxygen -> Carbon dioxide + 2 Water",
+      "answer_ref": "original_data/ground_truth.json#id=31"
+    },
+    {
+      "id": "32",
+      "category": "reaction_energy",
+      "software": "GFN2-xTB",
+      "query": "Report the Gibbs free energy of reaction for Ammonia Synthesis at 400 K using GFN2-xTB. Report the energy in eV. The balanced reaction is: Nitrogen gas + 3 Hydrogen gas -> 2 Ammonia",
+      "answer_ref": "original_data/ground_truth.json#id=32"
+    },
+    {
+      "id": "33",
+      "category": "reaction_energy",
+      "software": "mace_mp",
+      "query": "Report the Gibbs free energy of reaction for Water Gas Shift Reaction at 500 K using the mace_mp calculator with the medium-mpa-0 model. Report the energy in eV. The balanced reaction is: Carbon monoxide + Water -> Carbon dioxide + Hydrogen gas",
+      "answer_ref": "original_data/ground_truth.json#id=33"
+    },
+    {
+      "id": "34",
+      "category": "reaction_energy",
+      "software": "GFN2-xTB",
+      "query": "Report the Gibbs free energy of reaction for Ethene Hydrogenation at 300 K using GFN2-xTB. Report the energy in eV. The balanced reaction is: Ethene + Hydrogen gas -> Ethane",
+      "answer_ref": "original_data/ground_truth.json#id=34"
+    },
+    {
+      "id": "35",
+      "category": "reaction_energy",
+      "software": "mace_mp",
+      "query": "Report the Gibbs free energy of reaction for Ethanol Combustion at 400 K using the mace_mp calculator with the medium-mpa-0 model. Report the energy in eV. The balanced reaction is: Ethanol + 3 Oxygen -> 2 Carbon dioxide + 3 Water",
+      "answer_ref": "original_data/ground_truth.json#id=35"
+    },
+    {
+      "id": "36",
+      "category": "reaction_energy",
+      "software": "GFN2-xTB",
+      "query": "Report the Gibbs free energy of reaction for Hydration of Alkene at 500 K using GFN2-xTB. Report the energy in eV. The balanced reaction is: Ethene + Water -> Ethanol",
+      "answer_ref": "original_data/ground_truth.json#id=36"
+    },
+    {
+      "id": "37",
+      "category": "reaction_energy",
+      "software": "mace_mp",
+      "query": "Report the Gibbs free energy of reaction for Hydrogen Peroxide Decomposition at 300 K using the mace_mp calculator with the medium-mpa-0 model. Report the energy in eV. The balanced reaction is: 2 Hydrogen peroxide -> 2 Water + Oxygen",
+      "answer_ref": "original_data/ground_truth.json#id=37"
+    },
+    {
+      "id": "38",
+      "category": "reaction_energy",
+      "software": "GFN2-xTB",
+      "query": "Report the Gibbs free energy of reaction for Carbonic Acid Formation at 400 K using GFN2-xTB. Report the energy in eV. The balanced reaction is: Carbon dioxide + Water -> Carbonic acid",
+      "answer_ref": "original_data/ground_truth.json#id=38"
+    },
+    {
+      "id": "39",
+      "category": "reaction_energy",
+      "software": "mace_mp",
+      "query": "Report the Gibbs free energy of reaction for Propane Combustion at 500 K using the mace_mp calculator with the medium-mpa-0 model. Report the energy in eV. The balanced reaction is: Propane + 5 Oxygen -> 3 Carbon dioxide + 4 Water",
+      "answer_ref": "original_data/ground_truth.json#id=39"
+    },
+    {
+      "id": "40",
+      "category": "reaction_energy",
+      "software": "GFN2-xTB",
+      "query": "Report the Gibbs free energy of reaction for Formic Acid Decomposition at 300 K using GFN2-xTB. Report the energy in eV. The balanced reaction is: Formic acid -> Carbon dioxide + Hydrogen gas",
+      "answer_ref": "original_data/ground_truth.json#id=40"
+    }
+  ],
+  "case_assignment": {
+    "027-name2opt-so2": {
+      "paper_experiment": "name2opt",
+      "original_instance_id": "5",
+      "source_type": "dataset_instance",
+      "molecule": "sulfur dioxide",
+      "calculator": "mace_mp / medium-mpa-0",
+      "temperature": null,
+      "engine_image_plan": "dftworld-base-mace",
+      "original_query": "Run geometry optimization for sulfur dioxide and report its energy using the mace_mp calculator with the medium-mpa-0 model.",
+      "notes": "original method is MACE (not DFT) per dataset; see acceptance_standard.md G1 revision"
+    },
+    "028-name2vib-water": {
+      "paper_experiment": "name2vib",
+      "original_instance_id": "6",
+      "source_type": "dataset_instance",
+      "molecule": "water",
+      "calculator": "mace_mp / medium-mpa-0",
+      "temperature": null,
+      "engine_image_plan": "dftworld-base-mace",
+      "original_query": "Report the vibrational frequencies of water using the mace_mp calculator with the medium-mpa-0 model.",
+      "notes": ""
+    },
+    "029-name2gibbs-co2": {
+      "paper_experiment": "name2gibbs",
+      "original_instance_id": "7",
+      "source_type": "dataset_instance",
+      "molecule": "carbon dioxide",
+      "calculator": "TBLite / GFN2-xTB",
+      "temperature": "800 K",
+      "engine_image_plan": "dftworld-base-xtb",
+      "original_query": "Report the thermochemical properties (Gibbs free energy) of carbon dioxide at 800 K using GFN2-xTB.",
+      "notes": ""
+    },
+    "030-name2file-so2": {
+      "paper_experiment": "name2file",
+      "instance_kind": "derived/hybrid adaptation (NOT a verbatim dataset instance)",
+      "original_instance_id": "5 (molecule/method) + paper_text (artifact semantics)",
+      "source_type": "hybrid (dataset_instance for molecule+method; paper_text for 'save optimized geometry as XYZ')",
+      "molecule": "sulfur dioxide",
+      "calculator": "mace_mp / medium-mpa-0",
+      "temperature": null,
+      "engine_image_plan": "dftworld-base-mace",
+      "original_query": "Run geometry optimization for sulfur dioxide and report its energy using the mace_mp calculator with the medium-mpa-0 model.",
+      "notes": "DERIVED/HYBRID: bundled dataset has no name2file (save-artifact) instance; molecule/method/energy from dataset id=5, 'save optimized XYZ' semantics from paper main-text name2file flow. Explicitly NOT claimed as an original name2file instance. paper documents mace_mp geometry optimization + save to XYZ; failed_calls/recovery_calls are metrics, not PASS gates"
+    },
+    "039-react2enthalpy-methane": {
+      "paper_experiment": "react2enthalpy",
+      "original_instance_id": "N/A (paper_text)",
+      "source_type": "paper_text",
+      "reaction": "CH4 + 2 O2 -> CO2 + 2 H2O (Methane Combustion)",
+      "calculator": "TBLite / GFN2-xTB",
+      "temperature": "400 K",
+      "engine_image_plan": "dftworld-base-xtb",
+      "paper_result_hint": "dH ~ -12.51 eV (paper text)",
+      "original_query": "Report the enthalpy of reaction for Methane Combustion at 400 K using GFN2-xTB. The balanced reaction is: Methane + 2 Oxygen -> Carbon dioxide + 2 Water.",
+      "notes": "dataset reaction_energy entries are all Gibbs free energy (dG), no dH instances. This case freezes the paper-text case; reference regenerated in pinned image, then compared to paper -12.51 eV."
+    },
+    "040-react2gibbs-ammonia": {
+      "paper_experiment": "react2gibbs",
+      "original_instance_id": "32",
+      "source_type": "dataset_instance",
+      "reaction": "Ammonia Synthesis: Nitrogen gas + 3 Hydrogen gas -> 2 Ammonia",
+      "calculator": "TBLite / GFN2-xTB",
+      "temperature": "400 K",
+      "engine_image_plan": "dftworld-base-xtb",
+      "original_query": "Report the Gibbs free energy of reaction for Ammonia Synthesis at 400 K using GFN2-xTB. Report the energy in eV. The balanced reaction is: Nitrogen gas + 3 Hydrogen gas -> 2 Ammonia",
+      "notes": "chosen over id=31 (Methane Combustion MACE 300K) to share xTB image with 029 and avoid duplicate reaction system; original dG = -2.1629965319593794 eV"
+    }
+  }
+}

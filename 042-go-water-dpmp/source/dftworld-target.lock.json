@@ -1,0 +1,23 @@
+{
+  "adapter_version": "0.1.0",
+  "case_id": "042-go-water-dpmp",
+  "design_sha256": "sha256:765672e5332f509832081cce372fdd6e36fd445a23fe551858ca1c68da6e25df",
+  "execution": "hpc_controller",
+  "factory_gates": {
+    "candidate_smoke_valid": true,
+    "design_valid": true,
+    "diagnosis_complete": false,
+    "discovery_complete": false,
+    "runtime_contract_valid": true,
+    "runtime_valid": false,
+    "target_adapter_valid": true,
+    "verifier_command_valid": true
+  },
+  "generated_files": {
+    ".dockerignore": "sha256:8abf2476fc972b1eace09af16b196492e5a08cfde38d2fdcb1ce77fa3cf61742",
+    "Dockerfile": "sha256:24d5eadb2a1d27fb6efbbea5117f9b0848458cf6801d0da4a8f626e20d20762c",
+    "task.toml": "sha256:7f785c170f42ee3a9d4bb8f6459e89f10f80a1798557f4fba6919906417fe0b8"
+  },
+  "schema_version": "target-lock/v1",
+  "target": "dftworld"
+}

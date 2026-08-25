@@ -1,0 +1,713 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/run-record.schema.json",
+  "title": "Immutable run record",
+  "description": "One classified attempt, written once and never updated. Canonical record is jobs/<run_id>/run-record.json; summary.json is a derived compatibility view. Treatment identity is frozen: no-skill requires skills_source 'none' and a null digest; with-skill requires an immutable image source and a content digest. schema_version 1 = historical reader shape; schema_version 2 = monotonic one-terminal lifecycle plus the full run identity (lock digest, event root, attempts, budgets, runtime identities, remote HPC jobs, seal).",
+  "type": "object",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/run-record-v1"
+    },
+    {
+      "$ref": "#/$defs/run-record-v2"
+    }
+  ],
+  "$defs": {
+    "usage": {
+      "type": "object",
+      "required": [
+        "tool_calls",
+        "tokens",
+        "elapsed_sec"
+      ],
+      "properties": {
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "elapsed_sec": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "lifecycle_events": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "phase",
+          "at"
+        ],
+        "properties": {
+          "phase": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "required": [
+        "run_id",
+        "result_class",
+        "failure_code",
+        "reason",
+        "retryable"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "result_class": {
+          "enum": [
+            "VALID_RESULT",
+            "AGENT_FAILURE",
+            "INFRA_INVALID"
+          ]
+        },
+        "failure_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "is_counted_scientifically": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "event_chain": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "event_seq",
+          "event_id",
+          "operation_id",
+          "kind",
+          "previous_event_digest",
+          "timestamp",
+          "payload",
+          "event_digest"
+        ],
+        "properties": {
+          "event_seq": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "event_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "operation_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "previous_event_digest": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/sha256"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "minLength": 1
+          },
+          "payload": {
+            "type": "object"
+          },
+          "event_digest": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "runtime_identity": {
+      "type": "object",
+      "required": [
+        "role",
+        "profile",
+        "image",
+        "digest"
+      ],
+      "properties": {
+        "role": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "image": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "run-record-v1": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "run_id",
+        "case_id",
+        "execution_class",
+        "agent_model",
+        "experiment_id",
+        "condition_id",
+        "skills_source",
+        "skills_sha",
+        "image",
+        "benchmark_commit",
+        "profile",
+        "submission_root",
+        "verifier",
+        "platform",
+        "job_id",
+        "site_config_digest",
+        "replicate",
+        "attempt",
+        "thread_dir",
+        "legacy_normalized",
+        "usage",
+        "lifecycle_events",
+        "result"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "case_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "execution_class": {
+          "enum": [
+            "local_sandbox",
+            "hpc_controller"
+          ]
+        },
+        "agent_model": {
+          "type": "string"
+        },
+        "experiment_id": {
+          "type": "string"
+        },
+        "condition_id": {
+          "enum": [
+            "no-skill",
+            "with-skill"
+          ]
+        },
+        "skills_source": {
+          "type": "string"
+        },
+        "skills_sha": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "image": {
+          "type": "string"
+        },
+        "benchmark_commit": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "submission_root": {
+          "type": "string"
+        },
+        "verifier": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "job_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "site_config_digest": {
+          "type": "string"
+        },
+        "replicate": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "thread_dir": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "legacy_normalized": {
+          "type": "boolean"
+        },
+        "usage": {
+          "$ref": "#/$defs/usage"
+        },
+        "lifecycle_events": {
+          "$ref": "#/$defs/lifecycle_events"
+        },
+        "result": {
+          "$ref": "#/$defs/result"
+        }
+      },
+      "additionalProperties": false
+    },
+    "run-record-v2": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "run_id",
+        "case_id",
+        "execution_class",
+        "agent_model",
+        "experiment_id",
+        "condition_id",
+        "skills_source",
+        "skills_sha",
+        "image",
+        "benchmark_commit",
+        "profile",
+        "submission_root",
+        "verifier",
+        "platform",
+        "job_id",
+        "site_config_digest",
+        "replicate",
+        "attempt",
+        "thread_dir",
+        "legacy_normalized",
+        "usage",
+        "lifecycle_events",
+        "result",
+        "run_mode",
+        "counted",
+        "formal_eligible",
+        "lock_digest",
+        "event_root_digest",
+        "event_chain",
+        "attempts",
+        "budgets",
+        "runtime_identities",
+        "remote_jobs",
+        "seal"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "case_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "execution_class": {
+          "enum": [
+            "local_sandbox",
+            "hpc_controller"
+          ]
+        },
+        "agent_model": {
+          "type": "string"
+        },
+        "experiment_id": {
+          "type": "string"
+        },
+        "condition_id": {
+          "enum": [
+            "no-skill",
+            "with-skill"
+          ]
+        },
+        "skills_source": {
+          "type": "string"
+        },
+        "skills_sha": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "image": {
+          "type": "string"
+        },
+        "benchmark_commit": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "const": "unknown"
+          }
+        },
+        "submission_root": {
+          "type": "string"
+        },
+        "verifier": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "const": "unknown"
+          }
+        },
+        "job_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "site_config_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "replicate": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "thread_dir": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "legacy_normalized": {
+          "type": "boolean"
+        },
+        "usage": {
+          "$ref": "#/$defs/usage"
+        },
+        "lifecycle_events": {
+          "$ref": "#/$defs/lifecycle_events"
+        },
+        "result": {
+          "$ref": "#/$defs/result"
+        },
+        "run_mode": {
+          "enum": [
+            "smoke",
+            "formal"
+          ]
+        },
+        "counted": {
+          "type": "boolean"
+        },
+        "formal_eligible": {
+          "type": "boolean"
+        },
+        "lock_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "event_root_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "event_chain": {
+          "$ref": "#/$defs/event_chain"
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "operation_id",
+              "attempt",
+              "state",
+              "provider_request_id",
+              "usage",
+              "metadata_digest",
+              "accepted"
+            ],
+            "properties": {
+              "operation_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "attempt": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "state": {
+                "enum": [
+                  "known_failure",
+                  "timeout_unknown",
+                  "success"
+                ]
+              },
+              "provider_request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "usage": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "metadata_digest": {
+                "$ref": "#/$defs/sha256"
+              },
+              "accepted": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "budgets": {
+          "type": "object",
+          "required": [
+            "model_turns",
+            "logical_requests",
+            "api_attempts",
+            "tokens",
+            "usd_microcost",
+            "agent_active_walltime_ms",
+            "run_total_walltime_ms",
+            "local_tool_walltime_ms",
+            "api_retry_walltime_ms",
+            "scheduler_wait_ms",
+            "jobs",
+            "cpu_hours",
+            "gpu_hours",
+            "storage_byte_hours"
+          ],
+          "properties": {
+            "model_turns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "logical_requests": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "api_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tokens": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "usd_microcost": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "agent_active_walltime_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "run_total_walltime_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "local_tool_walltime_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "api_retry_walltime_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "scheduler_wait_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "jobs": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cpu_hours": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "gpu_hours": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "storage_byte_hours": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "runtime_identities": {
+          "type": "object",
+          "required": [
+            "candidate",
+            "control",
+            "compute",
+            "verifier"
+          ],
+          "minProperties": 4,
+          "maxProperties": 4,
+          "properties": {
+            "candidate": {
+              "$ref": "#/$defs/runtime_identity"
+            },
+            "control": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/runtime_identity"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "compute": {
+              "$ref": "#/$defs/runtime_identity"
+            },
+            "verifier": {
+              "$ref": "#/$defs/runtime_identity"
+            }
+          },
+          "additionalProperties": false
+        },
+        "remote_jobs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "job_id",
+              "state",
+              "resources",
+              "artifact_hashes"
+            ],
+            "properties": {
+              "job_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "state": {
+                "type": "string",
+                "minLength": 1
+              },
+              "resources": {
+                "type": "object"
+              },
+              "artifact_hashes": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/$defs/sha256"
+                }
+              },
+              "operation_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "attempt": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "seal": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "manifest_digest": {
+              "$ref": "#/$defs/sha256"
+            },
+            "file_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sealed_at": {
+              "type": "string"
+            },
+            "legacy_layout": {
+              "type": "boolean"
+            },
+            "exclusions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "manifest_digest",
+            "file_count",
+            "total_bytes",
+            "sealed_at",
+            "legacy_layout",
+            "exclusions"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

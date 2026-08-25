@@ -1,0 +1,9 @@
+HOST=cu056
+USER=
+2026-08-24T11:57:40Z
+BENCH_PROBE workspace_rw=pass
+BENCH_PROBE home_sentinel_absent=pass
+BENCH_PROBE credential_sentinel_absent=pass
+BENCH_PROBE other_run_dir_absent=pass
+BENCH_PROBE runs_root_not_listable=pass
+CONTAINMENT_OK

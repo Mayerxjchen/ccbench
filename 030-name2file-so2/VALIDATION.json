@@ -1,0 +1,90 @@
+{
+  "benchmark_id": "030-name2file-so2",
+  "acceptance_standard": "benchmark/sources/chemgraph/acceptance_standard.md v1.1",
+  "source": {
+    "paper_verified": true,
+    "instance_verified": true,
+    "prompt_verified": true,
+    "original_reference_verified": true
+  },
+  "source_detail": {
+    "source_type": "hybrid",
+    "dataset_instance": "ground_truth.json id=5 (optimization_from_name, sulfur dioxide, mace_mp / medium-mpa-0)",
+    "paper_artifact_semantics": "source paper main-text name2file flow: mace_mp geometry optimization + save optimized geometry as XYZ file",
+    "original_query": "Run geometry optimization for sulfur dioxide and report its energy using the mace_mp calculator with the medium-mpa-0 model.",
+    "original_energy_eV": -16.815808019358535,
+    "regenerated_energy_eV": -16.815808388438125,
+    "original_vs_regenerated_abs_diff_eV": 3.6907959000131996e-07,
+    "tolerance_eV": 0.05
+  },
+  "isolation": {
+    "public_only": true,
+    "hidden_assets_inaccessible": true
+  },
+  "reference": {
+    "regenerated": true,
+    "original_consistent": true,
+    "reproducible": true
+  },
+  "reference_detail": {
+    "image": "dftworld-base-mace",
+    "image_digest": "sha256:c54103db3c6bf58a2427833361910a34715f643fa3f7aa28a081aa5672170c77",
+    "software": {
+      "ase": "3.25.0",
+      "mace_torch": "0.3.13",
+      "torch": "2.13.0",
+      "numpy": "2.5.1"
+    },
+    "optimizer": "BFGS fmax=0.01 steps=1000",
+    "optimized_xyz_verified": "ase.io.read parseable; 3 atoms; composition S:1 O:2",
+    "reproducibility_run1_eV": -16.815808388438125,
+    "reproducibility_run2_eV": -16.815808388438125,
+    "max_deviation_eV": 0.0,
+    "evaluator_tolerance_eV": 0.05,
+    "tolerance_basis": "measured reproducibility <1e-9 eV + original-vs-regenerated diff ~4e-7 eV"
+  },
+  "oracle": {
+    "passes": true
+  },
+  "evaluator": {
+    "oracle_passes": true,
+    "negative_fixtures_fail": true,
+    "alternative_solution_passes": true
+  },
+  "evaluator_detail": {
+    "n_layers": 6,
+    "layers": [
+      "L1 Artifact",
+      "L2 Execution",
+      "L3 Identity",
+      "L4 Consistency",
+      "L5 Scientific",
+      "L6 Reference"
+    ],
+    "negative_fixtures": [
+      "F1 wrong_molecule(CO2) -> L3 FAIL",
+      "F2 missing_optimized.xyz -> L1 FAIL",
+      "F3 energy_off(+0.5 eV) -> L5+L6 FAIL",
+      "F4 not_converged(false) -> L3 FAIL",
+      "F5 optimized.xyz wrong_atom_count(4) -> L1 FAIL",
+      "F6 optimized.xyz copied_from_input -> L2 FAIL"
+    ],
+    "alternative_solution": "LBFGS optimizer + independent implementation + same XYZ artifact; E=-16.815808 eV -> PASS"
+  },
+  "benchmark_valid": true,
+  "agent_smoke_tested": false,
+  "ablation_tested": false,
+  "last_regression": {
+    "date": "2026-08-09",
+    "oracle_pytest_pass": true,
+    "oracle_pytest_count": 10,
+    "hardcoded_answer_fixture_fails": true,
+    "hardcoded_answer_fail_count": 3,
+    "verifier_reward_oracle": 1,
+    "verifier_reward_cheat": 0,
+    "container_images": [
+      "dftworld-base-mace",
+      "dftworld-base-xtb"
+    ]
+  }
+}

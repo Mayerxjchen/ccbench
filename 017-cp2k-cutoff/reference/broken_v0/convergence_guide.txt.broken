@@ -1,0 +1,14 @@
+CP2K GPW / DZVP-MOLOPT-SR-GTH / PBE — H2O total energy vs plane-wave cutoff
+Reference: CUTOFF = 500 Ry  →  E_ref = -17.219495884120 Ha
+
+Target for this task: |E - E_ref| <= 1.0e-5 Ha
+
+CUTOFF (Ry)    |E - E_ref| (Ha)
+-----------    ----------------
+200            3.2e-3   (fails target)
+280            2.1e-4   (fails target)
+320            7.8e-6   (meets target)
+360            2.1e-6   (meets target)
+400            9.5e-7   (meets target)
+
+Pick the smallest integer CUTOFF in this table that meets the target.

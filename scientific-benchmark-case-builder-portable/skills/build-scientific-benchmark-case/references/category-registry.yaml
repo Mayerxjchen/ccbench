@@ -1,0 +1,13 @@
+schema_version: 1
+categories:
+  mlp:
+    state: supported
+    case_kinds:
+      - final_model_retraining
+      - end_to_end_model_development
+      - published_model_execution
+      - model_evaluation
+      - active_learning_workflow
+    references_root: references/categories/mlp
+    scripts_root: scripts/categories/mlp
+    template_root: assets/case-template/categories/mlp

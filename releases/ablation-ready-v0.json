@@ -1,0 +1,659 @@
+{
+  "schema": "ablation-ready-release/v1",
+  "name": "ablation-ready-benchmark-v0",
+  "status": "frozen",
+  "source_commit": "aae1becabc11041f454a7dc2d617e2ccadb95763",
+  "generated_at": "2026-08-19T00:00:00Z",
+  "agent_model": "deepseek/deepseek-chat",
+  "note": "Frozen at git source_commit. Scope: cases 001-033 (031/032/033 are benchmark_valid; 034 is in construction and excluded from v0). Per-run run-record.json carries the exact agent_model of each trial; this field records the benchmark default agent identity. Component digests are deterministic and recomputable from disk via dftworld_bench.experiments.release_builder (file sha256 / tree digest excluding __pycache__).",
+  "components": {
+    "schemas": [
+      {
+        "path": "schemas/bundle-manifest.schema.json",
+        "sha256": "e2d08e8539dadc228f4584502fd11a16b3fd5a084adb31ed750d2637aed51600"
+      },
+      {
+        "path": "schemas/case.schema.json",
+        "sha256": "bfdd4555ea43b44a19381d57879ba4c1cd97208d1d224746c9cbab5f29d13e1f"
+      },
+      {
+        "path": "schemas/hpc-job.schema.json",
+        "sha256": "7331f5031e5fd6cf9d5f36fd416f79f670760c085e7a0aecc238102642224593"
+      },
+      {
+        "path": "schemas/platform-profile.schema.json",
+        "sha256": "7a087d88c769f93d3394a0b9fd6440ccbfb59ef416e8c93dbe889f10ad678cd2"
+      },
+      {
+        "path": "schemas/resource-profile.schema.json",
+        "sha256": "796fb44374789601c8ea388bcb7d80ebcb2ae2df227dd847022edbef70810e07"
+      },
+      {
+        "path": "schemas/result.schema.json",
+        "sha256": "b169bcd448f735b4e86fa118892c9639105805d42b719d5ac76185f276c4f139"
+      },
+      {
+        "path": "schemas/run-record.schema.json",
+        "sha256": "2aac7e79a61c460fcb3b48b52148a957411039bdd63182ee5045330d3469d039"
+      },
+      {
+        "path": "schemas/site-config.schema.json",
+        "sha256": "6d1741fa136c84f4763af6d2d8fc6f4ff4065b6bc611ce4b676c38072ec1ae12"
+      },
+      {
+        "path": "schemas/submission.schema.json",
+        "sha256": "8db224b94c53fd2bb529a3e23fe73be19c284ed1f06ee3c15c1e41beefa7af7f"
+      }
+    ],
+    "site_adapter": [
+      {
+        "path": "dftworld_bench/hpc/adapters/__init__.py",
+        "sha256": "6c93c39890ac9264cd48393b196cfb956db07c16a0500c794d646bdc08d948d8"
+      },
+      {
+        "path": "dftworld_bench/hpc/adapters/base.py",
+        "sha256": "35e1f5b3ea504040264a2e736c7edd9c8a4079d78843adfbcaabfdea171c150e"
+      },
+      {
+        "path": "dftworld_bench/hpc/adapters/process_test.py",
+        "sha256": "e2ee10295f8dff5282090aef9e64897d0b3e5bbe7ae43e1bef67e5ffbc1e4b04"
+      },
+      {
+        "path": "dftworld_bench/hpc/adapters/slurm.py",
+        "sha256": "8741707b9b1facda442f5937b680364a7d86b68f24f65eed8eda35a3b9d3831c"
+      },
+      {
+        "path": "dftworld_bench/hpc/gateway.py",
+        "sha256": "21a2a90860cbf26592f1b5b3e907e889bc7a36b31a193d256287cf8b0bc8f337"
+      },
+      {
+        "path": "dftworld_bench/hpc/gateway_runtime.py",
+        "sha256": "482998f87c9b0803da3fc89a7c95f1269c837b8571cda8ea1ea36803b879e288"
+      },
+      {
+        "path": "scripts/ablation/transport/slurm_transport.py",
+        "sha256": "5264493c755a4418afaff866984e03205c893e35dbd6e9fb6aec1f568c611ac9"
+      }
+    ],
+    "cases": [
+      {
+        "case_id": "001-hello",
+        "task_toml_sha256": "8d9dc5702e1951c9c4fb1e4d5458fa552282ed7fa7fe6eefde947cd4bfd902fc",
+        "instruction_sha256": "e0e1622af2641c367ade0c27421107a5fed5fff63cfdb8ef03aecc12cff9a4ea"
+      },
+      {
+        "case_id": "002-arithmetic",
+        "task_toml_sha256": "a7377465839344fcf2943146c0e20649eefdc49f034ebdddd36402770da5ca74",
+        "instruction_sha256": "40b1e5be0515e949d4884adb0ed8ae62a2948e4cf5aeebdca87a18439a982139"
+      },
+      {
+        "case_id": "003-uv-version",
+        "task_toml_sha256": "797f7af946538109cf792e80f9c86dbd2f81c1dd0df3bc92c7eee65316dbeeb6",
+        "instruction_sha256": "a8738856edb60a8bffd0c3ba01f21bceefd106df5703e3f9a22682caa0f0f71b"
+      },
+      {
+        "case_id": "004-python-version",
+        "task_toml_sha256": "cbc0a16784c867393b8381c6d20267d70563cd0da8c99db9a7ee4d3f74ea8011",
+        "instruction_sha256": "1b3dcfc269f18095268821c20c278026bcb177d465f1301f3589bbfaf4873770"
+      },
+      {
+        "case_id": "005-cp2k-version",
+        "task_toml_sha256": "373a1f7e947cd876f7d724a454881a3d537df47d558fda55c00c7c1eafc4b94e",
+        "instruction_sha256": "5571426357681b0614d200c6b6e8a459587573772b80ca1a7b01800d0a90133c"
+      },
+      {
+        "case_id": "006-packmol-version",
+        "task_toml_sha256": "6b451c627de742605c9084ff4f8b5157e6693496d028ecd74fcbc95914599384",
+        "instruction_sha256": "5388dd7bb9ab73c0bfa40c983cb0cdd5511b8e867ca342cd36bc401b3df74d19"
+      },
+      {
+        "case_id": "007-pip-install",
+        "task_toml_sha256": "d72f4feb00167d7c09dfe1da528068533964b1786e238fb8e386ced8f5bfe2d4",
+        "instruction_sha256": "9ab3d751bb907c667b87d09a919c5aa4ef330dfdcdb1ba78fbad5125b09a0ac4"
+      },
+      {
+        "case_id": "008-packmol-build",
+        "task_toml_sha256": "786ed741bec56a3cd197bc4c785a02f230f3fb3f588c3b0cf6c8361d01b7c48b",
+        "instruction_sha256": "bea5634ae6afdc3067764eb201939fe61bd71446b0a8cfef78388ab442770e12"
+      },
+      {
+        "case_id": "009-cp2k-run",
+        "task_toml_sha256": "1fadf134b8c2f1b41b6be7df34b14b9555acacaf5092662af21971ca54ca9387",
+        "instruction_sha256": "7e355d2696fe3203a2054fdfcbc6d2785aeeb7e6b191f8fe75efba3ed3033c81"
+      },
+      {
+        "case_id": "010-deepmd-train",
+        "task_toml_sha256": "15a8edf0042a493ea3c58a54ff727d76ca8125913301f972310c1951213524a0",
+        "instruction_sha256": "f428314daf81f791a4a6933a2ae626588561faa9b0de9dee6ac9165297c69070"
+      },
+      {
+        "case_id": "011-cp2k-template",
+        "task_toml_sha256": "dd2b8b2e0d0b94181bf19373e7b9af565adf8a7366b7e338a0f4688320f18086",
+        "instruction_sha256": "4c9eb89822b023f7188268aa51caf9940e6f966d6e99593a5a97483a6313af9c"
+      },
+      {
+        "case_id": "012-ase-methane",
+        "task_toml_sha256": "2af96878325acaee0ea558ed56d6680dfc996fff894046fc718c973834064112",
+        "instruction_sha256": "8f73a93c2cc922997479ee006a4c254e118fced41f874712530b6a4872e2979a"
+      },
+      {
+        "case_id": "013-rdkit-volume",
+        "task_toml_sha256": "a4433382dff7c7b5aedf49edd0990a3127fc60b9f88d677961287ef30955e3a9",
+        "instruction_sha256": "c23d8b8cfab77b226911e8070259dbec3f594ab952ee5bed598132dc547a77ae"
+      },
+      {
+        "case_id": "014-deepmd-template",
+        "task_toml_sha256": "e5247e63da595e7a279834206cd8baec67dc4297f0f023222574eda9217d908d",
+        "instruction_sha256": "e9119cb37101db1a9b816a0c30b82c7416324315147a13143ff86cdc06085e56"
+      },
+      {
+        "case_id": "015-cp2k-scratch",
+        "task_toml_sha256": "531a1eb68727a678623841132b5100ea973aa5ad9b05b82940d29e156798e722",
+        "instruction_sha256": "9d5b876cef8fb5075f40275351e38bf3fef5241e43f31194e4cd906ea24b5d63"
+      },
+      {
+        "case_id": "016-deepmd-pipeline",
+        "task_toml_sha256": "9094aa08ccbd61c8a73d2a3024c1d158f0a88183ed553a10ec70af0f17ce7fdc",
+        "instruction_sha256": "109b376f747cded68aea86662d5d478f53e6a5d61a9e47753019c4410ffe31b7"
+      },
+      {
+        "case_id": "017-cp2k-cutoff",
+        "task_toml_sha256": "6b98712ef2d990d9351bba83c653d5f2933f26e4823d2fae499867240c487167",
+        "instruction_sha256": "c1817cfa33b34378ee035f228a704e43a04caa24de14e4f6c0611ab9e04aade4"
+      },
+      {
+        "case_id": "018-deepmd-rcut",
+        "task_toml_sha256": "0f027cbe5bbbcced0b7f317cb85caef3825d4bad540009aa57d0b19fed83af1a",
+        "instruction_sha256": "ddd8ba20662fc7148c0a57442ff8a113a0106d8aafd684ab948284e2266435bc"
+      },
+      {
+        "case_id": "019-cp2k-eps-scf",
+        "task_toml_sha256": "3a3667b344dc98870f047e79ec381007bb877279247909edffde46cc1357f2e8",
+        "instruction_sha256": "9f1424b2f3844b56f5bf4da79d7d5f0c578e3133ae4da31c8f16a9eac205e78a"
+      },
+      {
+        "case_id": "020-hartree-to-ev",
+        "task_toml_sha256": "da0f7b6ba4e2aea82f42b2cc473ca7e760accd231787b19a11a2bd95a000aecf",
+        "instruction_sha256": "b6d2da192af4af084777605733866bc1689bb64d7c83f3d45a789aa280fdd9a8"
+      },
+      {
+        "case_id": "021-gth-valence",
+        "task_toml_sha256": "52e8307b42ccf6331448a1ce426c581adfe5984a9d54f02abbe3a9989bb39e62",
+        "instruction_sha256": "d83e49392766af2f6ad794374f414fe73054b171629cbf16ee30515f7274649a"
+      },
+      {
+        "case_id": "022-spin-multiplicity",
+        "task_toml_sha256": "90f936a6b9cc7ac4df6d66967ddce11582f13868ed39d2f17eab78717e10e9b2",
+        "instruction_sha256": "6a7adf0cd4d0869af3dcad76de4cfb04efad848aeaa2e4dd8ec3e274f039860b"
+      },
+      {
+        "case_id": "023-deepmd-type-map",
+        "task_toml_sha256": "025747473f9fc38c932e77ecc9d4220f059b15d9854b2e2ade3210a44432e0a1",
+        "instruction_sha256": "95065ea244516c211a28df0f7c88d7b54be35d46a7946fc747793d256eb5efa9"
+      },
+      {
+        "case_id": "024-xc-gth-match",
+        "task_toml_sha256": "07c28cc60f07e0fb2d8eb27defb209c2397ee4305e29d6c5f89d42076740c5b0",
+        "instruction_sha256": "18ce413f0ecdcd72989693c3443655b06b10a35f4309e35fc46d63d4a75dfd27"
+      },
+      {
+        "case_id": "025-name2smi",
+        "task_toml_sha256": "47c2f45c6b1e9ba140e8b90728e65ee8916a6853cad01d2d6fb155b8c1a84f3e",
+        "instruction_sha256": "7f2ffe1ae556cb7ac63c0fc9a9d86b767887facd7776dadb13913b498aff72e6",
+        "public_digest": "873a7db7554466fb31abe0742353933db8ff87d2157dba2676d823c3bcb3c8fb"
+      },
+      {
+        "case_id": "026-name2coord",
+        "task_toml_sha256": "07cefcf245300a0fc828d584ae71ffdd859d1b968c8252eada7686d406381672",
+        "instruction_sha256": "3f1927aba401787c31a6fc39458cece2d5ef22c5ca21341fc420c2216e940422",
+        "public_digest": "0aeb3bd5ecda6cbe3b25762bad5e0e411da0382789fd7115af3ade95574de9b5"
+      },
+      {
+        "case_id": "027-name2opt-so2",
+        "task_toml_sha256": "049687be24e662a8f4b38ed0c2bcce609ef3258587adb8856a722101832f7715",
+        "instruction_sha256": "0fa6a62571a890f9642c288e619b8ef4f06cbd3882dcfa8b9c7b2578a15dbd1d",
+        "public_digest": "250f3149fea605fbf694c06f40c93e1b188567c0ef4521be3b9209ae6aaed9ed"
+      },
+      {
+        "case_id": "028-name2vib-water",
+        "task_toml_sha256": "58b37a945c2b4d91bd3c2f6419242fea2876b0ed46b6687a45317dd59ce72380",
+        "instruction_sha256": "85be7ae595e4028cc32723e80ba70f1754c6ffbfca54943087d9da33c94b9c9b",
+        "public_digest": "a0ea16e13db64c9d2513e68fb7b7f55d133463523e18f0b1d08a823fe6749497"
+      },
+      {
+        "case_id": "029-name2gibbs-co2",
+        "task_toml_sha256": "a1e60882e270e8b768f490280a900c0a0925f8209cf637c42f5b8ef1e1214e46",
+        "instruction_sha256": "a8d1ec499cf77429a7a355f0e2402937eeaecd5094d8cb9a4c1bb0b3090bcd65",
+        "public_digest": "ae97bedb6c992315f524933777224f6ec4d90e7ca7e9b576973f9872fac04f75"
+      },
+      {
+        "case_id": "030-name2file-so2",
+        "task_toml_sha256": "f7bef48d68154e29ed9ad25487c4c3442ca7009d421c88a9e8f970151a75b734",
+        "instruction_sha256": "ede93428232878c5d3129f9b44c88951244640500ab7ef334e00d80e280c897d",
+        "public_digest": "d5a2f119fafb6bb6c3bf992d71f930ae94e04836070a16a83a227402980e08a2"
+      },
+      {
+        "case_id": "031-matclaw-cips-active-distillation",
+        "task_toml_sha256": "e5874d8dba59ed6ca7fdeccbf99474317dea5f75fd8271b0fa812ae613549d9a",
+        "instruction_sha256": "14f58874571c7e9500483bc6418d0be26cc2ef94e8a86b5e1dd755c6e52bac75",
+        "public_digest": "8c84cf3ffd42bdbf1717317254bf473c1a7120012234eaef8ef481854548a435"
+      },
+      {
+        "case_id": "032-matclaw-cips-curie-temperature",
+        "task_toml_sha256": "fa50eeaac9ca29b46331cf4f86152f4684c486a9b1fe1f638ebfd068b6a999fa",
+        "instruction_sha256": "885caad0259af4b8074074fb89248154265dc7e0a6a3b7c0709658313d42e0ae",
+        "public_digest": "c18009c7f6e2120a62995e629b7783a1a76cb71bd20f92ab78c0b96b3b136394"
+      },
+      {
+        "case_id": "033-matclaw-cips-domain-wall-search",
+        "task_toml_sha256": "34037ec2d261b81455c650c4ae98336e57693287032374d6686e8962d887fd7e",
+        "instruction_sha256": "f3427302eb389cb9d06bcd73f9978d53c320ad91bf00b8501042d12d27cbfa25",
+        "public_digest": "4e96b556e7681c1e50f9b4d1b1d6a689e2c2ff7b75c1ae8d942ab3bd833e5fcb"
+      },
+      {
+        "case_id": "034-ai2kit-water64-end-to-end-potential",
+        "task_toml_sha256": "9b67308ca748fc77a4ac0b1e16bfca486fe6ba2f6c25a13963d719341869d78f",
+        "instruction_sha256": "6e35f53be2bfe1e665f06f273abb1eb294dbf11c48feb0306ab209edcbe84e32",
+        "public_digest": "6638e128b4c2bbaa0debf8f7a87e67c46dd544cf66e0190cacafbcb0c88ee5eb"
+      },
+      {
+        "case_id": "035-smiles2opt",
+        "task_toml_sha256": "8e7487f342334d5d47a101a2ee810414cdf2bc619df4139c76a08a6b1d6b36c5",
+        "instruction_sha256": "bfd1a9bf72e0fd99d886e5d41a42017ac9041da74e5229dee4616f848a651c33"
+      },
+      {
+        "case_id": "036-smiles2vib",
+        "task_toml_sha256": "f9014e2559293404333794dc7c814d0bd595cd27cedf2949fcfb11066d82be73",
+        "instruction_sha256": "428d14b9997b43a60c00d30326f9f75bc7fc529b6df5c1c3b456f405611e99a4"
+      },
+      {
+        "case_id": "037-smiles2gibbs",
+        "task_toml_sha256": "183ca22a304243811d2ea1d5e60175273213a9756f171f4c93d681884f9f236b",
+        "instruction_sha256": "7d2c1df484c732307fea0b20f8c804b7acdffd7e1f52f76a24735d68f4334376"
+      },
+      {
+        "case_id": "038-smiles2file",
+        "task_toml_sha256": "1586b9ee81ad622e9d4040070b7f6241f10877415b2890ce51b6ab2511949deb",
+        "instruction_sha256": "74774e1f937f4e2c96cf5cfca34f5ce122b2612e62ea76f1281265cb771ed042"
+      },
+      {
+        "case_id": "039-react2enthalpy-methane",
+        "task_toml_sha256": "84af91a08e98896245c35048a0b7a36eb8d0c0f9b3b53ff8d8ebd3c244ea80dc",
+        "instruction_sha256": "40cf06b99ec3d89ac92cdbb5cbd3adcc51f876e811785e79a8f393000f8c3ee5",
+        "public_digest": "836895c9a06db92c3843058dc241ee5137da1429ee0d0617f969b7cada858f83"
+      },
+      {
+        "case_id": "040-react2gibbs-ammonia",
+        "task_toml_sha256": "c69ff5b523376f06ab17ea69dec525fcdef76379fe9ba5f4481e28748e1f41e2",
+        "instruction_sha256": "be358529159d0742491e578f8c18a1e46a6b9aa204b226ec50c4f767ba3ee752",
+        "public_digest": "e75cd5c3fb4b67b084a3f1a39238f1e88dae0a819a6d0a799e001bcf9b2f103d"
+      },
+      {
+        "case_id": "041-smiles2coord",
+        "task_toml_sha256": "f79e1ea18e712cbed0860cb27fa78b05d3e9e8a19d4f9e71f0cf84638e3d618d",
+        "instruction_sha256": "82f72597593c430bb43aa9608d2af2eb48141473a391c412edb5e0b647d949fd"
+      }
+    ],
+    "skills": [
+      {
+        "path": "base-env-build/skills/comp-chem-workflow",
+        "sha256": "5c65dc4a9c2c68596a471500a589ff301e01045a654c7f719ee2c27a36d7d181"
+      },
+      {
+        "path": "base-env-build/skills/cp2k",
+        "sha256": "5971d412ae4eaecaea2945b8552484c8e5dfe6936c2f45c58a6751e69ab6d0c3"
+      },
+      {
+        "path": "base-env-build/skills/deepmd",
+        "sha256": "4d233cee539571f0d73c5fbd039d1dac771e0729da896862af225d409c59685e"
+      },
+      {
+        "path": "base-env-build/skills/hpc-submit",
+        "sha256": "549a02a0611e425db6afba06ad31be3bb32b9d9d025c51b2a0160d8026bbaa9a"
+      },
+      {
+        "path": "base-env-build/skills/lammps",
+        "sha256": "38e0e953a1d1e73aa0edacbc83471bb847522d2d232adbe10d2f26b9d6f66d45"
+      },
+      {
+        "path": "base-env-build/skills/literature-to-calculation",
+        "sha256": "8805f0bf79703ee9b1d73ac9ae732b4cdc52fcca97c17d155bfab8244ab5ab81"
+      },
+      {
+        "path": "base-env-build/skills/lobster",
+        "sha256": "d871e565f87ef6bfddd8be218b4a464779ae9a4648394e2515e11a2ef029188e"
+      },
+      {
+        "path": "base-env-build/skills/mlp",
+        "sha256": "e915b7a172bf5ec46a0e4baa66dcf2d3262f7018b08849be9119bb809eb25a74"
+      },
+      {
+        "path": "base-env-build/skills/multiwfn",
+        "sha256": "1523424718822489c298a45a8c2ddabf41a1dfccbcfddf74c977e7c292c55fb6"
+      },
+      {
+        "path": "base-env-build/skills/packmol",
+        "sha256": "91e1bf6e71bfcd6c67d9616ce46d7d118b097d393cbeeedebdc1b8ddc5f7e10c"
+      },
+      {
+        "path": "base-env-build/skills/report",
+        "sha256": "3285bf058aa589835045cad07d5adfec34811df32d15e29b909ba652cafa990e"
+      },
+      {
+        "path": "base-env-build/skills/research-orchestrator",
+        "sha256": "94f582210a1973e33a856ff41adca547e84a25e0149b076b7a10230b9577c7ef"
+      },
+      {
+        "path": "base-env-build/skills/review-response",
+        "sha256": "4315df3dda47f9e99809975beaf64687888de33df10e4476d8f393a0c91b8b63"
+      },
+      {
+        "path": "base-env-build/skills/rsess",
+        "sha256": "b5a1fe8468c1a11a18abcb1d940ad48d587daca8134a9cce58c2c3984e82bbc8"
+      },
+      {
+        "path": "base-env-build/skills/structure-prep",
+        "sha256": "38222564849406e14a4202a5fb6ea4d84d4a6b383030df3fe9f456310217e95b"
+      },
+      {
+        "path": "base-env-build/skills/vasp",
+        "sha256": "0b20e3c0607201271bed59bf913d25f943f28c8f0196e11f2a3bd4a8ed264d4d"
+      },
+      {
+        "path": "base-env-build/skills/vaspkit",
+        "sha256": "601d6041c875b0845158dcdcba7b44d0e72a068c24c12e06763811febbf843f7"
+      }
+    ],
+    "resource_profiles": [
+      {
+        "path": "031-matclaw-cips-active-distillation/profiles/resource.yaml",
+        "sha256": "c6ea71c810f2a9d3314501a8fc832925a800b5d221b8afc96ae39a80e9ae7f80"
+      },
+      {
+        "path": "032-matclaw-cips-curie-temperature/profiles/resource.yaml",
+        "sha256": "c79596681d1453e07606251d34b1e6efcbf84c6e4eae251e0aa89c1f75cced30"
+      },
+      {
+        "path": "033-matclaw-cips-domain-wall-search/profiles/resource.yaml",
+        "sha256": "091683538e368ebe476f63923a9fa2cd9b607ea78845c9b65b8a132fa6a57faa"
+      },
+      {
+        "path": "034-ai2kit-water64-end-to-end-potential/profiles/resource.yaml",
+        "sha256": "edc8651c4b9900ec38872a48b8fdb5cf451ed2d43ccf3f7fe50f948acdf4e19c"
+      }
+    ],
+    "platform_profiles": [
+      {
+        "path": "031-matclaw-cips-active-distillation/profiles/platform.yaml",
+        "sha256": "127cefef0ad6bf6c910840b5ef8e91deaf4bb0970a1d50d3fe7116507714abfe"
+      },
+      {
+        "path": "032-matclaw-cips-curie-temperature/profiles/platform.yaml",
+        "sha256": "5e87e6b4252be48c39afedae1ac8cfb5b1875dc5113805c955b9f78e40d3d8e4"
+      },
+      {
+        "path": "033-matclaw-cips-domain-wall-search/profiles/platform.yaml",
+        "sha256": "a175bc7b4e2d43da70264b512111f453ad640f7670e2c932fda2834311a41e5e"
+      },
+      {
+        "path": "034-ai2kit-water64-end-to-end-potential/profiles/platform.yaml",
+        "sha256": "3ab3fa68c18e24a618a3bab0412718c43e8847a81258d916ad914f175c675064"
+      }
+    ],
+    "compute_runtimes": [
+      {
+        "path": "031-matclaw-cips-active-distillation/reference/compute-runtime.lock.json",
+        "sha256": "b81b2f9203d1c2a7f583013aa43a291a6e6da39dfdafb3092425212b82da4bd2"
+      },
+      {
+        "path": "032-matclaw-cips-curie-temperature/reference/compute-runtime.lock.json",
+        "sha256": "7297cd1d08a13e99e03fd883dfaa4cb0aee707aa871de476da163c10755b97cd"
+      },
+      {
+        "path": "033-matclaw-cips-domain-wall-search/reference/compute-runtime.lock.json",
+        "sha256": "10048129b46f9a83af8929083aab8e8b3919b68163e7b4b5d7d6ef3d6acd4ac7"
+      },
+      {
+        "path": "034-ai2kit-water64-end-to-end-potential/reference/compute-runtime.lock.json",
+        "sha256": "4a9c6db1550ae579435f3726d4d4121ce38530f5265690dea56294374ff9f447"
+      }
+    ],
+    "verifiers": [
+      {
+        "path": "001-hello/tests",
+        "digest": "53f86d0bd5ec4983da0a6c4af37269ab81fd24611b4534f404daf165a92664e8"
+      },
+      {
+        "path": "002-arithmetic/tests",
+        "digest": "e10a01d6f694b2803472a43c229162053fada20c5c62f22523c8c1522e2713c6"
+      },
+      {
+        "path": "003-uv-version/tests",
+        "digest": "775288d68c031674001e55e6b66674dd20317c0c3d2e157fc590d67a74ee9a75"
+      },
+      {
+        "path": "004-python-version/tests",
+        "digest": "cbdd6addf504abee1ce70ded23814a9241f814995fc19c762e3932776f9c272b"
+      },
+      {
+        "path": "005-cp2k-version/tests",
+        "digest": "2d71c34f3655afb8cac45deafe7bf9ed7a2b7c335c88db6516eff77761574f6b"
+      },
+      {
+        "path": "006-packmol-version/tests",
+        "digest": "261c6258a3ae1ad7f9db5019714b90fff53d628c4b3ba3d6aaacb238e30197db"
+      },
+      {
+        "path": "007-pip-install/tests",
+        "digest": "d287fc3a5004431f00bda984b5e475921b7b2c94c29cf960daf73dc1381811e1"
+      },
+      {
+        "path": "008-packmol-build/tests",
+        "digest": "9ece1bfaa60a679022c73a2cfa496c803ba22a3b93d586f9455cb8749df9234d"
+      },
+      {
+        "path": "009-cp2k-run/tests",
+        "digest": "4b5c31754fa7f124c6c7cdaeeed0c36306ba2a804462da7e39ae88656b8fde15"
+      },
+      {
+        "path": "010-deepmd-train/tests",
+        "digest": "fdcc68e49dd1fafa33258ce4d9735d5e19a4775189dd1a5219c9015b1bac361f"
+      },
+      {
+        "path": "011-cp2k-template/tests",
+        "digest": "55b24a5e9f4c7d754e7125a371bb7b140f7bd5c7ea0c1d302efe4a9eca8aea79"
+      },
+      {
+        "path": "012-ase-methane/tests",
+        "digest": "faf75815b991d97d01ff9b84365cc6ede3530dac9d742fda1d6cfbadbe5fb778"
+      },
+      {
+        "path": "013-rdkit-volume/tests",
+        "digest": "fba33ac0e4b0b0aee4d12f4cae2d7a8fd85d0b8915ac3fe477aa1cc03b381f8b"
+      },
+      {
+        "path": "014-deepmd-template/tests",
+        "digest": "51b164677b68b3bffb0919fcf79f6a7d6b05bf66bc08027f0b3d817fdfdfc9e8"
+      },
+      {
+        "path": "015-cp2k-scratch/tests",
+        "digest": "84f2ac906872f6bc95e9b33df4dbb09979ea840c1e2f19cfae11f76ee2129500"
+      },
+      {
+        "path": "016-deepmd-pipeline/tests",
+        "digest": "99be935e5e8b4e000bf9b8c164bb0441920cd04e9e2ca827e17cb820b35210e7"
+      },
+      {
+        "path": "017-cp2k-cutoff/tests",
+        "digest": "5ecd74f8b509641ef2d46ab688037c2a2fe31c646e6d1b4442c4451053a99cba"
+      },
+      {
+        "path": "018-deepmd-rcut/tests",
+        "digest": "2fd7c660a07490b014f896b1051201899723ef47ca931b78aeab5f4a0a0a7c31"
+      },
+      {
+        "path": "019-cp2k-eps-scf/tests",
+        "digest": "56392c7f611db86d74d3a19a884d56a82143cf2cda8c5669e72d0c6add80834a"
+      },
+      {
+        "path": "020-hartree-to-ev/tests",
+        "digest": "73fcc4277318c353fab4b98867b225d8499b156a1e8a8c081f80f2fae2802f5c"
+      },
+      {
+        "path": "021-gth-valence/tests",
+        "digest": "4cfc4b90fac82b3541d1c7b9d34f1db440b5eff596d21e093021e96596b87961"
+      },
+      {
+        "path": "022-spin-multiplicity/tests",
+        "digest": "c2f019a72e99e12a94c00dfeceb594deb1109f6fe80214cfe672ef63286e4600"
+      },
+      {
+        "path": "023-deepmd-type-map/tests",
+        "digest": "bf04a437690bbcca5a771aa21523e828b22696a3c38c13a1f9215927ba7020c7"
+      },
+      {
+        "path": "024-xc-gth-match/tests",
+        "digest": "2af60b6b453cae642a0ca7118dd8a8350e1da8cb8d0cf2f7370765d35b6eba7e"
+      },
+      {
+        "path": "025-name2smi/tests",
+        "digest": "a5d9e0942b76a8660d21fd754762deb543206d6e6ef89b252951985f6301ceb0"
+      },
+      {
+        "path": "026-name2coord/tests",
+        "digest": "95480f68ee78bdc15e50f281a624ed087fbb99c33d5ca4d0ee169d2c5d4b8ca0"
+      },
+      {
+        "path": "027-name2opt-so2/tests",
+        "digest": "c0a61ef5e21942cf98078894ffafde10c1332d90353dea0af3a21f64aa87bc7e"
+      },
+      {
+        "path": "028-name2vib-water/tests",
+        "digest": "b1ffc1c5445f88911315b871c8a7dcabb241a038831ad65c36a86fc15c58a6df"
+      },
+      {
+        "path": "029-name2gibbs-co2/tests",
+        "digest": "74100074cb35a1d7ed01d1d6cc57419ca6a159f65aa381f1685b7c988e65b310"
+      },
+      {
+        "path": "030-name2file-so2/tests",
+        "digest": "fb98ad522eb5cdea4aea9171a0fbc10db8a6bdf8282209486ca47cfe19ea1b75"
+      },
+      {
+        "path": "031-matclaw-cips-active-distillation/tests",
+        "digest": "bfa34a3a337b181a13354f99204d94ac9934e7d7f2453732ee6e590356156ef9"
+      },
+      {
+        "path": "032-matclaw-cips-curie-temperature/tests",
+        "digest": "c4057c83259d58f64651d54ba8fdd92543ad50cef3f92d695c80df802eec33a6"
+      },
+      {
+        "path": "033-matclaw-cips-domain-wall-search/tests",
+        "digest": "493fa54574d607a3581027249403e0c2922645fde7573fff58b9c9b5bebb8670"
+      },
+      {
+        "path": "034-ai2kit-water64-end-to-end-potential/tests",
+        "digest": "8701a02dfec4ecbde10659e569338f596d6713e79a944b88b0e05d79401aef5d"
+      },
+      {
+        "path": "035-smiles2opt/tests",
+        "digest": "2f41ee87a6c5e63e336a1bd3349313c330c592f4b0682a7eadb46436182725a5"
+      },
+      {
+        "path": "036-smiles2vib/tests",
+        "digest": "6bc7eb9ea96abc6d131c0eaf882fe4ec97da22586aac3ad2b88c716683d1eea6"
+      },
+      {
+        "path": "037-smiles2gibbs/tests",
+        "digest": "5d284e18ac188ae88191987f81d28b888e0d20306a94175e6239f183b21db169"
+      },
+      {
+        "path": "038-smiles2file/tests",
+        "digest": "60fc823251ec4a1ad5cd31c7c3bb28a477dfe38256bf4badaf50f96fa1656084"
+      },
+      {
+        "path": "039-react2enthalpy-methane/tests",
+        "digest": "ead5d7ef0a164f326a7f17cb12e1487a63dafd65929a41aa34d282c306114d3e"
+      },
+      {
+        "path": "040-react2gibbs-ammonia/tests",
+        "digest": "01c1e036964e39f8f3e61c680cfc52f490462a0d769ff5b4a3f8c22e0dda019b"
+      },
+      {
+        "path": "041-smiles2coord/tests",
+        "digest": "979495c20e5cdad0921afbb727a6a7879a984c0badeea07574f5dc715cccf2ce"
+      }
+    ],
+    "candidate_images": [
+      {
+        "sif_path_remote": "/public/home/<site-user>/dftworld2-runs/matclaw-031/runtime/matclaw-cips-2.2.11-gpu-amd64.sif",
+        "sif_sha256": "99aefeff8f457cd6b4f57e1592db511f167ab493730f970bfd7baa68993250c3"
+      },
+      {
+        "tag": "dftworld-base-ai2kit:0.1.0-cpu-controller",
+        "image_id": "8a840aa2e477"
+      },
+      {
+        "tag": "dftworld-ai2kit-controller",
+        "dockerfile": "base-env-build/ai2kit-controller/Dockerfile",
+        "dockerfile_sha256": "41c7b42e57086b32f0e9bf573a9a6303d747f508c9fd54f8bdc017b0784d7ce9"
+      },
+      {
+        "tag": "dftworld-base",
+        "dockerfile": "base-env-build/base/Dockerfile",
+        "dockerfile_sha256": "bef2cb3b5801ecec2aa3aa668f0c6b960fcfd1ae878005d0f182a935983da437"
+      },
+      {
+        "tag": "dftworld-chem",
+        "dockerfile": "base-env-build/chem/Dockerfile",
+        "dockerfile_sha256": "c400dd1246cc3efad0d35cf1da9892f86b3e98ef63e874400479dcfa9e30e030"
+      },
+      {
+        "tag": "dftworld-cp2k",
+        "dockerfile": "base-env-build/cp2k/Dockerfile",
+        "dockerfile_sha256": "e0d1d2dc636bad9517c1c40f762e578dd3ef95e7c04e6b7006fea14299c8978b"
+      },
+      {
+        "tag": "dftworld-deepmd",
+        "dockerfile": "base-env-build/deepmd/Dockerfile",
+        "dockerfile_sha256": "8947ed11d5c8f2679ace5d5375930ac58603ed2363e5d15567e1c655abb20706"
+      },
+      {
+        "tag": "dftworld-mace",
+        "dockerfile": "base-env-build/mace/Dockerfile",
+        "dockerfile_sha256": "8d237a29620b62f095ef62432078987a74d6915a1695caf71dda34559fe257ef"
+      },
+      {
+        "tag": "dftworld-matclaw-cips",
+        "dockerfile": "base-env-build/matclaw-cips/Dockerfile",
+        "dockerfile_sha256": "85f7be3c3ab9cb051d2bc5fe81d765c882b8d5d7813ff87fbc15eceaf02d7ee8"
+      },
+      {
+        "tag": "dftworld-matclaw-cips-controller",
+        "dockerfile": "base-env-build/matclaw-cips-controller/Dockerfile",
+        "dockerfile_sha256": "484616e18a3fdec2b6ccb564b6272fb268905eabe56298697caebdb50f940570"
+      },
+      {
+        "tag": "dftworld-matclaw-cips-gpu",
+        "dockerfile": "base-env-build/matclaw-cips-gpu/Dockerfile",
+        "dockerfile_sha256": "55e3aaab0eb358b6342cfc1a4a4fca1675070f9d52e4e63cd91ab70d48ee7854"
+      },
+      {
+        "tag": "dftworld-packmol",
+        "dockerfile": "base-env-build/packmol/Dockerfile",
+        "dockerfile_sha256": "3050649fb6dc7c3ee3d4d82022747235ddd35087582a83bc013caac2b95af9a6"
+      },
+      {
+        "tag": "dftworld-packmol-src",
+        "dockerfile": "base-env-build/packmol-src/Dockerfile",
+        "dockerfile_sha256": "3a1dca23d5c16a610d93f6c243e58dbecad1d99170f6c7b245f0e4dda15888d3"
+      },
+      {
+        "tag": "dftworld-xtb",
+        "dockerfile": "base-env-build/xtb/Dockerfile",
+        "dockerfile_sha256": "63760aa8cf6a3f81385095be89f08c8a877763b4f110e4387e43f346ddd83e48"
+      }
+    ]
+  },
+  "release_digest": "sha256:df6e3ba07d1a791b12b8f7d25ca8e45f4271034b7472d3fbdb76a5659997ff97"
+}

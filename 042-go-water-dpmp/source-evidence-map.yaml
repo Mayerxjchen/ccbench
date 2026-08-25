@@ -1,0 +1,198 @@
+# Source and Evidence Map — Case 042 GO–water DPMP
+# Generated during extract-spec. Claims are bookkeeping only; no scientific
+# adequacy judgment is performed here.
+schema_version: 1
+
+sources:
+  paper-001:
+    source_kind: paper
+    title: Machine-Learning Accelerated Computational Spectroscopy Reveals Vibrational Signature of the Oxidation Level of Graphene in Contact with Water
+    doi: 10.1021/acs.jpclett.5c03713
+    journal: The Journal of Physical Chemistry Letters
+    year: 2026
+    authors: [Xianglong Du, Jun Cheng, Fujie Tang]
+    sha256: null
+    note: ACS subscription; main paper PDF not held locally. SI is available.
+
+  si-001:
+    source_kind: supporting_information
+    parent_source: paper-001
+    doi: 10.1021/acs.jpclett.5c03713.s001
+    local_path: GO–water interfaces/go-water si.pdf
+    size_bytes: 3686710
+    sha256: 8a85b6e4b242607f765aa56ad1bf806547f0ae0c3f8bd8774e20e0d20957ff73
+    pages: 18
+    note: Text-extractable; cross-checked against dataset and train.py.
+
+  dataset-001:
+    source_kind: dataset_metadata
+    doi: 10.6084/m9.figshare.30472487
+    version: 2
+    local_path: GO–water interfaces/source_data/train_dataset
+    tree_sha256: f6a72245de8275e3c5dbc166b9c983776736f8d05e58956cc15cc4b4f9917d73
+    format: deepmd_raw
+    note: 8 systems, DeepMD raw set.000/{coord,force,energy,box}.npy + type_map.raw/type.raw.
+
+  config-001:
+    source_kind: repository_config
+    local_path: GO–water interfaces/source_data/input_file
+    tree_sha256: e9fbe12a0a04f21738e59d34d803717791b11702369618fea5270d7b5ecff20c
+    note: Author-published train.py, evaluate.py, simulate.py, and initial structures (deepmd_jax ecosystem).
+
+  model-001:
+    source_kind: model_artifact
+    local_path: GO–water interfaces/source_data/input_file/train/model.pkl
+    size_bytes: 47511165
+    sha256: dd0caf22fce8acd18a154825773213e09913eb095bf99d47984c9897b031a201
+    note: DPMP JAX model artifact; loading requires deepmd_jax runtime.
+
+  figshare-record-001:
+    source_kind: external_reference
+    identity: figshare DOI 10.6084/m9.figshare.30472487 v2
+    note: Dataset record metadata source (license, provenance).
+
+evidence:
+  ev-paper-identity:
+    source_id: paper-001
+    source_kind: paper
+    locator:
+      doi: 10.1021/acs.jpclett.5c03713
+    claim: paper.title
+    note: Title/authors/journal/year from SI header and DOI metadata.
+
+  ev-si-system-construction:
+    source_id: si-001
+    source_kind: supporting_information
+    locator:
+      page: 3
+      section: 1.1 Construction of Initial Structures
+    claim: system.compositions
+    note: GO oxidation levels 12.5%/25%/50%; functional-group counts (144 C base; epoxide+hydroxyl per level).
+
+  ev-si-mlmd-cells:
+    source_id: si-001
+    source_kind: supporting_information
+    locator:
+      page: 5
+      section: 1.2 (MLMD simulation)
+    claim: system.thermodynamic_conditions
+    note: Cell sizes per interface; NVT 300 K, 500 ps, JAX-MD; supercell compositions (576 C, 752 H2O, OH/epoxide per level).
+
+  ev-si-aimd-reference:
+    source_id: si-001
+    source_kind: supporting_information
+    locator:
+      page: 4
+      section: 1.2 (reference labeling discussion)
+    claim: reference_method
+    note: revPBE-D3 functional choice rationale; page 8 records 400 Ry plane-wave cutoff, H mass 2.014 a.u., 1 fs timestep for AIMD acceleration.
+
+  ev-si-datacollection:
+    source_id: si-001
+    source_kind: supporting_information
+    locator:
+      page: 6
+      section: 1.3 ML Model Constructions
+    claim: dataset.data_generation
+    note: Initial 4782 structures (bulk water, air–water, graphene–water); ai2-kit/DP-GEN workflow; stage one 4x DPSR (1e6 steps, LAMMPS exploration, ~6500 structs); stage two 4x DPMP (2e5 steps, JAX-MD, 9358 GO-water structs); convergence >99% below deviation lower bound.
+
+  ev-si-dpmp-arch:
+    source_id: si-001
+    source_kind: supporting_information
+    locator:
+      page: 7
+      section: 1.3 ML Model Constructions
+    claim: model.architecture
+    note: DPMP (JAX) cutoff 6 A, 1e6 steps, lr 1e-3 to 1e-8; embed (48,48,96), MP embed (96,96,96), fit (96,96,96).
+
+  ev-si-dpsr-arch:
+    source_id: si-001
+    source_kind: supporting_information
+    locator:
+      page: 7
+      section: 1.3 ML Model Constructions
+    claim: model.related_models.architecture
+    note: DPSR (tensorflow) embed (25,50,100), fit (240,240,240).
+
+  ev-si-model-validation:
+    source_id: si-001
+    source_kind: supporting_information
+    locator:
+      page: 7
+      section: 1.4 ML Model Validations
+    claim: validation
+    note: Random 100 structures per GO-water kind from training data as test; force RMSE/R^2; DPMP lower RMSE than DPSR; DPMP used for production MD and SFG spectra.
+
+  ev-config-trainpy:
+    source_id: config-001
+    source_kind: repository_config
+    locator:
+      path: input_file/train/train.py
+    claim: training
+    note: "Full deepmd_jax train() call: model_type=energy, rcut=6.0, 8 train systems, val_data_path=None, step=1e6, mp=True, embed[48,48,96]/mp[96,96,96]/fit[96,96,96], axis_neurons=16, lr=1e-3, batch_size=1, compress=True, s_pref_e=0.02, l_pref_e=1, s_pref_f=1000, l_pref_f=1, lr_limit=1e-8, beta2=0.99, decay_steps=5000, seed=random."
+
+  ev-config-evaluate:
+    source_id: config-001
+    source_kind: repository_config
+    locator:
+      path: input_file/evaluate/evaluate.py
+    claim: validation.procedure
+    note: Author evaluation entrypoint against model.pkl.
+
+  ev-config-simulate:
+    source_id: config-001
+    source_kind: repository_config
+    locator:
+      path: input_file/simulation/simulate.py
+    claim: trajectory_level
+    note: JAX-MD NVT driver; initial structures under simulation/initial_structure.
+
+  ev-config-initialstruct:
+    source_id: config-001
+    source_kind: repository_config
+    locator:
+      path: input_file/simulation/initial_structure/
+    claim: system.compositions
+    note: air-water, graphene-water, graphene-O12/O25/O50 initial boxes (box.raw/coord.raw/type.raw).
+
+  ev-dataset-inventory:
+    source_id: dataset-001
+    source_kind: dataset_metadata
+    locator:
+      path: train_dataset/
+    claim: dataset.inventory.total_frames
+    note: Observed by file inspection. water 1630, air-water 1350, air-water-long 400, graphene-water 848, graphene-water-long 554, graphene-O12 1343, graphene-O25 4515, graphene-O50 3500; total 14140. Non-GO sum 4782, GO sum 9358 — consistent with SI section 1.3 counts.
+
+  ev-dataset-rawformat:
+    source_id: dataset-001
+    source_kind: dataset_metadata
+    locator:
+      path: train_dataset/<system>/set.000/
+    claim: dataset.artifact.format
+    note: "DeepMD raw: coord/force [Nframes, natoms*3], energy [Nframes], box [Nframes, 9] npy + type.raw/type_map.raw."
+
+  ev-dataset-elements:
+    source_id: dataset-001
+    source_kind: dataset_metadata
+    locator:
+      path: train_dataset/<system>/type_map.raw
+    claim: system.elements
+    note: type_map.raw = O, H, C (all systems list the full element set; water-only systems contain no C atoms).
+
+  ev-model-artifact:
+    source_id: model-001
+    source_kind: model_artifact
+    locator:
+      path: input_file/train/model.pkl
+    claim: access.pretrained_model
+    note: 47.5 MB model.pkl present; produced by the deepmd_jax training script.
+
+  ev-figshare-license:
+    source_id: figshare-record-001
+    source_kind: external_reference
+    locator:
+      doi: 10.6084/m9.figshare.30472487
+    claim: licenses.dataset
+    note: figshare record v2 states CC BY 4.0 (redistributable).
+
+conflicts: []

@@ -1,0 +1,26 @@
+schema_version: 1
+case_status: draft
+category: null
+case_kind: null
+objective: null
+source_relationship:
+  selected: null
+  allowed:
+    - paper_faithful
+    - benchmark_adaptation
+execution:
+  class: null
+  compute_runtime: null
+  resource_profile: null
+  platform_profile: null
+candidate_inputs: []
+workflow_capabilities: []
+submission_roles: []
+scientific_observables: []
+hidden_verification:
+  strategy: null
+profiles:
+  smoke: profiles/smoke.yaml
+  formal: profiles/formal.yaml
+non_goals: []
+blockers: []

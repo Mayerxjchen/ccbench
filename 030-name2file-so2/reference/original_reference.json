@@ -1,0 +1,55 @@
+{
+  "source_type": "hybrid",
+  "experiment": "name2file",
+  "original_instance_id": "5 (molecule/method/energy) + paper_text (artifact semantics)",
+  "note": "molecule, method and optimized energy are preserved verbatim from ChemGraph ground_truth.json id=5 (optimization_from_name, mace_mp / medium-mpa-0). The artifact contract 'save the optimized geometry as an XYZ file' comes from the ChemGraph paper main-text name2file flow (mace_mp geometry optimization + save to XYZ). The original tool-call sequence below is reference trajectory, not a hard PASS gate.",
+  "original_instance": {
+    "id": "5",
+    "category": "optimization_from_name",
+    "query": "Run geometry optimization for sulfur dioxide and report its energy using the mace_mp calculator with the medium-mpa-0 model.",
+    "answer": {
+      "tool_calls": [
+        {
+          "molecule_name_to_smiles": {
+            "name": "sulfur dioxide"
+          }
+        },
+        {
+          "smiles_to_coordinate_file": {
+            "smiles": "O=S=O"
+          }
+        },
+        {
+          "run_ase": {
+            "params": {
+              "input_structure_file": "molecule.xyz",
+              "driver": "opt",
+              "calculator": {
+                "calculator_type": "mace_mp",
+                "model": "medium-mpa-0"
+              }
+            }
+          }
+        }
+      ],
+      "result": {
+        "status": "success",
+        "message": "Simulation completed. Results saved to /var/folders/5b/vkn1l5ys6pz8nyp5rbcprw800000gp/T/chemgraph_gt_frvn7mte/entry_5/output.json",
+        "single_point_energy": -16.815808019358535,
+        "unit": "eV"
+      },
+      "structured_output": {
+        "smiles": null,
+        "scalar_answer": {
+          "value": -16.815808019358535,
+          "property": "optimized energy",
+          "unit": "eV"
+        },
+        "dipole": null,
+        "vibrational_answer": null,
+        "ir_spectrum": null,
+        "atoms_data": null
+      }
+    }
+  }
+}

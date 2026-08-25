@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/case.schema.json",
+  "title": "MLIP Scientific-Agent Benchmark case contract",
+  "description": "Versioned dual-mode case contract. Canonical v2 manifests declare [execution], [candidate], and (for hpc_controller) [hpc]. Execution class is never inferred from the case number or directory name.",
+  "type": "object",
+  "required": ["execution", "candidate"],
+  "properties": {
+    "execution": {
+      "type": "object",
+      "required": ["class"],
+      "properties": {
+        "class": {
+          "enum": ["local_sandbox", "hpc_controller"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "candidate": {
+      "type": "object",
+      "required": ["instruction", "submission_root"],
+      "properties": {
+        "instruction": { "type": "string" },
+        "submission_root": { "type": "string" },
+        "legacy_submission_layout": { "type": "boolean" },
+        "image": { "type": "string" },
+        "max_agent_seconds": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Case-declared agent budget bound, only when the case needs more than the infra standard (600s)."
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["source", "destination"],
+            "properties": {
+              "source": { "type": "string" },
+              "destination": { "type": "string" },
+              "strip_prefix": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "description": "Scientific runtime requirements declared by the case (e.g. [runtime] requirements = [{ name = \"cp2k\" }]). The harness resolves these to a concrete image via the runtime registry."
+    },
+    "hpc": {
+      "type": "object",
+      "required": ["contract_version", "required_capabilities"],
+      "properties": {
+        "contract_version": { "type": "string" },
+        "required_capabilities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "scientific_capabilities": {
+          "type": "object",
+          "description": "Scientific compute capabilities an HPC case must/may run. Required is fixed by the paper; optional names heavy-science choices that remain a Discovery decision. Category plugins consume these; no plugin dispatches on a case id.",
+          "properties": {
+            "required": {
+              "type": "array",
+              "items": { "type": "string" },
+              "uniqueItems": true
+            },
+            "optional": {
+              "type": "array",
+              "items": { "type": "string" },
+              "uniqueItems": true
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "submission_contract": {
+      "type": "object",
+      "description": "Structural pre-Verifier gate: shape checks only, never execution.",
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "type"],
+            "properties": {
+              "path": { "type": "string" },
+              "type": { "enum": ["file", "directory"] }
+            },
+            "additionalProperties": false
+          }
+        },
+        "optional": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "type"],
+            "properties": {
+              "path": { "type": "string" },
+              "type": { "enum": ["file", "directory"] }
+            },
+            "additionalProperties": false
+          }
+        },
+        "non_empty": {
+          "type": "boolean",
+          "description": "Require the collected submission to contain at least one entry (shape check only, never executes)."
+        },
+        "files": {
+          "type": "object",
+          "properties": {
+            "max_single_bytes": { "type": "integer", "minimum": 1 },
+            "max_total_bytes": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        },
+        "json_schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "schema"],
+            "properties": {
+              "path": { "type": "string" },
+              "schema": { "type": "object" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "if": {
+    "properties": {
+      "execution": {
+        "properties": { "class": { "const": "hpc_controller" } }
+      }
+    },
+    "required": ["execution"]
+  },
+  "then": { "required": ["hpc"] },
+  "else": { "not": { "required": ["hpc"] } }
+}

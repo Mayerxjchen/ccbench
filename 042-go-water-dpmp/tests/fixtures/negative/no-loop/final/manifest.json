@@ -1,0 +1,37 @@
+{
+  "model_family": "DPMP",
+  "framework": "deepmd-jax",
+  "structure_origin": {
+    "source": "public/structures/<iface> (published initial supercell)",
+    "used_interfaces": [
+      "air-water",
+      "graphene-water",
+      "graphene-O12"
+    ],
+    "structure_preparation_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "reference_labeling": {
+    "engine": "CP2K",
+    "functional": "revPBE-D3",
+    "total_labeled_frames": 36,
+    "frame_count_per_source": {
+      "aimd": 24,
+      "al-round-1": 12
+    }
+  },
+  "model_files": [
+    "models/model.pkl"
+  ],
+  "workflow_root": "workflow",
+  "iterative_improvement": {
+    "rounds": 1,
+    "explorer": "jax-md",
+    "labeling_engine": "CP2K",
+    "final_training_frames": 24
+  },
+  "validation_artifacts": [
+    "validation/nvt.log"
+  ],
+  "environment_manifest": "deepmd-jax 0.1, jax 0.4, cp2k 2025.2, ai2-kit 1.1.0",
+  "status": "completed"
+}

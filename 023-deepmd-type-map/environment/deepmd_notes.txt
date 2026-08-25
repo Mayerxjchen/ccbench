@@ -1,0 +1,4 @@
+DeePMD / dpdata convention in dftworld:
+
+- type_map lists element symbols in alphabetical order by symbol (C before H would be wrong; H before C).
+- Use standard chemical symbols.

@@ -1,0 +1,91 @@
+{
+  "benchmark_id": "040-react2gibbs-ammonia",
+  "acceptance_standard": "benchmark/sources/chemgraph/acceptance_standard.md v1.1",
+  "source": {
+    "paper_verified": true,
+    "instance_verified": true,
+    "prompt_verified": true,
+    "original_reference_verified": true
+  },
+  "source_detail": {
+    "source_type": "dataset_instance",
+    "original_instance_id": 32,
+    "original_query": "Report the Gibbs free energy of reaction for Ammonia Synthesis at 400 K using GFN2-xTB. Report the energy in eV. The balanced reaction is: Nitrogen gas + 3 Hydrogen gas -> 2 Ammonia",
+    "original_dg_eV": -2.1629965319593794,
+    "regenerated_dg_eV": -2.1625000830744767,
+    "original_vs_regenerated_abs_diff_eV": 0.000496,
+    "species_g_diff_ev": {
+      "N2": 1.4e-05,
+      "H2": 5.6e-06,
+      "NH3": 0.00025
+    },
+    "source_dataset_sha256": "a8e76ec8c427ec9a18de758f0492e3fdd2f01a7ea4b335249c40e8a01c47d742"
+  },
+  "isolation": {
+    "public_only": true,
+    "hidden_assets_inaccessible": true
+  },
+  "reference": {
+    "regenerated": true,
+    "original_consistent": true,
+    "reproducible": true
+  },
+  "reference_detail": {
+    "image": "dftworld-base-xtb",
+    "software": {
+      "ase": "3.25.0",
+      "tblite": "0.4.0",
+      "rdkit": "2024.3.5",
+      "pymatgen": "2026.5.4"
+    },
+    "reproducibility_run1_dg_eV": -2.162500083,
+    "reproducibility_run2_dg_eV": -2.162499833,
+    "max_deviation_eV": 2.5e-07,
+    "evaluator_tolerance_eV": 0.05,
+    "tolerance_basis": "measured reproducibility ~2.5e-7 eV + scientific numerical tolerance (original-vs-regenerated diff ~5e-4 eV)"
+  },
+  "oracle": {
+    "passes": true
+  },
+  "evaluator": {
+    "oracle_passes": true,
+    "negative_fixtures_fail": true,
+    "alternative_solution_passes": true
+  },
+  "evaluator_detail": {
+    "n_layers": 6,
+    "layers": [
+      "L1 Artifact",
+      "L2 Execution",
+      "L3 Identity",
+      "L4 Consistency",
+      "L5 Scientific",
+      "L6 Reference"
+    ],
+    "negative_fixtures": [
+      "F1 wrong_reaction -> L3 FAIL",
+      "F2 wrong_temperature(298) -> L3 FAIL",
+      "F3 missing_species(NH3) -> L1 FAIL",
+      "F4 electronic_only(S=0) -> L5 FAIL",
+      "F5 dg_off(1.16 eV) -> L4+L6 FAIL",
+      "F6 forged_gibbs -> L5 FAIL"
+    ],
+    "alternative_solution": "LBFGS optimizer + per-species independent dirs; dG=-2.162500 eV -> PASS"
+  },
+  "benchmark_valid": true,
+  "agent_smoke_tested": false,
+  "ablation_tested": false,
+  "last_regression": {
+    "date": "2026-08-09",
+    "oracle_pytest_pass": true,
+    "oracle_pytest_count": 13,
+    "hardcoded_answer_fixture_fails": true,
+    "hardcoded_answer_fail_count": 4,
+    "verifier_reward_oracle": 1,
+    "verifier_reward_cheat": 0,
+    "container_images": [
+      "dftworld-base-mace",
+      "dftworld-base-xtb"
+    ]
+  }
+}

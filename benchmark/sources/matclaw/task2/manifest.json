@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "task": "task2",
+  "workspaces": [
+    {
+      "files": [
+        {
+          "path": "repository/release/workspace_demo2a_curie_no_convergence/.llm_config.yaml",
+          "sha256": "e85fc912c2cd1d3937b98951f25e01cecec4aa8022a192375659db9fa59c40f6",
+          "size": 5896
+        },
+        {
+          "path": "repository/release/workspace_demo2a_curie_no_convergence/.prompts.yaml",
+          "sha256": "79ab6fcdc7e45a1dd6d9535df5788338298ec4f3c6ca9cea9cc0c707a828560e",
+          "size": 5292
+        },
+        {
+          "path": "repository/release/workspace_demo2a_curie_no_convergence/.rag_config.yaml",
+          "sha256": "27e31077ca29aee28c3830785fd0fb7878c85f23b70d30421d7b44a520583e86",
+          "size": 1075
+        },
+        {
+          "path": "repository/release/workspace_demo2a_curie_no_convergence/CuInP2S6.cif",
+          "sha256": "b9e3b0c4470274d5e3e1ce19e7c8834bda323e50483eef9791b1e744bbd629de",
+          "size": 1493
+        },
+        {
+          "path": "repository/release/workspace_demo2a_curie_no_convergence/analysis/cips_tc_curve.png",
+          "sha256": "ce3175fd546cd7d712f99e623ca9315c13128ab1b55f92d2ee0f96e71a9b6152",
+          "size": 170217
+        },
+        {
+          "path": "repository/release/workspace_demo2a_curie_no_convergence/analysis/cips_tc_report.md",
+          "sha256": "492c37f807332be232039bd8a51e9a2f1629a3ff532612d65dbb178037e84f83",
+          "size": 3755
+        },
+        {
+          "path": "repository/release/workspace_demo2a_curie_no_convergence/analysis/cips_tc_summary.csv",
+          "sha256": "a8893cc14aa3f8431dbeb13fa71956a9de81a157e5f69ebd20a9c05b894e416f",
+          "size": 517
+        },
+        {
+          "path": "repository/release/workspace_demo2a_curie_no_convergence/analysis/pilot_equilibration_325K.png",
+          "sha256": "7c6db68f3ab87089dc8000c8eebbff8d622b00ec761a11ce0ab612150528bfee",
+          "size": 111189
+        },
+        {
+          "path": "repository/release/workspace_demo2a_curie_no_convergence/analysis/pilot_equilibration_combined_325K.png",
+          "sha256": "d5e810512edb43db7a1f89f3fda15772314424cea5339805d09301a9d652c73e",
+          "size": 147699
+        },
+        {
+          "path": "repository/release/workspace_demo2a_curie_no_convergence/analysis/pilot_posttransient_stability_325K.png",
+          "sha256": "9f24a71d790e2ee2aab3d80a48848484fd122fffdd9d10872b04454d7172498f",
+          "size": 219791
+        },
+        {
+          "path": "repository/release/workspace_demo2a_curie_no_convergence/monitor.log",
+          "sha256": "3d7d441fef7a369a44e32f10c70e7a2310c67efaf4d6f46c5b2e3ff737fc5198",
+          "size": 4137
+        },
+        {
+          "path": "repository/release/workspace_demo2a_curie_no_convergence/monitor_state.json",
+          "sha256": "63efb02113e6254631aa981651fabcffaa3a3fef74c48dfa789e4b9c654d0015",
+          "size": 7694
+        },
+        {
+          "path": "repository/release/workspace_demo2a_curie_no_convergence/output.log",
+          "sha256": "f657044696221f353df7d6619a59ad515b70c0e4bd101ca945e06ad42ce7e878",
+          "size": 1124684
+        }
+      ],
+      "name": "workspace_demo2a_curie_no_convergence",
+      "provenance": "upstream_repository",
+      "source_commit": "52557c077f5e3be8444a3f03ea10a647fbd442ca"
+    },
+    {
+      "files": [
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/.llm_config.yaml",
+          "sha256": "88ebe8ea8564575deba5e83c9270c5733543813e5e17e2374dc4306ae5cdf670",
+          "size": 4569
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/.prompts.yaml",
+          "sha256": "f8d904ea708b1c1fc8c036aae64d630b5e721beed48e045a1129ab405a0921f9",
+          "size": 5625
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/.rag_config.yaml",
+          "sha256": "27e31077ca29aee28c3830785fd0fb7878c85f23b70d30421d7b44a520583e86",
+          "size": 1075
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/CuInP2S6.cif",
+          "sha256": "b9e3b0c4470274d5e3e1ce19e7c8834bda323e50483eef9791b1e744bbd629de",
+          "size": 1493
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/cips_tc_curve.png",
+          "sha256": "0196cd9a540f4bddbbd84c181ca485525e2d7fa0404b48744be6d36d1c84ac5b",
+          "size": 154954
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/cips_tc_report.md",
+          "sha256": "a2783c4e47cb257340cbfd8265f7fef62fcb90d4b43be475a222b3e2e86fece3",
+          "size": 4066
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/history.jsonl",
+          "sha256": "4d936541b16179f6e1768972ca94641e16f38bba188577939898db69f13458f5",
+          "size": 1046069
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/output.log",
+          "sha256": "e5ea7e168b77092efa34bb12514b447d2473963b3ee5afe9f877f3154903c0bf",
+          "size": 960423
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/pilot/pilot_T350K_100ps_eta_vs_time.csv",
+          "sha256": "adda6ce34398162c7cda0155aed0246d2a2fa5212e42cbbfe0137d2840a23073",
+          "size": 135903
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/pilot/pilot_T350K_100ps_summary.md",
+          "sha256": "edb007e91bf0a6158f7c576f7abec0cd922323bac0d7e7bb6f4c7ac5fbf99b5a",
+          "size": 1579
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/pilot/pilot_equilibration_summary.md",
+          "sha256": "448e93a51feb03f9790611cd942577bcd710e6c2fb06c892cc910e971db6b4f5",
+          "size": 1904
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/pilot/pilot_eta_vs_time.csv",
+          "sha256": "1ea49102844ef38a7f4d46fd928f09d68be63e1345593a4b60ca8b0c7b8210c9",
+          "size": 80861
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/pilot_equilibration.png",
+          "sha256": "b753dd8d45a652655baa6e97dfb6a358632f5dda7688b12af9f765b018c50b60",
+          "size": 241131
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/pilot_equilibration_extended_350K.png",
+          "sha256": "866cf4a24c4664c156e53976a5f228ff5036297c8b5e4a4f546df40680173a9f",
+          "size": 266536
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/results/cips_tc_data.csv",
+          "sha256": "2b1b3ed54a0a7ba55df405b5a033c703e0edc0ed09bb2e113655cbc263738563",
+          "size": 1072
+        },
+        {
+          "path": "repository/release/workspace_demo2b_curie_with_convergence/sweep/sweep_manifest.csv",
+          "sha256": "0e1646c23536bd047f92bc87b4b0695135b942c3b5dfbdd434c1fe9b6a13b903",
+          "size": 951
+        }
+      ],
+      "name": "workspace_demo2b_curie_with_convergence",
+      "provenance": "upstream_repository",
+      "source_commit": "52557c077f5e3be8444a3f03ea10a647fbd442ca"
+    }
+  ]
+}

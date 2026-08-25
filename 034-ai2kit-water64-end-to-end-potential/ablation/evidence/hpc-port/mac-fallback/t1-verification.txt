@@ -1,0 +1,31 @@
+034 HPC Controller — Task 1 verification record
+Verified: 2026-08-11 (plan execution, local tasks only)
+
+Step 1 (isolation + original-tree preservation):
+  - git worktree list --porcelain shows two worktrees:
+      /Users/chenxuanjie/案例测试/dftworld2                     refs/heads/main                     @ d4a642f7
+      .../.worktrees/034-hpc-controller                        refs/heads/codex/034-hpc-controller @ d4a642f7
+  - Execution target is the isolated worktree; the main tree is untouched.
+  - cmp on copied sources: env.sh, run_reference_hpc.sh byte-identical main<->worktree.
+    slurm_transport.py and solution/expert/run.sh DIFFER because the worktree holds
+    prior-session drafts (Task 3/Task 4) that modify them; the MAIN copies are the
+    originals and are not modified. These drafts are reworked per the plan, not merged.
+
+Step 2 (capture container + process evidence):
+  - manifest.txt (973-byte docker-inspect.json + 3227-byte manifest + 976-byte processes.txt) present.
+  - manifest.txt records image dftworld-base-ai2kit:0.1.0-slurmfix, container 5015f95f78ef,
+    binds /app -> /tmp/034-ref-01, auto_remove=true; GEO_OPT at step 113 (step 112 not converged,
+    ~115 s/step, 1222 MiB/rank peak); SHA-256 for every checkpoint file (pre- and post-stop).
+  - Recomputed checkpoint hashes match the manifest (pos-1.xyz 02896648419e..., restart 738da8f2..., etc.).
+
+Step 3 (stop only the fallback):
+  - docker ps -a --filter name=^/034-ref-run-01$ returns no container.
+  - Manifest stop-verification: no cp2k.psmp process remained; /tmp/034-ref-01 readable.
+  - Container used AutoRemove, so removal after stop was expected. 032/033 and unrelated
+    containers are not present in this host's Docker (only 034-oracle-smoke Exited).
+
+Step 4 (recoverability):
+  - checkpoint/ and checkpoint-post-stop/ geopt trees present with slurm/input/output/logs;
+    key outputs (pos-1.xyz 1.4 MB, restart 20 KB, BFGS.Hessian 2.6 MB) exist and hash-match.
+  - Recoverable state = checkpoint-post-stop (final snapshot). Diagnostic evidence only;
+    the Mac fallback is NOT a scientific anchor.

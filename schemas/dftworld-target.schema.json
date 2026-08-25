@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/dftworld-target.schema.json",
+  "title": "dftworld Target Adapter case-design additions",
+  "description": "Required additions to a Builder case-design.yaml for dftworld Target Adapter rendering. The adapter validates and renders these; it never guesses or changes the approved execution class.",
+  "type": "object",
+  "required": [
+    "identity",
+    "execution",
+    "runtime",
+    "submission",
+    "candidate_files"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer"
+    },
+    "category": {
+      "type": "string"
+    },
+    "case_kind": {
+      "type": "string"
+    },
+    "identity": {
+      "type": "object",
+      "required": [
+        "case_id",
+        "task_name",
+        "title",
+        "description",
+        "case_version"
+      ],
+      "properties": {
+        "case_id": {
+          "type": "string",
+          "pattern": "^[0-9]{3}-[a-z0-9-]+$"
+        },
+        "task_name": {
+          "type": "string",
+          "pattern": "^benchmark/[0-9]{3}-[a-z0-9-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "case_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "execution": {
+      "type": "object",
+      "required": [
+        "class"
+      ],
+      "properties": {
+        "class": {
+          "enum": [
+            "local_sandbox",
+            "hpc_controller"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "required": [
+        "candidate_image",
+        "build_timeout_sec",
+        "agent_timeout_sec",
+        "verifier_timeout_sec",
+        "cpus",
+        "memory_mb",
+        "storage_mb",
+        "gpus",
+        "allow_internet"
+      ],
+      "properties": {
+        "candidate_image": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*(:[A-Za-z0-9._-]+)?$"
+        },
+        "build_timeout_sec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "agent_timeout_sec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "verifier_timeout_sec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "cpus": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "memory_mb": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "storage_mb": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "gpus": {
+          "type": "number",
+          "minimum": 0
+        },
+        "allow_internet": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "submission": {
+      "type": "object",
+      "required": [
+        "root"
+      ],
+      "properties": {
+        "root": {
+          "const": "final"
+        }
+      },
+      "additionalProperties": false
+    },
+    "candidate_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "source",
+          "destination"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "destination": {
+            "type": "string"
+          },
+          "strip_prefix": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "hpc": {
+      "type": "object",
+      "required": [
+        "contract_version",
+        "required_capabilities"
+      ],
+      "properties": {
+        "contract_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "scientific_capabilities": {
+          "type": "object",
+          "properties": {
+            "required": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "optional": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true,
+  "if": {
+    "properties": {
+      "execution": {
+        "properties": {
+          "class": {
+            "const": "hpc_controller"
+          }
+        }
+      }
+    },
+    "required": [
+      "execution"
+    ]
+  },
+  "then": {
+    "required": [
+      "hpc"
+    ]
+  },
+  "else": {
+    "not": {
+      "required": [
+        "hpc"
+      ]
+    }
+  }
+}

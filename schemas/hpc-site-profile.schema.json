@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/hpc-site-profile.schema.json",
+  "title": "bench-hpc SiteProfile v1",
+  "description": "Trusted, immutable site policy identity. Credential bytes never appear here — connection secrets live outside Git and are resolved only by the trusted Harness through a credential provider keyed by credential_profile_id.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "site_id",
+    "scheduler",
+    "connection",
+    "account",
+    "queues",
+    "runtime_policy"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "site_id": { "type": "string", "minLength": 1 },
+    "scheduler": { "enum": ["slurm"] },
+    "connection": {
+      "type": "object",
+      "required": ["credential_profile_id", "target_binding", "remote_user", "remote_root_policy"],
+      "additionalProperties": false,
+      "properties": {
+        "credential_profile_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Key into the Harness-owned credential provider. Never a key itself."
+        },
+        "target_binding": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Sanitized connection target identity (bound into the digest)."
+        },
+        "remote_user": { "type": "string", "minLength": 1 },
+        "remote_root_policy": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Remote root template policy; contains {run_id}, never credentials."
+        }
+      }
+    },
+    "account": { "type": "string", "minLength": 1 },
+    "queues": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "propertyNames": { "enum": ["cpu", "gpu"] },
+      "patternProperties": {
+        "^(cpu|gpu)$": {
+          "type": "object",
+          "required": ["partition", "qos", "max_cpus", "max_memory_gb", "max_walltime_minutes"],
+          "additionalProperties": false,
+          "properties": {
+            "partition": { "type": "string", "minLength": 1 },
+            "qos": { "type": "string", "minLength": 1 },
+            "max_cpus": { "type": "integer", "minimum": 1 },
+            "max_memory_gb": { "type": "integer", "minimum": 1 },
+            "max_gpus": { "type": "integer", "minimum": 0 },
+            "max_walltime_minutes": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "resource_mapping": {
+      "type": "object",
+      "description": "Maps abstract workload types (cpu, gpu) to concrete queue names. When absent, each workload type maps to the queue of the same name. CPU workloads may map to the gpu queue when the account lacks cpu partition access; the mapping note documents the constraint.",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(cpu|gpu)$": {
+          "type": "object",
+          "required": ["queue"],
+          "additionalProperties": false,
+          "properties": {
+            "queue": { "enum": ["cpu", "gpu"], "description": "Target queue name; must exist in queues." },
+            "note": { "type": "string", "description": "Human-readable constraint documentation; included in digest." }
+          }
+        }
+      }
+    },
+    "runtime_policy": {
+      "type": "object",
+      "required": ["requires_apptainer", "runtime_store"],
+      "additionalProperties": false,
+      "properties": {
+        "requires_apptainer": { "const": true },
+        "runtime_store": { "type": "string", "minLength": 1 },
+        "gres_template": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

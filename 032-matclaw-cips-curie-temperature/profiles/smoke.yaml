@@ -1,0 +1,9 @@
+# Case 032 smoke profile — a fast sanity run, NEVER scientific success.
+#
+# Exercises the full submit -> settle -> fetch -> verify chain so a smoke pass
+# only proves the machinery works; it must never be labeled a scientific
+# result (scientific: false).  The graded container always runs the same
+# test_outputs.py gates; only the timeout budget is tightened here.
+name: smoke
+scientific: false
+verifier_timeout_sec: 3600

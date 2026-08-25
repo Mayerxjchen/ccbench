@@ -1,0 +1,33 @@
+{
+  "smoke": {
+    "max_jobs_per_iteration": 2,
+    "max_rounds": 2,
+    "start": {"Ez_V_A": -0.01, "temperature_K": 200},
+    "bounds": {"Ez_V_A": [-0.3, 0.0], "temperature_K": [0, 250]},
+    "ez_step": 0.03,
+    "t_step": 40,
+    "round1_probe_ez": -0.05
+  },
+  "smoke_alt": {
+    "max_jobs_per_iteration": 2,
+    "seed_offset": 7000,
+    "max_rounds": 2,
+    "start": {"Ez_V_A": -0.01, "temperature_K": 200},
+    "bounds": {"Ez_V_A": [-0.3, 0.0], "temperature_K": [0, 250]},
+    "ez_step": 0.03,
+    "t_step": 40,
+    "round1_probe_ez": -0.05
+  },
+  "paper": {
+    "max_jobs_per_iteration": 2,
+    "max_rounds": 7,
+    "start": {"Ez_V_A": -0.01, "temperature_K": 200},
+    "bounds": {"Ez_V_A": [-0.3, 0.0], "temperature_K": [0, 250]},
+    "ez_step": 0.03,
+    "t_step": 40,
+    "round1_probe_ez": -0.05,
+    "early_stop_slope": 0.3,
+    "early_stop_band": [-0.18, -0.14],
+    "early_stop_temperature_band": [30, 70]
+  }
+}

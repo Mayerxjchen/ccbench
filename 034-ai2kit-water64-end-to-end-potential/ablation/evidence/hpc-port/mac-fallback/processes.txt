@@ -1,0 +1,25 @@
+Captured: 2026-08-11T13:20:50+08:00
+
+Container process chain before stop:
+
+- bash /logs/launch.sh
+- bash /oracle/solution/expert/run.sh
+- bash /oracle/solution/expert/01-geopt/run.sh
+- bash /oracle/solution/expert/wait_job.sh 2 21600 /app/work/geopt/geopt.slurm
+- mpirun -np 4 cp2k.psmp -i geopt.inp
+- 4 x cp2k.psmp, each observed at approximately 99.8% CPU and 12.3-12.9% container memory
+
+Scientific progress captured from CP2K output:
+
+- GEO_OPT completed step 112 and had entered step 113.
+- Step 112 was not converged.
+- Step 112 used 114.999 seconds.
+- Estimated peak process memory reported by CP2K: 1222 MiB per rank.
+
+Local HPC probe audit:
+
+- No process matching a delayed probe, `run_reference_hpc`, target-host SSH command,
+  or 900/1800-second probe sleep was present.
+- One existing SSH ControlMaster process for `<site-user>@<site-host-ip>` was present.
+  It was not terminated because it is not a scheduled probe and ownership/use
+  could not be attributed safely.

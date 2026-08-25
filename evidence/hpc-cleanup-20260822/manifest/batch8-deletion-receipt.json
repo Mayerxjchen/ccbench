@@ -1,0 +1,23 @@
+{
+  "batch": "B8",
+  "executed_at": "2026-08-22T17:00-17:20+08:00",
+  "sealed_before_deletion": {
+    "manifest": "/Users/chenxuanjie/案例测试/hpc-cleanup-20260822-archive/remote-sha256-manifest-b8.txt",
+    "entries": 29889,
+    "covers": [".worktrees 三目录全文件", "evidence 非 workspace/private/artifacts 文件", "HOME 散落 *.out/*.err/slurm-*.out 及 junk 清单"]
+  },
+  "deleted": [
+    ".worktrees（1.4G 陈旧源码副本，非 git worktree）",
+    ".apptainer/cache 5.4G、.singularity/cache 1.8G",
+    ".conda/pkgs 2.6G（保留 .conda/envs/ai2kit）",
+    ".cache/{pip,matplotlib,fontconfig,Microsoft}（保留 .cache/claude*）",
+    "evidence/matclaw/formal/031/run-{1,2}/{workspace,private,artifacts}（540M per-run 泄漏源副本；manifest 小件已封存）",
+    "HOME 散落：约 300 个 job 输出与 junk 文件、out/outdir/results/artifacts/threads/workspace/runs_ht_pkg/__pycache__/.pytest_cache 等 scratch 目录",
+    "git worktree prune 完成（清除 5 个 prunable 死注册）",
+    ".vscode-server：删 4 个旧 Stable 版本+4 个旧 code-* build+CachedExtensionVSIXs(205M)，保留当前 Stable-110a328e"
+  ],
+  "quota": {"before_kb": 43082364, "after_caches_kb": 30865524, "after_vscode_kb": 28267028},
+  "pending_user_decision": [
+    {"path": "/public/home/<site-user>/GO–water interfaces", "size": "470M", "note": "042 相关研究数据，不在清单授权范围内，未动"}
+  ]
+}

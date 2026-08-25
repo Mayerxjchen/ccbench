@@ -1,0 +1,32 @@
+[project]
+name = "dftworld"
+version = "0.1.0"
+description = "AI agent benchmark for computational chemistry tasks"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pagent>=0.7.30",
+    "pydantic>=2.7,<3",
+    "pypdf>=6.15.0",
+    "PyYAML>=6.0.2,<7",
+    "jsonschema>=4.23,<5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "zstandard>=0.23,<1",
+]
+
+[project.scripts]
+dftworld-config = "dftworld_bench.config.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["dftworld_bench*"]
+
+[tool.pytest.ini_options]
+# testpaths restricts collection to the real suite, so root-level data dirs
+# (jobs/, evidence/, .worktrees/) and case-internal test trees are never
+# reached.  norecursedirs keeps future data dirs under tests/ out too.
+testpaths = ["tests"]
+norecursedirs = ["jobs", ".worktrees", ".pagent"]

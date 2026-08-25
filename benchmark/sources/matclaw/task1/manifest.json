@@ -1,0 +1,350 @@
+{
+  "schema_version": 1,
+  "task": "task1",
+  "workspaces": [
+    {
+      "files": [
+        {
+          "path": "repository/release/workspace_demo1a_distill/.llm_config.yaml",
+          "sha256": "c78b61e808755f1134fac5c14d65fa46719810939c678c816f5be922106e5c36",
+          "size": 4767
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/.prompts.yaml",
+          "sha256": "f8d904ea708b1c1fc8c036aae64d630b5e721beed48e045a1129ab405a0921f9",
+          "size": 5625
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/.rag_config.yaml",
+          "sha256": "27e31077ca29aee28c3830785fd0fb7878c85f23b70d30421d7b44a520583e86",
+          "size": 1075
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/CuInP2S6.cif",
+          "sha256": "b9e3b0c4470274d5e3e1ce19e7c8834bda323e50483eef9791b1e744bbd629de",
+          "size": 1493
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/final_report.txt",
+          "sha256": "5e589c463b079a6c1c4dc65da51d967aadad7028fd9f995cf233eb5cde26e795",
+          "size": 1342
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/history.jsonl",
+          "sha256": "2e15df09379b3c0fa3e3a1acda5019f98ad964ce9645006b2bad761cf8f6ab81",
+          "size": 139262
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/iter0_eval_uuids.json",
+          "sha256": "a876cba0f8df669bfbea4ae6be6ecdeb29d8c05cdf7c7c48392e0d091269ab26",
+          "size": 120
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/iter0_train_uuids.json",
+          "sha256": "ab77c9fdb32289a4a1e96b5420538a435946890703f6a67472d5232c16d2c5cd",
+          "size": 110
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/job_uuids_phase1.json",
+          "sha256": "768365863ba4639b140a728b74d8a685522491de45ba46a9c7638cf071f2131b",
+          "size": 281
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/output.log",
+          "sha256": "74d42cf89eadd39a94f7c357abfce3d002c3c838890acc79b7c432c1b4c2e3c3",
+          "size": 309429
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/remote_paths.json",
+          "sha256": "e44a05c5bf083ccd0c9b7d6f16145b702c9666030293195d4879d6b49440ffbd",
+          "size": 144
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/report.md",
+          "sha256": "2ac986b526e08473456c04b9e1f1d2307565bcf3c8021d680e08f11aa6d2baf6",
+          "size": 8966
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/test7_cips_distill.py",
+          "sha256": "2df3747f682ab40d44da90cda51dd52659eb8adebd63225b8f82ed36d3524d05",
+          "size": 5105
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/test_data/set.000/box.npy",
+          "sha256": "3fdfbeac4db01dc4fb0b9c79e242013837da5237b4964b7002a5f2867daa82e2",
+          "size": 21800
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/test_data/set.000/coord.npy",
+          "sha256": "d7a8580c74f0eb20d9bca5b2fbc8cd79786839eff92c59b6328d8b015eaa0790",
+          "size": 650288
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/test_data/set.000/energy.npy",
+          "sha256": "440cfe9f48cc7c92e4ce51613d3ccef372bc777a45b5e776117a20b9f801ec44",
+          "size": 2536
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/test_data/set.000/force.npy",
+          "sha256": "b1561eea4e44ea6419523ed773cdea3b9ba3f0562864ef0e6b7e2b6ca83423ef",
+          "size": 650288
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/test_data/type.raw",
+          "sha256": "1b6b401c34479d8b4373694d3a4e3965f2488e4c47075e13c52e1035cd7580dd",
+          "size": 180
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/test_data/type_map.raw",
+          "sha256": "ddd5c423f4f087be6301609fdfd5ac93a2241b3254f7bd732d33457b1f091d8e",
+          "size": 10
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/train_data_iter0/set.000/box.npy",
+          "sha256": "f263a3ff96c9c7a19b9236111a83548663ccc043427e643f3248b0eff484f2ac",
+          "size": 144416
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/train_data_iter0/set.000/coord.npy",
+          "sha256": "1f583eb57de04b9ab57accff66c23f7dd9f882a412e2267d55cab7e5b29bb05b",
+          "size": 4328768
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/train_data_iter0/set.000/energy.npy",
+          "sha256": "5aa2b55d813ad81976ad969aa9c08f57c9aef021f95f40289c2cda6b2b0d5754",
+          "size": 16160
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/train_data_iter0/set.000/force.npy",
+          "sha256": "bbe5a6df55e283b134b3fb4624a4e2a87ab4e6d7adddd1339bf2cff9af491966",
+          "size": 4328768
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/train_data_iter0/type.raw",
+          "sha256": "1b6b401c34479d8b4373694d3a4e3965f2488e4c47075e13c52e1035cd7580dd",
+          "size": 180
+        },
+        {
+          "path": "repository/release/workspace_demo1a_distill/train_data_iter0/type_map.raw",
+          "sha256": "ddd5c423f4f087be6301609fdfd5ac93a2241b3254f7bd732d33457b1f091d8e",
+          "size": 10
+        }
+      ],
+      "name": "workspace_demo1a_distill",
+      "provenance": "upstream_repository",
+      "source_commit": "52557c077f5e3be8444a3f03ea10a647fbd442ca"
+    },
+    {
+      "files": [
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/.llm_config.yaml",
+          "sha256": "c78b61e808755f1134fac5c14d65fa46719810939c678c816f5be922106e5c36",
+          "size": 4767
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/.prompts.yaml",
+          "sha256": "f8d904ea708b1c1fc8c036aae64d630b5e721beed48e045a1129ab405a0921f9",
+          "size": 5625
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/.rag_config.yaml",
+          "sha256": "27e31077ca29aee28c3830785fd0fb7878c85f23b70d30421d7b44a520583e86",
+          "size": 1075
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/CuInP2S6.cif",
+          "sha256": "b9e3b0c4470274d5e3e1ce19e7c8834bda323e50483eef9791b1e744bbd629de",
+          "size": 1493
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/He_paper.pdf",
+          "sha256": "cf7d0aadd6fb9a1e9a1e4080ca6c75fcd1ae3e9818270f82263a8183ae0fcd77",
+          "size": 8443562
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/eval_1000K_uuids.json",
+          "sha256": "1e80f9432eb8982bac12f7768906b89db0b1294d1b215b58151e485987565fd3",
+          "size": 112
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/eval_iter1_uuids.json",
+          "sha256": "259fc6f287a7530df46ca60be4764267c40924e7ea9c6a7c74d9d27df3aee9e3",
+          "size": 185
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/history.jsonl",
+          "sha256": "2cd8d62fbdb186315187c5087b774b28010b6cda9dc9ac05f9313ce653c1a4b1",
+          "size": 298932
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/iter0_models.json",
+          "sha256": "ca8c352706e255947aebf890719699e01b663642f3cb4e07eaeb77161a9b4cea",
+          "size": 476
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/iter1_models.json",
+          "sha256": "ae57c16c9b3a8bfa690ae2e9d89008a3184e38f49e0550a808bb6900d6ace210",
+          "size": 419
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/iter2_uuids.json",
+          "sha256": "c95d39535a6b567fb4b330f1c4712f8576bd63c619bf44e9a68ecae0a3a159e6",
+          "size": 181
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/iter3_uuids.json",
+          "sha256": "cd4a0033f546c97e177310a4acfafdb386a5ed377754c3f8c917e0634ef883eb",
+          "size": 115
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/label_iter1_uuid.json",
+          "sha256": "2b3c19a1ca39cdba59c51c3c4206695d199fc8e191905a389086efbef42cdd71",
+          "size": 53
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/label_iter2_uuid.json",
+          "sha256": "cfb3bc0759f63074fd04dd929146b4c1e90dbb16be98455e07a25359e0e7db10",
+          "size": 54
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/output.log",
+          "sha256": "4fc8b9ecc6aab9e49b59add9405e3bd8768caf35c93cc0b730c267350080565c",
+          "size": 739074
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/phase2_iter1_uuids.json",
+          "sha256": "e3b8c7c5c8fbaa55f5431bec95097d302baf84e08b6b71a11a5c2e853fff2e9a",
+          "size": 121
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/phase2_uuids.json",
+          "sha256": "8c98c4463dd03becbef8e1b4b1f011beba22c4b0fb85ee82594a4ec645b4748a",
+          "size": 118
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/report.md",
+          "sha256": "f4907e9b85f92bc7dff5c663f240626c56cda99fc6a897d0bb722ac2aa3b5c02",
+          "size": 11479
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/student_iter0_uuids.json",
+          "sha256": "7c420d4daee9c1ef2fec6d9793fde9efcad6e883a95f00fa96c63c026377a626",
+          "size": 106
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/student_iter1_uuids.json",
+          "sha256": "87153abe68b819e541e0b9818218fdf253d2c830ff1853361efb06b3e1f0eddd",
+          "size": 106
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/student_iter2_uuids.json",
+          "sha256": "93b3b187adfd7fc0b732c511ef4e68a74df7abbaba1739b413adec70685aa148",
+          "size": 106
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/teacher_data_iter0/set.000/box.npy",
+          "sha256": "e183298bd085099085c68757f6c3410882c6768eea30e66014a186d72aa5c95d",
+          "size": 57728
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/teacher_data_iter0/set.000/coord.npy",
+          "sha256": "122dafd131a3ba59d891edc8965ba4bdc8f7eaf8558526bb0663e6bd1a68b6cc",
+          "size": 1728128
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/teacher_data_iter0/set.000/energy.npy",
+          "sha256": "fbfc5cfbd7a7c7402625bb6318509eb695796a7638a6748dd20a012a43ef9c6d",
+          "size": 6528
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/teacher_data_iter0/set.000/force.npy",
+          "sha256": "f20f1c15bf66c6e43650455bace21fda550d6643cbf2073a835f2d56d43b2eb8",
+          "size": 1728128
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/teacher_data_iter0/type.raw",
+          "sha256": "1b6b401c34479d8b4373694d3a4e3965f2488e4c47075e13c52e1035cd7580dd",
+          "size": 180
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/teacher_data_iter0/type_map.raw",
+          "sha256": "ddd5c423f4f087be6301609fdfd5ac93a2241b3254f7bd732d33457b1f091d8e",
+          "size": 10
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/teacher_md_dirs.json",
+          "sha256": "6c13ca90b050dde8aeae8aade6dcf7eb4d441cf043131045d1f700ead42bec21",
+          "size": 386
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/teacher_md_uuids.json",
+          "sha256": "3ad7b1fd4d36899f4121054eef45ba5a79f5735ce6409b28236ebb81e31cb520",
+          "size": 202
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/training_data_iter1/set.000/box.npy",
+          "sha256": "9f97c01e325def9071f7336856a3a606dea9f22e843576da050da128d1f3e12e",
+          "size": 72128
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/training_data_iter1/set.000/coord.npy",
+          "sha256": "65829b4b00505357c5da159ffafd82c9b4920eaeff64e0fbbc4c6b2ed425bbc3",
+          "size": 2160128
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/training_data_iter1/set.000/energy.npy",
+          "sha256": "e05c0829750e37a3eaadcbd1f04c60be5121e4e3542b4a89a72864cc9ec34148",
+          "size": 8128
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/training_data_iter1/set.000/force.npy",
+          "sha256": "4f84d4a72e01704ebd7e79a0227a2d81c9d3db80cbf8fdf27a2625240564a17c",
+          "size": 2160128
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/training_data_iter1/type.raw",
+          "sha256": "1b6b401c34479d8b4373694d3a4e3965f2488e4c47075e13c52e1035cd7580dd",
+          "size": 180
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/training_data_iter1/type_map.raw",
+          "sha256": "ddd5c423f4f087be6301609fdfd5ac93a2241b3254f7bd732d33457b1f091d8e",
+          "size": 10
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/training_data_iter2/set.000/box.npy",
+          "sha256": "de20770ab447bb59f90fc9f8ec1126007cab8add7f46130dbefc782ad24f3d95",
+          "size": 88400
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/training_data_iter2/set.000/coord.npy",
+          "sha256": "26bf62d104ef578108b88fb21f8f59cd422ed42d91f410ffc2be8507cb17c51e",
+          "size": 2648288
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/training_data_iter2/set.000/energy.npy",
+          "sha256": "63d80852a706205bfddb8e86a9c1afb11f7b1fa33e71298e24351ee483096a74",
+          "size": 9936
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/training_data_iter2/set.000/force.npy",
+          "sha256": "b96bdfffcb638608bd815071a2c4931002fb7a271efe21ab086fce39dcaf19d3",
+          "size": 2648288
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/training_data_iter2/type.raw",
+          "sha256": "1b6b401c34479d8b4373694d3a4e3965f2488e4c47075e13c52e1035cd7580dd",
+          "size": 180
+        },
+        {
+          "path": "repository/release/workspace_demo1b_distill_pdf/training_data_iter2/type_map.raw",
+          "sha256": "ddd5c423f4f087be6301609fdfd5ac93a2241b3254f7bd732d33457b1f091d8e",
+          "size": 10
+        }
+      ],
+      "name": "workspace_demo1b_distill_pdf",
+      "provenance": "upstream_repository",
+      "source_commit": "52557c077f5e3be8444a3f03ea10a647fbd442ca"
+    }
+  ]
+}

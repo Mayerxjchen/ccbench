@@ -1,0 +1,57 @@
+{
+  "benchmark_id": "042-go-water-dpmp",
+  "role": "expert_reference_metrics",
+  "state": "incomplete",
+  "state_note": "check_release.py requires state=reproducible, which is only set after the bounded reference run (CP2K revPBE-D3 AIMD -> deepmd-jax DPMP train -> >=1 active-learning round) completes on the real cluster and the expert model is scored on reference/hidden-validation/hidden-frames/. Until then the metrics below that are NOT derivable from the published dataset are null.",
+  "system": {
+    "interfaces": ["air-water", "graphene-water", "graphene-O12", "graphene-O25", "graphene-O50"],
+    "type_map": ["O", "H", "C"],
+    "rcut_angstrom": 6.0,
+    "dft": "CP2K revPBE-D3 / plane-wave 400 Ry / NVT 300 K / 1 fs / H mass 2.014 amu",
+    "potential_family": "DPMP",
+    "framework": "deepmd-jax"
+  },
+  "data": {
+    "note": "Published labeled training dataset (figshare 30472487 v2), 14140 frames total. The agent sees none of these frames; they are hidden reference labels.",
+    "total_frames": 14140,
+    "per_interface_frames": {
+      "water": 1630, "air-water": 1350, "air-water-long": 400,
+      "graphene-water": 848, "graphene-water-long": 554,
+      "graphene-O12": 1343, "graphene-O25": 4515, "graphene-O50": 3500
+    },
+    "held_out_frames": 1412,
+    "held_out_seed": 42,
+    "held_out_frac": 0.10
+  },
+  "active_learning": {
+    "stage_one": {"models": "4x DPSR (deepmd tensorflow)", "explorer": "LAMMPS",
+                  "temperatures_K": [300, 330, 360], "deviation_bounds_eV_per_angstrom": [0.20, 0.60],
+                  "sampled_structures": 6500},
+    "stage_two": {"models": "4x DPMP (deepmd-jax)", "explorer": "JAX-MD NVT",
+                  "sampled_structures": 9358}
+  },
+  "final_model": {
+    "architecture": "DPMP",
+    "cutoff_angstrom": 6.0,
+    "embed_widths": [48, 48, 96],
+    "embed_mp_widths": [96, 96, 96],
+    "fit_widths": [96, 96, 96],
+    "axis_neurons": 16,
+    "training_steps": 1000000,
+    "learning_rate": {"initial": 0.001, "final": 1e-8, "schedule": "exponential decay"},
+    "expert_model_sha256": null,
+    "expert_model_sha256_note": "the author's model.pkl (47.5 MB) is a hidden reference; its digest is recorded only after the image can load it"
+  },
+  "density_reference": {
+    "interface": "graphene-water",
+    "first_peak_position_angstrom": 3.35,
+    "depletion_width_angstrom": 2.65,
+    "graphite_plane_z_angstrom": 26.03,
+    "computed_from": "848 published graphene-water labeled frames (oxygen number-density profile vs minimum-image distance from graphite plane)"
+  },
+  "expert_metrics": {
+    "energy_rmse_eV_per_atom": null,
+    "force_rmse_eV_A": null,
+    "note": "the paper's evaluate.py reports RMSE per interface but no single published number is pinned in the SI; these are scored on the hidden held-out set by the verifier after the bounded reference run, not copied from the paper"
+  }
+}

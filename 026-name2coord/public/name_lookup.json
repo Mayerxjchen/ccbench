@@ -1,0 +1,17 @@
+{
+  "aspirin": "CC(=O)OC1=CC=CC=C1C(=O)O",
+  "caffeine": "CN1C=NC2=C1C(=O)N(C(=O)N2C)C",
+  "ibuprofen": "CC(C)CC1=CC=C(C=C1)C(C)C(=O)O",
+  "paracetamol": "CC(=O)NC1=CC=C(C=C1)O",
+  "ethanol": "CCO",
+  "methanol": "CO",
+  "acetone": "CC(=O)C",
+  "benzene": "C1=CC=CC=C1",
+  "toluene": "CC1=CC=CC=C1",
+  "phenol": "OC1=CC=CC=C1",
+  "glycine": "C(C(=O)O)N",
+  "urea": "C(=O)(N)N",
+  "acetaldehyde": "CC=O",
+  "formaldehyde": "C=O",
+  "glucose": "C(C1C(C(C(C(O1)O)O)O)O)O"
+}

@@ -1,0 +1,2 @@
+  *** SCF run converged in    11 steps ***
+ ENERGY| Total FORCE_EVAL ( QS ) energy [hartree]            -17.207799183182161
