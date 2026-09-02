@@ -76,6 +76,12 @@
             }
           },
           "additionalProperties": false
+        },
+        "qual_requires": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^(dispatcher|runtime)\\.[a-z0-9-]+$" },
+          "uniqueItems": true,
+          "description": "Qualification capabilities the site receipt must derive PASS before this case may run formally (capability matrix; e.g. [\"dispatcher.gpu\", \"runtime.cp2k\"]). Names are verified against the derived matrix by case_requirements_satisfied — unknown names block, fail-closed."
         }
       },
       "additionalProperties": false

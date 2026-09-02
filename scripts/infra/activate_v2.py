@@ -82,12 +82,6 @@ def _check_d11_receipt() -> dict:
             "status": "PASS",
             "detail": f"receipt valid: {result.get('receipt_path', '?')}",
         }
-    if status == "BLOCKED_SITE_ACL":
-        return {
-            "gate": "D11", "title": GATES["D11"][0],
-            "status": "BLOCKED_SITE_ACL",
-            "detail": result["detail"],
-        }
     return {
         "gate": "D11", "title": GATES["D11"][0],
         "status": "NOT_RUN",

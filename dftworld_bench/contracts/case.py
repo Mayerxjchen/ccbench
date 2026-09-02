@@ -9,6 +9,7 @@ the case number or directory name — a manifest that declares none fails closed
 from __future__ import annotations
 
 import json
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -23,6 +24,11 @@ ExecutionClass = Literal["local_sandbox", "hpc_controller"]
 # harness never guesses an execution class from a case directory name.
 EXECUTION_ALIASES = {"real_hpc_controller": "hpc_controller"}
 EXECUTION_CLASSES = frozenset({"local_sandbox", "hpc_controller"})
+
+# Capability-matrix names a case may gate on in [hpc].qual_requires.  Mirrors
+# the case.schema.json pattern; enforced here too so the legacy (non-schema-
+# validated) path cannot skip the shape check.
+QUAL_REQUIRES_RE = re.compile(r"^(dispatcher|runtime)\.[a-z0-9-]+$")
 
 # Fields that belong to the infrastructure layer, not the case manifest.
 # Cases declare scientific requirements; the harness resolves these to
@@ -129,6 +135,10 @@ class CaseSpec:
     # Scientific compute capabilities declared by an hpc_controller case
     # (required / optional); consumed by category plugins, never by core dispatch.
     scientific_capabilities: ScientificCapabilities | None = None
+    # Qualification capabilities this case requires (capability-matrix names,
+    # e.g. "dispatcher.gpu" / "runtime.cp2k"); the site receipt must derive
+    # PASS for every name via case_requirements_satisfied before a formal run.
+    qual_requires: tuple[str, ...] = ()
     # Case root, populated by CaseSpec.load; needed by the packager to resolve
     # glob sources and the instruction file.
     case_dir: Path | None = None
@@ -267,6 +277,7 @@ class CaseSpec:
         # ``required``/``optional`` name scientific capabilities (cp2k, dpmp,
         # ...); the category plugin translates them, never core execution.
         scientific_capabilities: ScientificCapabilities | None = None
+        qual_requires: tuple[str, ...] = ()
         if isinstance(hpc_block, dict):
             sc = hpc_block.get("scientific_capabilities")
             if isinstance(sc, dict):
@@ -274,6 +285,25 @@ class CaseSpec:
                     required=tuple(str(x) for x in (sc.get("required") or [])),
                     optional=tuple(str(x) for x in (sc.get("optional") or [])),
                 )
+            # [hpc].qual_requires: capability-matrix names the site receipt
+            # must derive PASS for before this case may run formally.  Strict
+            # shape + pattern check even on the legacy path (fail-closed: a
+            # typo'd name must block, never read as satisfied).
+            qr_names = hpc_block.get("qual_requires")
+            if qr_names is not None:
+                if not isinstance(qr_names, list) or any(
+                    not isinstance(x, str) for x in qr_names
+                ):
+                    raise CaseContractError(
+                        "[hpc].qual_requires must be an array of strings"
+                    )
+                for name in qr_names:
+                    if not QUAL_REQUIRES_RE.match(name):
+                        raise CaseContractError(
+                            f"invalid [hpc].qual_requires capability {name!r}; "
+                            r"expected ^(dispatcher|runtime)\.[a-z0-9-]+$"
+                        )
+                qual_requires = tuple(qr_names)
 
         return cls(
             case_id=str((raw.get("task") or {}).get("name", "")),
@@ -295,6 +325,7 @@ class CaseSpec:
             legacy_agent_fields=tuple(legacy_agent_fields),
             submission_contract=submission_contract,
             scientific_capabilities=scientific_capabilities,
+            qual_requires=qual_requires,
             case_dir=case_dir,
         )
 

@@ -29,9 +29,14 @@ per-gate labels do not exist in the document — they are derived by
                                ``cp2k.out`` vs the claimed version / total
                                energy / SCF convergence (:func:`parse_cp2k_output`)
 
-Derivation ladder: no cp2k evidence => PARTIAL; cp2k evidence deriving clean
-=> PASS (formal_qualified); broken evidence anywhere => INVALID.  The verdict
-is always computed here — never read from the receipt.
+Derivation ladder (capability matrix, 2026-09-02): per-capability statuses are
+projected from the same gate buckets — dispatcher.cpu/gpu and
+runtime.matclaw-gpu from the shared canary gates, runtime.cp2k from its
+dedicated gate.  Aggregate: every PRESENT capability PASS => PASS
+(formal_qualified); NOT_RUN no longer blocks (a case gates on its own
+[hpc].qual_requires via :func:`case_requirements_satisfied`); broken evidence
+anywhere => INVALID.  The verdict is always computed here — never read from
+the receipt.
 
 Offline bound (documented honestly): scheduler-side facts cannot be re-queried
 at verification time; they are bound via strictly-parsed raw accounting lines
@@ -316,10 +321,17 @@ def verify_receipt(
     Returns::
 
         {"receipt_dir": ..., "digest_ok": bool, "problems": [...],
-         "derived": {"qualification_status": "PARTIAL"|"PASS"|"INVALID",
+         "derived": {"qualification_status": "PASS"|"INVALID",
                      "formal_qualified": bool,
-                     "site_acl_blocked": bool,
+                     "capabilities": {...} (per-capability PASS/FAIL/NOT_RUN),
                      "gates": {...}}}
+
+    ``capabilities`` is the capability-matrix projection (dispatcher.cpu,
+    dispatcher.gpu, runtime.matclaw-gpu, runtime.cp2k); the aggregate is PASS
+    when every PRESENT capability is PASS, INVALID when any PRESENT capability
+    is FAIL.  NOT_RUN (runtime.cp2k before its canary) never blocks the
+    aggregate — a case gates on its own ``[hpc].qual_requires`` via
+    :func:`case_requirements_satisfied`.
     """
     root = Path(root)
     receipt_dir = Path(receipt_dir)
@@ -507,20 +519,45 @@ def verify_receipt(
         if name not in ("schema", "cp2k_gate")
     )
     schema_ok = "schema" not in gates
-    if not schema_ok or not canary_ok:
-        status = "INVALID"
-    elif cp2k_result == "NOT_RUN":
-        status = "PARTIAL"
-    elif cp2k_result == "PASS":
-        status = "PASS"
-    else:
-        # CP2K evidence present but broken — the receipt cannot be trusted
-        # far enough to distinguish PARTIAL from forgery.
-        status = "INVALID"
+
+    # Capability matrix (capability-matrix spec, 2026-09-02): a re-projection
+    # of the SAME gate buckets — per-capability verdicts consumers can gate on
+    # individually.  cpu/gpu canary jobs flow through the shared buckets, so
+    # dispatcher.cpu/gpu share fate there (a broken scheduler anchor unbinds
+    # the whole canary evidence); runtime.cp2k reads only its dedicated
+    # cp2k_gate bucket, so a cp2k failure or absence never marks the
+    # dispatcher capabilities.  runtime.matclaw-gpu rides the gpu job's
+    # runtime_decl binding (enforced in the shared provenance gate).
+    # Verdict-free invariant: capabilities are DERIVED here, never stored on
+    # the receipt.
+    dispatcher_ok = schema_ok and canary_ok
+    cpu_job_present = any(j.get("probe_class") == "cpu" for j in jobs)
+    gpu_job_present = any(j.get("probe_class") == "gpu" for j in jobs)
+    capabilities = {
+        "dispatcher.cpu": "PASS" if dispatcher_ok and cpu_job_present else "FAIL",
+        "dispatcher.gpu": "PASS" if dispatcher_ok and gpu_job_present else "FAIL",
+        "runtime.matclaw-gpu": "PASS" if dispatcher_ok and gpu_job_present else "FAIL",
+        "runtime.cp2k": cp2k_result,
+    }
+
+    # Aggregate: PASS when every PRESENT capability is PASS; NOT_RUN does not
+    # block (previously cp2k NOT_RUN forced PARTIAL — that coupling is the
+    # behavior change this matrix removes; a case gates on its own
+    # qual_requires, never the site-wide aggregate).  Present-but-broken stays
+    # INVALID: the receipt cannot be trusted far enough to distinguish PARTIAL
+    # from forgery.  dispatcher.* / runtime.matclaw-gpu are never NOT_RUN — an
+    # absent canary class is FAIL (the coverage gate requires both) — so "any
+    # FAIL" is exactly "a PRESENT capability is broken".
+    status = "INVALID" if any(
+        status_ == "FAIL" for status_ in capabilities.values()
+    ) else "PASS"
     formal_qualified = status == "PASS"
-    site_acl_blocked = status == "PARTIAL" and (
-        evidence.get("native_cpu_partition_accessible") is False
-    )
+    # The old BLOCKED_SITE_ACL branch (PARTIAL ∧ cpu→gpu ACL mapping) is gone
+    # with PARTIAL: the collector refuses to qualify a profile that maps cpu
+    # workloads off the native queue (QualifyError up front), and the
+    # provenance gate re-checks native_cpu_partition_accessible against the
+    # rebuilt SiteProfile, so a receipt cannot derive clean while claiming a
+    # contradictory ACL — it fails closed as INVALID instead.
 
     problems = [
         f"[{gate}] {message}" for gate, msgs in sorted(gates.items())
@@ -534,10 +571,26 @@ def verify_receipt(
         "derived": {
             "qualification_status": status,
             "formal_qualified": formal_qualified,
-            "site_acl_blocked": site_acl_blocked,
+            "capabilities": capabilities,
             "gates": gate_results,
         },
     }
+
+
+def case_requirements_satisfied(
+    derived: dict[str, Any], requires: list[str] | tuple[str, ...]
+) -> bool:
+    """Gate a case on the derived capability matrix.
+
+    ``requires`` is the case manifest's ``[hpc].qual_requires`` list (capability
+    names such as ``dispatcher.gpu`` or ``runtime.cp2k``).  Returns True only
+    when every named capability derives PASS — NOT_RUN or FAIL blocks the
+    case.  Unknown names block too (fail-closed: a typo must never read as
+    satisfied).  This reads only the verifier's *derived* view; the receipt
+    itself carries no verdict fields.
+    """
+    capabilities = derived.get("capabilities") or {}
+    return all(capabilities.get(name) == "PASS" for name in requires)
 
 
 def _derive_cp2k(

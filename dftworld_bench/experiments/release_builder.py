@@ -128,27 +128,41 @@ _RECEIPT_PATH = (
 )
 
 
-def check_qualification_receipt(root: Path) -> dict:
+def check_qualification_receipt(
+    root: Path, *, case_dir: Path | None = None
+) -> dict:
     """Check for a valid D11 qualification receipt (fail-closed).
 
     Returns a status dict::
 
-        {"status": "PASS", "receipt_path": ..., "digest": ...}
-        {"status": "BLOCKED_SITE_ACL", "detail": ...}
+        {"status": "PASS", "receipt_path": ..., "digest": ...,
+         "qual_requires": [...]}
         {"status": "BLOCKED_QUALIFICATION", "detail": ...}
 
     The verdicts are never read from the receipt — it carries none.  Every
     status is *derived* by
     :func:`dftworld_bench.experiments.qualification_receipt.verify_receipt`
-    from the bound evidence; any broken anchor yields BLOCKED_*.
-    ``BLOCKED_SITE_ACL`` means the canary evidence derives clean but the site
-    profile maps cpu workloads onto the gpu queue (the Dispatcher is correct;
-    the site changed).  ``BLOCKED_QUALIFICATION`` covers everything else,
-    including a missing or tampered receipt.
+    from the bound evidence; any broken anchor, missing receipt, or
+    capability-matrix gap yields ``BLOCKED_QUALIFICATION``.
+
+    ``case_dir`` optionally names the case being released: its
+    ``[hpc].qual_requires`` names must all derive PASS on the receipt's
+    capability matrix (via
+    :func:`dftworld_bench.experiments.qualification_receipt.case_requirements_satisfied`)
+    or the release is blocked — a case that needs CP2K is not released off an
+    aggregate PASS while ``runtime.cp2k`` is NOT_RUN.  A missing or unknown
+    name in ``qual_requires`` blocks too, naming the unmet capability.  The
+    legacy site-ACL status is gone: the collector refuses cpu-workloads-on-the
+    -gpu-queue profiles up front, and the provenance gate re-checks the ACL
+    fact against the rebuilt SiteProfile, so a contradictory site change fails
+    closed here as BLOCKED_QUALIFICATION.
     """
     import json
 
-    from dftworld_bench.experiments.qualification_receipt import verify_receipt
+    from dftworld_bench.experiments.qualification_receipt import (
+        case_requirements_satisfied,
+        verify_receipt,
+    )
 
     receipt_path = root / _RECEIPT_PATH
     if not receipt_path.is_file():
@@ -178,21 +192,60 @@ def check_qualification_receipt(root: Path) -> dict:
             **common,
         }
     derived = result["derived"]
-    if derived["qualification_status"] == "PASS":
-        return {"status": "PASS", **common}
-    if derived["site_acl_blocked"]:
+    if derived["qualification_status"] != "PASS":
         return {
-            "status": "BLOCKED_SITE_ACL",
-            "detail": "derived PARTIAL with site ACL constraint "
-                      "(cpu workloads map onto the gpu queue)",
+            "status": "BLOCKED_QUALIFICATION",
+            "detail": (
+                "D11 receipt derives "
+                f"{derived['qualification_status']} "
+                f"(gates={derived['gates']})"
+            ),
+            **common,
+        }
+    try:
+        case_requires = _case_qual_requires(case_dir)
+    except ValueError as exc:
+        return {
+            "status": "BLOCKED_QUALIFICATION",
+            "detail": str(exc),
+            **common,
+        }
+    if case_requires and not case_requirements_satisfied(derived, case_requires):
+        capabilities = derived.get("capabilities") or {}
+        unmet = [
+            name for name in case_requires
+            if capabilities.get(name) != "PASS"
+        ]
+        return {
+            "status": "BLOCKED_QUALIFICATION",
+            "detail": (
+                f"case {Path(case_dir).name} qual_requires not satisfied: "
+                f"unmet={unmet} capabilities={capabilities}"
+            ),
+            "qual_requires": list(case_requires),
             **common,
         }
     return {
-        "status": "BLOCKED_QUALIFICATION",
-        "detail": (
-            "D11 receipt derives "
-            f"{derived['qualification_status']} "
-            f"(gates={derived['gates']})"
-        ),
+        "status": "PASS",
+        "qual_requires": list(case_requires),
         **common,
     }
+
+
+def _case_qual_requires(case_dir: Path | None) -> tuple[str, ...]:
+    """Resolve ``[hpc].qual_requires`` from the case manifest (fail-closed).
+
+    Returns () when no case is named.  A broken or conflicting manifest raises
+    ValueError so the caller can block rather than release.
+    """
+    if case_dir is None:
+        return ()
+    from dftworld_bench.contracts.case import CaseSpec
+
+    try:
+        spec = CaseSpec.load(case_dir)
+    except Exception as exc:  # noqa: BLE001 — a broken manifest must block
+        raise ValueError(
+            f"case {Path(case_dir).name} qual_requires unresolvable: {exc}"
+        ) from exc
+    return tuple(spec.qual_requires)

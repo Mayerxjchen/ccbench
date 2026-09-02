@@ -14,6 +14,10 @@ files = [{ destination = ".", source = "public/**", strip_prefix = "public" }]
 [hpc]
 contract_version = "hpc-execution/v1"
 required_capabilities = ["batch_jobs", "gpu", "artifact_fetch"]
+# Capability-matrix gates: the site receipt must derive PASS for every name
+# before this case may run formally (dispatcher.gpu + runtime.matclaw-gpu from
+# the gpu canary; runtime.cp2k from the CP2K ENERGY canary).
+qual_requires = ["dispatcher.gpu", "runtime.matclaw-gpu", "runtime.cp2k"]
 
 [hpc.scientific_capabilities]
 required = ["ai2kit", "cp2k"]

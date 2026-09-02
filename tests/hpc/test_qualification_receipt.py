@@ -587,7 +587,12 @@ class TestCp2kDerivation:
         derived = result["derived"]
         assert derived["qualification_status"] == "PASS"
         assert derived["formal_qualified"] is True
-        assert derived["site_acl_blocked"] is False
+        assert derived["capabilities"] == {
+            "dispatcher.cpu": "PASS",
+            "dispatcher.gpu": "PASS",
+            "runtime.matclaw-gpu": "PASS",
+            "runtime.cp2k": "PASS",
+        }
         assert derived["gates"]["cp2k_gate"] == "PASS"
 
     def test_release_builder_sees_pass(self, full: Path) -> None:
@@ -603,6 +608,14 @@ class TestCp2kDerivation:
         assert result["derived"]["qualification_status"] == "INVALID"
         assert result["derived"]["formal_qualified"] is False
         assert any("energy mismatch" in p for p in _problems(result))
+        capabilities = result["derived"]["capabilities"]
+        # A cp2k-specific break leaves the shared canary gates clean, so the
+        # dispatcher capabilities hold PASS while runtime.cp2k FAILs — the
+        # matrix's independence property (spec §4).
+        assert capabilities["dispatcher.cpu"] == "PASS"
+        assert capabilities["dispatcher.gpu"] == "PASS"
+        assert capabilities["runtime.matclaw-gpu"] == "PASS"
+        assert capabilities["runtime.cp2k"] == "FAIL"
 
     def test_output_artifact_byte_flip(self, full: Path) -> None:
         artifact = full / "artifacts-cp2k" / "cp2k.out"
@@ -749,14 +762,20 @@ def _problems(result: dict) -> list[str]:
 
 
 class TestGoldenDerives:
-    def test_golden_receipt_derives_partial(self, golden: Path) -> None:
+    def test_golden_receipt_derives_capability_matrix_pass(self, golden: Path) -> None:
+        """cp2k NOT_RUN no longer forces PARTIAL: the aggregate is PASS and the
+        per-capability matrix carries the NOT_RUN where it belongs."""
         result = _verify(golden, _load(golden))
         assert _problems(result) == [], _problems(result)
         derived = result["derived"]
-        assert derived["qualification_status"] == "PARTIAL"
-        assert derived["formal_qualified"] is False
-        # cpu partition accessible again: no ACL constraint blocks this receipt
-        assert derived["site_acl_blocked"] is False
+        assert derived["qualification_status"] == "PASS"
+        assert derived["formal_qualified"] is True
+        assert derived["capabilities"] == {
+            "dispatcher.cpu": "PASS",
+            "dispatcher.gpu": "PASS",
+            "runtime.matclaw-gpu": "PASS",
+            "runtime.cp2k": "NOT_RUN",
+        }
         gates = derived["gates"]
         assert gates["cp2k_gate"] == "NOT_RUN"
         assert gates.get("canary_coverage") == "PASS"
@@ -765,12 +784,138 @@ class TestGoldenDerives:
                 assert status == "PASS", (name, status)
         assert result["digest_ok"] is True
 
-    def test_release_builder_sees_blocked_qualification(self, golden: Path) -> None:
-        """PARTIAL without the ACL constraint (cpu partition accessible again)
-        blocks qualification, not site ACL."""
+    def test_release_builder_sees_pass_without_cp2k(self, golden: Path) -> None:
+        """The aggregate releases a dispatcher capability set without cp2k; a
+        case that needs CP2K gates on runtime.cp2k itself (see
+        TestReleaseBuilderCaseGating)."""
         checked = check_qualification_receipt(golden)
+        assert checked["status"] == "PASS"
+        assert checked["qual_requires"] == []
+
+
+# -- capability-matrix gate ----------------------------------------------------
+
+
+_QUAL_REQUIRES_CASE_TOML = """\
+schema_version = "1.2"
+
+[execution]
+class = "hpc_controller"
+
+[candidate]
+instruction = "instruction.md"
+submission_root = "."
+
+[hpc]
+contract_version = "hpc-execution/v1"
+required_capabilities = ["batch_jobs", "gpu"]
+qual_requires = {qual_requires}
+"""
+
+
+def _write_qual_requires_case(tmp_path: Path, requires: list[str]) -> Path:
+    case_dir = tmp_path / "case-qual"
+    case_dir.mkdir(parents=True, exist_ok=True)
+    (case_dir / "task.toml").write_text(
+        _QUAL_REQUIRES_CASE_TOML.format(qual_requires=json.dumps(requires)),
+        encoding="utf-8",
+    )
+    (case_dir / "instruction.md").write_text(
+        "build a water potential\n", encoding="utf-8"
+    )
+    return case_dir
+
+
+class TestCaseRequirementsSatisfied:
+    """The case gate helper: strict PASS on every named capability,
+    fail-closed on NOT_RUN / FAIL / unknown names."""
+
+    def test_all_required_pass(self) -> None:
+        derived = {
+            "capabilities": {
+                "dispatcher.cpu": "PASS",
+                "dispatcher.gpu": "PASS",
+                "runtime.matclaw-gpu": "PASS",
+            }
+        }
+        assert qr.case_requirements_satisfied(
+            derived, ["dispatcher.gpu", "runtime.matclaw-gpu"]
+        ) is True
+
+    def test_not_run_hole_blocks(self) -> None:
+        derived = {"capabilities": {"dispatcher.gpu": "PASS", "runtime.cp2k": "NOT_RUN"}}
+        assert qr.case_requirements_satisfied(
+            derived, ["dispatcher.gpu", "runtime.cp2k"]
+        ) is False
+
+    def test_failed_capability_blocks(self) -> None:
+        derived = {"capabilities": {"dispatcher.gpu": "FAIL"}}
+        assert qr.case_requirements_satisfied(derived, ["dispatcher.gpu"]) is False
+
+    def test_unknown_name_blocks_fail_closed(self) -> None:
+        derived = {"capabilities": {"dispatcher.gpu": "PASS"}}
+        assert qr.case_requirements_satisfied(derived, ["dispatcher.rsync"]) is False
+
+    def test_empty_requires_is_satisfied(self) -> None:
+        assert qr.case_requirements_satisfied({"capabilities": {}}, []) is True
+
+
+class TestReleaseBuilderCaseGating:
+    """qual_requires wiring: the aggregate releases a dispatcher capability set
+    without cp2k; only a case that *declares* runtime.cp2k is gated on its
+    canary."""
+
+    def test_cp2k_requiring_case_blocked_while_cp2k_not_run(
+        self, golden: Path, tmp_path: Path
+    ) -> None:
+        case_dir = _write_qual_requires_case(
+            tmp_path, ["dispatcher.gpu", "runtime.matclaw-gpu", "runtime.cp2k"]
+        )
+        checked = check_qualification_receipt(golden, case_dir=case_dir)
         assert checked["status"] == "BLOCKED_QUALIFICATION"
-        assert "PARTIAL" in checked["detail"]
+        assert "runtime.cp2k" in checked["detail"]
+        assert checked["qual_requires"] == [
+            "dispatcher.gpu", "runtime.matclaw-gpu", "runtime.cp2k"
+        ]
+
+    def test_matclaw_only_case_released_off_aggregate_pass(
+        self, golden: Path, tmp_path: Path
+    ) -> None:
+        case_dir = _write_qual_requires_case(
+            tmp_path, ["dispatcher.gpu", "runtime.matclaw-gpu"]
+        )
+        checked = check_qualification_receipt(golden, case_dir=case_dir)
+        assert checked["status"] == "PASS"
+        assert checked["qual_requires"] == [
+            "dispatcher.gpu", "runtime.matclaw-gpu"
+        ]
+
+    def test_cp2k_requiring_case_released_once_cp2k_pass(
+        self, full: Path, tmp_path: Path
+    ) -> None:
+        case_dir = _write_qual_requires_case(
+            tmp_path, ["dispatcher.gpu", "runtime.matclaw-gpu", "runtime.cp2k"]
+        )
+        checked = check_qualification_receipt(full, case_dir=case_dir)
+        assert checked["status"] == "PASS"
+
+    def test_case_without_qual_requires_is_aggregate_only(
+        self, golden: Path, tmp_path: Path
+    ) -> None:
+        case_dir = _write_qual_requires_case(tmp_path, [])
+        checked = check_qualification_receipt(golden, case_dir=case_dir)
+        assert checked["status"] == "PASS"
+        assert checked["qual_requires"] == []
+
+    def test_broken_case_manifest_blocks(self, golden: Path, tmp_path: Path) -> None:
+        case_dir = tmp_path / "broken-case"
+        case_dir.mkdir(parents=True, exist_ok=True)
+        (case_dir / "task.toml").write_text(
+            "[execution]\nclass = 'hpc_controller'\n", encoding="utf-8"
+        )
+        checked = check_qualification_receipt(golden, case_dir=case_dir)
+        assert checked["status"] == "BLOCKED_QUALIFICATION"
+        assert "qual_requires" in checked["detail"]
 
     def test_missing_receipt_is_blocked_qualification(self, tmp_path: Path) -> None:
         checked = check_qualification_receipt(tmp_path)
@@ -793,6 +938,22 @@ class TestTamperedReceiptsFailClosed:
         result = _verify(golden, _reseal(receipt))
         assert result["consistent"] is False
         assert any("exit_code" in p for p in _problems(result))
+
+    def test_cpu_canary_broken_marks_dispatcher_cpu_fail(self, golden: Path) -> None:
+        receipt = copy.deepcopy(_load(golden))
+        cpu_job = next(
+            j for j in receipt["evidence"]["jobs"] if j.get("probe_class") == "cpu"
+        )
+        cpu_job["accounting"]["raw_state"] = "FAILED"
+        cpu_job["accounting"]["exit_code_raw"] = "1:0"
+        result = _verify(golden, _reseal(receipt))
+        assert result["consistent"] is False
+        derived = result["derived"]
+        assert derived["qualification_status"] == "INVALID"
+        assert derived["capabilities"]["dispatcher.cpu"] == "FAIL"
+        # Shared-fate by design (spec §4): a broken cpu canary bucket unbinds
+        # the whole dispatcher evidence, so dispatcher.gpu falls too.
+        assert derived["capabilities"]["dispatcher.gpu"] == "FAIL"
 
     def test_plain_tamper_breaks_content_digest(self, golden: Path) -> None:
         receipt = copy.deepcopy(_load(golden))
@@ -1027,7 +1188,7 @@ class TestTamperedReceiptsFailClosed:
         self, golden: Path
     ) -> None:
         """The verdict fields do not exist in the contract; smuggling them in
-        violates the schema, and the derivation stays PARTIAL/false."""
+        violates the schema, and the derivation stays INVALID/false."""
         receipt = copy.deepcopy(_load(golden))
         receipt["qualification_status"] = "PASS"
         receipt["formal_qualified"] = True
