@@ -79,6 +79,26 @@
         }
       }
     },
+    "resource_classes": {
+      "type": "object",
+      "description": "Named resource tiers (config shorthand): a caller may request a class by name (e.g. \"gpu-small\") and the harness resolves concrete scheduler parameters from it, instead of spelling ceilings. A class names a backing queue and may constrain any ceiling below the queue's maximum; omitted ceilings inherit the queue. Bound into the profile digest like any other policy; the Candidate sees the class name and ceilings only, never a partition.",
+      "additionalProperties": false,
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*$" },
+      "patternProperties": {
+        "^[a-z][a-z0-9-]*$": {
+          "type": "object",
+          "required": ["queue"],
+          "additionalProperties": false,
+          "properties": {
+            "queue": { "enum": ["cpu", "gpu"], "description": "Backing queue name; must exist in queues." },
+            "max_cpus": { "type": "integer", "minimum": 1 },
+            "max_memory_gb": { "type": "integer", "minimum": 1 },
+            "max_gpus": { "type": "integer", "minimum": 0 },
+            "max_walltime_minutes": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
     "runtime_policy": {
       "type": "object",
       "required": ["requires_apptainer", "runtime_store"],

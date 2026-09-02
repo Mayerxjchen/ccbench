@@ -119,6 +119,7 @@ class HpcSiteProfile:
     account: str = ""
     queues: dict[str, dict[str, Any]] = field(default_factory=dict)
     resource_mapping: dict[str, dict[str, Any]] = field(default_factory=dict)
+    resource_classes: dict[str, dict[str, Any]] = field(default_factory=dict)
     runtime_policy: dict[str, Any] = field(default_factory=dict)
     digest: str = ""
 
@@ -192,6 +193,7 @@ class HpcSiteProfile:
             "account": slurm["account"],
             "queues": queues,
             "resource_mapping": resource_mapping,
+            "resource_classes": slurm.get("resource_classes", {}),
             "runtime_policy": {
                 "requires_apptainer": True,
                 "runtime_store": paths["remote_root"],
@@ -217,6 +219,8 @@ class HpcSiteProfile:
                 f"{where}: {first.message}"
             )
         frozen = _freeze(payload)
+        resource_classes = frozen.get("resource_classes", {})
+        _validate_resource_classes(resource_classes, frozen["queues"])
         return cls(
             site_id=payload["site_id"],
             scheduler=payload["scheduler"],
@@ -224,6 +228,7 @@ class HpcSiteProfile:
             account=payload["account"],
             queues=frozen["queues"],
             resource_mapping=frozen.get("resource_mapping", {}),
+            resource_classes=resource_classes,
             runtime_policy=frozen["runtime_policy"],
             digest=_digest(_canonical(frozen)),
         )
@@ -245,6 +250,16 @@ class HpcSiteProfile:
             if "max_gpus" in queue:
                 entry["max_gpus"] = queue["max_gpus"]
             classes[name] = entry
+        # Named resource tiers ride the same abstract view: a Candidate can
+        # request "gpu-small" without spelling ceilings or seeing a partition.
+        for name in self.resource_classes:
+            resolved = self.resolve_resource_class(name)
+            classes[name] = {
+                "max_cpus": resolved.max_cpus,
+                "max_memory_gb": resolved.max_memory_gb,
+                "max_walltime_minutes": resolved.max_walltime_minutes,
+                "max_gpus": resolved.max_gpus,
+            }
         return {
             "site_id": self.site_id,
             "resource_classes": classes,
@@ -260,6 +275,7 @@ class HpcSiteProfile:
             "account": self.account,
             "queues": _deep_copy(self.queues),
             "resource_mapping": _deep_copy(self.resource_mapping),
+            "resource_classes": _deep_copy(self.resource_classes),
             "runtime_policy": _deep_copy(self.runtime_policy),
             "digest": self.digest,
         }
@@ -301,6 +317,36 @@ class HpcSiteProfile:
             workload_type=workload_type,
             queue_name=queue_name,
             mapping_note=note,
+        )
+
+    def resolve_resource_class(self, name: str) -> ResolvedResource:
+        """Resolve a named resource tier to concrete scheduler parameters.
+
+        ``name`` names a ``resource_classes`` alias from the frozen profile
+        (e.g. ``"gpu-small"``).  The backing queue determines the account,
+        partition, QOS and store; each ceiling the alias does not constrain
+        inherits the queue's value.  Ceilings are capped by construction
+        (``from_dict`` validated them against the backing queue), so a class
+        can only tighten a profile, never widen it.
+
+        Raises :class:`SiteProfileError` for an unknown class name.
+        """
+        alias = self.resource_classes.get(name)
+        if alias is None:
+            raise SiteProfileError(
+                f"no resource_class {name!r} in profile "
+                f"{sorted(self.resource_classes)}"
+            )
+        resolved = self.resolve_workload(alias["queue"])
+        return dataclasses.replace(
+            resolved,
+            max_cpus=alias.get("max_cpus", resolved.max_cpus),
+            max_memory_gb=alias.get("max_memory_gb", resolved.max_memory_gb),
+            max_gpus=alias.get("max_gpus", resolved.max_gpus),
+            max_walltime_minutes=alias.get(
+                "max_walltime_minutes", resolved.max_walltime_minutes
+            ),
+            mapping_note=(resolved.mapping_note + f" resource_class={name}").strip(),
         )
 
     @staticmethod
@@ -448,6 +494,10 @@ def _freeze(payload: dict[str, Any]) -> dict[str, Any]:
             name: dict(mapping)
             for name, mapping in payload.get("resource_mapping", {}).items()
         },
+        "resource_classes": {
+            name: dict(alias)
+            for name, alias in payload.get("resource_classes", {}).items()
+        },
         "runtime_policy": dict(payload["runtime_policy"]),
         # Policy identity binds everything except the site label itself.
         "_bind": {
@@ -457,6 +507,32 @@ def _freeze(payload: dict[str, Any]) -> dict[str, Any]:
             "account": payload["account"],
         },
     }
+
+
+def _validate_resource_classes(
+    classes: dict[str, dict[str, Any]],
+    queues: dict[str, dict[str, Any]],
+) -> None:
+    """Resource-class aliases are constraint tiers over a backing queue.
+
+    Fail-closed: the backing queue must exist and no class ceiling may exceed
+    the queue's maximum — a class is shorthand for "request AT MOST this much",
+    never a way to widen a ceiling.
+    """
+    for name, alias in sorted(classes.items()):
+        queue_name = alias["queue"]
+        backing = queues.get(queue_name)
+        if backing is None:
+            raise SiteProfileError(
+                f"resource_class {name!r} names unknown queue {queue_name!r}; "
+                f"choose from {sorted(queues)}"
+            )
+        for key in ("max_cpus", "max_memory_gb", "max_walltime_minutes", "max_gpus"):
+            if key in alias and alias[key] > backing.get(key, 0):
+                raise SiteProfileError(
+                    f"resource_class {name!r} {key}={alias[key]} exceeds the "
+                    f"backing queue {queue_name!r} ceiling {backing.get(key)}"
+                )
 
 
 def _deep_copy(value: Any) -> Any:

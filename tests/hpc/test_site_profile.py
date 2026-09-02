@@ -139,3 +139,136 @@ def test_cluster_config_supports_distinct_cpu_queue_ceilings():
     assert (cpu.max_cpus, cpu.max_memory_gb, cpu.max_walltime_minutes) == (
         2, 8, 60,
     )
+
+
+# -- resource_class alias layer -----------------------------------------------
+
+
+def profile_with_classes() -> dict:
+    payload = profile()
+    payload["resource_classes"] = {
+        "gpu-small": {"queue": "gpu", "max_cpus": 8, "max_memory_gb": 32,
+                      "max_walltime_minutes": 240},
+        "gpu-lite": {"queue": "gpu", "max_gpus": 1,
+                     "max_walltime_minutes": 60},
+        "cpu-narrow": {"queue": "cpu", "max_cpus": 4},
+    }
+    return payload
+
+
+def test_resource_class_resolves_within_backing_ceilings():
+    site = HpcSiteProfile.from_dict(profile_with_classes())
+    small = site.resolve_resource_class("gpu-small")
+    assert (small.queue_name, small.partition, small.qos) == (
+        "gpu", "gpu-q", "long",
+    )
+    assert (small.max_cpus, small.max_memory_gb, small.max_walltime_minutes) == (
+        8, 32, 240,
+    )
+    # The alias constrains only what it names; everything else inherits.
+    assert small.max_gpus == 1
+    # The fully-constrained alias still carries the class note.
+    assert small.mapping_note == "resource_class=gpu-small"
+    lite = site.resolve_resource_class("gpu-lite")
+    assert lite.max_gpus == 1
+    assert lite.max_cpus == 32  # inherited from the gpu queue ceiling
+    assert lite.mapping_note == "resource_class=gpu-lite"
+    narrow = site.resolve_resource_class("cpu-narrow")
+    assert (narrow.queue_name, narrow.max_cpus) == ("cpu", 4)
+    assert narrow.max_gpus == 0
+
+
+def test_resource_class_unknown_name_fails_closed():
+    site = HpcSiteProfile.from_dict(profile_with_classes())
+    with pytest.raises(SiteProfileError, match="no resource_class 'gpu-big'"):
+        site.resolve_resource_class("gpu-big")
+
+
+def test_resource_class_unknown_backing_queue_fails_closed_at_load():
+    # Schema allows cpu/gpu; a class naming a queue the site does not define
+    # must fail at profile load (from_dict), not at resolution time.
+    # The test profile has both cpu and gpu queues; drop the cpu queue so the
+    # alias naming it points at a queue the site does not define.
+    broken = profile()
+    del broken["queues"]["cpu"]
+    broken["resource_classes"] = {"gpu-small": {"queue": "cpu"}}
+    with pytest.raises(SiteProfileError, match="names unknown queue"):
+        HpcSiteProfile.from_dict(broken)
+
+
+def test_resource_class_ceiling_exceeding_backing_fails_closed_at_load():
+    payload = profile_with_classes()
+    payload["resource_classes"]["gpu-small"]["max_walltime_minutes"] = 9000
+    with pytest.raises(SiteProfileError, match="9000 exceeds the backing queue"):
+        HpcSiteProfile.from_dict(payload)
+    # Zero-GPU backing queue cannot grant GPUs either.
+    payload = profile_with_classes()
+    payload["resource_classes"]["cpu-narrow"]["max_gpus"] = 2
+    with pytest.raises(SiteProfileError, match="max_gpus=2 exceeds the backing"):
+        HpcSiteProfile.from_dict(payload)
+
+
+def test_resource_class_public_capabilities_abstract_and_partition_free():
+    site = HpcSiteProfile.from_dict(profile_with_classes())
+    capabilities = site.public_capabilities()
+    encoded = json.dumps(capabilities)
+    assert "gpu-q" not in encoded
+    assert "partition" not in encoded
+    assert "long" not in encoded  # the gpu queue's QOS name
+    classes = capabilities["resource_classes"]
+    assert set(classes) == {"cpu", "gpu", "gpu-small", "gpu-lite", "cpu-narrow"}
+    assert classes["gpu-small"] == {
+        "max_cpus": 8,
+        "max_memory_gb": 32,
+        "max_walltime_minutes": 240,
+        "max_gpus": 1,
+    }
+    # Aliases always expose max_gpus (the value they resolve to), even when the
+    # class itself names no gpu ceiling.
+    assert classes["gpu-lite"]["max_gpus"] == 1
+
+
+def test_resource_class_digest_binds_aliases():
+    base = HpcSiteProfile.from_dict(profile_with_classes())
+    moved = profile_with_classes()
+    moved["resource_classes"]["gpu-small"]["max_cpus"] = 4
+    assert HpcSiteProfile.from_dict(moved).digest != base.digest
+    aliased = profile_with_classes()
+    aliased["resource_classes"]["gpu-extra"] = {"queue": "gpu"}
+    assert HpcSiteProfile.from_dict(aliased).digest != base.digest
+
+
+def test_resource_class_rides_to_public_dict():
+    site = HpcSiteProfile.from_dict(profile_with_classes())
+    public = site.to_public_dict()
+    assert public["resource_classes"] == {
+        "cpu-narrow": {"queue": "cpu", "max_cpus": 4},
+        "gpu-lite": {"queue": "gpu", "max_gpus": 1,
+                     "max_walltime_minutes": 60},
+        "gpu-small": {"queue": "gpu", "max_cpus": 8, "max_memory_gb": 32,
+                      "max_walltime_minutes": 240},
+    }
+    assert json.dumps(public)  # JSON-serializable without partition leakage
+
+
+def test_cluster_config_resource_classes_passthrough():
+    config = {
+        "ssh": {"host": "site", "user": "operator", "port": 22},
+        "paths": {"remote_root": "/runs", "apptainer": "/bin/apptainer"},
+        "slurm": {
+            "account": "acct",
+            "partition": "gpu",
+            "cpu_partition": "cpu",
+            "qos": "normal",
+            "cpus_per_task": "8",
+            "mem": "64G",
+            "time_paper": "08:00:00",
+            "resource_classes": {
+                "smoke": {"queue": "gpu", "max_walltime_minutes": 30},
+            },
+        },
+    }
+    site = HpcSiteProfile.from_cluster_config(config)
+    smoke = site.resolve_resource_class("smoke")
+    assert smoke.max_walltime_minutes == 30
+    assert smoke.max_cpus == 8  # inherited from the gpu queue
