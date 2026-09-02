@@ -21,9 +21,9 @@ dftworld/
 ├── eval.py                        # pagentv4 Runner harness（v1/v2 布局都支持）
 ├── skills_sha.py                  # skill bundle 内容哈希（eval 与 build.sh 共用）
 ├── summarize.py                   # jobs/ 汇总 → jobs/SUMMARY.md
-├── recover_gpu_canary.py          # 双 canary 资格化恢复驱动【必须在根级：
-│                                  #   以所在目录为仓库根解析 sys.path 与 gateway
-│                                  #   workspace；移动会破坏重启路径】
+├── scripts/infra/qualify_hpc_dispatcher.py   # 双 canary 资格化驱动（--phase
+│                                  #   preflight/canary/cp2k/verify/resume；
+│                                  #   --phase resume 完成中断的 canary，绝不重提）
 │
 ├── base-env-build/                # Docker 镜像构建（base/cp2k/chem/deepmd/packmol/mace/xtb/skills）
 │   ├── build.sh
@@ -113,8 +113,9 @@ ssh <你的hpc别名> hostname      # 连通性自检
 - 计算镜像（SIF）按站点流程部署；资格化状态看
   `evidence/hpc-dispatcher/qualification/<site>/receipt.json`
   （不存在 = 未封证，fail-closed）
-- `recover_gpu_canary.py` 是单实例工具（锁文件护栏）：确认没有别的机器正在
-  对同一集群做收养，再运行
+- `--phase resume` 是单实例恢复路径（锁文件护栏）：确认没有别的机器正在
+  对同一集群做收养，再运行；它绝不二次提交——只等待已入队作业到达终态、
+  按持久化 SUBMIT_INTENT marker 收养并 settle 同一条审计链
 
 ### 跑评测
 

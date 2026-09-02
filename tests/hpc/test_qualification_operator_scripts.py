@@ -12,7 +12,6 @@ if str(ROOT / "scripts" / "infra") not in sys.path:
 RUNNER = ROOT / "scripts/qualification/run_hpc_dispatcher.sh"
 SUPERVISOR = ROOT / "scripts/qualification/supervise_hpc_dispatcher.sh"
 QUALIFIER = ROOT / "scripts/infra/qualify_hpc_dispatcher.py"
-RECOVER = ROOT / "recover_gpu_canary.py"
 
 
 def test_operator_scripts_are_relocatable_and_do_not_cancel_user_jobs():
@@ -47,18 +46,30 @@ def test_canary_settles_owned_job_before_exception_cleanup():
     assert cleanup < wait  # cleanup is defined earlier; runtime order is guarded above
 
 
-def test_recover_collects_settles_then_closes_before_sentinel_cleanup():
-    """recover_gpu_canary collects GPU evidence (settle + close) in collect_gpu
-    BEFORE main() calls _cleanup_sentinels. The lease must not bound the wait,
-    but a terminal/cancelled job and a closed session must precede sentinel
-    removal — otherwise absence probes could false-pass on a still-running job.
+def test_resume_settles_closes_before_sentinel_cleanup():
+    """The resume phase collects GPU evidence (settle + close) in _resume_gpu
+    BEFORE resume() calls _cleanup_sentinels. The lease must not bound the
+    wait, but a terminal/cancelled job and a closed session must precede
+    sentinel removal — otherwise absence probes could false-pass on a
+    still-running job.
     """
-    text = RECOVER.read_text()
-    collect = text.index("def collect_gpu")
+    text = QUALIFIER.read_text()
+    collect = text.index("def _resume_gpu")
     settle = text.index("session.settle(cancel_pending=True)", collect)
     close = text.index("session.close()", settle)
     cleanup_call = text.index("_cleanup_sentinels(profile, sentinels)", close)
     assert collect < settle < close < cleanup_call
+
+
+def test_resume_phase_never_submits_and_has_no_incident_constants():
+    """The consolidated driver has no root-level recovery script and no baked
+    incident constants: run ids derive from --stamp, and neither the GPU nor
+    the CPU resume path ever invokes a submission."""
+    assert not (ROOT / "recover_gpu_canary.py").exists()
+    text = QUALIFIER.read_text()
+    assert '"resume"' in text  # CLI phase
+    assert "session.submit(" not in text[text.index("def _resume_gpu"):]
+    assert "3d8dc664" not in text  # no leftover incident stamp
 
 
 def test_cleanup_sentinels_reports_leftover(monkeypatch):

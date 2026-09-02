@@ -62,7 +62,6 @@ RECEIPT_KIND = "hpc-dispatcher-qualification/site-v1"
 # Trusted modules whose bytes are pinned into every receipt.
 CODE_IDENTITY_PATHS: tuple[str, ...] = (
     "scripts/infra/qualify_hpc_dispatcher.py",
-    "recover_gpu_canary.py",
     "dftworld_bench/experiments/qualification_receipt.py",
     "dftworld_bench/hpc/dispatcher.py",
     "dftworld_bench/hpc/gateway.py",
