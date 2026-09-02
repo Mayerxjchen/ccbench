@@ -39,6 +39,13 @@ class JobError(Exception):
 
 @dataclass(frozen=True)
 class JobResources:
+    """Resources for one single-node job.
+
+    ``memory_gb`` is memory per allocated node and renders as Slurm
+    ``--mem=<N>G``. Multi-node jobs require a future explicit contract rather
+    than silently reinterpreting this field as total job memory.
+    """
+
     cpus: int
     memory_gb: int
     gpus: int = 0

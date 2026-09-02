@@ -110,3 +110,32 @@ def test_jiatgeng_policy_encoded_without_credentials():
     assert site.runtime_policy["requires_apptainer"] is True
     assert site.runtime_policy["gres_template"] == "--gres=gpu:1"
     assert "BEGIN ... PRIVATE KEY" not in encoded
+
+
+def test_cluster_config_supports_distinct_cpu_queue_ceilings():
+    config = {
+        "ssh": {"host": "site", "user": "operator", "port": 22},
+        "paths": {"remote_root": "/runs", "apptainer": "/bin/apptainer"},
+        "slurm": {
+            "account": "acct",
+            "partition": "gpu",
+            "cpu_partition": "cpu",
+            "qos": "normal",
+            "cpus_per_task": "8",
+            "mem": "64G",
+            "time_paper": "08:00:00",
+            "cpu_cpus_per_task": "2",
+            "cpu_mem": "8G",
+            "cpu_time_paper": "01:00:00",
+        },
+    }
+    site = HpcSiteProfile.from_cluster_config(config)
+
+    gpu = site.resolve_workload("gpu")
+    cpu = site.resolve_workload("cpu")
+    assert (gpu.max_cpus, gpu.max_memory_gb, gpu.max_walltime_minutes) == (
+        8, 64, 480,
+    )
+    assert (cpu.max_cpus, cpu.max_memory_gb, cpu.max_walltime_minutes) == (
+        2, 8, 60,
+    )

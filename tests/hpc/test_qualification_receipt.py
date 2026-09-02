@@ -75,6 +75,8 @@ PROBE_LINES = [
     "BENCH_PROBE home_sentinel_absent=pass",
     "BENCH_PROBE credential_sentinel_absent=pass",
     "BENCH_PROBE other_run_dir_absent=pass",
+    "BENCH_PROBE solution_absent=pass",
+    "BENCH_PROBE reference_absent=pass",
     "BENCH_PROBE runs_root_not_listable=pass",
     f"BENCH_GPU_DEVICE mem_mib=81920 name={GPU_NAME}",
     qr.MARKER_GPU,
@@ -188,6 +190,8 @@ def _accounting(gpus: int, sacct_id: str) -> dict:
     return {
         "raw_state": "COMPLETED",
         "exit_code_raw": "0:0",
+        "partition": "gpu" if gpus else "cpu",
+        "node_list": "gpu001" if gpus else "cpu001",
         "req_tres": f"{gpu_terms}cpu=8,mem=64G",
         "alloc_tres": f"{gpu_terms}cpu=8,mem=64G",
         "source": f"sacct -X -P -n --format=JobID,State,ExitCode,ReqTRES,"
@@ -203,7 +207,8 @@ def _job_record(
         key: True
         for key in (
             "workspace_rw", "home_sentinel_absent", "credential_sentinel_absent",
-            "other_run_dir_absent", "runs_root_not_listable",
+            "other_run_dir_absent", "solution_absent", "reference_absent",
+            "runs_root_not_listable",
         )
     }
     if probe_class == "gpu":
@@ -221,6 +226,10 @@ def _job_record(
         "state": "SUCCEEDED",
         "exit_code": 0,
         "gpus_requested": gpus,
+        "requested_resources": {
+            "cpus": 8, "memory_gb": 64, "gpus": gpus,
+            "walltime_minutes": 15,
+        },
         "probe_class": probe_class,
         "accounting": _accounting(gpus, sacct_id),
         "probe_results": probes,
@@ -510,6 +519,10 @@ def _add_cp2k(golden_root: Path, *, output_text: str = CANNED_CP2K_OUTPUT) -> No
         "state": "SUCCEEDED",
         "exit_code": 0,
         "gpus_requested": 0,
+        "requested_resources": {
+            "cpus": 8, "memory_gb": 64, "gpus": 0,
+            "walltime_minutes": 15,
+        },
         "probe_class": "cpu",
         "accounting": _accounting(0, "3537003"),
         "probe_results": {
@@ -519,6 +532,8 @@ def _add_cp2k(golden_root: Path, *, output_text: str = CANNED_CP2K_OUTPUT) -> No
                 "home_sentinel_absent",
                 "credential_sentinel_absent",
                 "other_run_dir_absent",
+                "solution_absent",
+                "reference_absent",
                 "runs_root_not_listable",
             )
         },
@@ -871,6 +886,33 @@ class TestTamperedReceiptsFailClosed:
         joined = " | ".join(_problems(result))
         assert "AllocTRES shows 0 GPUs but 1 were requested" in joined
         assert result["derived"]["gates"]["tres_reconciliation"] == "FAIL"
+
+    def test_requested_memory_must_match_scheduler_tres(self, golden: Path) -> None:
+        """A declared 32 GiB request cannot derive from Slurm's 48 GiB default."""
+        receipt = copy.deepcopy(_load(golden))
+        job = self._gpu_job(receipt)
+        job["requested_resources"]["memory_gb"] = 32
+        job["accounting"]["req_tres"] = "gpu:tesla=1,cpu=8,mem=48G"
+        job["accounting"]["alloc_tres"] = "gpu:tesla=1,cpu=8,mem=48G"
+        result = _verify(golden, _reseal(receipt))
+        assert result["consistent"] is False
+        assert any("expected 32G" in p for p in _problems(result))
+
+    def test_requested_cpu_must_match_scheduler_tres(self, golden: Path) -> None:
+        receipt = copy.deepcopy(_load(golden))
+        job = self._gpu_job(receipt)
+        job["accounting"]["req_tres"] = "gpu:tesla=1,cpu=4,mem=64G"
+        job["accounting"]["alloc_tres"] = "gpu:tesla=1,cpu=4,mem=64G"
+        result = _verify(golden, _reseal(receipt))
+        assert result["consistent"] is False
+        assert any("expected 8" in p for p in _problems(result))
+
+    def test_actual_partition_must_be_in_resolved_set(self, golden: Path) -> None:
+        receipt = copy.deepcopy(_load(golden))
+        self._gpu_job(receipt)["accounting"]["partition"] = "unqualified-gpu"
+        result = _verify(golden, _reseal(receipt))
+        assert result["consistent"] is False
+        assert any("outside the resolved set" in p for p in _problems(result))
 
     def test_cpu_job_carrying_gpu_allocation(self, golden: Path) -> None:
         """The inverse drift: a zero-GPU cpu canary must not show GPU terms

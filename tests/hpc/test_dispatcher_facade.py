@@ -59,7 +59,13 @@ def test_session_type_and_operations_bound_to_run(tmp_path):
         "run-1", workspace=tmp_path / "workspace"
     )
     assert isinstance(session, DispatcherSession)
-    submitted = session.submit(_spec("op-1"), operation_id="op-1")
+    # Use a long-running command so cancel always finds a non-terminal job.
+    # ``/bin/echo`` can finish before the cancel lands, and cancelling a job
+    # that already reached a terminal state is a contract error
+    # (test_cancel_after_terminal_raises); this test would otherwise be racy.
+    spec = _spec("op-1")
+    spec["command"] = ["/bin/sh", "-c", "sleep 5"]
+    submitted = session.submit(spec, operation_id="op-1")
     job_id = submitted["job_id"]
     assert session.status(job_id)["state"] in ("PENDING", "RUNNING", "SUCCEEDED")
     assert session.logs(job_id) is not None

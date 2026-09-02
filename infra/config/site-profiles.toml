@@ -5,12 +5,10 @@
 type = "local"
 capabilities = ["cpu", "gpu"]
 
-[sites.<site-alias>]
-type = "hpc"
-scheduler = "slurm"
-capabilities = ["batch_jobs", "gpu", "artifact_fetch"]
-fetch_method = "scp"
-# Frozen policy identity lives in the HpcSiteProfile (see
-# infra/config/hpc-site-profiles.example.toml for the credential-free shape);
-# connection secrets resolve only through the trusted Harness provider.
-site_profile_id = "site-v1"
+# HPC site profiles are NOT declared here with placeholder syntax.  A bare
+# ``<`` is not a valid TOML bare key, and a placeholder site entry would only
+# shadow the real frozen policy.  Frozen policy identity lives in the
+# HpcSiteProfile (see infra/config/hpc-site-profiles.example.toml for the
+# credential-free shape); the live site config resolves through the private
+# scripts/hpc/cluster_profile.toml, and connection secrets resolve only
+# through the trusted Harness provider.

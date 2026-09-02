@@ -57,6 +57,7 @@ RECEIPT_KIND = "hpc-dispatcher-qualification/site-v1"
 # Trusted modules whose bytes are pinned into every receipt.
 CODE_IDENTITY_PATHS: tuple[str, ...] = (
     "scripts/infra/qualify_hpc_dispatcher.py",
+    "recover_gpu_canary.py",
     "dftworld_bench/experiments/qualification_receipt.py",
     "dftworld_bench/hpc/dispatcher.py",
     "dftworld_bench/hpc/gateway.py",
@@ -83,6 +84,8 @@ _PROBE_KEYS = (
     "home_sentinel_absent",
     "credential_sentinel_absent",
     "other_run_dir_absent",
+    "solution_absent",
+    "reference_absent",
     "runs_root_not_listable",
 )
 
@@ -447,6 +450,19 @@ def verify_receipt(
             expected_sif_sha=(lock_block.get("sif_sha256") or ""),
             lock_gpu=lock_gpu, gates=gates,
         )
+        workload = workloads.get(job.get("probe_class")) or {}
+        allowed_partitions = {
+            value.strip()
+            for value in str(workload.get("partition", "")).split(",")
+            if value.strip()
+        }
+        actual_partition = (job.get("accounting") or {}).get("partition", "")
+        if actual_partition and actual_partition not in allowed_partitions:
+            problem(
+                "scheduler_facts",
+                f"{label}: actual partition {actual_partition!r} is outside "
+                f"the resolved set {sorted(allowed_partitions)}",
+            )
         key = (job.get("run_id", ""), job.get("job_id", ""))
         if key in seen_ids:
             problem("audit_ledger", f"{label}: duplicate run_id/job_id")
@@ -683,6 +699,27 @@ def _derive_cp2k(
     return "FAIL" if broken else "PASS"
 
 
+def _tres_fields(raw: str) -> dict[str, str]:
+    """Parse scalar Slurm TRES entries without interpreting GPU subtypes."""
+    fields: dict[str, str] = {}
+    for entry in raw.split(","):
+        key, sep, value = entry.strip().partition("=")
+        if sep and key:
+            fields[key] = value
+    return fields
+
+
+def _memory_mib(raw: str) -> int | None:
+    """Normalize Slurm memory quantities (K/M/G/T) to MiB."""
+    match = re.fullmatch(r"([0-9]+)([KMGT]?)", raw.strip(), re.IGNORECASE)
+    if not match:
+        return None
+    amount = int(match.group(1))
+    unit = match.group(2).upper()
+    factors = {"": 1, "K": 1 / 1024, "M": 1, "G": 1024, "T": 1024 * 1024}
+    return int(amount * factors[unit])
+
+
 def _derive_job(
     job: dict[str, Any],
     label: str,
@@ -727,6 +764,10 @@ def _derive_job(
         problem("scheduler_facts", f"accounting.exit_code_raw={exit_raw!r}")
     if not accounting.get("source"):
         problem("scheduler_facts", "accounting.source command not recorded")
+    if not accounting.get("partition"):
+        problem("scheduler_facts", "accounting.partition is missing")
+    if not accounting.get("node_list"):
+        problem("scheduler_facts", "accounting.node_list is missing")
 
     # TRES reconciliation: exact GPU-count agreement per submitted spec
     # (C4 semantics for GPU jobs; MIG-classified allocations are judged by
@@ -735,7 +776,16 @@ def _derive_job(
 
     req_tres = accounting.get("req_tres", "")
     alloc_tres = accounting.get("alloc_tres", "")
-    expected_gpus = job.get("gpus_requested", 0)
+    requested = job.get("requested_resources") or {}
+    expected_gpus = requested.get("gpus")
+    if expected_gpus is None:
+        problem("tres_reconciliation", "requested_resources.gpus is missing")
+        expected_gpus = job.get("gpus_requested", 0)
+    if job.get("gpus_requested") != expected_gpus:
+        problem(
+            "tres_reconciliation",
+            "gpus_requested disagrees with requested_resources.gpus",
+        )
     req_parsed = parse_tres(req_tres)
     alloc_parsed = parse_tres(alloc_tres)
     if req_parsed.count != expected_gpus:
@@ -754,11 +804,35 @@ def _derive_job(
         ok, reason = verify_full_gpu(req_tres, alloc_tres)
         if not ok:
             problem("tres_reconciliation", reason)
-    if "cpu=" not in req_tres or "mem=" not in req_tres:
-        problem(
-            "tres_reconciliation",
-            f"req_tres lacks cpu/mem accounting terms: {req_tres!r}",
-        )
+    req_fields = _tres_fields(req_tres)
+    alloc_fields = _tres_fields(alloc_tres)
+    expected_cpus = requested.get("cpus")
+    if expected_cpus is None:
+        problem("tres_reconciliation", "requested_resources.cpus is missing")
+    else:
+        for label_, fields in (("ReqTRES", req_fields), ("AllocTRES", alloc_fields)):
+            try:
+                observed = int(fields.get("cpu", ""))
+            except ValueError:
+                observed = None
+            if observed != expected_cpus:
+                problem(
+                    "tres_reconciliation",
+                    f"{label_} cpu={observed!r}, expected {expected_cpus}",
+                )
+    expected_memory_gb = requested.get("memory_gb")
+    if expected_memory_gb is None:
+        problem("tres_reconciliation", "requested_resources.memory_gb is missing")
+    else:
+        expected_memory_mib = int(expected_memory_gb) * 1024
+        for label_, fields in (("ReqTRES", req_fields), ("AllocTRES", alloc_fields)):
+            observed = _memory_mib(fields.get("mem", ""))
+            if observed != expected_memory_mib:
+                problem(
+                    "tres_reconciliation",
+                    f"{label_} mem={fields.get('mem')!r} ({observed!r} MiB), "
+                    f"expected {expected_memory_gb}G ({expected_memory_mib} MiB)",
+                )
 
     # Containment probes: re-parse stdout independently, then require
     # agreement with the structured probe results (every job, any class).

@@ -127,6 +127,8 @@
         "home_sentinel_absent",
         "credential_sentinel_absent",
         "other_run_dir_absent",
+        "solution_absent",
+        "reference_absent",
         "runs_root_not_listable"
       ],
       "properties": {
@@ -134,6 +136,8 @@
         "home_sentinel_absent": { "const": true },
         "credential_sentinel_absent": { "const": true },
         "other_run_dir_absent": { "const": true },
+        "solution_absent": { "const": true },
+        "reference_absent": { "const": true },
         "runs_root_not_listable": { "const": true }
       }
     },
@@ -145,6 +149,8 @@
         "home_sentinel_absent",
         "credential_sentinel_absent",
         "other_run_dir_absent",
+        "solution_absent",
+        "reference_absent",
         "runs_root_not_listable",
         "gpu_device_name",
         "gpu_memory_total_mb"
@@ -154,6 +160,8 @@
         "home_sentinel_absent": { "const": true },
         "credential_sentinel_absent": { "const": true },
         "other_run_dir_absent": { "const": true },
+        "solution_absent": { "const": true },
+        "reference_absent": { "const": true },
         "runs_root_not_listable": { "const": true },
         "gpu_device_name": { "type": "string", "minLength": 1 },
         "gpu_memory_total_mb": { "type": "integer", "exclusiveMinimum": 0 }
@@ -246,7 +254,7 @@
       "required": [
         "canary", "run_id", "operation_id", "attempt", "job_id",
         "scheduler_job_id", "runtime_decl", "state", "exit_code",
-        "gpus_requested", "accounting", "probe_class", "probe_results",
+        "gpus_requested", "requested_resources", "accounting", "probe_class", "probe_results",
         "stdout_tail", "stderr_tail",
         "settlement", "fetch_manifest", "artifacts_dir", "audit_log"
       ],
@@ -297,6 +305,21 @@
           "minimum": 0,
           "description": "GPUs in the submitted spec resources; TRES reconciliation requires ReqTRES/AllocTRES GPU counts to equal this exactly."
         },
+        "requested_resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cpus", "memory_gb", "gpus", "walltime_minutes"],
+          "properties": {
+            "cpus": { "type": "integer", "minimum": 1 },
+            "memory_gb": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Memory per allocated node; rendered as Slurm --mem=<N>G."
+            },
+            "gpus": { "type": "integer", "minimum": 0 },
+            "walltime_minutes": { "type": "integer", "minimum": 1 }
+          }
+        },
         "probe_class": {
           "enum": ["cpu", "gpu"],
           "description": "cpu jobs run containment probes only (no nvidia-smi on cpu-partition nodes); gpu jobs additionally prove device visibility."
@@ -304,7 +327,7 @@
         "accounting": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["raw_state", "exit_code_raw", "req_tres", "alloc_tres", "source"],
+          "required": ["raw_state", "exit_code_raw", "partition", "node_list", "req_tres", "alloc_tres", "source"],
           "properties": {
             "raw_state": { "type": "string", "minLength": 1 },
             "exit_code_raw": {
@@ -312,6 +335,8 @@
               "pattern": "^[0-9]+:[0-9]+$",
               "description": "Raw sacct ExitCode (returned:first_failed)."
             },
+            "partition": { "type": "string", "minLength": 1 },
+            "node_list": { "type": "string", "minLength": 1 },
             "req_tres": { "type": "string", "minLength": 1 },
             "alloc_tres": { "type": "string", "minLength": 1 },
             "source": {

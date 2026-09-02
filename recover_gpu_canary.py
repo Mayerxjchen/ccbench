@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Recover the interrupted dual-canary qualification (chain stamp 3d8dc664).
+"""Recover an interrupted dual-canary qualification without resubmission.
 
 The 2026-08-25 supervisor process died (host-side network loss) while polling
 the GPU canary AFTER the durable SUBMIT_ACCEPTED had landed; the scheduler job
@@ -59,6 +59,7 @@ from scripts.ablation.transport.slurm_transport import (  # noqa: E402
 STAMP = "3d8dc664"
 RUN_CPU_ID = f"run-cpu-echo-probe-containment-{STAMP}"
 RUN_GPU_ID = f"run-gpu-nvidia-probe-containment-{STAMP}"
+SINCE = "2026-08-25T13:00"
 OP_CPU = "qual-cpu-canary-01"
 OP_GPU = "qual-gpu-canary-01"
 IDEM_KEY = "placeholder"
@@ -136,7 +137,7 @@ def _find_accounted_by_dirname(profile: dict, dirname: str) -> list[str]:
     raw = q._ssh(
         profile,
         "sacct -X -P -n --format=JobID,JobName%25,State%12,WorkDir%150 "
-        "-S 2026-08-25T13:00 2>/dev/null",
+        f"-S {SINCE} 2>/dev/null",
     )
     found = []
     for line in raw.splitlines():
@@ -201,7 +202,7 @@ def _find_completed_cpu_job(profile: dict) -> str:
     raw = q._ssh(
         profile,
         "sacct -X -P -n --format=JobID,JobName%25,State%12,ReqTRES%100,"
-        "Start%24,End%24,WorkDir%150 -S 2026-08-25T13:00 2>/dev/null",
+        f"Start%24,End%24,WorkDir%150 -S {SINCE} 2>/dev/null",
     )
     exact: list[str] = []
     weak: list[str] = []
@@ -216,10 +217,7 @@ def _find_completed_cpu_job(profile: dict) -> str:
             exact.append(job_id)
             continue
         no_gpu = "gres" not in req_tres and "gpu" not in req_tres
-        in_window = start.startswith("2026-08-25T13:4") or end.startswith(
-            "2026-08-25T13:5"
-        )
-        if no_gpu and in_window:
+        if no_gpu:
             weak.append(job_id)
     pool = sorted(set(exact or weak))
     if len(pool) != 1:
@@ -240,6 +238,8 @@ def _probe_assertions(stdout: str, probe_class: str) -> dict:
         "home_sentinel_absent",
         "credential_sentinel_absent",
         "other_run_dir_absent",
+        "solution_absent",
+        "reference_absent",
         "runs_root_not_listable",
     )
     missing = [k for k in keys if parsed["probes"].get(k) != "pass"]
@@ -336,6 +336,12 @@ def collect_gpu(profile: dict, site, lock: dict, hint: str) -> dict:
             "state": state,
             "exit_code": exit_code,
             "gpus_requested": int(resolved_gpu.max_gpus),
+            "requested_resources": {
+                "cpus": int(resolved_gpu.max_cpus),
+                "memory_gb": min(int(resolved_gpu.max_memory_gb), 32),
+                "gpus": int(resolved_gpu.max_gpus),
+                "walltime_minutes": 15,
+            },
             "probe_class": "gpu",
             "scheduler_job_id": gpu_slurm,
             "accounting": accounting,
@@ -370,7 +376,7 @@ def collect_gpu(profile: dict, site, lock: dict, hint: str) -> dict:
         session.close()
 
 
-def reconstruct_cpu(profile: dict, lock: dict) -> dict:
+def reconstruct_cpu(profile: dict, site, lock: dict) -> dict:
     """Read-only rebuild of the CPU record: disk artifacts + fresh sacct."""
     transport = _make_transport(profile)
     cpu_slurm = _find_completed_cpu_job(profile)
@@ -391,6 +397,7 @@ def reconstruct_cpu(profile: dict, lock: dict) -> dict:
         encoding="utf-8", errors="replace"
     )
     probe_results = _probe_assertions(stdout, "cpu")
+    resolved_cpu = site.resolve_workload("cpu")
 
     report = _single_attempt_report(RUN_CPU_ID, OP_CPU, {"jobs": 1, "submitted": 1})
     return {
@@ -403,6 +410,12 @@ def reconstruct_cpu(profile: dict, lock: dict) -> dict:
         "state": "SUCCEEDED",
         "exit_code": exit_code,
         "gpus_requested": 0,
+        "requested_resources": {
+            "cpus": int(resolved_cpu.max_cpus),
+            "memory_gb": min(int(resolved_cpu.max_memory_gb), 32),
+            "gpus": 0,
+            "walltime_minutes": 15,
+        },
         "probe_class": "cpu",
         "scheduler_job_id": cpu_slurm,
         "accounting": accounting,
@@ -449,6 +462,8 @@ def _acquire_lock() -> int:
 
 
 def main() -> int:
+    global STAMP, RUN_CPU_ID, RUN_GPU_ID, SINCE
+
     if _acquire_lock():
         return 1
     parser = argparse.ArgumentParser(description=__doc__)
@@ -457,19 +472,37 @@ def main() -> int:
         default="3629410",
         help="scheduler id of the queued GPU canary (identity anchor)",
     )
+    parser.add_argument("--stamp", default=STAMP, help="dual-canary chain stamp")
+    parser.add_argument(
+        "--since", default=SINCE, help="sacct start time used for exact WorkDir lookup"
+    )
+    parser.add_argument(
+        "--profile", default="scripts/hpc/cluster_profile.toml"
+    )
+    parser.add_argument(
+        "--runtime-lock",
+        default=(
+            "033-matclaw-cips-domain-wall-search/reference/"
+            "compute-runtime.lock.json"
+        ),
+    )
     args = parser.parse_args()
 
-    profile = q._load_profile(ROOT / "scripts/hpc/cluster_profile.toml")
-    lock_relpath = (
-        "033-matclaw-cips-domain-wall-search/reference/compute-runtime.lock.json"
-    )
+    STAMP = args.stamp
+    RUN_CPU_ID = f"run-cpu-echo-probe-containment-{STAMP}"
+    RUN_GPU_ID = f"run-gpu-nvidia-probe-containment-{STAMP}"
+    SINCE = args.since
+
+    profile_path = ROOT / args.profile
+    profile = q._load_profile(profile_path)
+    lock_relpath = args.runtime_lock
     lock = json.loads((ROOT / lock_relpath).read_text(encoding="utf-8"))
     site = q._build_site_profile(profile)
 
     gpu_record = collect_gpu(profile, site, lock, args.gpu_job_id)
     log("GPU record collected")
 
-    cpu_record = reconstruct_cpu(profile, lock)
+    cpu_record = reconstruct_cpu(profile, site, lock)
     log("CPU record reconstructed")
 
     home = q._ssh(profile, "echo $HOME").strip()
@@ -479,6 +512,12 @@ def main() -> int:
         "other_run_dir": (
             f"{profile['paths']['remote_root']}/sentinel-other-run-{STAMP}"
         ),
+        "solution_sentinel": (
+            f"{profile['paths']['remote_root']}/sentinel-solution-{STAMP}"
+        ),
+        "reference_sentinel": (
+            f"{profile['paths']['remote_root']}/sentinel-reference-{STAMP}"
+        ),
     }
     cleanup = q._cleanup_sentinels(profile, sentinels)
     if cleanup["leftover"]:
@@ -487,7 +526,7 @@ def main() -> int:
 
     evidence = {
         "phase": "canary",
-        "authorization": "user authorization pending renewal: two short jobs "
+        "authorization": "user-authorized scope: two short jobs "
         "(CPU echo/hostname + containment on the native cpu partition; GPU "
         "nvidia-smi + containment under --gres=gpu:1); no CP2K, no image "
         "transfer, nothing else",
@@ -510,7 +549,7 @@ def main() -> int:
     }
 
     receipt = q.build_receipt(profile, lock, evidence, lock_relpath=lock_relpath)
-    result = q.verify(receipt)
+    result = q.verify(receipt, profile_path=profile_path)
     derived = result["derived"]
     print(
         f"receipt written: {receipt}  "

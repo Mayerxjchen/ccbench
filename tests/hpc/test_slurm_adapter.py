@@ -115,6 +115,8 @@ def test_directives_take_partition_account_only_from_site_config() -> None:
     assert opts.account == "mlip-bench"  # from site config, never spec
     assert opts.gres == "gpu:1"  # <site-alias> profile, exactly one GPU
     assert opts.cpus_per_task == "8"
+    assert opts.memory_per_node == "32G"
+    assert opts.to_argv()[opts.to_argv().index("--mem") + 1] == "32G"
     assert opts.time == "02:00:00"  # walltime_minutes 120
 
 
@@ -272,3 +274,93 @@ def test_dict_input_binding_uses_resolved_source(tmp_path: Path) -> None:
     spec = _spec(inputs=[{"source": str(staged), "destination": "input.dat"}])
     rendered = adapter.render(spec, job_id="job-0001", run_id="run-1", operation_id="test-op")
     assert f"{staged}:input.dat:ro" in rendered.script
+
+
+# -- resource contract: per-node memory, independent CPU/GPU ceilings -------
+
+
+def test_memory_gb_renders_as_per_node_slurm_mem() -> None:
+    """``resources.memory_gb`` is memory *per allocated node* and maps 1:1 to
+    Slurm ``--mem=<N>G``. The JobSpec supports single-node jobs only, so the
+    value is never reinterpreted as total-job memory."""
+    adapter = _adapter()
+    spec = _spec()
+    spec["resources"]["memory_gb"] = 47
+    rendered = adapter.render(spec, job_id="job-0001", run_id="run-1", operation_id="op")
+    argv = rendered.opts.to_argv()
+    assert rendered.opts.memory_per_node == "47G"
+    assert argv[argv.index("--mem") + 1] == "47G"
+    # a spec requesting more nodes is not expressible today (no nodes field),
+    # so the per-node contract cannot silently become per-job.
+    assert "nodes" not in {k.split("=", 1)[0] for k in " ".join(argv).split()}
+
+
+_CPU_SITE = {
+    **SITE,
+    "platform_profile": {
+        "name": "<site-alias>-cpu",
+        "default_queue": "cpu",
+        "queues": [
+            {"name": "cpu", "max_cpus": 64, "max_memory_gb": 256,
+             "max_gpus": 0, "max_walltime_minutes": 2880},
+        ],
+    },
+}
+
+
+def test_cpu_partition_adapter_emits_no_gres_directive() -> None:
+    """A zero-GPU (cpu) partition must submit without ``--gres``. gres comes
+    only from the resolved site profile ceiling, never from the spec, so a
+    cpu-class job can never accidentally request a GPU."""
+    adapter = SlurmAdapter(_CPU_SITE, _FakeTransport(), case_id="water64")
+    spec = _spec()
+    spec["resources"]["gpus"] = 0
+    rendered = adapter.render(spec, job_id="job-0001", run_id="run-1", operation_id="op")
+    argv = rendered.opts.to_argv()
+    assert rendered.opts.gres is None
+    assert "--gres" not in argv
+
+
+def test_cpu_and_gpu_ceilings_are_independent() -> None:
+    """CPU and GPU partitions carry independent resource ceilings. Raising the
+    GPU queue ceiling must not change the CPU queue ceiling, and vice versa —
+    a case cannot smuggle more resources by pointing at the other class."""
+    from dftworld_bench.hpc.site_profile import HpcSiteProfile
+
+    base = {
+        "schema_version": 1,
+        "site_id": "site-v1",
+        "scheduler": "slurm",
+        "connection": {
+            "credential_profile_id": "k",
+            "target_binding": "ssh://h:22",
+            "remote_user": "u",
+            "remote_root_policy": "/r/{run_id}",
+        },
+        "account": "a",
+        "queues": {
+            "cpu": {"partition": "cpu-q", "qos": "n", "max_cpus": 64,
+                    "max_memory_gb": 256, "max_walltime_minutes": 2880},
+            "gpu": {"partition": "gpu-q", "qos": "long", "max_cpus": 32,
+                    "max_memory_gb": 128, "max_gpus": 1,
+                    "max_walltime_minutes": 1440},
+        },
+        "resource_mapping": {"cpu": {"queue": "cpu"}, "gpu": {"queue": "gpu"}},
+        "runtime_policy": {"requires_apptainer": True, "runtime_store": "/s"},
+    }
+    site = HpcSiteProfile.from_dict(base)
+    cpu = site.resolve_workload("cpu")
+    gpu = site.resolve_workload("gpu")
+    assert (cpu.max_cpus, cpu.max_memory_gb, cpu.max_gpus) == (64, 256, 0)
+    assert (gpu.max_cpus, gpu.max_memory_gb, gpu.max_gpus) == (32, 128, 1)
+    assert cpu.gres is None  # zero-GPU cpu queue
+    assert gpu.gres == "gpu:1"
+    # Mutating one queue's ceiling does not bleed into the other (frozen copy).
+    bumped = {**base, "queues": {
+        **base["queues"],
+        "gpu": {**base["queues"]["gpu"], "max_cpus": 96},
+    }}
+    bumped_site = HpcSiteProfile.from_dict(bumped)
+    assert bumped_site.resolve_workload("gpu").max_cpus == 96
+    assert bumped_site.resolve_workload("cpu").max_cpus == 64  # unchanged
+    assert site.resolve_workload("cpu").max_cpus == 64  # original untouched

@@ -22,6 +22,9 @@ partition = "gpu"              # gpu-class queue name at your site
 cpu_partition = "cpu"          # native cpu queue (empty = ACL-era routing)
 gres = "gpu:1"
 cpus_per_task = "8"
+cpu_cpus_per_task = "8"      # optional; defaults to cpus_per_task
+cpu_mem = "8G"               # optional CPU-queue ceiling; defaults to mem
+cpu_time_paper = "08:00:00"  # optional; defaults to time_paper
 nodes = "1"
 
 [runtime]

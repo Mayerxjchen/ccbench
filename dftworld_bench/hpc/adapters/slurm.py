@@ -232,6 +232,7 @@ class SlurmAdapter:
         return SubmitOpts(
             job_name=f"{self._case_id}-{job_id}",
             cpus_per_task=str(resources["cpus"]),
+            memory_per_node=f"{resources['memory_gb']}G",
             partition=platform["default_queue"],  # validated site config only
             qos=self._profile.get("qos"),  # from SiteProfile resolved resource
             # Typed resources drive gres: a zero-GPU request submits without

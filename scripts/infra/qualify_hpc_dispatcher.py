@@ -360,6 +360,8 @@ def _place_sentinels(profile: dict, stamp: str) -> dict:
         "home_sentinel": f"{home}/.bench-sentinel-{stamp}",
         "credential_sentinel": f"{home}/.bench-cred-sentinel-{stamp}",
         "other_run_dir": f"{root}/sentinel-other-run-{stamp}",
+        "solution_sentinel": f"{root}/sentinel-solution-{stamp}",
+        "reference_sentinel": f"{root}/sentinel-reference-{stamp}",
     }
     _ssh(profile, f"printf 'sentinel {stamp}' > {shlex.quote(paths['home_sentinel'])}")
     _ssh(
@@ -373,6 +375,14 @@ def _place_sentinels(profile: dict, stamp: str) -> dict:
         f"printf 'other-run marker' > "
         f"{shlex.quote(paths['other_run_dir'] + '/marker')}",
     )
+    _ssh(
+        profile,
+        f"printf 'solution marker' > {shlex.quote(paths['solution_sentinel'])}",
+    )
+    _ssh(
+        profile,
+        f"printf 'reference marker' > {shlex.quote(paths['reference_sentinel'])}",
+    )
     return paths
 
 
@@ -381,6 +391,8 @@ def _cleanup_sentinels(profile: dict, sentinels: dict) -> dict:
         sentinels["home_sentinel"],
         sentinels["credential_sentinel"],
         sentinels["other_run_dir"],
+        sentinels["solution_sentinel"],
+        sentinels["reference_sentinel"],
     ]
     rm = "rm -rf " + " ".join(shlex.quote(t) for t in targets)
     _ssh(profile, rm)
@@ -392,7 +404,7 @@ def _cleanup_sentinels(profile: dict, sentinels: dict) -> dict:
     return {"removed": targets, "leftover": leftover}
 
 
-def _containment_fragment(sentinels: dict) -> str:
+def _containment_fragment(profile: dict, sentinels: dict) -> str:
     """In-container probe as one bash fragment.
 
     Each check emits a ``BENCH_PROBE <key>=pass`` line only when it holds;
@@ -400,7 +412,7 @@ def _containment_fragment(sentinels: dict) -> str:
     verifier re-parses these lines from the embedded stdout tail, so the
     receipt's structured probe results are cross-checked against raw output.
     """
-    runs_root = "/public/home/<site-user>/dftworld2-runs"
+    runs_root = str(Path(profile["paths"]["remote_root"]).parent)
     return ";".join(
         [
             "( touch /workspace/.probe-write && rm /workspace/.probe-write ) "
@@ -411,6 +423,10 @@ def _containment_fragment(sentinels: dict) -> str:
             "&& echo 'BENCH_PROBE credential_sentinel_absent=pass' || exit 22",
             f"test ! -e {shlex.quote(sentinels['other_run_dir'])} "
             "&& echo 'BENCH_PROBE other_run_dir_absent=pass' || exit 23",
+            f"test ! -e {shlex.quote(sentinels['solution_sentinel'])} "
+            "&& echo 'BENCH_PROBE solution_absent=pass' || exit 24",
+            f"test ! -e {shlex.quote(sentinels['reference_sentinel'])} "
+            "&& echo 'BENCH_PROBE reference_absent=pass' || exit 25",
             f"ls {shlex.quote(runs_root)} >/dev/null 2>&1 "
             "&& exit 26 || echo 'BENCH_PROBE runs_root_not_listable=pass'",
         ]
@@ -453,7 +469,14 @@ def _run_dispatcher_job(
     try:
         submitted = session.submit(spec, operation_id=operation_id, attempt=1)
         job_id = submitted["job_id"]
-        state = _wait_terminal(session, job_id, timeout_sec=timeout_sec)
+        try:
+            state = _wait_terminal(session, job_id, timeout_sec=timeout_sec)
+        except BaseException:
+            # The outer canary finally block removes adversarial sentinels.
+            # Never allow a queued/running job to outlive those sentinels and
+            # later false-pass absence probes after a timeout or Ctrl-C.
+            session.settle(cancel_pending=True)
+            raise
         slurm_id = session.gateway._adapter._jobs[job_id]["slurm_id"]
         accounting = transport.accounting(str(slurm_id))
         # Scheduler-reported exit code (returned:first_failed); the receipt
@@ -498,6 +521,7 @@ def _run_dispatcher_job(
             "state": state,
             "exit_code": exit_code,
             "gpus_requested": int(spec["resources"]["gpus"]),
+            "requested_resources": dict(spec["resources"]),
             "probe_class": probe_class,
             "scheduler_job_id": str(slurm_id),
             "accounting": accounting,
@@ -514,6 +538,7 @@ def _run_dispatcher_job(
             key for key in (
                 "workspace_rw", "home_sentinel_absent",
                 "credential_sentinel_absent", "other_run_dir_absent",
+                "solution_absent", "reference_absent",
                 "runs_root_not_listable",
             ) if parsed["probes"].get(key) != "pass"
         ]
@@ -532,6 +557,7 @@ def _run_dispatcher_job(
             for key in (
                 "workspace_rw", "home_sentinel_absent",
                 "credential_sentinel_absent", "other_run_dir_absent",
+                "solution_absent", "reference_absent",
                 "runs_root_not_listable",
             )
         }
@@ -641,7 +667,7 @@ def canary(profile: dict, lock: dict, *, skip_preflight: bool = False) -> dict:
     runtime_decl = f"matclaw-cips@sha256:{sif_digest}"
     evidence: dict[str, object] = {
         "phase": "canary",
-        "authorization": "user authorization pending renewal: two short jobs "
+        "authorization": "user-authorized scope: two short jobs "
         "(CPU echo/hostname + containment on the native cpu partition; GPU "
         "nvidia-smi + containment under --gres=gpu:1); no CP2K, no image "
         "transfer, nothing else",
@@ -665,7 +691,7 @@ def canary(profile: dict, lock: dict, *, skip_preflight: bool = False) -> dict:
 
     sentinels = _place_sentinels(profile, stamp)
     try:
-        probe = _containment_fragment(sentinels)
+        probe = _containment_fragment(profile, sentinels)
 
         # 1. CPU canary on the native cpu queue: echo/hostname + containment,
         #    zero GPUs requested and (per TRES reconciliation) allocated.
@@ -711,8 +737,9 @@ def canary(profile: dict, lock: dict, *, skip_preflight: bool = False) -> dict:
                 memory_gb=min(resolved_gpu.max_memory_gb, 32),
                 walltime_minutes=20,
             ),
-            # GPU partitions queue by Priority; 30 min was exceeded on a
-            # congested day.  90 min stays inside the 2h token lease.
+            # GPU partitions queue by Priority.  A 30-hour synchronous ceiling
+            # stays inside the 36-hour token lease; longer waits use the
+            # durable recovery path instead of keeping an operator terminal.
             timeout_sec=108000,
             sentinels=sentinels,
             records_sink=evidence["jobs"],
@@ -759,6 +786,7 @@ def cp2k_phase(
     cp2k_lock: dict,
     *,
     cp2k_lock_relpath: str,
+    profile_path: Path,
 ) -> bool:
     """CP2K ENERGY canary, merged into the existing receipt (fail-closed).
 
@@ -775,7 +803,12 @@ def cp2k_phase(
             f"no receipt to merge into ({RECEIPT_PATH}); run --phase canary first"
         )
     receipt = json.loads(RECEIPT_PATH.read_text(encoding="utf-8"))
-    base = verify_receipt(receipt, root=ROOT, receipt_dir=RECEIPT_PATH.parent)
+    base = verify_receipt(
+        receipt,
+        root=ROOT,
+        receipt_dir=RECEIPT_PATH.parent,
+        profile_path=profile_path,
+    )
     if not base["consistent"]:
         raise QualifyError(
             "existing receipt fails derivation; refusing merge: "
@@ -792,7 +825,7 @@ def cp2k_phase(
 
     sentinels = _place_sentinels(profile, stamp)
     try:
-        probe = _containment_fragment(sentinels)
+        probe = _containment_fragment(profile, sentinels)
         records: list = []
         try:
             _run_dispatcher_job(
@@ -880,7 +913,12 @@ def cp2k_phase(
     RECEIPT_PATH.write_text(
         json.dumps(merged, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
-    result = verify_receipt(merged, root=ROOT, receipt_dir=RECEIPT_PATH.parent)
+    result = verify_receipt(
+        merged,
+        root=ROOT,
+        receipt_dir=RECEIPT_PATH.parent,
+        profile_path=profile_path,
+    )
     derived = result["derived"]
     print(
         f"receipt merged: {RECEIPT_PATH}  "
@@ -913,7 +951,7 @@ def build_receipt(
     return RECEIPT_PATH
 
 
-def verify(receipt_path: Path) -> dict:
+def verify(receipt_path: Path, *, profile_path: Path | None = None) -> dict:
     """Offline derivation: replay every anchor; never trust declared labels.
 
     The receipt carries no verdict fields, so this derives the status purely
@@ -921,7 +959,10 @@ def verify(receipt_path: Path) -> dict:
     """
     receipt = json.loads(Path(receipt_path).read_text(encoding="utf-8"))
     result = verify_receipt(
-        receipt, root=ROOT, receipt_dir=Path(receipt_path).parent
+        receipt,
+        root=ROOT,
+        receipt_dir=Path(receipt_path).parent,
+        profile_path=profile_path,
     )
     print(json.dumps(result, indent=2))
     return result
@@ -946,8 +987,10 @@ def main() -> int:
                              "(separate scope from the 2026-08-22 echo canary)")
     args = parser.parse_args()
 
+    profile_path = ROOT / args.profile
+
     if args.verify:
-        result = verify(Path(args.verify))
+        result = verify(Path(args.verify), profile_path=profile_path)
         return 0 if result["consistent"] else 1
 
     if args.phase == "cp2k":
@@ -958,12 +1001,17 @@ def main() -> int:
                 "--phase cp2k requires --authorized: no cp2k authorization "
                 "is on file (the 2026-08-22 scope excluded CP2K)"
             )
-        profile = _load_profile(ROOT / args.profile)
+        profile = _load_profile(profile_path)
         cp2k_lock = json.loads((ROOT / args.cp2k_lock).read_text(encoding="utf-8"))
-        ok = cp2k_phase(profile, cp2k_lock, cp2k_lock_relpath=args.cp2k_lock)
+        ok = cp2k_phase(
+            profile,
+            cp2k_lock,
+            cp2k_lock_relpath=args.cp2k_lock,
+            profile_path=profile_path,
+        )
         return 0 if ok else 1
 
-    profile = _load_profile(ROOT / args.profile)
+    profile = _load_profile(profile_path)
     lock = json.loads((ROOT / args.runtime_lock).read_text(encoding="utf-8"))
 
     if args.phase == "preflight":
@@ -973,7 +1021,7 @@ def main() -> int:
     CANARY_ROOT.mkdir(parents=True, exist_ok=True)
     evidence = canary(profile, lock)
     receipt = build_receipt(profile, lock, evidence, lock_relpath=args.runtime_lock)
-    result = verify(receipt)
+    result = verify(receipt, profile_path=profile_path)
     derived = result["derived"]
     print(
         f"receipt written: {receipt}  "

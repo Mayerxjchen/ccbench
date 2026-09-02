@@ -138,11 +138,17 @@ class HpcSiteProfile:
         ssh = config["ssh"]
         paths = config["paths"]
 
-        mem_str = slurm.get("mem", "64G")
-        mem_gb = int(mem_str.rstrip("Gg"))
-        time_paper = slurm.get("time_paper", "08:00:00")
-        hh, mm, _ss = time_paper.split(":")
-        walltime_minutes = int(hh) * 60 + int(mm)
+        def _memory_gb(key: str, fallback: str) -> int:
+            return int(str(slurm.get(key, fallback)).rstrip("Gg"))
+
+        def _walltime_minutes(key: str, fallback: str) -> int:
+            hh, mm, _ss = str(slurm.get(key, fallback)).split(":")
+            return int(hh) * 60 + int(mm)
+
+        mem_str = str(slurm.get("mem", "64G"))
+        mem_gb = _memory_gb("mem", mem_str)
+        time_paper = str(slurm.get("time_paper", "08:00:00"))
+        walltime_minutes = _walltime_minutes("time_paper", time_paper)
 
         queues: dict[str, Any] = {
             "gpu": {
@@ -160,10 +166,14 @@ class HpcSiteProfile:
             queues["cpu"] = {
                 "partition": cpu_partition,
                 "qos": slurm.get("qos", "normal"),
-                "max_cpus": int(slurm.get("cpus_per_task", 8)),
-                "max_memory_gb": mem_gb,
+                "max_cpus": int(
+                    slurm.get("cpu_cpus_per_task", slurm.get("cpus_per_task", 8))
+                ),
+                "max_memory_gb": _memory_gb("cpu_mem", mem_str),
                 "max_gpus": 0,
-                "max_walltime_minutes": walltime_minutes,
+                "max_walltime_minutes": _walltime_minutes(
+                    "cpu_time_paper", time_paper
+                ),
             }
             resource_mapping["cpu"] = {"queue": "cpu"}
 

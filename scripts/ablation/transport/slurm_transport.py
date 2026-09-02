@@ -148,6 +148,9 @@ class SubmitOpts:
     job_name: Optional[str] = None
     ntasks: Optional[str] = None
     cpus_per_task: Optional[str] = None
+    # Slurm --mem is memory per allocated node. The public JobSpec currently
+    # supports one-node jobs, so memory_gb maps here without ambiguity.
+    memory_per_node: Optional[str] = None
     nodes: Optional[str] = None
     partition: Optional[str] = None
     gres: Optional[str] = None
@@ -187,6 +190,7 @@ class SubmitOpts:
             ("--job-name", self.job_name),
             ("--ntasks", self.ntasks),
             ("--cpus-per-task", self.cpus_per_task),
+            ("--mem", self.memory_per_node),
             ("--nodes", self.nodes),
             ("--partition", self.partition),
             ("--gres", self.gres),
@@ -850,25 +854,29 @@ class SshSlurmTransport(SlurmTransport):
         strictly re-parse them offline.  Unknown/missing fields come back as
         "" rather than guessed values.
         """
-        fmt = "JobID,State,ExitCode,ReqTRES,AllocTRES"
+        fmt = "JobID,State,ExitCode,Partition,NodeList,ReqTRES,AllocTRES"
         source = f"sacct -X -P -n --format={fmt} -j {shlex.quote(str(job_id))}"
         proc = self._run_remote(f"{source} 2>/dev/null")
         self._check(proc, "sacct accounting")
         fields: Dict[str, str] = {
             "raw_state": "",
             "exit_code_raw": "",
+            "partition": "",
+            "node_list": "",
             "req_tres": "",
             "alloc_tres": "",
             "source": source,
         }
         for line in proc.stdout.splitlines():
             parts = line.split("|")
-            if len(parts) < 5 or parts[0] != str(job_id):
+            if len(parts) < 7 or parts[0] != str(job_id):
                 continue  # skip .batch/.extern rows
             fields["raw_state"] = parts[1]
             fields["exit_code_raw"] = parts[2]
-            fields["req_tres"] = parts[3]
-            fields["alloc_tres"] = parts[4]
+            fields["partition"] = parts[3]
+            fields["node_list"] = parts[4]
+            fields["req_tres"] = parts[5]
+            fields["alloc_tres"] = parts[6]
             break
         return fields
 
