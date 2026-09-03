@@ -1,0 +1,17 @@
+schema_version = 1
+
+[task]
+name = "906-mvp-ljcluster-model-eval"
+title = "Evaluate the published LC-MLP v1 checkpoint on the LJ-cluster descriptor table"
+
+[execution]
+class = "local_sandbox"
+
+[candidate]
+instruction = "instruction.md"
+submission_root = "."
+legacy_submission_layout = false
+files = [
+  { source = "public/**", destination = "." },
+  { source = "CONTRACT.md", destination = "CONTRACT.md" },
+]

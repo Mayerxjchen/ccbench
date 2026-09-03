@@ -1,0 +1,70 @@
+{
+  "benchmark_valid": false,
+  "blocking_errors": [],
+  "checks": {
+    "bundle_agreement": {
+      "errors": [],
+      "status": "pass"
+    },
+    "category_semantics": {
+      "errors": [],
+      "status": "pass"
+    },
+    "cross_layer_consistency": {
+      "errors": [],
+      "status": "pass"
+    },
+    "fixture_matrix": {
+      "errors": [],
+      "status": "pass"
+    },
+    "pre_discovery_honesty": {
+      "errors": [],
+      "status": "pass"
+    },
+    "real_packaging": {
+      "detail": {
+        "bundle_dir": "/var/folders/56/qb1bh4b533vg1z1wcdb6rj6m0000gn/T/mvp-run-vn_rdlut/candidate-bundle",
+        "paths": [
+          "CONTRACT.md",
+          "instruction.md",
+          "public/config.yaml",
+          "public/data-README.md",
+          "public/dataset.csv",
+          "public/input-manifest.json",
+          "public/submission-schema.json",
+          "public/system.json",
+          "public/weights/lc-mlp-v1.txt"
+        ],
+        "public_digest": "d30352b412995f29b4357d36c5efe9d7db5826e9fdcba6b38a9716e316de218a",
+        "spec_submission_root": "."
+      },
+      "errors": [],
+      "status": "pass"
+    },
+    "validate_case": {
+      "errors": [],
+      "status": "pass"
+    },
+    "verifier_mount_smoke": {
+      "errors": [],
+      "status": "pass"
+    },
+    "verifier_plan": {
+      "errors": [],
+      "status": "pass"
+    }
+  },
+  "deferred_release_work": [
+    "MLP-V4/V5/V6 hidden scientific verification",
+    "expert reference run and independently reproduced lineage",
+    "double-threshold calibration freeze",
+    "scientific positive/alternative-valid fixture closure",
+    "G0-G12 release gate closure and evidence retention"
+  ],
+  "mvp_runnable": true,
+  "runner": {
+    "interpreter": "/Users/xjchen/bench/mlffbench/.venv/bin/python",
+    "skill_root": "/Users/xjchen/bench/.wt/case-builder-mvp-v3/scientific-benchmark-case-builder-portable/skills/build-scientific-benchmark-case"
+  }
+}

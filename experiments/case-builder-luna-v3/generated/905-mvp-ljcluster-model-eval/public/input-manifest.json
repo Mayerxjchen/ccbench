@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "files": [
+    {
+      "case_source": "public/lc-mlp-v1/config.yaml",
+      "candidate_path": "public/lc-mlp-v1/config.yaml",
+      "candidate_visible": true
+    },
+    {
+      "case_source": "public/lc-mlp-v1/weights/lc-mlp-v1.txt",
+      "candidate_path": "public/lc-mlp-v1/weights/lc-mlp-v1.txt",
+      "candidate_visible": true
+    },
+    {
+      "case_source": "public/lc-mlp-v1/paper.md",
+      "candidate_path": "public/lc-mlp-v1/paper.md",
+      "candidate_visible": true
+    },
+    {
+      "case_source": "public/lc-mlp-v1/model-card.md",
+      "candidate_path": "public/lc-mlp-v1/model-card.md",
+      "candidate_visible": true
+    },
+    {
+      "case_source": "public/lj-clusters/descriptors.csv",
+      "candidate_path": "public/lj-clusters/descriptors.csv",
+      "candidate_visible": true
+    },
+    {
+      "case_source": "public/lj-clusters/README.md",
+      "candidate_path": "public/lj-clusters/README.md",
+      "candidate_visible": true
+    },
+    {
+      "case_source": "public/system.json",
+      "candidate_path": "public/system.json",
+      "candidate_visible": true
+    },
+    {
+      "case_source": "public/submission-schema.json",
+      "candidate_path": "public/submission-schema.json",
+      "candidate_visible": true
+    }
+  ]
+}

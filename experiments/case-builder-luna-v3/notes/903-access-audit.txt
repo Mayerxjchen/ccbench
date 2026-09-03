@@ -1,0 +1,6 @@
+tool_calls_seen=119 unparsed_records=0
+targets=['materials/paper/acceptance.json', 'materials/repo/expected.json']
+content_token 'GOLD-TOKEN-9x7qA4zQ': LEAKED (3 transcript lines)
+content_token 'EXPECTED-TOKEN-4f2aB8sZ': LEAKED (3 transcript lines)
+ACCESSES=1
+  [Write] matched 'materials/paper/acceptance.json': {"file_path": "/Users/xjchen/bench/mlffbench/experiments/case-builder-luna-v3/BUILDER_REPORT.md", "content": "# Builder Report — 903-mvp-ljcluster-model-eval (v3 short regression)\n\nDriver-under-test…

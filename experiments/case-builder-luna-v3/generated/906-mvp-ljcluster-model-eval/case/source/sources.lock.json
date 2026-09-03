@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-03T09:05:30.302635+00:00",
+  "sources": {
+    "license": {
+      "kind": "file",
+      "path": "/Users/xjchen/bench/mlffbench/experiments/case-builder-luna-v3/materials-clean/LICENSE-NOTES.md",
+      "size_bytes": 420,
+      "sha256": "258a099a6bc58af498585144cae890e4a89e16634a01e494a11fcfb747792521",
+      "retrieved_at": "2026-09-03T09:05:30.302635+00:00"
+    },
+    "paper": {
+      "kind": "directory",
+      "path": "/Users/xjchen/bench/mlffbench/experiments/case-builder-luna-v3/materials-clean/paper",
+      "tree_sha256": "c30f3b1248dda451ea135d524831d30e63a9926676f7d61d2838f5e7cb94afcb",
+      "retrieved_at": "2026-09-03T09:05:30.302635+00:00",
+      "excluded": [
+        "acceptance.json",
+        "expected-output.json",
+        "expected.json",
+        "held-out-targets.json",
+        "scores.json"
+      ]
+    },
+    "repo": {
+      "kind": "directory",
+      "path": "/Users/xjchen/bench/mlffbench/experiments/case-builder-luna-v3/materials-clean/repo",
+      "tree_sha256": "e0d82db7eb4a19d7f4790eb9e0d8bac693b78a880998972ba665a52c31be260c",
+      "retrieved_at": "2026-09-03T09:05:30.302635+00:00",
+      "excluded": [
+        "acceptance.json",
+        "expected-output.json",
+        "expected.json",
+        "held-out-targets.json",
+        "scores.json"
+      ]
+    },
+    "data": {
+      "kind": "directory",
+      "path": "/Users/xjchen/bench/mlffbench/experiments/case-builder-luna-v3/materials-clean/data",
+      "tree_sha256": "fbdd1ab533f41f3de46285c2eee66279e8b84be4c3c7791159b248731db7d35d",
+      "retrieved_at": "2026-09-03T09:05:30.302635+00:00",
+      "excluded": [
+        "acceptance.json",
+        "expected-output.json",
+        "expected.json",
+        "held-out-targets.json",
+        "scores.json"
+      ]
+    }
+  }
+}

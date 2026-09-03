@@ -1,0 +1,80 @@
+schema_version: 1
+category: mlp
+case_kind: model_evaluation
+execution:
+  class: local_sandbox
+objective: Evaluate the published LC-MLP v1 checkpoint over a benchmark re-serialized
+  descriptor table for the 24 released Lennard-Jones clusters (LJ-01..LJ-24) and reproduce
+  the per-atom cohesive-energy metric band reported in Table 1 of the source paper
+  (MAE 0.031 eV/atom, RMSE 0.045 eV/atom). No retraining is implied; the published
+  checkpoint is immutable.
+source_relationship:
+  selected: benchmark_adaptation
+  allowed:
+  - paper_faithful
+  - benchmark_adaptation
+  note: 'System and method claims are paper-faithful (paper/paper.md, repo/config.yaml,
+    repo/weights/lc-mlp-v1.txt, data/dataset.csv). The benchmark adaptation is explicit:
+    the authors'' held-out rows LJ-25..LJ-32 are NOT in the released data table, so
+    the scored evaluation split is the benchmark re-serialization (column-reordered
+    view) of the 24 released calibration clusters, with reference energies sealed
+    from the Candidate. No benchmark-authored values are presented as paper facts.'
+candidate_inputs:
+- public/descriptor-table.csv (re-serialized 24-cluster descriptor table, labels sealed)
+- public/lc-mlp-v1.txt (published checkpoint, byte-identical copy, identity by file
+  hash)
+- public/config.yaml (published model/preprocessing/training config, byte-identical
+  copy)
+- public/submission-schema.json (submission manifest contract)
+- public/system.json (scored-system public specification)
+source_context:
+  allow:
+  - ../materials-clean
+  exclude:
+  - expected.json
+  - acceptance.json
+workflow_capabilities:
+- hidden_static_accuracy
+label_source: teacher_inference
+submission_roles:
+- student_model (the published LC-MLP v1 checkpoint actually evaluated, echoed with
+  sha256)
+- dataset (copy of the provided descriptor table with a source provenance string)
+- report (per-row predictions and aggregate MAE/RMSE)
+- log (inference run log)
+scientific_observables:
+- cohesive energy per atom (eV/atom)
+submission:
+  root: .
+validation_sets:
+- name: lj24-eval-table
+  owner: verifier_hidden
+metric_contract:
+- name: mae_reproduction_band
+  unit: eV/atom
+  operator: <=
+  threshold: 0.01
+- name: rmse_reproduction_band
+  unit: eV/atom
+  operator: <=
+  threshold: 0.015
+contract:
+  candidate_visible: false
+hidden_verification:
+  strategy: Sealed recomputation of MAE and RMSE from the candidate's submitted per-row
+    predictions against a verifier-owned duplicate of the reference energies; reported
+    aggregates must match the recomputation. Reproduction-band thresholds freeze only
+    from independent calibration evidence collected before formal Agent results are
+    inspected (post-PROMOTE). MLP-V4 hidden static accuracy is planned with this mechanism
+    and stays deferred at Discovery MVP.
+profiles:
+  smoke: profiles/smoke.yaml
+  formal: profiles/formal.yaml
+non_goals:
+- retraining or fine-tuning the published checkpoint
+- molecular dynamics, active learning, or new labeling
+- DFT or any reference-method execution
+- reconstructing the authors' held-out rows LJ-25..LJ-32 (absent from the source ecosystem)
+- public-redistribution decisions (checkpoint license unknown; release-stage concern)
+blockers: []
+case_status: draft

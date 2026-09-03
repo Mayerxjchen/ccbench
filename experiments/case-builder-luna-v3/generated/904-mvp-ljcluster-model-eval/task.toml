@@ -1,0 +1,16 @@
+schema_version = 1
+
+[task]
+name = "draft-case"
+title = "draft task"
+
+[execution]
+class = "local_sandbox"
+
+[candidate]
+instruction = "instruction.md"
+submission_root = "."
+legacy_submission_layout = false
+files = [
+  { source = "public/**", destination = "." },
+]

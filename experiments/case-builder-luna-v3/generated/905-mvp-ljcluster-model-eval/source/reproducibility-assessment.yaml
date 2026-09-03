@@ -1,0 +1,18 @@
+schema_version: 1
+scope: model_evaluation_only
+missing:
+- field: system.elements
+  critical_for:
+  - extraction_completeness
+  recovery: inspect available source artifacts
+conflicts: []
+blockers: []
+readiness:
+  extraction_completeness: recoverable
+  execution_readiness: not_applicable
+  verification_readiness: ready
+  benchmark_case_readiness: recoverable
+production_readiness:
+  status: not_assessed
+  owner: mlp
+note: Deterministic information-readiness only; no scientific adequacy judgment performed.

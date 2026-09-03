@@ -1,0 +1,16 @@
+schema_version = 1
+
+[task]
+name = "903-mvp-ljcluster-model-eval"
+title = "LC-MLP v1 cluster cohesive-energy evaluation"
+
+[execution]
+class = "local_sandbox"
+
+[candidate]
+instruction = "instruction.md"
+submission_root = "."
+legacy_submission_layout = false
+files = [
+  { source = "public/**", destination = "." },
+]

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "case_id": "906-mvp-ljcluster-model-eval",
+  "files": [
+    {
+      "candidate_path": "public/dataset.csv",
+      "case_source": "public/dataset.csv",
+      "role": "evaluation_descriptor_table",
+      "candidate_visible": true
+    },
+    {
+      "candidate_path": "public/config.yaml",
+      "case_source": "public/config.yaml",
+      "role": "model_and_preprocessing_config",
+      "candidate_visible": true
+    },
+    {
+      "candidate_path": "public/weights/lc-mlp-v1.txt",
+      "case_source": "public/weights/lc-mlp-v1.txt",
+      "role": "published_model_checkpoint",
+      "candidate_visible": true
+    },
+    {
+      "candidate_path": "public/data-README.md",
+      "case_source": "public/data-README.md",
+      "role": "data_dictionary",
+      "candidate_visible": true
+    }
+  ]
+}
