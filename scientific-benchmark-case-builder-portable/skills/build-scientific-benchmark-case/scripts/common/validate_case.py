@@ -153,6 +153,20 @@ def validate_case(case_dir: Path) -> dict:
         errors.append(f"unknown case_status: {status!r}")
     elif status in ADVANCED_STATES and not (validation.get("evidence_pointers") or {}):
         errors.append(f"case_status {status} requires evidence_pointers")
+    if status == "runnable_draft":
+        # Single-writer rule: only check_discovery_runnable.py --derive-state
+        # may produce this state, and its recorded verdict must be present.
+        derivation = validation.get("runnable_derivation")
+        if (
+            not isinstance(derivation, dict)
+            or derivation.get("derived_by") != "check_discovery_runnable.py"
+            or derivation.get("mvp_runnable") is not True
+        ):
+            errors.append(
+                "case_status runnable_draft requires VALIDATION.json.runnable_derivation "
+                "{derived_by: check_discovery_runnable.py, mvp_runnable: true}; "
+                "run scripts/common/check_discovery_runnable.py --derive-state"
+            )
 
     bv: dict[str, Any] = {}
     bv_path = case_dir / "benchmark_valid.json"

@@ -86,6 +86,8 @@ def derive(design: dict) -> dict:
     return {
         "schema_version": SCHEMA_VERSION,
         "category": "mlp",
+        "submission_root": ".",
+        "result_path": "/logs/verifier/result.json",
         "layers": layers,
         "fixtures": fixtures,
     }

@@ -1,7 +1,13 @@
 schema_version: 1
 category: mlp
+# submission_root must agree with task.toml [candidate].submission_root and
+# case-design submission.root; result_path is the standard common-result
+# location the entry writes on every outcome.
+submission_root: "."
+result_path: /logs/verifier/result.json
 layers: []
 fixtures:
   positive: []
   negative: []
   alternative_valid: []
+

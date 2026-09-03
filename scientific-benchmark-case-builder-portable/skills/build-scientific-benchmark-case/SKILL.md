@@ -15,7 +15,7 @@ files, or starts computation.
 
 ```text
 /build-scientific-benchmark-case
-    mode: intake | extract-spec | design | scaffold | construct |
+    mode: intake | extract-spec | design | scaffold | mvp | construct |
           validate | discovery | release-check | experiment-handoff
     category: mlp
 ```
@@ -27,10 +27,11 @@ Modes are lifecycle operations of one Skill, not separate skills:
 | `intake` | Identify objective, category, source materials and repository contract | No |
 | `extract-spec` | Build evidence-backed category reproduction/spec artifacts | Writes analysis artifacts |
 | `design` | Define case objective, execution class, observables, public/hidden split and gates | Writes case design |
-| `scaffold` | Create a new draft case tree from a validated design. Optional `--target dftworld` renders the executable draft (task.toml v1.2, Dockerfile, target lock) through the dftworld Case Factory CLI; outside the dftworld repository, or when the adapter rejects the design, it fails clearly and preserves the portable scaffold | Writes new case directory |
+| `scaffold` | Create a new draft case tree from a validated design — `draft` and nothing more. Optional `--target dftworld` renders the executable draft (task.toml v1.2, Dockerfile, target lock) through the dftworld Case Factory CLI; outside the dftworld repository, or when the adapter rejects the design, it fails clearly and preserves the portable scaffold | Writes new case directory |
+| `mvp` | One pass through intake → extract-spec → design → scaffold → minimal construct → MVP gate (`scripts/common/check_discovery_runnable.py`). Default outputs: case tree, `MVP-READINESS.json`, `DISCOVERY-RUNBOOK.md`. Pauses at scientific target choices, unclear license/downloads, container builds, real scheduler submissions, expensive training/DFT/MD, and destructive overwrites. Never emits ablation or release packets | Writes new case tree; local checks only |
 | `construct` | Build reference, solution, verifier, fixtures and profiles through gated stages | Potentially expensive; approval-bound |
-| `validate` | Run structural/scientific/adversarial checks and derive open gates | Runs checks only unless approved |
-| `discovery` | Classify one real Runnable Draft attempt before expert-reference investment | Runs only when separately authorized |
+| `validate` | Run structural/scientific/adversarial checks and derive open gates. `runnable_draft` derives only from `check_discovery_runnable.py --derive-state` | Runs checks only unless approved |
+| `discovery` | Classify one real Runnable Draft attempt before expert-reference investment. The first real run uses the smoke-class Discovery profile from `DISCOVERY-RUNBOOK.md`, never `formal` | Runs only when separately authorized |
 | `release-check` | Fail-closed derivation of `benchmark_valid` | Writes derived release state |
 | `experiment-handoff` | Freeze a valid case for pilot/ablation | Valid cases only |
 
@@ -40,7 +41,8 @@ Modes are lifecycle operations of one Skill, not separate skills:
    requested category is absent, stop and report `supported categories: <list>`.
    Never fall back to MLP or a guessed generic schema.
 2. **Load Common Core references.** Load `references/common/` policy files:
-   case standard, lifecycle and gates, public/hidden boundary,
+   case standard, lifecycle and gates, `mvp-runnable-draft.md` (the one
+   authoritative `runnable_draft` definition), public/hidden boundary,
    reference/solution policy, verifier and fixture policy, threshold
    calibration, evidence retention, execution classes, experiment handoff.
    For Draft admission or regeneration, also read
@@ -76,8 +78,29 @@ implementation, architecture, training, validation, access/license, readiness,
 and source conflicts. Common Core does not interpret these fields.
 
 For MLP design/construct/validate work, read
-`references/categories/mlp/prompt-contract.md`. Before declaring a Runnable
-Draft, run `scripts/categories/mlp/check_draft_consistency.py CASE --json`.
+`references/categories/mlp/prompt-contract.md`. `runnable_draft` is derived
+only by `scripts/common/check_discovery_runnable.py CASE` (it orchestrates
+`check_draft_consistency.py`, semantic spec validation, real packaging, and
+the verifier mount smoke — see `references/common/mvp-runnable-draft.md`).
+A tree that merely parses is `draft`, not runnable.
+
+## State and entry rules
+
+- `scaffold` produces `draft` only; only
+  `scripts/common/check_discovery_runnable.py --derive-state` may write
+  `runnable_draft` (single authoritative definition:
+  `references/common/mvp-runnable-draft.md`).
+- A case's `tests/test.sh` is the hidden-verifier container entry and only
+  runs `tests/verifier.py` against the sealed submission; it must always emit
+  the common `result.json`. Construction self-tests
+  (`tests/test_verifier_contract.py`, `tools/` linters such as
+  `validate_submission_manifest.py`) are build-time developer tools and are
+  never wired into `test.sh`.
+- No script may depend on being executed from the case root; the mount layout
+  (`/tests`, sealed root, result dir) defines the contract.
+- Semantic validators run as scripts with the repository/runtime interpreter;
+  a YAML/Ruby syntax parse never substitutes for one, and a validator that
+  was not run or failed blocks the state.
 
 ## Non-negotiable gates
 

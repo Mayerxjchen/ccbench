@@ -43,9 +43,9 @@ def package_files() -> list[str]:
 
 
 class PackageContractTests(unittest.TestCase):
-    def test_manifest_version_is_2_1_0(self) -> None:
+    def test_manifest_version_is_2_2_0(self) -> None:
         manifest = json.loads((PACKAGE / "manifest.json").read_text(encoding="utf-8"))
-        self.assertEqual("2.1.0", manifest["version"])
+        self.assertEqual("2.2.0", manifest["version"])
         self.assertEqual(["build-scientific-benchmark-case"], manifest["skills"])
         self.assertEqual("literature-to-mlp-spec", manifest["legacy"]["name"])
 
@@ -76,6 +76,33 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("literature-to-mlp-spec", text)
         self.assertIn("mode=extract-spec category=mlp", text)
 
+    def test_template_ships_runnable_verifier_chain(self) -> None:
+        tests = BUILDER / "assets/case-template/common/tests"
+        self.assertTrue((tests / "test.sh").is_file())
+        self.assertTrue((tests / "test.sh").stat().st_mode & 0o111, "test.sh must be executable")
+        self.assertTrue((tests / "verifier.py").is_file())
+        self.assertTrue((tests / "test_verifier_contract.py").is_file())
+        self.assertTrue(
+            (BUILDER / "assets/case-template/common/public/submission-schema.json").is_file()
+        )
+        for name in ("forged-manifest", "missing-model", "broken-lineage"):
+            fixture = tests / "fixtures/negative" / name
+            self.assertTrue(fixture.is_dir(), f"negative fixture {name} missing")
+            self.assertTrue(
+                any(p.is_file() and p.name not in ("README.md", ".gitkeep")
+                    for p in fixture.rglob("*")),
+                f"negative fixture {name} has no executable submission content",
+            )
+        empty = tests / "fixtures/negative/empty"
+        self.assertTrue(empty.is_dir(), "negative fixture empty missing")
+        self.assertFalse(
+            any(p.is_file() and p.name not in ("README.md", ".gitkeep")
+                for p in empty.rglob("*")),
+            "the empty fixture must stay submission-empty to prove NO_SUBMISSION",
+        )
+        structural = tests / "fixtures/positive/structural-minimal"
+        self.assertTrue((structural / "manifest.json").is_file())
+
     def test_registry_closure(self) -> None:
         registry = yaml.safe_load((BUILDER / "references/category-registry.yaml").read_text(encoding="utf-8"))
         mlp = registry["categories"]["mlp"]
@@ -96,6 +123,8 @@ class PackageContractTests(unittest.TestCase):
                     "scripts/common/validate_case.py",
                     "scripts/common/classify_failure.py",
                     "scripts/categories/mlp/check_draft_consistency.py",
+                    "scripts/common/check_discovery_runnable.py",
+                    "references/common/mvp-runnable-draft.md",
                     "references/common/discovery-and-refinement.md",
                     "references/common/cross-layer-consistency.md",
                     "references/categories/mlp/prompt-contract.md"):

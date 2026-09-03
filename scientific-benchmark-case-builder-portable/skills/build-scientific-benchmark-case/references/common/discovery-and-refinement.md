@@ -5,9 +5,13 @@ classification, and REJECT/REFINE/PROMOTE decisions.
 
 ## Runnable Draft admission
 
-A Runnable Draft has a stable scientific target, evidence-backed public
-specification, leak-free Candidate bundle, resolved execution/runtime contract,
-and durable run provenance. It remains `benchmark_valid=false`.
+The one executable definition is `mvp-runnable-draft.md`: a case is
+`runnable_draft` exactly when `scripts/common/check_discovery_runnable.py`
+exits 0 (semantic spec validation, real packaging, bundle/instruction
+agreement, verifier mount smoke with standard results, and honesty checks).
+Such a case has a stable scientific target, evidence-backed public
+specification, leak-free Candidate bundle, resolved execution/runtime
+contract, and durable run provenance. It remains `benchmark_valid=false`.
 
 Expert reference, frozen thresholds, formal hidden-Verifier closure, and
 independent reruns are post-PROMOTE investments. Their absence does not block

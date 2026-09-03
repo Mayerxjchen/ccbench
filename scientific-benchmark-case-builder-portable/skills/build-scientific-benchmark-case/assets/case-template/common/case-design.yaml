@@ -15,8 +15,23 @@ execution:
   platform_profile: null
 candidate_inputs: []
 workflow_capabilities: []
+# label_source: dft | teacher_inference | published_model | self_generated.
+# dft_dynamics in workflow_capabilities is invalid unless labels are DFT.
+label_source: null
 submission_roles: []
 scientific_observables: []
+# One submission root across task.toml / case-design / verifier-plan.
+submission:
+  root: "."
+# One authority per validation set: candidate_generated | verifier_hidden |
+# expert_calibration. A set with two owners is a cross-layer contradiction.
+validation_sets: []
+# Machine-readable metric bounds consumed by instruction and verifier:
+#   - {name: force_rmse_evA, unit: eV/A, operator: "<", threshold: 0.10}
+metric_contract: []
+contract:
+  # CONTRACT.md may only be staged into the Candidate bundle when true.
+  candidate_visible: false
 hidden_verification:
   strategy: null
 profiles:
@@ -24,3 +39,4 @@ profiles:
   formal: profiles/formal.yaml
 non_goals: []
 blockers: []
+

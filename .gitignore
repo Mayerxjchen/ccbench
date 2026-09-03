@@ -25,3 +25,4 @@ H2O-RESTART.wfn*
 # the relative positions of artifacts/audit. Packaged as a standalone
 # qualification artifact with SHA-256 at release time, tied to the release tag.
 /evidence/hpc-dispatcher/qualification/site-v1/
+/experiments/case-builder-luna-v2/generated/

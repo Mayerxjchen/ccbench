@@ -1,0 +1,33 @@
+schema_version: 1
+category: mlp
+submission_root: .
+result_path: /logs/verifier/result.json
+layers:
+- id: MLP-V0
+  name: system/submission identity
+  conditional: false
+  hard_outcome: false
+- id: MLP-V1
+  name: data/label provenance
+  conditional: false
+  hard_outcome: false
+- id: MLP-V2
+  name: model authenticity
+  conditional: false
+  hard_outcome: false
+- id: MLP-V4
+  name: hidden static accuracy
+  conditional: true
+  hard_outcome: true
+- id: C-V7
+  name: resource and provenance compliance
+  conditional: false
+  hard_outcome: false
+- id: C-V8
+  name: submission integrity, filesystem safety, and manifest contract
+  conditional: false
+  hard_outcome: false
+fixtures:
+  positive: 1
+  negative: 1
+  alternative_valid: 1

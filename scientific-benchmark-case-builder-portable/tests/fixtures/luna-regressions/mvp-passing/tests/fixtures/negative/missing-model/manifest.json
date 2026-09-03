@@ -1,0 +1,31 @@
+{
+  "artifacts": [
+    {
+      "frames": 1,
+      "path": "artifacts/dataset/train.raw",
+      "role": "dataset",
+      "sha256": "a5c994d8b6d333ab747ba3aa831e95d305fe705e0cb731dff530cfd188307169",
+      "source": "seed"
+    }
+  ],
+  "case_id": "draft-case",
+  "lineage": [
+    {
+      "action": "train",
+      "dataset": "artifacts/dataset/train.raw",
+      "model": "artifacts/dataset/train.raw",
+      "round": 1
+    }
+  ],
+  "provenance_sources": [
+    "published teacher"
+  ],
+  "runtime_receipts": [
+    {
+      "backend": "local",
+      "exit_status": "0",
+      "job_id": "j1"
+    }
+  ],
+  "schema_version": 1
+}

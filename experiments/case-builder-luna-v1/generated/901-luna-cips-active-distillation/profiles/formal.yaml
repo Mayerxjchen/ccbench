@@ -1,0 +1,16 @@
+schema_version: 1
+profile: formal
+status: planned
+purpose: full active-distillation Discovery run and later calibrated evaluation
+requires: [smoke_passed, independent_threshold_freeze, hidden_verifier_bundle]
+stages:
+  - teacher_label_initial_train_trajectories
+  - train_independent_student_committee
+  - explore_with_committee_and_select_uncertain_frames
+  - teacher_label_selected_frames
+  - grow_dataset_and_retrain_committee
+  - evaluate_untouched_held_out_trajectory
+max_active_rounds: 5
+min_active_rounds: 1
+completion: held_out_force_mae_eV_per_angstrom <= 0.10 after min_active_rounds, or report bounded nonconvergence
+evidence: scheduler receipts, raw/fetched trajectories, labels, configs, model hashes, lineage manifest, independently parsed metrics

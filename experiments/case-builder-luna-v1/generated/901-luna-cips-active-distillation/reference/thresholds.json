@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "status": "draft",
+  "draft_basis": "source acceptance criterion and predeclared task outcome; not a frozen benchmark threshold",
+  "units": {
+    "force_mae": "eV/angstrom",
+    "force_rmse": "eV/angstrom",
+    "energy_mae": "eV/atom",
+    "committee_uncertainty": "eV/angstrom",
+    "active_iterations": "count"
+  },
+  "metric_definitions": {
+    "force_mae": "mean absolute per-component force error over all untouched held-out frames",
+    "force_rmse": "root mean square per-component force error over all untouched held-out frames",
+    "energy_mae": "mean absolute per-atom energy error with documented offset convention",
+    "committee_uncertainty": "per-frame spread of independent student force predictions",
+    "active_iterations": "complete explore/select/teacher-label/grow/retrain lineage count"
+  },
+  "thresholds": {
+    "force_mae": {"pass_bound": null, "direction": "max", "status": "awaiting independent calibration"},
+    "active_iterations": {"pass_bound": 1, "direction": "min"}
+  },
+  "freeze_requirements": [
+    "two independent reference runs with immutable input/runtime identities",
+    "independent parser confirms metrics",
+    "hidden generation provenance and candidate inaccessibility recorded",
+    "agent_results_inspected_at remains null until after freeze"
+  ],
+  "produced_by": null,
+  "agent_results_inspected_at": null,
+  "case_version": "901-luna-v1-draft",
+  "verifier_version": "planned",
+  "hidden_set": {"generation_provenance": "planned", "candidate_inaccessible": false, "submission_overlap_checked": false}
+}

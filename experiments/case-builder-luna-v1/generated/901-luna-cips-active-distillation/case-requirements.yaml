@@ -1,0 +1,13 @@
+schema_version: 1
+category: mlp
+case_kinds:
+  - final_model_retraining
+  - end_to_end_model_development
+  - published_model_execution
+  - model_evaluation
+  - active_learning_workflow
+workflow_capabilities:
+  - structure_generation
+  - model_training
+  - iterative_improvement
+  - hidden_static_accuracy

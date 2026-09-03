@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -311,10 +312,15 @@ class MlpAcceptanceTests(unittest.TestCase):
                 self.assertIn(expected, ids)
             plan = load_yaml(plan_out)
             self.assertEqual(4, plan["fixtures"]["negative"])
+            verdict = self.run_common_json("generate_fixture_matrix.py", str(out), "--json")
+            # v2.2 template ships the four standard executable negatives, so the
+            # matrix is closed at scaffold time for the default and 4-count plans
+            self.assertTrue(verdict["valid"], verdict["errors"])
+            shutil.rmtree(out / "tests/fixtures/negative/broken-lineage")
             verdict = self.run_common_json(
                 "generate_fixture_matrix.py", str(out), "--json", check=False
             )
-            self.assertFalse(verdict["valid"])  # invalid pending evidence
+            self.assertFalse(verdict["valid"])  # fail-closed when a standard negative is lost
             # 034-like complexity must not leak into Common Core
             leak = []
             for root in (SKILL / "references/common", SKILL / "assets/case-template/common"):
@@ -458,6 +464,11 @@ class DeriveVerifierPlanTests(unittest.TestCase):
                 "--output", str(plan_out),
             )
             verdict = json.loads(
+                run_common(self.MATRIX, str(case), "--json").stdout
+            )
+            self.assertTrue(verdict["valid"], verdict["errors"])
+            shutil.rmtree(case / "tests/fixtures/negative")
+            verdict = json.loads(
                 run_common(self.MATRIX, str(case), "--json", check=False).stdout
             )
             self.assertFalse(verdict["valid"])
@@ -466,6 +477,7 @@ class DeriveVerifierPlanTests(unittest.TestCase):
                 base = case / "tests/fixtures" / {"positive": "positive",
                                                   "negative": "negative",
                                                   "alternative_valid": "alternative-valid"}[cls]
+                base.mkdir(parents=True, exist_ok=True)
                 for i in range(count):
                     (base / f"{cls}_{i}").mkdir(parents=True)
             verdict = json.loads(run_common(self.MATRIX, str(case), "--json").stdout)
