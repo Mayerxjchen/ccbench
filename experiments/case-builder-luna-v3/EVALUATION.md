@@ -53,3 +53,18 @@ During the steering arm (903), the case builder marked candidate output `manifes
 ## Conclusion
 
 The v3 hardening criteria are completely satisfied across both the steering and physical isolation regimes. All gates, integrity probes, plan derivations, and leave-one-out constraints are fully verified.
+
+## Release record (2026-09-03)
+
+- v2.3.1 on branch: `3b192e1` (D1) + `66f949e` (D2 installer: version derived
+  from manifest.json; `install.sh --check` now passes for shipped packages);
+- audit archive as its own commit: `7f50fc0`;
+- merged into main: `b2eaea3` (only conflict was `.gitignore`; the concurrent
+  infra line's broad `/experiments/case-builder-luna-v*/` ignore rule was kept
+  — tracking overrides it, so committed v1/v2/v3 evidence stays intact and
+  future untracked experiment debris is ignored);
+- main checkout verified post-merge: manifest 2.3.1, `install.sh --check` OK,
+  package suite **159 passed**;
+- installed to `~/.claude/skills/build-scientific-benchmark-case`, byte-
+  identical to the merged package (diff clean), D1 skip-rule present;
+- not pushed (local merge only, per standing instruction).
