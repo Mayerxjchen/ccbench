@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "profile_id": "generic-slurm-v1",
+  "routes": {
+    "cpu": {
+      "site_profile": "generic-slurm-v1"
+    },
+    "gpu": {
+      "site_profile": "generic-slurm-v1"
+    }
+  }
+}
+

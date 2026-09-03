@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "site_id": "generic-slurm-v1",
+  "scheduler": "slurm",
+  "connection": {
+    "credential_profile_id": "user-hpc-ssh",
+    "target_binding": "login.hpc.university.edu:22",
+    "remote_user": "researcher",
+    "remote_root_policy": "/scratch/users/{remote_user}/mlffbench/{run_id}"
+  },
+  "account": "chem-dept",
+  "queues": {
+    "cpu": {
+      "partition": "cpu-standard",
+      "qos": "normal",
+      "max_cpus": 64,
+      "max_memory_gb": 256,
+      "max_gpus": 0,
+      "max_walltime_minutes": 240
+    },
+    "gpu": {
+      "partition": "gpu-a100",
+      "qos": "normal",
+      "max_cpus": 32,
+      "max_memory_gb": 128,
+      "max_gpus": 4,
+      "max_walltime_minutes": 120
+    }
+  },
+  "runtime_policy": {
+    "requires_apptainer": true,
+    "apptainer_bin": "apptainer",
+    "runtime_store": "/shared/containers/mlff",
+    "gres_template": "--gres=gpu:{gpus}"
+  }
+}
+

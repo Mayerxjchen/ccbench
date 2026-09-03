@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "profile_id": "maintainer-hybrid-v1",
+  "routes": {
+    "cpu": {
+      "site_profile": "ikkem-cpu"
+    },
+    "gpu": {
+      "site_profile": "compshare-gpu"
+    }
+  }
+}
+

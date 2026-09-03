@@ -232,3 +232,41 @@ def test_public_view_exposes_no_site_vocabulary():
         assert token not in blob
     assert sorted(view["compute_classes"]) == ["cpu", "gpu"]
     assert view["digest"] == profile.digest
+
+
+def test_example_profiles_validate_and_route():
+    import json
+    from pathlib import Path
+    import jsonschema
+
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    site_schema = json.loads(
+        (repo_root / "schemas" / "hpc-site-profile.schema.json").read_text()
+    )
+    comp_schema = json.loads(
+        (repo_root / "schemas" / "compute-profile.schema.json").read_text()
+    )
+
+    generic_site_doc = json.loads(
+        (repo_root / "examples" / "hpc" / "generic-slurm-site-profile.json").read_text()
+    )
+    jsonschema.validate(instance=generic_site_doc, schema=site_schema)
+
+    generic_comp_doc = json.loads(
+        (repo_root / "examples" / "hpc" / "generic-slurm-compute-profile.json").read_text()
+    )
+    jsonschema.validate(instance=generic_comp_doc, schema=comp_schema)
+
+    maintainer_doc = json.loads(
+        (repo_root / "examples" / "hpc" / "maintainer-hybrid-compute-profile.json").read_text()
+    )
+    jsonschema.validate(instance=maintainer_doc, schema=comp_schema)
+
+    profile = ComputeProfile.from_dict(maintainer_doc)
+    router = ComputeRouter(
+        profile, site_profiles={"ikkem-cpu": CPU_SITE, "compshare-gpu": GPU_SITE}
+    )
+    r_cpu = router.route("cpu")
+    assert r_cpu.site_profile_name == "ikkem-cpu"
+    r_gpu = router.route("gpu")
+    assert r_gpu.site_profile_name == "compshare-gpu"
