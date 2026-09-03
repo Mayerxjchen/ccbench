@@ -7,10 +7,13 @@ This ADR freezes what the current improvement cycle **will and will not**
 change. Work that contradicts this file is out of scope until the freeze is
 superseded by a new reviewed ADR.
 
-## 1. Excluded this cycle
+## 1. Scope and Exclusions this cycle
 
-- **Phase 7 (NS/WS pilot comparisons)** — not executed, not sampled, no pilot
+- **Phase 7 is Case Migration (031–034, 042)** — active and required for execution.
+- **NS/WS pilot comparisons** — DEFERRED. Not executed, not sampled, no pilot
   statistics produced. Release gates per case still run in full.
+- **CompShare Driver** — Maintainer profile ONLY (`maintainer-hybrid-v1`); not a
+  public user GPU backend. External users default to generic Slurm HPC.
 
 ## 2. External execution model: Local / HPC only
 

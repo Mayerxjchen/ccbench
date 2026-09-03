@@ -28,3 +28,6 @@ H2O-RESTART.wfn*
 /evidence/hpc-dispatcher/qualification/site-v1/
 /evidence/hpc-dispatcher/qualification/site-v1-archived-*/
 /evidence/hpc-dispatcher/qualification/site-v3/
+
+# Case Builder experiments isolated in dedicated worktree (.wt/case-builder-mvp-v3)
+/experiments/case-builder-luna-v*/
