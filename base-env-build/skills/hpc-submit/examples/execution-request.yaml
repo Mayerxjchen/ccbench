@@ -4,7 +4,9 @@
 schema_version: 2
 operation_id: scf-round-01
 attempt: 1
-runtime: example-registry/engine-image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+# Name a capability, never an image or a digest: trusted infra resolves the
+# locked SIF behind it (see the Architecture Freeze runtime boundary).
+runtime: cp2k
 command: ["engine-binary", "-i", "input.inp", "-o", "out/"]
 resources: {cpus: 8, memory_gb: 32, gpus: 0, walltime_minutes: 120}
 inputs:

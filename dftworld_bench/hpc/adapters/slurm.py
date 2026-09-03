@@ -32,6 +32,10 @@ import jsonschema
 from referencing import Registry, Resource
 
 from dftworld_bench.hpc.adapters.base import JOB_STATES
+from dftworld_bench.hpc.runtime_resolution import (
+    RuntimeResolutionError,
+    split_runtime,
+)
 from scripts.ablation.transport.slurm_transport import JobState, SubmitOpts
 
 _SCHEMAS_DIR = Path(__file__).resolve().parents[3] / "schemas"
@@ -74,6 +78,7 @@ class SlurmAdapter:
         case_id: str,
         resource_profile: dict[str, Any] | None = None,
         runtime_wrapper: Any = None,
+        runtime_store: dict[str, str] | None = None,
         script_dir: str | Path | None = None,
     ) -> None:
         _validate_site_config(site_config)
@@ -88,6 +93,12 @@ class SlurmAdapter:
         # comes from render_runtime_wrapper — one rw run bind, sealed argv —
         # instead of the legacy per-input bind construction below.
         self._runtime_wrapper = runtime_wrapper
+        # Locked runtime identity -> SIF path (Architecture Freeze §3): the
+        # gateway resolves capability tokens to name@sha256:<digest>; the
+        # digest is only ever turned into a filesystem path here, on the
+        # trusted side. Without a store, legacy call sites keep passing the
+        # declaration through (until Phase 8).
+        self._runtime_store = dict(runtime_store) if runtime_store else None
         platform = site_config["platform_profile"]
         queues = platform["queues"]
         self._profile = resource_profile or queues[0]
@@ -276,10 +287,36 @@ class SlurmAdapter:
             prefix = _literal_prefix(pattern)
             if prefix:
                 argv += ["--bind", f"{workspace}/{prefix}:/workspace-results"]
-        argv += [spec["runtime"]]  # digest-pinned frozen runtime
+        sif_ref = spec["runtime"]
+        if self._runtime_store is not None:
+            try:
+                _, digest = split_runtime(sif_ref)
+            except RuntimeResolutionError as exc:
+                raise SlurmAdapterError(str(exc)) from exc
+            sif_ref = self._resolve_sif_ref(sif_ref, digest)
+        argv += [sif_ref]  # locked frozen runtime (path or legacy ref)
         argv += list(spec["command"])  # argv, serialized verbatim
         lines.append(shlex.join(argv))
         return "\n".join(lines) + "\n"
+
+    def set_runtime_store(self, runtime_store: dict[str, str]) -> None:
+        """Attach the trusted digest -> SIF path map after construction."""
+        self._runtime_store = dict(runtime_store) if runtime_store else None
+
+    def _resolve_sif_ref(self, decl: str, digest: str | None) -> str:
+        """Turn a sealed runtime declaration into the locked on-site SIF path.
+
+        Fail-closed: with a store configured, every submitted runtime must be
+        a locked identity present in it; raw capability tokens never reach the
+        adapter (the gateway resolves first).
+        """
+        store = self._runtime_store or {}
+        if digest is not None and digest in store:
+            return store[digest]
+        raise SlurmAdapterError(
+            f"runtime {decl!r} is not a locked runtime of this site "
+            f"({len(store)} locked identities)"
+        )
 
     # -- internal ---------------------------------------------------------
 

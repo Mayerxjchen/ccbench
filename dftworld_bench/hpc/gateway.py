@@ -32,6 +32,11 @@ from typing import Any, Callable
 from dftworld_bench.hpc.adapters.base import TERMINAL_STATES, HpcAdapter
 from dftworld_bench.hpc.audit import GatewayAudit
 from dftworld_bench.hpc.job import JobSpec, JobError
+from dftworld_bench.hpc.runtime_resolution import (
+    RuntimeResolutionError,
+    RuntimeResolver,
+    split_runtime,
+)
 
 ALL_OPS = ("capabilities", "submit", "status", "logs", "fetch", "cancel", "usage")
 
@@ -94,9 +99,11 @@ class Gateway:
         now: Callable[[], float] | None = None,
         audit: GatewayAudit | None = None,
         workspace_root: Path | None = None,
+        runtime_resolver: RuntimeResolver | None = None,
     ) -> None:
         self._adapter = adapter
         self._quota = quota
+        self._runtime_resolver = runtime_resolver
         self._now = now or time.time
         self._tokens: dict[str, Capability] = {}
         self._jobs: dict[str, dict[str, str]] = {}  # run_id -> key -> job_id
@@ -155,7 +162,12 @@ class Gateway:
 
     def capabilities(self, token: str, run_id: str) -> dict[str, Any]:
         self.authorize(token, run_id, "capabilities")
-        return self._adapter.capabilities()
+        out = dict(self._adapter.capabilities())
+        if self._runtime_resolver is not None:
+            # Runtime capabilities are what Agents may name; concrete SIF
+            # identities stay server-side (Architecture Freeze §3).
+            out["runtime_capabilities"] = self._runtime_resolver.capabilities()
+        return out
 
     def submit(
         self,
@@ -175,6 +187,7 @@ class Gateway:
             )
         if attempt is not None:
             return self._submit_v2(token, run_id, spec, operation_id=operation_id, attempt=attempt)
+        spec, resolved = self._resolve_runtime(spec, run_id)
         self._validate_inputs(spec)
         # Typed validation: parse through JobSpec unconditionally.
         # The gateway is the trust boundary; every spec must satisfy the
@@ -195,11 +208,11 @@ class Gateway:
                 "kind": "submit", "run_id": run_id, "job_id": prior,
                 "operation_id": operation_id, "duplicate": True,
             })
-            return {"job_id": prior, "duplicate": True}
+            return self._submit_result(prior, duplicate=True, resolved=resolved)
         key = spec["idempotency_key"]
         existing = self._jobs.get(run_id, {}).get(key)
         if existing is not None:
-            return {"job_id": existing, "duplicate": True}
+            return self._submit_result(existing, duplicate=True, resolved=resolved)
         self._check_quota(run_id, spec["resources"])
         result = self._adapter.submit(spec, run_id=run_id, operation_id=operation_id)
         job_id = result["job_id"]
@@ -209,7 +222,7 @@ class Gateway:
             "kind": "submit", "run_id": run_id, "job_id": job_id,
             "operation_id": operation_id, "duplicate": False,
         })
-        return {"job_id": job_id, "duplicate": False}
+        return self._submit_result(job_id, duplicate=False, resolved=resolved)
 
     # -- v2: operation-attempt identity ------------------------------------
 
@@ -232,6 +245,7 @@ class Gateway:
         """
         if self._audit is None:
             raise GatewayError("v2 submit requires a durable audit trail")
+        spec, resolved = self._resolve_runtime(spec, run_id)
         self._validate_inputs(spec)
         try:
             JobSpec._from_payload(spec, source=None)
@@ -241,7 +255,7 @@ class Gateway:
         attempts = self._op_attempts.setdefault(run_id, {}).setdefault(operation_id, {})
         known = attempts.get(attempt)
         if known is not None:
-            return {"job_id": known, "duplicate": True}
+            return self._submit_result(known, duplicate=True, resolved=resolved)
 
         # Monotonic, gap-free lineage: every lower attempt exists and is
         # scheduler-terminal before the next one may be created. A predecessor
@@ -299,7 +313,7 @@ class Gateway:
                 },
                 durable=True,
             )
-            return {"job_id": found, "duplicate": True}
+            return self._submit_result(found, duplicate=True, resolved=resolved)
 
         self._check_quota(run_id, spec["resources"])
         marker = (
@@ -336,7 +350,7 @@ class Gateway:
             },
             durable=True,
         )
-        return {"job_id": job_id, "duplicate": False}
+        return self._submit_result(job_id, duplicate=False, resolved=resolved)
 
     def _resolve_predecessor(
         self,
@@ -538,6 +552,55 @@ class Gateway:
         return self._adapter.usage()
 
     # -- internal ----------------------------------------------------------
+
+    def _resolve_runtime(
+        self, spec: dict[str, Any], run_id: str
+    ) -> tuple[dict[str, Any], Any]:
+        """Seal the Agent's runtime declaration into the digest form.
+
+        Capability tokens are resolved against locked infra truth; the
+        declared digest (legacy compat form) is verified as an assertion.
+        Returns ``(spec, resolved_or_None)`` — ``None`` when nothing was
+        resolved (resolver-less compat operation), so responses stay
+        byte-identical for sites that have not adopted resolution yet.
+        """
+        decl = spec.get("runtime")
+        if not isinstance(decl, str):
+            return spec, None  # _from_payload reports the shape error
+        try:
+            name, digest = split_runtime(decl)
+        except RuntimeResolutionError as exc:
+            raise GatewayError(f"invalid runtime declaration: {exc}") from exc
+        if self._runtime_resolver is None:
+            if digest is None:
+                raise GatewayError(
+                    f"runtime {name!r} names a capability, but this gateway "
+                    "has no runtime resolver configured; either compose the "
+                    "site with one or submit a digest-pinned declaration"
+                )
+            return spec, None
+        try:
+            resolved = self._runtime_resolver.resolve(decl)
+        except RuntimeResolutionError as exc:
+            raise GatewayError(f"runtime resolution failed: {exc}") from exc
+        if resolved.declaration != decl:
+            self._audit_append({
+                "kind": "runtime_resolved",
+                "run_id": run_id,
+                "requested": decl,
+                "capability": resolved.capability,
+                "sif_sha256": resolved.sif_sha256,
+                "runtime_profile_digest": resolved.runtime_profile_digest,
+            })
+        return {**spec, "runtime": resolved.declaration}, resolved
+
+    def _submit_result(
+        self, job_id: str, *, duplicate: bool, resolved: Any
+    ) -> dict[str, Any]:
+        out: dict[str, Any] = {"job_id": job_id, "duplicate": duplicate}
+        if resolved is not None:
+            out["resolved_runtime"] = resolved.to_response()
+        return out
 
     def _own(self, run_id: str, job_id: str) -> None:
         if job_id not in self._run_jobs.get(run_id, set()):

@@ -37,6 +37,13 @@ bench-hpc usage
 
 ## Job contract
 
+- `runtime` names a **capability** (`cp2k`, `ai2kit`, `deepmd-jax`, ...); the
+  gateway resolves it against locked runtime lock files into a
+  `ResolvedRuntime` and seals the spec in `capability@sha256:<digest>` form
+  before the adapter sees it. Agents never supply SIF paths or digests; the
+  legacy digest-shaped form is verified as an assertion against the lock
+  (hidden compatibility path, removal in Phase 8). Unknown capabilities fail
+  closed, and `capabilities` advertises the site's `runtime_capabilities`.
 - `command` is always an argv array — never a shell string.
 - Absolute input/output paths and `..` traversal are rejected.
 - `resources` (cpus, memory_gb, gpus, walltime_minutes) are validated against

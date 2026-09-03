@@ -5,7 +5,9 @@ ID stays internal provenance; scientific retries are explicit attempt
 increments by the Agent, and only bounded transport retries are automatic.
 
 Hardening beyond the schema: relative slash-free paths, no parent traversal,
-argv-only commands, digest-pinned runtimes, unknown fields rejected.
+argv-only commands, capability-named runtimes (the legacy digest-pinned form
+is a hidden compat path verified against locked infra), unknown fields
+rejected.
 :class:`AttemptLedger` enforces monotonic, gap-free, one-in-flight attempts
 per operation; Task 3 wires it into the gateway ownership maps.
 """

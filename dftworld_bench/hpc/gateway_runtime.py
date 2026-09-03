@@ -20,6 +20,7 @@ from typing import Any, Callable
 from dftworld_bench.hpc.adapters.process_test import ProcessTestAdapter
 from dftworld_bench.hpc.audit import GatewayAudit
 from dftworld_bench.hpc.gateway import ALL_OPS, Gateway
+from dftworld_bench.hpc.runtime_resolution import RuntimeResolver
 
 NetworksFactory = Callable[[str], tuple[str, str]]
 
@@ -118,11 +119,22 @@ class GatewayRuntime:
     def start(self, run_id: str, adapter_config: dict[str, Any]) -> GatewayLease:
         adapter = build_adapter(adapter_config)
         workspace_root = adapter_config.get("workspace_root")
+        # Trusted composition: the site supplies the runtime lock directory;
+        # the resolver turns Agent capability tokens into locked runtimes and
+        # gives adapters the digest -> SIF path map (Architecture Freeze §3).
+        resolver: RuntimeResolver | None = None
+        lock_dir = adapter_config.get("runtime_lock_dir")
+        if lock_dir:
+            resolver = RuntimeResolver.from_lock_dir(Path(lock_dir))
+            attach = getattr(adapter, "set_runtime_store", None)
+            if attach is not None:
+                attach(resolver.runtime_store())
         gateway = Gateway(
             adapter,
             quota=self._quota,
             audit=self._audit,
             workspace_root=Path(workspace_root) if workspace_root else None,
+            runtime_resolver=resolver,
         )
         token = gateway.issue(run_id, ALL_OPS, ttl_sec=float(adapter_config.get("token_ttl_sec", 300.0)))
         lease = GatewayLease(
