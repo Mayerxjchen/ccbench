@@ -510,3 +510,30 @@ def test_render_runtime_wrapper_with_resolved_runtime():
     )
     with pytest.raises(RuntimeWrapperError, match="requires a SIF runtime"):
         render_runtime_wrapper(req, SITE, "/tmp/run-1", runtime=cs_rr)
+
+
+def test_frozen_compshare_gpu_locks_parse():
+    from dftworld_bench.hpc.runtime_resolution import RuntimeLockEntry
+
+    ref_dir = Path(__file__).resolve().parent.parent.parent / "reference" / "runtime"
+    deepmd_lock = ref_dir / "compshare-deepmd-gpu.lock.json"
+    jax_lock = ref_dir / "compshare-jax-gpu.lock.json"
+
+    assert deepmd_lock.is_file()
+    assert jax_lock.is_file()
+
+    deepmd_data = json.loads(deepmd_lock.read_text())
+    deepmd_entry = RuntimeLockEntry.from_lock_doc(
+        "deepmd", deepmd_data, source=str(deepmd_lock)
+    )
+    assert deepmd_entry.artifact_kind == "compshare_image"
+    assert deepmd_entry.image_id == "img-deepmd-gpu-v1"
+    assert deepmd_entry.provider == "compshare"
+
+    jax_data = json.loads(jax_lock.read_text())
+    jax_entry = RuntimeLockEntry.from_lock_doc(
+        "jax", jax_data, source=str(jax_lock)
+    )
+    assert jax_entry.artifact_kind == "compshare_image"
+    assert jax_entry.image_id == "img-jax-gpu-v1"
+    assert jax_entry.provider == "compshare"
