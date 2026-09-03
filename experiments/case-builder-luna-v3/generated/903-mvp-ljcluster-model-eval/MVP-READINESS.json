@@ -1,0 +1,67 @@
+{
+  "benchmark_valid": false,
+  "blocking_errors": [
+    "bundle_agreement: public/input-manifest.json names 'manifest.json' but the packaged bundle does not stage it"
+  ],
+  "checks": {
+    "bundle_agreement": {
+      "errors": [
+        "public/input-manifest.json names 'manifest.json' but the packaged bundle does not stage it"
+      ],
+      "status": "fail"
+    },
+    "category_semantics": {
+      "errors": [],
+      "status": "pass"
+    },
+    "cross_layer_consistency": {
+      "errors": [],
+      "status": "pass"
+    },
+    "fixture_matrix": {
+      "errors": [],
+      "status": "pass"
+    },
+    "pre_discovery_honesty": {
+      "errors": [],
+      "status": "pass"
+    },
+    "real_packaging": {
+      "detail": {
+        "bundle_dir": "/var/folders/56/qb1bh4b533vg1z1wcdb6rj6m0000gn/T/mvp-run-v0owympx/candidate-bundle",
+        "paths": [
+          "instruction.md",
+          "public/.gitkeep",
+          "public/eval-config.yaml",
+          "public/eval-table.csv",
+          "public/input-manifest.json",
+          "public/lc-mlp-v1.txt",
+          "public/submission-schema.json",
+          "public/system.json"
+        ],
+        "public_digest": "506e07b2966998133280160b42e9c76c5bd4a284015f3f8823f45bb6498653bb",
+        "spec_submission_root": "."
+      },
+      "errors": [],
+      "status": "pass"
+    },
+    "validate_case": {
+      "errors": [],
+      "status": "pass"
+    },
+    "verifier_mount_smoke": {
+      "errors": [],
+      "status": "pass"
+    },
+    "verifier_plan": {
+      "errors": [],
+      "status": "pass"
+    }
+  },
+  "deferred_release_work": [],
+  "mvp_runnable": false,
+  "runner": {
+    "interpreter": "/Users/xjchen/bench/mlffbench/.venv/bin/python",
+    "skill_root": "/Users/xjchen/bench/.wt/case-builder-mvp-v3/scientific-benchmark-case-builder-portable/skills/build-scientific-benchmark-case"
+  }
+}

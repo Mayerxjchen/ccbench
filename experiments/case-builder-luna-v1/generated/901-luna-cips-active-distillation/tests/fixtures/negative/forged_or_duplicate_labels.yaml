@@ -1,0 +1,4 @@
+fixture: forged_or_duplicate_labels
+expected: reject
+targets: [MLP-V1, MLP-V3, MLP-V4]
+mutation: labels do not trace to fetched teacher outputs, or selected frames duplicate training frames

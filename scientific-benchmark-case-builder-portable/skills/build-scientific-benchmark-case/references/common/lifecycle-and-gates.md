@@ -14,7 +14,9 @@ draft -> runnable_draft -> discovery_complete
 
 Runnable Draft admission and Discovery classification precede the release gate
 groups below. They screen case value and attribute failures before expensive
-expert work; they never imply `benchmark_valid=true`.
+expert work; they never imply `benchmark_valid=true`. The single
+authoritative definition of `runnable_draft` (and who may write it) is
+`mvp-runnable-draft.md`; do not restate or re-derive its criteria elsewhere.
 
 ## Gate groups
 

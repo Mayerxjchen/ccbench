@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "system": "system.json#/interfaces/cips_bulk_3x3x1",
+  "files": {
+    "CuInP2S6.cif": {
+      "sha256": "b9e3b0c4470274d5e3e1ce19e7c8834bda323e50483eef9791b1e744bbd629de",
+      "role": "periodic_initial_structure"
+    },
+    "teacher/frozen_model.pb": {
+      "sha256": "a3e7cf9c8168c649ee1ba6e39a7212f3f9db29fc0162b093beb908927e956b4d",
+      "role": "published_teacher"
+    },
+    "teacher/type_map.raw": {
+      "sha256": "ddd5c423f4f087be6301609fdfd5ac93a2241b3254f7bd732d33457b1f091d8e",
+      "role": "teacher_element_order"
+    }
+  },
+  "provenance": "Recovered MatClaw source package; hashes are input identity, not accuracy claims."
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "description": "Canonical system scope for 903-mvp-ljcluster-model-eval: one re-serialized Lennard-Jones cluster evaluation table (Ar clusters). Row-level scope is the 24-row public table; the author-retained held-out group stays verifier-owned.",
+  "interfaces": {
+    "lj-cluster-eval": {
+      "kind": "static_cluster_table",
+      "elements": ["Ar"],
+      "compositions": ["Arn, n in {8, 13, 19, 27, 38}"],
+      "phases": ["cluster"],
+      "rows": 24,
+      "row_id_range": "LJ-01..LJ-24",
+      "table_path": "public/eval-table.csv",
+      "label_quantity": "cohesive energy per atom (eV/atom)"
+    }
+  }
+}

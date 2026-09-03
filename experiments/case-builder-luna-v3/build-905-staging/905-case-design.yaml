@@ -1,0 +1,72 @@
+schema_version: 1
+category: mlp
+case_kind: model_evaluation
+case_status: draft
+objective: >-
+  Evaluate the published LC-MLP v1 fixed-feature MLP checkpoint (per-atom
+  cohesive energy of Lennard-Jones clusters) over the re-serialized 24-cluster
+  descriptor table and reproduce the reported metric band (MAE ~0.031 eV/atom,
+  RMSE ~0.045 eV/atom). No retraining is involved.
+source_relationship:
+  selected: paper_faithful
+  allowed: [paper_faithful, benchmark_adaptation]
+execution:
+  class: local_sandbox
+  compute_runtime: null
+  resource_profile: null
+  platform_profile: null
+candidate_inputs:
+  - published LC-MLP v1 checkpoint (materials-clean/repo/weights/lc-mlp-v1.txt)
+  - published model and preprocessing configuration (materials-clean/repo/config.yaml)
+  - re-serialized 24-cluster descriptor table (materials-clean/data/dataset.csv)
+  - case system registry and submission manifest contract
+source_context:
+  allow:
+    - /Users/xjchen/bench/mlffbench/experiments/case-builder-luna-v3/materials-clean
+  exclude:
+    - acceptance.json
+    - expected.json
+    - expected-output.json
+    - held-out-targets.json
+    - scores.json
+workflow_capabilities:
+  - hidden_static_accuracy
+label_source: published_model
+submission_roles:
+  - evaluator
+scientific_observables:
+  - cohesive_energy_mae_ev_atom
+  - cohesive_energy_rmse_ev_atom
+submission:
+  root: "."
+validation_sets:
+  - name: lj_cluster_calibration_24
+    owner: candidate_generated
+  - name: lj25_32_heldout
+    owner: verifier_hidden
+metric_contract:
+  - name: mae_ev_atom
+    unit: eV/atom
+    operator: "<"
+    threshold: 0.10
+  - name: rmse_ev_atom
+    unit: eV/atom
+    operator: "<"
+    threshold: 0.10
+contract:
+  candidate_visible: false
+hidden_verification:
+  strategy: >-
+    Author-reported held-out split (LJ-25..LJ-32) frozen into a hidden
+    descriptor table and scored by the sealed verifier against double-threshold
+    bounds (MLP-V4, hidden static accuracy). Assembly and freeze are deferred
+    release work at the Discovery MVP; the layer stays mandatory for the kind
+    and is selected now.
+profiles:
+  smoke: profiles/smoke.yaml
+  formal: profiles/formal.yaml
+non_goals:
+  - retrain LC-MLP v1 or any part of the pipeline
+  - regenerate the descriptor table from a different recipe
+  - dynamics, trajectory, or physics-observable checks for these clusters
+blockers: []

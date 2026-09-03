@@ -1,0 +1,10 @@
+schema_version: 1
+objects:
+  primary: content-addressed
+  replica: content-addressed
+finalize:
+  upload: required
+  read_back_hash: required
+  fresh_restore: required
+  reverify: required
+release_writer: check_release.py

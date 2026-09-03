@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "system_id": "cips_bulk_3x3x1",
+  "name": "CuInP2S6 periodic distillation target",
+  "interfaces": {
+    "cips_bulk_3x3x1": {
+      "composition": {"Cu": 9, "In": 9, "P": 18, "S": 54},
+      "natoms": 90,
+      "elements": ["Cu", "In", "P", "S"],
+      "cell_source": "CuInP2S6.cif",
+      "boundary_conditions": "periodic",
+      "supercell": [3, 3, 1],
+      "charge": 0,
+      "spin": "unspecified",
+      "units": {"length": "angstrom", "energy": "eV", "force": "eV/angstrom"}
+    }
+  },
+  "teacher": {
+    "model_family": "DeePMD",
+    "model_path": "teacher/frozen_model.pb",
+    "type_map_path": "teacher/type_map.raw",
+    "type_map": ["Cu", "In", "P", "S"],
+    "role": "published_teacher_label_generator"
+  }
+}

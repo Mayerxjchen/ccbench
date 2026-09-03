@@ -1,0 +1,25 @@
+schema_version: 1
+category: mlp
+case_kind: final_model_retraining
+execution:
+  class: local_sandbox
+objective: Hidden static accuracy for a released MACE model
+candidate_inputs:
+- model checkpoint
+- test structures
+workflow_capabilities:
+- hidden_static_accuracy
+case_status: draft
+submission:
+  root: .
+validation_sets:
+- name: heldout-water
+  owner: verifier_hidden
+metric_contract:
+- name: force_rmse
+  unit: eV/A
+  operator: <
+  threshold: 0.1
+label_source: teacher_inference
+contract:
+  candidate_visible: false

@@ -1,0 +1,112 @@
+schema_version: 1
+sources:
+  paper-001:
+    source_kind: paper
+    title: "Cohesive-Energy Prediction for Lennard-Jones Clusters with a Fixed-Feature MLP (LC-MLP v1)"
+    file: materials-clean/paper/paper.md
+    doi: null
+  repo-config-001:
+    source_kind: repository_config
+    title: "LC-MLP v1 model and preprocessing configuration"
+    file: materials-clean/repo/config.yaml
+    repository: null
+    release: null
+  repo-weights-001:
+    source_kind: model_artifact
+    title: "LC-MLP v1 published checkpoint (layers + normalization, toy JSON)"
+    file: materials-clean/repo/weights/lc-mlp-v1.txt
+    format: json
+  data-desc-001:
+    source_kind: dataset_metadata
+    title: "24-cluster calibration descriptor table"
+    file: materials-clean/data/dataset.csv
+    format: csv
+  data-readme-001:
+    source_kind: dataset_metadata
+    title: "Calibration data column meanings and units"
+    file: materials-clean/data/README.md
+  lic-001:
+    source_kind: author_documentation
+    title: "Per-artifact license and access notes"
+    file: materials-clean/LICENSE-NOTES.md
+  root-readme-001:
+    source_kind: author_documentation
+    title: "Toy LX-MLP v1 ecosystem README (task framing)"
+    file: materials-clean/README.md
+evidence:
+  ev-model-target:
+    source_id: paper-001
+    source_kind: paper
+    claim: target.primary
+    notes: >-
+      Paper reports the published LC-MLP v1 checkpoint whose evaluation is to
+      be reproduced.
+  ev-metrics:
+    source_id: paper-001
+    source_kind: paper
+    claim: validation.model_level
+    notes: >-
+      Paper reports MAE 0.031 eV/atom and RMSE 0.045 eV/atom on the calibration
+      table metric band.
+  ev-split:
+    source_id: paper-001
+    source_kind: paper
+    claim: dataset.splits
+    notes: >-
+      Authors held out LJ-25..LJ-32 in the original study; the provided 24-row
+      table is LJ-01..LJ-24.
+  ev-architecture:
+    source_id: repo-config-001
+    source_kind: repository_config
+    claim: model.architecture
+    notes: >-
+      config.yaml records ffn, cutoff 6.0 angstrom, hidden [32,32], silu, and
+      the feature list.
+  ev-preprocessing:
+    source_id: repo-config-001
+    source_kind: repository_config
+    claim: model.preprocessing
+    notes: >-
+      config.yaml records per-feature standardization mean and std applied to
+      inputs before inference.
+  ev-training:
+    source_id: repo-config-001
+    source_kind: repository_config
+    claim: training
+    notes: >-
+      config.yaml records adam, lr 0.001, 200 epochs, seed 20260903.
+  ev-checkpoint:
+    source_id: repo-weights-001
+    source_kind: model_artifact
+    claim: model.artifact
+    notes: >-
+      Published checkpoint file present in the toy repo; provenance recorded in
+      the sources lock.
+  ev-dataset:
+    source_id: data-desc-001
+    source_kind: dataset_metadata
+    claim: dataset.artifact
+    notes: >-
+      Re-serialized donor for the case-provided descriptor table
+      (public/lj-clusters/descriptors.csv).
+  ev-columns:
+    source_id: data-readme-001
+    source_kind: dataset_metadata
+    claim: dataset.columns
+    notes: >-
+      Column meanings and units of the descriptor table.
+  ev-licenses:
+    source_id: lic-001
+    source_kind: author_documentation
+    claim: licenses
+    notes: >-
+      Code MIT, dataset CC-BY-4.0, paper CC-BY-4.0, checkpoint license
+      unknown (no redistribution claim).
+  ev-ecosystem:
+    source_id: root-readme-001
+    source_kind: author_documentation
+    claim: reproduction-scope.framing
+    notes: >-
+      Ecosystem README frames the task as evaluate-the-published-checkpoint,
+      no retraining implied.
+conflicts: []

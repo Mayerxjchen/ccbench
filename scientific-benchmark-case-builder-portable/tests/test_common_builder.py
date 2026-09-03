@@ -294,8 +294,9 @@ class ScaffoldTests(unittest.TestCase):
             self.assertEqual("planned", ref["state"])
             self.assertEqual([], ref["lineage"])
             self.assertIsNone(ref["independent_parser"])
-            locks = json.loads((out / "reference" / "inputs.lock.json").read_text(encoding="utf-8"))
-            self.assertEqual("unlocked", locks["state"])
+            # v2.3: the unconsumed inputs.lock.json stub was deleted from the
+            # scaffold; reference.json stays the single planned-state record.
+            self.assertFalse((out / "reference" / "inputs.lock.json").exists())
 
     def test_scaffold_has_no_experiment_or_ablation_dir(self) -> None:
         with tempfile.TemporaryDirectory() as td:

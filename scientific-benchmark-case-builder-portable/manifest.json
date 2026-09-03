@@ -1,7 +1,7 @@
 {
   "name": "scientific-benchmark-case-builder-portable",
-  "version": "2.1.0",
-  "description": "Portable scientific benchmark case builder skill with Runnable Draft, Discovery classification, and cross-layer quality gates. Ships exactly one skill and the MLP category.",
+  "version": "2.3.1",
+  "description": "Portable scientific benchmark case builder skill with a single authoritative runnable_draft gate (check_discovery_runnable.py), harness-compatible verifier template with C-V8 integrity probes, no-silent-drop verifier plans (every applicable layer selected or deferred with a reason), leave-one-out source context (allow/exclude with answer-file defaults such as acceptance.json), Discovery classification, and cross-layer quality gates. Ships exactly one skill and the MLP category.",
   "skills": [
     "build-scientific-benchmark-case"
   ],

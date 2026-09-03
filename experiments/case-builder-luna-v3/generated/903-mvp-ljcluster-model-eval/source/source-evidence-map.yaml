@@ -1,0 +1,200 @@
+schema_version: 1
+
+# Source identities follow the leave-one-out intake contract declared in
+# case-design.yaml source_context: only roots under `materials/` were read,
+# and the two grader-side answer files (paper/acceptance.json,
+# repo/expected.json) were never opened; hash_sources.py --exclude recorded
+# the omissions in source/sources.lock.json under "excluded".
+
+sources:
+  paper-001:
+    source_kind: paper
+    title: >-
+      Cohesive-Energy Prediction for Lennard-Jones Clusters with a
+      Fixed-Feature MLP (LC-MLP v1)
+    doi: null
+    local_path: materials/paper/paper.md
+    version: props-2026-09-03
+    sha256: null
+    identity_note: >-
+      immutable identity via the directory digest of materials/paper recorded
+      in source/sources.lock.json (entry paper-001, answer file excluded)
+
+  repo-001:
+    source_kind: repository_config
+    repository: materials/repo (toy release repository; not under git)
+    commit: null
+    local_path: materials/repo
+    identity_note: >-
+      content identity via the sources.lock.json repo-001 tree digest with
+      expected.json excluded
+
+  repo-doc-001:
+    source_kind: author_documentation
+    local_path: materials/repo/README.md
+    title: LC-MLP v1 release repository README (toy)
+
+  ckpt-001:
+    source_kind: model_artifact
+    local_path: materials/repo/weights/lc-mlp-v1.txt
+    artifact: published LC-MLP v1 checkpoint (toy serialization)
+    identity_note: file sha256 recorded in sources.lock.json entry ckpt-001
+
+  data-001:
+    source_kind: dataset_metadata
+    local_path: materials/data/dataset.csv
+    record_id: materials/data/dataset.csv
+    version: props-2026-09-03
+    identity_note: >-
+      24-cluster calibration table; identity via sources.lock.json entry
+      data-001
+
+  license-001:
+    source_kind: author_documentation
+    local_path: materials/LICENSE-NOTES.md
+    title: License notes (toy ecosystem)
+
+evidence:
+  ev-target:
+    source_id: paper-001
+    source_kind: paper
+    locator:
+      section: Abstract
+    claim: target.primary
+    note: LC-MLP v1 is the reported model; headline metrics are its own
+
+  ev-scope:
+    source_id: paper-001
+    source_kind: paper
+    locator:
+      section: Reproduction notes
+    claim: reproduction_scope
+    note: evaluation of the published checkpoint, "No retraining is implied."
+
+  ev-descriptor:
+    source_id: paper-001
+    source_kind: paper
+    locator:
+      section: Methods / Descriptors
+    claim: model.architecture.parameters.features
+
+  ev-cutoff:
+    source_id: repo-001
+    source_kind: repository_config
+    locator:
+      path: config.yaml
+      yaml_path: model.cutoff_ang
+    claim: model.architecture.cutoff
+    note: matches the paper's 6.0 Angstrom statement
+
+  ev-model:
+    source_id: repo-001
+    source_kind: repository_config
+    locator:
+      path: config.yaml
+      yaml_path: model
+    claim: model
+
+  ev-preproc:
+    source_id: repo-001
+    source_kind: repository_config
+    locator:
+      path: config.yaml
+      yaml_path: preprocessing
+    claim: model.initialization
+
+  ev-training:
+    source_id: repo-001
+    source_kind: repository_config
+    locator:
+      path: config.yaml
+      yaml_path: training
+    claim: training
+    note: corroborated by the paper Methods/Training paragraph (ev-train-paper)
+
+  ev-train-paper:
+    source_id: paper-001
+    source_kind: paper
+    locator:
+      section: Methods / Training
+    claim: training
+
+  ev-data:
+    source_id: data-001
+    source_kind: dataset_metadata
+    locator:
+      file: dataset.csv
+    claim: dataset
+    note: 24 rows LJ-01..LJ-24; units per materials/data/README.md
+
+  ev-validation:
+    source_id: paper-001
+    source_kind: paper
+    locator:
+      section: Reported results (Table 1)
+    claim: validation.model_level
+    note: MAE 0.031 / RMSE 0.045 eV/atom on the fixed author split
+
+  ev-holdout:
+    source_id: data-001
+    source_kind: dataset_metadata
+    locator:
+      file: README.md
+    claim: validation.model_level.dataset_or_split
+    note: held-out rows LJ-25..LJ-32 are author-retained, not distributed
+
+  ev-checkpoint-published:
+    source_id: paper-001
+    source_kind: paper
+    locator:
+      section: Methods / Training
+    claim: implementation.checkpoint
+    note: the paper names repo/weights/lc-mlp-v1.txt the published checkpoint
+
+  ev-checkpoint-shape:
+    source_id: ckpt-001
+    source_kind: model_artifact
+    locator:
+      path: materials/repo/weights/lc-mlp-v1.txt
+    claim: implementation.entrypoint
+    note: >-
+      toy serialization (short fixed vectors + bias_out); its exact inference
+      semantics are not pinned by config.yaml (conflict-001)
+
+  ev-checkpoint-note:
+    source_id: repo-doc-001
+    source_kind: author_documentation
+    locator:
+      section: Layout
+    claim: implementation.entrypoint
+    note: >-
+      repo README calls the checkpoint a "toy: serialized bias/mean/std only"
+      artifact
+
+  ev-license:
+    source_id: license-001
+    source_kind: author_documentation
+    locator:
+      file: LICENSE-NOTES.md
+    claim: licenses
+    note: per-artifact states; weights license unknown, do not infer from code
+
+conflicts:
+  - conflict_id: conflict-001
+    field: implementation.entrypoint
+    severity: noncritical
+    evidence:
+      - ev-checkpoint-published
+      - ev-checkpoint-shape
+      - ev-checkpoint-note
+    resolution:
+      status: unresolved
+      selected_evidence: null
+      rationale: >-
+        The paper names the file the published checkpoint while the repo
+        README and the file itself describe a toy serialization whose shapes
+        do not match the config architecture (hidden [32, 32]). This does not
+        change the technical-chain verification outcome at Discovery MVP
+        (hence noncritical here), but it is recorded as the open design
+        blocker blk-inference-serialization and must be pinned before any
+        formal accuracy-bearing run.

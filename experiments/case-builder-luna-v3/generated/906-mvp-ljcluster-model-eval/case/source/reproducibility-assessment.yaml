@@ -1,0 +1,18 @@
+schema_version: 1
+scope: model_evaluation_only
+missing:
+- field: training.batch_size
+  critical_for: []
+  recovery: inspect version-matched training artifacts if exact stochastic reproduction
+    is required
+conflicts: []
+blockers: []
+readiness:
+  extraction_completeness: ready
+  execution_readiness: not_applicable
+  verification_readiness: ready
+  benchmark_case_readiness: recoverable
+production_readiness:
+  status: not_assessed
+  owner: mlp
+note: Deterministic information-readiness only; no scientific adequacy judgment performed.

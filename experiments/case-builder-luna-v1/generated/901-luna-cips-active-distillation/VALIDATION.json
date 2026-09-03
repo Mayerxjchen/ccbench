@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "case_status": "runnable_draft",
+  "benchmark_valid": false,
+  "discovery_prerequisites": {
+    "source_scope_stable": true,
+    "cross_layer_contract_valid": true,
+    "candidate_bundle_leak_free": true,
+    "runtime_execution_path_valid": false
+  },
+  "discovery": {
+    "run_record": null,
+    "classification": null,
+    "decision": null
+  },
+  "post_promote": {
+    "reference": "planned",
+    "thresholds": "planned",
+    "hidden_verifier": "planned",
+    "evidence_closure": "planned"
+  },
+  "open_gates": ["G2", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12"],
+  "evidence_pointers": {
+    "G0": ["source/source-evidence-map.yaml", "source/source.lock.json"],
+    "G1": ["public/", "tools/audit_candidate.sh"],
+    "G2": ["execution.yaml", "profiles/resource.yaml", "profiles/platform.yaml"],
+    "G3": ["instruction.md", "case-design.yaml"],
+    "G4": ["reference/reference.json"],
+    "G5": ["reference/reference.json"],
+    "G6": ["verifier-plan.yaml", "tools/verify_submission.py"],
+    "G7": ["tests/fixture-matrix.yaml", "tests/fixtures/"],
+    "G8": ["reference/thresholds.json"],
+    "G9": ["evidence/manifest.json"],
+    "G10": ["profiles/formal.yaml"],
+    "G11": ["reference/reference.json"],
+    "G12": ["benchmark_valid.json"]
+  },
+  "note": "Runnable Draft mechanics are locally constructed; every scientific/reference/release gate remains fail-closed until authorized runs and independent evidence exist."
+}

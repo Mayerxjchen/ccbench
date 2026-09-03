@@ -1,0 +1,12 @@
+schema_version: 1
+profile: smoke
+status: planned
+purpose: plumbing and contract verification only; not scientific evidence
+requires: [dispatcher.gpu, runtime.matclaw-gpu, batch_jobs, artifact_fetch]
+steps:
+  - validate public input hashes and teacher loadability on one CIPS frame
+  - submit one short teacher inference/MD job through the real scheduler
+  - poll scheduler to terminal state and fetch outputs
+  - run tools/verify_submission.py --dry-run against a schema fixture
+success_artifacts: [job receipt, terminal state, fetched artifact manifest, runtime identity]
+prohibits: [formal thresholds, benchmark-validity claim]

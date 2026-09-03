@@ -29,5 +29,7 @@ H2O-RESTART.wfn*
 /evidence/hpc-dispatcher/qualification/site-v1-archived-*/
 /evidence/hpc-dispatcher/qualification/site-v3/
 
-# Case Builder experiments isolated in dedicated worktree (.wt/case-builder-mvp-v3)
-/experiments/case-builder-luna-v*/
+# Case Builder experiments isolated in dedicated worktree (.wt/case-builder-mvp-v3).
+# v1/v2/v3 trees are committed audit archives (tracking overrides these
+# patterns); the rules keep NEW untracked experiment debris out of status.
+/experiments/case-builder-luna-v2/generated/

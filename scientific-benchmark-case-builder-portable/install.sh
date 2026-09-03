@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install scientific-benchmark-case-builder-portable v2.1.0.
+# Install scientific-benchmark-case-builder-portable (version read from manifest.json).
 #
 # Installs exactly one Skill, build-scientific-benchmark-case, at
 # $HOME/.claude/skills/build-scientific-benchmark-case/. The install is staged,
@@ -11,7 +11,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PACKAGE_VERSION="2.1.0"
+# Single authority: the shipped manifest.json is the version source. A pinned
+# literal here once drifted (v2.1.0 vs manifest v2.3.x) and --check failed;
+# derive it instead.
+PACKAGE_VERSION="$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' "${SCRIPT_DIR}/manifest.json" | head -1)"
+if [[ -z "${PACKAGE_VERSION}" ]]; then
+  echo "ERROR: could not read version from ${SCRIPT_DIR}/manifest.json" >&2
+  exit 1
+fi
 SKILL_NAME="build-scientific-benchmark-case"
 LEGACY_NAME="literature-to-mlp-spec"
 TARGET_BASE="${HOME}/.claude/skills"

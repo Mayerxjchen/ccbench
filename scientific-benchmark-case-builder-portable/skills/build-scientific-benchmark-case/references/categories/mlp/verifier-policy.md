@@ -34,6 +34,18 @@ MLP-V6 hidden physical observable (conditional)
 - Exact expert directory names and scripts are never required for scoring.
 - An alternative-valid fixture must prove outcome-based scoring.
 - A negative fixture is required for every hard (non-conditional) outcome.
+- This table is machine-mirrored as `KIND_LAYERS` in
+  `scripts/categories/mlp/derive_verifier_plan.py`; a package test fails if
+  the two disagree. Editing one side without the other is caught, not
+  absorbed.
+- Every layer applicable to a design (structural, mandatory-for-kind, or
+  capability-declared) appears in the derived plan explicitly with
+  `status: selected` or `status: deferred`. A mandatory layer may only exit
+  the executed chain via the design's `verifier_deferrals` with a non-empty
+  reason — no layer ever silently disappears. Structural layers (`MLP-V0`
+  through `MLP-V2`) and the Common layers (C-V7/C-V8) are always executed and
+  cannot be deferred. `fixtures.negative` is the count of *selected*
+  hard-outcome layers.
 
 ## Threshold freeze
 

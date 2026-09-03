@@ -1,0 +1,88 @@
+# Design input for init_case.py — 902-mvp-cips-curie-temperature
+# CIPS Curie-temperature published-model execution (MatClaw task 2, paper_faithful).
+# This file is the construct-mode design record; init_case renders it verbatim
+# into the case tree (plus forced schema_version/category/case_kind/case_status).
+schema_version: 1
+objective: >-
+  Execute the published frozen DeePMD teacher model for monolayer CuInP2S6
+  (MatClaw paper, arXiv:2604.02688, task 2 "Curie temperature") to reproduce
+  the temperature-driven ferroelectric-to-paraelectric transition: build the
+  6x6x1 monolayer supercell from the supplied CIF, run NVT Langevin molecular
+  dynamics across a ~100-600 K temperature sweep with the supplied frozen
+  model as the sole force engine, compute the per-atom-displacement order
+  parameter eta(t) = c*(<z>_Cu - <z>_host) in angstrom from unwrapped
+  fractional coordinates, average Q(T) = <|eta|> over the equilibrated
+  fraction of each trajectory, and report an estimate of the Curie
+  temperature with an uncertainty. Hard scientific outcome (checked only in
+  hidden verification, deferred to L2): the reported Curie temperature is
+  compared against a hidden expert-calibrated reference window.
+source_relationship:
+  selected: paper_faithful
+  allowed:
+    - paper_faithful
+    - benchmark_adaptation
+execution:
+  class: hpc_controller
+  compute_runtime: null
+  resource_profile: null
+  platform_profile: null
+candidate_inputs:
+  - public/CuInP2S6.cif
+  - public/teacher_model.pb
+  - public/type_map.raw
+  - public/system.json
+  - public/input-manifest.json
+  - public/submission-schema.json
+workflow_capabilities:
+  - hidden_physical_observable
+# Labels: no supervised labels are consumed in this scope; the frozen published
+# model is the energy/force oracle. label_source published_model keeps the
+# dft_dynamics capability correctly disallowed.
+label_source: published_model
+submission_roles:
+  - teacher_model
+  - dataset
+  - report
+  - log
+  - runtime_receipts
+scientific_observables:
+  - curie_temperature_K
+  - order_parameter_vs_temperature
+submission:
+  root: "."
+validation_sets:
+  # One authority per held-out set. The calibrated Tc reference is expert
+  # work (G-track, deferred); the hidden order-parameter curve backing the
+  # V6 comparison is verifier-held; the candidate sweep is candidate-owned.
+  - {name: tc_reference_window, owner: expert_calibration}
+  - {name: hidden_order_parameter_curve, owner: verifier_hidden}
+  - {name: submitted_sweep, owner: candidate_generated}
+# Provisional Discovery-MVP metric bound, recorded so the hidden V6 check has
+# one machine-readable home. NOT frozen: thresholds freeze only through
+# reference/thresholds.json via check_threshold_freeze.py after independent
+# calibration (deferred release work). The demo report's converged spread is
+# the only current evidence for the window width.
+metric_contract:
+  - {name: tc_abs_error_K, unit: K, operator: "<", threshold: 10.0}
+contract:
+  candidate_visible: false
+hidden_verification:
+  strategy: >-
+    Hidden model-authenticity digest (tests/hidden/teacher-digest.json) seals
+    the exact frozen model the candidate must have executed. MLP-V6 hidden
+    science - comparison of the submitted Q(T) curve and reported Curie
+    temperature against an independently regenerated expert reference sweep
+    and a calibrated acceptance window - is deferred: the upstream task-2
+    trajectory files were not recovered with the release, so the reference
+    must be regenerated from the sealed public model on authorized HPC
+    runtime, then double-calibrated before any threshold freezes.
+profiles:
+  smoke: profiles/smoke.yaml
+  formal: profiles/formal.yaml
+non_goals:
+  - training, distillation, or any modification of the provided model (031 owns active distillation)
+  - DFT label generation or first-principles accuracy claims (labels in this scope come from the published model)
+  - domain-wall or switching-path search (033 owns the domain-wall task)
+  - electric-field switching protocols (MatClaw task 3)
+  - reproducing the upstream LLM-agent interaction logs; only its scientific deliverables are in scope
+blockers: []

@@ -1,0 +1,229 @@
+schema_version: 1
+
+paper:
+  title: Example MLIP Paper
+  doi: 10.0000/example
+  arxiv: null
+  journal: Example Journal
+  year: 2026
+  authors: [A. Example, B. Example]
+  source_id: paper-001
+
+reproduction_scope:
+  target: final_model_retraining
+  includes:
+    - released labeled dataset
+    - production-model retraining
+    - model-level verification
+  excludes:
+    - full active-learning reconstruction
+  interpretation:
+    claim_status: inferred
+    evidence: []
+
+target:
+  primary:
+    reported_name: ExamplePotential
+    model_family: example_family
+    variant: v1
+    role: production
+    intended_use: production molecular dynamics
+    evidence: [ev-target]
+  related_models: []
+
+system:
+  elements: [H, O]
+  compositions: [water]
+  phases: [liquid]
+  interfaces: []
+  charge_states: []
+  spin_states: []
+  thermodynamic_conditions:
+    temperature_K: 300
+  chemical_scope: [bulk_water]
+
+dataset:
+  scientific_scope:
+    systems: [bulk_water]
+    generation_summary: released labeled configurations
+  inventory:
+    total_frames:
+      value: 5000
+      claim_status: observed
+      evidence: [ev-dataset]
+    components: []
+  splits:
+    training: released split
+    validation: released split
+    test: released test split
+  artifact:
+    source_id: dataset-001
+    format: generic
+    manifest: manifest.json
+    paths: []
+    content_hash: null
+  data_generation:
+    required_for_scope: false
+    method: null
+    active_learning: null
+
+labels:
+  energy:
+    present: true
+    unit: eV
+    claim_status: observed
+    evidence: [ev-dataset]
+  forces:
+    present: true
+    unit: eV/angstrom
+    claim_status: observed
+    evidence: [ev-dataset]
+  virial:
+    present: null
+    claim_status: unknown
+    evidence: []
+  stress:
+    present: null
+    claim_status: unknown
+    evidence: []
+  charges:
+    present: null
+    claim_status: unknown
+    evidence: []
+  dipoles:
+    present: null
+    claim_status: unknown
+    evidence: []
+  other: []
+
+reference_method:
+  software: ExampleDFT
+  version: null
+  theory_level: DFT
+  xc_functional: Example-XC
+  dispersion: null
+  basis: null
+  pseudopotential: null
+  plane_wave_cutoff: null
+  k_points: null
+  charge: null
+  spin: null
+  scf: null
+  smearing: null
+  convergence: null
+  corrections: null
+  evidence: [ev-dataset]
+
+implementation:
+  framework: example-mlip
+  backend: torch
+  version: 1.2.3
+  repository: https://example.invalid/mlip-reproduction
+  commit: 0123456789abcdef0123456789abcdef01234567
+  release: v1.2.3
+  fork: false
+  entrypoint: train
+  environment: null
+  evidence: [ev-training]
+
+model:
+  family: example_family
+  variant: v1
+  architecture:
+    cutoff:
+      value: 5.0
+      unit: angstrom
+      claim_status: observed
+      evidence: [ev-cutoff]
+    parameters:
+      hidden_dim: 128
+      num_layers: 3
+  precision: float32
+  initialization: null
+  evidence: [ev-cutoff]
+
+training:
+  steps:
+    value: 500000
+    claim_status: observed
+    evidence: [ev-training]
+  epochs: null
+  optimizer: Adam
+  learning_rate:
+    initial: 0.001
+    final: 0.000001
+    schedule: exponential
+  batch_size:
+    value: 4
+    claim_status: observed
+    evidence: [ev-training]
+  loss:
+    energy_weight: 1.0
+    force_weight: 100.0
+  seed:
+    value: null
+    claim_status: unknown
+    evidence: []
+  precision: float32
+  checkpointing: null
+  initialization: random
+  data_binding:
+    train_systems: [bulk_water]
+    validation_systems: [bulk_water]
+    test_systems: [bulk_water]
+    sampling_weights: null
+    shuffle: true
+  evidence: [ev-training]
+
+validation:
+  model_level:
+    dataset_or_split: released test split
+    metrics:
+      - force_rmse
+    reference_values:
+      - metric: force_rmse
+        value: 0.05
+        unit: eV/angstrom
+    procedure: evaluate released test split
+    evidence: [ev-validation]
+  trajectory_level:
+    conditions: null
+    metrics: []
+  property_level:
+    observables: []
+    metrics: []
+
+access:
+  paper:
+    status: available
+    source: paper-001
+  supporting_information:
+    status: available
+    source: si-001
+  repository:
+    status: available
+    source: repo-001
+  dataset:
+    status: available
+    source: dataset-001
+  pretrained_model:
+    status: unknown
+    source: null
+
+licenses:
+  code:
+    license: MIT
+    redistribution: allowed
+    evidence: []
+  dataset:
+    license: CC-BY-4.0
+    redistribution: allowed_with_attribution
+    evidence: []
+  model:
+    license: unknown
+    redistribution: unknown
+    evidence: []
+  paper:
+    license: unknown
+    redistribution: unknown
+    evidence: []

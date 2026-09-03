@@ -116,6 +116,41 @@ def render_case_design(design: dict, category: str, case_kind: str, exec_class: 
     return rendered
 
 
+def render_task_toml(exec_class: str) -> str:
+    """Render a canonical v2 manifest so CaseSpec.load accepts the draft.
+
+    The execution class comes from the validated design (never inferred), and
+    public inputs keep the `public/` prefix so instruction paths match the
+    packaged bundle. hpc_controller additionally needs the [hpc] block.
+    """
+    lines = [
+        "schema_version = 1",
+        "",
+        "[task]",
+        'name = "draft-case"',
+        'title = "draft task"',
+        "",
+        "[execution]",
+        f'class = "{exec_class}"',
+        "",
+        "[candidate]",
+        'instruction = "instruction.md"',
+        'submission_root = "."',
+        "legacy_submission_layout = false",
+        "files = [",
+        '  { source = "public/**", destination = "." },',
+        "]",
+    ]
+    if exec_class == "hpc_controller":
+        lines += [
+            "",
+            "[hpc]",
+            'contract_version = "1"',
+            'required_capabilities = ["batch_jobs"]',
+        ]
+    return "\n".join(lines) + "\n"
+
+
 def write_json(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -169,6 +204,7 @@ def main() -> int:
     copy_tree(assets / "categories" / args.category, out)
 
     write_yaml(out / "case-design.yaml", render_case_design(design, args.category, args.kind, exec_class))
+    (out / "task.toml").write_text(render_task_toml(exec_class), encoding="utf-8")
     write_json(out / "VALIDATION.json", {
         "schema_version": SCHEMA_VERSION,
         "case_status": "draft",

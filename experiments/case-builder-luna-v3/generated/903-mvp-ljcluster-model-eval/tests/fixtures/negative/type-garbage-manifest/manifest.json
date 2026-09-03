@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "case_id": "draft-case",
+  "artifacts": [
+    {"path": "artifacts/model/student.pb", "role": "student_model", "sha256": 123}
+  ],
+  "lineage": [
+    {"action": "train", "round": "one",
+     "dataset": "artifacts/model/student.pb", "model": "artifacts/model/student.pb"}
+  ],
+  "provenance_sources": ["published teacher"],
+  "runtime_receipts": [{"backend": "local", "job_id": "j1", "exit_status": "0"}]
+}

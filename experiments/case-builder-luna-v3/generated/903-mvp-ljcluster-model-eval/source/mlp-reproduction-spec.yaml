@@ -1,0 +1,301 @@
+schema_version: 1
+
+paper:
+  title: >-
+    Cohesive-Energy Prediction for Lennard-Jones Clusters with a
+    Fixed-Feature MLP (LC-MLP v1)
+  doi: null
+  arxiv: null
+  journal: null
+  year: 2026
+  authors: []
+  source_id: paper-001
+
+reproduction_scope:
+  target: model_evaluation_only
+  includes:
+    - run the published LC-MLP v1 checkpoint over the re-serialized descriptor table
+    - model-level metric computation (MAE/RMSE per atom)
+    - comparison against the reported Table-1 metric band
+  excludes:
+    - retraining or fine-tuning
+    - dataset regeneration or active-learning reconstruction
+    - dynamics and physical-observable validation
+  interpretation:
+    claim_status: observed
+    evidence: [ev-scope]
+
+target:
+  primary:
+    reported_name: LC-MLP v1
+    model_family: ffn
+    variant: v1
+    role: production
+    intended_use: >-
+      per-atom cohesive-energy prediction for icosahedral/decahedral
+      Lennard-Jones clusters; here reproduced as an evaluation target
+    evidence: [ev-target]
+  related_models: []
+
+system:
+  elements: [Ar]
+  compositions: ["Arn clusters, n in {8, 13, 19, 27, 38}"]
+  phases: [cluster]
+  interfaces: []
+  charge_states: []
+  spin_states: []
+  thermodynamic_conditions:
+    regime: 0 K static clusters (toy; no ensemble stated)
+  chemical_scope:
+    - lennard_jones_clusters
+
+dataset:
+  scientific_scope:
+    systems: [lennard_jones_clusters]
+    generation_summary: 24-cluster calibration table (toy ecosystem)
+  inventory:
+    total_frames:
+      value: 24
+      claim_status: observed
+      evidence: [ev-data]
+    components: [LJ-01..LJ-24 calibration rows]
+  splits:
+    training: published calibration table LJ-01..LJ-24
+    validation: null
+    test: author-retained held-out rows LJ-25..LJ-32 (not distributed)
+  artifact:
+    source_id: data-001
+    format: csv
+    manifest: null
+    paths: [materials/data/dataset.csv]
+    content_hash: see source/sources.lock.json entry data-001
+  data_generation:
+    required_for_scope: false
+    method: null
+    active_learning: null
+
+labels:
+  energy:
+    present: true
+    unit: eV/atom
+    claim_status: observed
+    evidence: [ev-data]
+  forces:
+    present: false
+    unit: null
+    claim_status: observed
+    evidence: [ev-data]
+  virial:
+    present: null
+    claim_status: unknown
+    evidence: []
+  stress:
+    present: null
+    claim_status: unknown
+    evidence: []
+  charges:
+    present: null
+    claim_status: unknown
+    evidence: []
+  dipoles:
+    present: null
+    claim_status: unknown
+    evidence: []
+  other: []
+
+reference_method:
+  software:
+    value: null
+    claim_status: unknown
+    evidence: []
+  version: null
+  theory_level:
+    value: null
+    claim_status: unknown
+    evidence: []
+  xc_functional: null
+  dispersion: null
+  basis: null
+  pseudopotential: null
+  plane_wave_cutoff: null
+  k_points: null
+  charge: null
+  spin: null
+  scf: null
+  smearing: null
+  convergence: null
+  corrections: null
+  evidence: []
+  note: >-
+    The toy sources report per-atom cohesive energies in eV/atom but never
+    state the label-generating reference theory; recorded as unknown rather
+    than guessed.
+
+implementation:
+  framework:
+    value: null
+    claim_status: unknown
+    evidence: []
+  backend: null
+  version: null
+  repository: materials/repo (toy; not under version control)
+  commit: null
+  release: props-2026-09-03
+  fork: false
+  entrypoint:
+    value: null
+    claim_status: unknown
+    evidence: [ev-checkpoint-shape, ev-checkpoint-note]
+  environment: python3, local_sandbox
+  checkpoint: repo/weights/lc-mlp-v1.txt (see ev-checkpoint-published)
+  evidence: [ev-model]
+  note: >-
+    No inference script ships with the toy repo; see conflict-001 and the
+    open design blocker blk-inference-serialization.
+
+model:
+  family: ffn
+  variant: v1
+  architecture:
+    cutoff:
+      value: 6.0
+      unit: angstrom
+      claim_status: observed
+      evidence: [ev-cutoff]
+    parameters:
+      type: ffn
+      hidden_layers: [32, 32]
+      activation: silu
+      features: [n_atoms, r_min_ang, r_max_ang, coord_num_mean, e_distort]
+      target: energy_per_atom_eV
+      claim_status: observed
+      evidence: [ev-model, ev-descriptor]
+  precision:
+    value: null
+    claim_status: unknown
+    evidence: []
+  initialization:
+    standardize: true
+    train_mean: [-1.0, 3.02, 3.98, 4.9, 0.5]
+    train_std: [1.0, 0.08, 0.35, 1.8, 0.3]
+    claim_status: observed
+    evidence: [ev-preproc]
+  evidence: [ev-model]
+
+training:
+  steps:
+    value: null
+    claim_status: unknown
+    evidence: []
+  epochs:
+    value: 200
+    claim_status: observed
+    evidence: [ev-training]
+  optimizer: adam
+  learning_rate:
+    initial: 0.001
+    final: null
+    schedule: null
+  batch_size:
+    value: null
+    claim_status: unknown
+    evidence: []
+  loss:
+    value: null
+    claim_status: unknown
+    evidence: []
+  seed:
+    value: 20260903
+    claim_status: observed
+    evidence: [ev-training]
+  precision:
+    value: null
+    claim_status: unknown
+    evidence: []
+  checkpointing: published checkpoint repo/weights/lc-mlp-v1.txt
+  initialization:
+    value: null
+    claim_status: unknown
+    evidence: []
+  data_binding:
+    train_systems: [lennard_jones_clusters]
+    validation_systems: []
+    test_systems: [lennard_jones_clusters]
+    sampling_weights: null
+    shuffle: null
+  evidence: [ev-training, ev-train-paper]
+  note: >-
+    Reported recipe only; the reproduction scope is evaluation of the
+    published checkpoint, not retraining.
+
+validation:
+  model_level:
+    dataset_or_split:
+      value: >-
+        fixed author split; held-out rows LJ-25..LJ-32 (8 clusters),
+        author-retained and not distributed in the sources
+      claim_status: observed
+      evidence: [ev-validation, ev-holdout]
+    metrics: [mae_ev_per_atom, rmse_ev_per_atom]
+    reference_values:
+      - metric: mae_ev_per_atom
+        value: 0.031
+        unit: eV/atom
+        claim_status: observed
+        evidence: [ev-validation]
+      - metric: rmse_ev_per_atom
+        value: 0.045
+        unit: eV/atom
+        claim_status: observed
+        evidence: [ev-validation]
+    procedure: >-
+      run the published checkpoint over the re-serialized descriptor table
+      with the recorded standardization, compute per-atom MAE/RMSE against
+      reference energies, and compare against the reported Table-1 band.
+    evidence: [ev-validation]
+  trajectory_level:
+    conditions: null
+    metrics: []
+  property_level:
+    observables: [cohesive energy per atom]
+    metrics: []
+
+access:
+  paper:
+    status: available
+    source: paper-001
+  supporting_information:
+    status: unavailable
+    source: null
+  repository:
+    status: available
+    source: repo-001
+  dataset:
+    status: available
+    source: data-001
+  pretrained_model:
+    status: available
+    source: ckpt-001
+  heldout_eval_table:
+    status: restricted
+    source: null
+
+licenses:
+  code:
+    license: MIT
+    redistribution: unknown
+    evidence: [ev-license]
+    note: toy grant stated in LICENSE-NOTES.md; LICENSE file omitted in props
+  dataset:
+    license: CC-BY-4.0
+    redistribution: allowed_with_attribution
+    evidence: [ev-license]
+  model:
+    license: unknown
+    redistribution: unknown
+    evidence: [ev-license]
+    note: explicitly unknown; not to be inferred from the repo code license
+  paper:
+    license: CC-BY-4.0
+    redistribution: allowed_with_attribution
+    evidence: [ev-license]

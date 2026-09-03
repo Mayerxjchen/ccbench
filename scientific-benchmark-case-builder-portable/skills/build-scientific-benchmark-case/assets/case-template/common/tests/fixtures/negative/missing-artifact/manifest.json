@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "case_id": "draft-case",
+  "artifacts": [
+    {"path": "artifacts/model/student.pb", "role": "student_model",
+     "sha256": "59f1b420b175690076b4ce5bb26eabfe714b7054e9d467e4c47dab633d05fb29"},
+    {"path": "artifacts/dataset/train.raw", "role": "dataset", "frames": 2,
+     "source": "teacher MD round 1",
+     "sha256": "5b2e9f70b0b80684a53f83edde03127246e8472ebda0b0e035e230b73e65b9c4"}
+  ],
+  "lineage": [
+    {"action": "train", "round": 1,
+     "dataset": "artifacts/dataset/train.raw", "model": "artifacts/model/student.pb"}
+  ],
+  "provenance_sources": ["published teacher"],
+  "runtime_receipts": [{"backend": "local", "job_id": "j1", "exit_status": "0"}]
+}

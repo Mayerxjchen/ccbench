@@ -1,0 +1,97 @@
+schema_version: 1
+category: mlp
+case_kind: active_learning_workflow
+case_status: runnable_draft
+objective: >-
+  Develop a reliable CuInP2S6 (CIPS) DeePMD student potential by knowledge
+  distillation from the supplied published teacher, using an executed
+  train -> explore -> uncertainty-select -> teacher-label -> grow -> retrain
+  active-learning cycle and an independent held-out trajectory.
+source_relationship:
+  selected: paper_faithful
+  allowed: [paper_faithful, benchmark_adaptation]
+  note: >-
+    The CIPS system, teacher provenance, and active-distillation lineage are
+    evidence-backed from the recovered MatClaw sources. Exact runtime and
+    calibration values remain draft/planned.
+execution:
+  class: hpc_controller
+  compute_runtime: >-
+    Real scheduler-controlled HPC execution for DeePMD training, teacher/MLP
+    MD exploration, and teacher-label jobs; the agent is the controller and
+    must fetch artifacts into its submission workspace.
+  resource_profile: profiles/resource.yaml
+  platform_profile: profiles/platform.yaml
+candidate_visible:
+  - public
+  - instruction.md
+  - task.toml
+  - CONTRACT.md
+workflow_capabilities:
+  - structure_generation
+  - dft_dynamics
+  - model_training
+  - iterative_improvement
+  - hidden_static_accuracy
+submission_roles:
+  - role: primary_student
+    required: true
+    description: Best final student model selected by held-out force metrics.
+  - role: committee
+    required: true
+    description: At least two independently seeded students for uncertainty.
+  - role: lineage_manifest
+    required: true
+    description: Machine-readable record of every input, job, frame set, model, and metric.
+scientific_observables:
+  - name: force_mae
+    unit: eV/angstrom
+    hard_outcome: true
+    definition: Mean absolute per-component force error on independent held-out teacher labels.
+  - name: force_rmse
+    unit: eV/angstrom
+    hard_outcome: true
+    definition: Root mean square per-component force error on the same held-out split.
+  - name: energy_mae
+    unit: eV/atom
+    hard_outcome: false
+    definition: Mean absolute energy error per atom with documented offset convention.
+  - name: committee_uncertainty
+    unit: eV/angstrom
+    hard_outcome: true
+    definition: Per-frame spread of independent student force predictions used for selection.
+  - name: active_iterations
+    unit: count
+    hard_outcome: true
+    definition: Number of completed explore/select/label/grow/retrain rounds with lineage.
+hidden_verification:
+  strategy: >-
+    Fresh verifier receives candidate output only and applies outcome-based
+    provenance, identity, workflow-lineage, held-out static accuracy, and
+    filesystem-safety checks. It accepts alternative committee sizes/layouts
+    when their evidence proves the same outcomes, and rejects copied,
+    fabricated, leaked, duplicate, or claimed-but-missing artifacts.
+profiles:
+  smoke: profiles/smoke.yaml
+  formal: profiles/formal.yaml
+non_goals:
+  - Reproduce the Curie-temperature calculation or domain-wall search.
+  - Claim frozen accuracy thresholds or benchmark validity before calibration.
+  - Run training, MD, labeling, container builds, downloads, or HPC jobs during construction.
+blockers:
+  - id: runtime-site
+    status: open
+    severity: critical
+    reason: Real HPC scheduler, GPU image, artifact transport, and credentials are not qualified in this local construction.
+  - id: reference-calibration
+    status: open
+    severity: critical
+    reason: Expert reference reruns, independent parser, and pre-agent threshold calibration are planned but not executed.
+  - id: hidden-set
+    status: open
+    severity: critical
+    reason: Independent held-out generation and candidate-inaccessibility checks require post-discovery verifier setup.
+  - id: redistribution-rights
+    status: open
+    severity: noncritical
+    reason: Teacher model and paper redistribution/licensing terms are not exposed by the recovered source metadata; internal use is planned.

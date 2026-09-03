@@ -1,0 +1,4 @@
+schema_version: 1
+profile: smoke
+status: draft
+purpose: plumbing verification only

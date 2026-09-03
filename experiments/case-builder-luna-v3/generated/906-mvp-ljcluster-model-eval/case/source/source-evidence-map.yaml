@@ -1,0 +1,75 @@
+schema_version: 1
+sources:
+  paper-001:
+    source_kind: paper
+    title: Cohesive-Energy Prediction for Lennard-Jones Clusters with a Fixed-Feature MLP (LC-MLP v1)
+    version: props-2026-09-03
+    sha256: b7a6323c624df7c720684449d9a04cde461bcfcb75e5aacf228d0fbbb719fae9
+  repo-001:
+    source_kind: repository_config
+    note: toy release repository (config + published checkpoint)
+    config_sha256: 37ff9e0192b40281ed3a705cb7d428bcf0c0bfd6253a8afffda0232b30e500fa
+  model-001:
+    source_kind: model_artifact
+    artifact: repo/weights/lc-mlp-v1.txt
+    sha256: 852990abcfdbd158e2cfdad2ccb4ce96e49e9943802ea522f82bc669eeeb5c71
+  data-001:
+    source_kind: dataset_metadata
+    artifact: data/dataset.csv
+    sha256: ae8c4e8dceebe8e6b01fc1b36816efb06973834aafd747a5c9120207a2b68a93
+  license-001:
+    source_kind: author_documentation
+    artifact: LICENSE-NOTES.md
+    sha256: 258a099a6bc58af498585144cae890e4a89e16634a01e494a11fcfb747792521
+
+evidence:
+  ev-descriptor-set:
+    source_id: paper-001
+    source_kind: paper
+    locator: {section: Methods > Descriptors}
+    claim: model.architecture.features
+    note: five fixed structural descriptors, cutoff 6.0 Angstrom
+  ev-model-arch:
+    source_id: paper-001
+    source_kind: paper
+    locator: {section: Methods > Model}
+    claim: model.architecture.parameters
+    note: two hidden layers width 32, SiLU
+  ev-model-config:
+    source_id: repo-001
+    source_kind: repository_config
+    locator: {path: repo/config.yaml, yaml_path: model}
+    claim: model.architecture.parameters
+    note: config confirms hidden [32,32], silu, features, target
+  ev-standardize:
+    source_id: repo-001
+    source_kind: repository_config
+    locator: {path: repo/config.yaml, yaml_path: preprocessing}
+    claim: model.preprocessing.standardize
+    note: train_mean/train_std recorded
+  ev-metrics:
+    source_id: paper-001
+    source_kind: paper
+    locator: {section: Reported results Table 1}
+    claim: validation.model_level.reference_values
+    note: MAE 0.031, RMSE 0.045 eV/atom, split holds out LJ-25..LJ-32
+  ev-training:
+    source_id: paper-001
+    source_kind: paper
+    locator: {section: Methods > Training}
+    claim: training
+    note: Adam lr 1e-3, 200 epochs, seed 20260903
+  ev-dataset:
+    source_id: data-001
+    source_kind: dataset_metadata
+    locator: {path: data/dataset.csv}
+    claim: dataset.artifact
+    note: 24-cluster calibration table LJ-01..LJ-24
+  ev-license-model:
+    source_id: license-001
+    source_kind: author_documentation
+    locator: {path: LICENSE-NOTES.md}
+    claim: licenses.model
+    note: model weight license unknown; do not infer from repo code license
+
+conflicts: []
