@@ -516,8 +516,8 @@ def test_frozen_compshare_gpu_locks_parse():
     from dftworld_bench.hpc.runtime_resolution import RuntimeLockEntry
 
     ref_dir = Path(__file__).resolve().parent.parent.parent / "reference" / "runtime"
-    deepmd_lock = ref_dir / "compshare-deepmd-gpu.lock.json"
-    jax_lock = ref_dir / "compshare-jax-gpu.lock.json"
+    deepmd_lock = ref_dir / "deepmd-runtime.lock.json"
+    jax_lock = ref_dir / "jax-runtime.lock.json"
 
     assert deepmd_lock.is_file()
     assert jax_lock.is_file()

@@ -12,7 +12,7 @@ Per architecture rules:
 ## 1. DeepMD GPU Image (`mlff-deepmd-gpu-v1`)
 
 - **Image ID**: `img-deepmd-gpu-v1`
-- **Lock File**: [`reference/runtime/compshare-deepmd-gpu.lock.json`](file:///Users/xjchen/bench/mlffbench/reference/runtime/compshare-deepmd-gpu.lock.json)
+- **Lock File**: [`reference/runtime/deepmd-runtime.lock.json`](file:///Users/xjchen/bench/mlffbench/reference/runtime/deepmd-runtime.lock.json)
 - **Base Image**: `compshare/pytorch:2.1.2-cuda12.1-cudnn8-devel-ubuntu22.04`
 - **CUDA Version**: 12.1
 - **Driver Compatibility**: >= 525.60.13
@@ -38,7 +38,7 @@ python -c "import deepmd; print('DeepMD version:', deepmd.__version__); import t
 ## 2. JAX / DP-MP GPU Image (`mlff-jax-gpu-v1`)
 
 - **Image ID**: `img-jax-gpu-v1`
-- **Lock File**: [`reference/runtime/compshare-jax-gpu.lock.json`](file:///Users/xjchen/bench/mlffbench/reference/runtime/compshare-jax-gpu.lock.json)
+- **Lock File**: [`reference/runtime/jax-runtime.lock.json`](file:///Users/xjchen/bench/mlffbench/reference/runtime/jax-runtime.lock.json)
 - **Base Image**: `compshare/cuda:12.2-devel-ubuntu22.04`
 - **CUDA Version**: 12.2
 - **Driver Compatibility**: >= 525.60.13
