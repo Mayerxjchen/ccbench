@@ -50,4 +50,4 @@ mcp_servers = []
 [generated]
 target = "dftworld"
 adapter_version = "0.1.0"
-design_sha256 = "sha256:acdbc33fa526f0ca48e6a7fdf3e8f1725334fe89a218eab3ba35feee03e8e6c8"
+design_sha256 = "sha256:9e427b812e1f10ae742a1e5d4e7d56e09d3e61f3af9041d543470eb54dce7220"

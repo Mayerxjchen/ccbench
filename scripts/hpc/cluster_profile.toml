@@ -12,16 +12,28 @@ port = 22
 
 [ssh.options]
 # Per-invocation -o options (host ssh config is mounted read-only).
+BatchMode = "yes"
+ConnectTimeout = "10"
+IdentitiesOnly = "no"        # use the forwarded agent, not a key path
+ControlMaster = "no"         # no control-socket dir inside container
+StrictHostKeyChecking = "accept-new"
 
 [paths]
 remote_root = "/public/home/<site-user>/dftworld2-runs/matclaw-031"
 apptainer = "/path/to/apptainer"
+run_suffix = "runs"
 
 [slurm]
-partition = "gpu"              # gpu-class queue name at your site
-cpu_partition = "cpu"          # native cpu queue (empty = ACL-era routing)
+account = "acct-blocked"     # DBAccount/SACCT account at your site
+partition = "gpu"            # gpu-class queue name at your site
+qos = "normal"
 gres = "gpu:1"
 cpus_per_task = "8"
+mem = "64G"                  # per-node memory ceiling for gpu jobs
+time_paper = "08:00:00"      # paper-configuration walltime
+time_smoke = "00:30:00"      # smoke-configuration walltime
+time_probe = "00:30:00"      # probe/dispatch walltime
+cpu_partition = "cpu"        # native cpu queue (empty = ACL-era routing)
 cpu_cpus_per_task = "8"      # optional; defaults to cpus_per_task
 cpu_mem = "8G"               # optional CPU-queue ceiling; defaults to mem
 cpu_time_paper = "08:00:00"  # optional; defaults to time_paper
@@ -29,3 +41,4 @@ nodes = "1"
 
 [runtime]
 expected_node_arch = "x86_64"
+sync_strategy = "sync_back"  # rsync back to the site root on settle

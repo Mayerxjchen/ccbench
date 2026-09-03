@@ -19,8 +19,7 @@ The instantaneous ferroelectric order parameter is defined as the Cu sublattice 
 
 \[ \eta(t) = \overline{\mathbf{r}_{\mathrm{Cu}}(t)\cdot\hat{\mathbf{c}}} - \overline{\mathbf{r}_{\mathrm{host}}(t)\cdot\hat{\mathbf{c}}} \]
 
-where the host average is taken over all non-Cu atoms (In, P, S). The plotted thermodynamic order parameter is the equilibrated time average $\langle |\eta| 
-angle$ from the last 50 ps of each trajectory.
+where the host average is taken over all non-Cu atoms (In, P, S). The plotted thermodynamic order parameter is the equilibrated time average $\langle |\eta| angle$ from the last 50 ps of each trajectory.
 
 ## Pilot convergence check near the transition
 

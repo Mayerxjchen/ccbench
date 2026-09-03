@@ -486,7 +486,10 @@ def test_reference_profile_toml_is_valid():
     """The in-repo reference template must load and validate unchanged."""
     profile = load_profile(ROOT / "scripts" / "hpc" / "cluster_profile.toml")
     assert profile["ssh"]["host"] == "<site-alias>"
-    assert profile["slurm"]["partition"] == "gpu,gpu-mig-2g-20gb"
+    # Hardware contract frozen to partition=gpu, gres=gpu:1 (formal
+    # gpu-qualification-20260812: "full-GPU won the race vs MIG"); MIG is a
+    # standby capability profile, never mixed into the formal compute class.
+    assert profile["slurm"]["partition"] == "gpu"
     assert profile["slurm"]["cpu_partition"] == "cpu"
     assert profile["slurm"]["gres"] == "gpu:1"
 

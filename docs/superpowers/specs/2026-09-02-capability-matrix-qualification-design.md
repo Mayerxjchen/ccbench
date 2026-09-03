@@ -95,7 +95,7 @@ def _derive_job(job, label) -> JobDerivation:
     # returns PER-JOB buckets.  A job's problems land ONLY in its own
     # buckets; the buckets keep today's names and problem strings.
     #   scheduler_facts, tres_reconciliation, containment_probe,
-    #   gpu_device_probe (gpu-class jobs only; absent for cpu),   
+    #   gpu_device_probe (gpu-class jobs only; absent for cpu),
     #   settlement_integrity, audit_ledger (per-run chain),
     #   artifact_manifest, provenance (INCLUDING the runtime_decl
     #   SIF-digest binding — now per-job, no longer injected into a
