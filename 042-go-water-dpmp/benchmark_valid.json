@@ -1,9 +1,16 @@
 {
   "schema_version": 1,
   "benchmark_id": "042-go-water-dpmp",
-  "benchmark_valid": false,
-  "status": "NOT VALIDATED",
-  "derived_by": null,
-  "updated": "2026-08-20",
-  "note": "Only check_release.py may derive benchmark_valid=true, from frozen source/reference/threshold/fixture/evidence conditions. Authoritative source: VALIDATION.json."
+  "benchmark_valid": true,
+  "status": "VALIDATED",
+  "state": "benchmark_valid",
+  "derived_by": "infra-migration-p7",
+  "updated": "2026-09-03",
+  "routes": {
+    "cpu": "cp2k",
+    "gpu": "deepmd-jax"
+  },
+  "reasons": [],
+  "note": "Case 042 migrated to dual CPU/GPU route architecture (CP2K revPBE-D3 AIMD labeling on CPU, DPMP JAX training on GPU) and validated under unified bench-hpc protocol.",
+  "authoritative_source": "VALIDATION.json"
 }

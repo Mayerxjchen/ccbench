@@ -20,8 +20,11 @@ strip_prefix = "public"
 contract_version = "hpc-execution/v1"
 required_capabilities = ["batch_jobs", "gpu", "artifact_fetch"]
 
+[hpc.qualification]
+requires = ["dispatcher.cpu", "dispatcher.gpu", "runtime.cp2k"]
+
 [hpc.scientific_capabilities]
-required = ["cp2k"]
+required = ["cp2k", "deepmd-jax"]
 optional = ["gpu-training", "jax-md-gpu"]
 
 [task]
