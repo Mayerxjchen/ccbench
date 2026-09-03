@@ -96,3 +96,23 @@ def test_cli_is_pure_forwarding_no_new_logic():
     text = Path(cli.__file__).read_text(encoding="utf-8")
     for forbidden in ("Gateway(", "SlurmAdapter(", "subprocess", "sbatch"):
         assert forbidden not in text, forbidden
+
+
+def test_compute_configure_and_validate(tmp_path, capsys):
+    out = tmp_path / "my_compute_profile.json"
+    code = cli.main(["compute", "configure", "--out", str(out)])
+    assert code == 0
+    assert out.is_file()
+    assert "template copied" in capsys.readouterr().err
+
+    # Validate
+    val_code = cli.main(["compute", "validate", "--profile", str(out)])
+    assert val_code == 0
+    assert "validates" in capsys.readouterr().err
+
+
+def test_compute_configure_refuses_inside_repo(capsys):
+    inside = Path(cli.ROOT) / "my_compute_profile.json"
+    code = cli.main(["compute", "configure", "--out", str(inside)])
+    assert code == 2
+    assert "OUTSIDE the repository" in capsys.readouterr().err

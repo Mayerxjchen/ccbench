@@ -120,6 +120,46 @@ def _report(rest: list[str]) -> int:
     return verify_main(rest)
 
 
+def _compute_configure(out: Path, template: str) -> int:
+    out = out.expanduser().resolve()
+    if ROOT in out.parents or out == ROOT:
+        raise CliError(
+            f"the compute profile must live OUTSIDE the repository (refusing {out} under {ROOT})"
+        )
+    if out.exists():
+        raise CliError(f"refusing to overwrite existing file: {out}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    src = ROOT / "examples" / "hpc" / f"{template}-compute-profile.json"
+    if not src.is_file():
+        raise CliError(f"template {template!r} not found at {src}")
+    shutil.copyfile(src, out)
+    print(f"compute profile template copied to {out}", file=sys.stderr)
+    return 0
+
+
+def _compute_validate(profile_path: Path) -> int:
+    import json
+    import jsonschema
+    from dftworld_bench.hpc.compute_profile import ComputeProfile
+
+    profile_path = profile_path.expanduser().resolve()
+    if not profile_path.is_file():
+        raise CliError(f"profile file not found: {profile_path}")
+    schema_path = ROOT / "schemas" / "compute-profile.schema.json"
+    schema = json.loads(schema_path.read_text())
+    doc = json.loads(profile_path.read_text())
+    try:
+        jsonschema.validate(instance=doc, schema=schema)
+    except jsonschema.ValidationError as exc:
+        raise CliError(f"compute profile schema validation error: {exc.message}") from exc
+    profile = ComputeProfile.from_dict(doc)
+    print(
+        f"compute profile {profile.profile_id!r} validates: digest {profile.digest}",
+        file=sys.stderr,
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mlffbench",
@@ -151,6 +191,24 @@ def build_parser() -> argparse.ArgumentParser:
         "report", help="verify evidence for a run (forwards to verify_evidence)"
     )
     report.add_argument("report_args", nargs="*", help=argparse.SUPPRESS)
+
+    compute = sub.add_parser("compute", help="manage compute routing profiles")
+    compute_sub = compute.add_subparsers(dest="compute_command", required=True)
+    comp_conf = compute_sub.add_parser(
+        "configure", help="materialize a compute profile template"
+    )
+    comp_conf.add_argument("--out", type=Path, required=True)
+    comp_conf.add_argument(
+        "--template",
+        type=str,
+        default="generic-slurm",
+        choices=["generic-slurm", "maintainer-hybrid"],
+    )
+    comp_val = compute_sub.add_parser(
+        "validate", help="validate a compute profile document"
+    )
+    comp_val.add_argument("--profile", type=Path, required=True)
+
     return parser
 
 
@@ -170,6 +228,15 @@ def main(argv: list[str] | None = None) -> int:
                 # Raw pass-through: qualify_case owns its own argparse.
                 return _site_qualify(argv[2:])
             build_parser().error("site needs a subcommand: configure | qualify")
+        if command == "compute":
+            comp_command = argv[1] if len(argv) > 1 else ""
+            if comp_command == "configure":
+                args = build_parser().parse_args(argv)
+                return _compute_configure(args.out, args.template)
+            if comp_command == "validate":
+                args = build_parser().parse_args(argv)
+                return _compute_validate(args.profile)
+            build_parser().error("compute needs a subcommand: configure | validate")
         if command == "run":
             return _run(argv[1:])
         if command == "report":
