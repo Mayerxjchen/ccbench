@@ -49,12 +49,12 @@ class HpcDriver(Protocol):
 
 
 def resolve_driver(*, mode: str, kind: str) -> None:
-    """Admission check: Formal rejects any driver that is not qualified Slurm.
+    """Admission check: Formal rejects any driver that is not qualified Slurm or CompShare.
 
     Smoke and Pilot may select ProcessDriver through an explicit non-formal
     profile. This gate runs before any Candidate startup.
     """
-    if mode == "formal" and kind != "slurm":
+    if mode == "formal" and kind not in ("slurm", "compshare"):
         raise DriverSelectionError(
-            f"Formal runs require a qualified SlurmDriver; got {kind!r}"
+            f"Formal runs require a qualified driver (slurm or compshare); got {kind!r}"
         )
