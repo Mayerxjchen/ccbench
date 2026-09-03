@@ -17,7 +17,7 @@
   "properties": {
     "schema_version": { "const": 1 },
     "site_id": { "type": "string", "minLength": 1 },
-    "scheduler": { "enum": ["slurm"] },
+    "scheduler": { "enum": ["slurm", "compshare", "process"] },
     "connection": {
       "type": "object",
       "required": ["credential_profile_id", "target_binding", "remote_user", "remote_root_policy"],
@@ -101,14 +101,15 @@
     },
     "runtime_policy": {
       "type": "object",
-      "required": ["requires_apptainer", "runtime_store"],
+      "required": ["requires_apptainer"],
       "additionalProperties": false,
       "properties": {
-        "requires_apptainer": { "const": true },
+        "requires_apptainer": { "type": "boolean" },
         "runtime_store": { "type": "string", "minLength": 1 },
         "apptainer_bin": { "type": "string", "minLength": 1 },
         "runtime_lock_dir": { "type": "string", "minLength": 1 },
-        "gres_template": { "type": "string", "minLength": 1 }
+        "gres_template": { "type": "string", "minLength": 1 },
+        "images": { "type": "object" }
       }
     }
   }

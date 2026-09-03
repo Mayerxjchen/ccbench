@@ -372,3 +372,141 @@ def test_set_runtime_store_after_construction():
     script = adapter._script(
         _spec("cp2k@sha256:" + CP2K_SHA), "/ws", operation_id="op")
     assert "/site/cp2k.sif" in script
+
+
+def test_compshare_image_lock_resolution(tmp_path: Path):
+    locks = tmp_path / "runtime"
+    locks.mkdir(exist_ok=True)
+    img_sha = "12" * 32
+    (locks / "deepmd-runtime.lock.json").write_text(
+        json.dumps({
+            "schema": "dispatcher-compshare-runtime-lock/v1",
+            "image_name": "mlff-deepmd-gpu-v1",
+            "runtime": {
+                "artifact_kind": "compshare_image",
+                "image_id": "img-deepmd-gpu-v1",
+                "image_sha256": img_sha,
+                "provider": "compshare",
+                "software_versions": {"deepmd": "2.2.11", "cuda": "12.2"},
+            },
+        })
+    )
+    resolver = RuntimeResolver.from_lock_dir(locks)
+    resolved = resolver.resolve("deepmd")
+    assert resolved.capability == "deepmd"
+    assert resolved.artifact_kind == "compshare_image"
+    assert resolved.image_id == "img-deepmd-gpu-v1"
+    assert resolved.artifact_path_or_id == "img-deepmd-gpu-v1"
+    assert resolved.digest == img_sha
+    assert resolved.sif_path == ""
+    assert resolved.provider == "compshare"
+    assert resolved.software_versions["deepmd"] == "2.2.11"
+    assert resolved.declaration == "deepmd@img-deepmd-gpu-v1"
+
+
+def test_compshare_placeholder_image_id_fails_closed(tmp_path: Path):
+    locks = tmp_path / "runtime"
+    locks.mkdir(exist_ok=True)
+    (locks / "jax-runtime.lock.json").write_text(
+        json.dumps({
+            "image_name": "mlff-jax-gpu-v1",
+            "runtime": {
+                "artifact_kind": "compshare_image",
+                "image_id": "<unassigned-image-id>",
+                "image_sha256": "34" * 32,
+            },
+        })
+    )
+    resolver = RuntimeResolver.from_lock_dir(locks)
+    with pytest.raises(RuntimeResolutionError, match="no concrete CompShare ImageId"):
+        resolver.resolve("jax")
+
+
+def test_from_site_profile_images():
+    site_dict = {
+        "schema_version": 1,
+        "site_id": "compshare-gpu-v1",
+        "scheduler": "compshare",
+        "connection": {
+            "credential_profile_id": "k1",
+            "target_binding": "https://api.compshare.example",
+            "remote_user": "root",
+            "remote_root_policy": "/workspace/{run_id}",
+        },
+        "account": "maintainer",
+        "queues": {
+            "gpu": {
+                "partition": "gpu-a100",
+                "qos": "normal",
+                "max_cpus": 16,
+                "max_memory_gb": 64,
+                "max_gpus": 1,
+                "max_walltime_minutes": 120,
+            }
+        },
+        "runtime_policy": {
+            "requires_apptainer": False,
+            "images": {
+                "deepmd": {
+                    "image_id": "img-deepmd-v1",
+                    "digest": "aa" * 32,
+                    "software_versions": {"deepmd": "2.2.11"},
+                }
+            },
+        },
+    }
+    from dftworld_bench.hpc.site_profile import HpcSiteProfile
+
+    site = HpcSiteProfile.from_dict(site_dict)
+    resolver = RuntimeResolver.from_site_profile(site)
+    assert "deepmd" in resolver.capabilities()
+    resolved = resolver.resolve("deepmd", site_profile=site)
+    assert resolved.artifact_kind == "compshare_image"
+    assert resolved.image_id == "img-deepmd-v1"
+    assert resolved.site_profile_id == "compshare-gpu-v1"
+    assert resolved.provider == "compshare"
+
+
+def test_render_runtime_wrapper_with_resolved_runtime():
+    from dftworld_bench.hpc.request import ExecutionRequestV2
+    from dftworld_bench.hpc.runtime_resolution import ResolvedRuntime
+    from dftworld_bench.hpc.runtime_wrapper import (
+        RuntimeWrapperError,
+        render_runtime_wrapper,
+    )
+
+    sif_rr = ResolvedRuntime(
+        capability="cp2k",
+        sif_path="/site/runtimes/cp2k.sif",
+        digest=CP2K_SHA,
+        artifact_kind="sif",
+        artifact_path_or_id="/site/runtimes/cp2k.sif",
+    )
+    req = ExecutionRequestV2.from_dict({
+        "schema_version": 2,
+        "operation_id": "op-1",
+        "attempt": 1,
+        "compute_class": "cpu",
+        "runtime": "cp2k",
+        "command": ["cp2k", "-i", "input.inp"],
+        "resources": {
+            "cpus": 4,
+            "memory_gb": 16,
+            "gpus": 0,
+            "walltime_minutes": 30,
+        },
+        "inputs": [],
+        "outputs": [],
+    })
+    rendered = render_runtime_wrapper(req, SITE, "/tmp/run-1", runtime=sif_rr)
+    assert "/site/runtimes/cp2k.sif" in rendered.script
+
+    # Non-SIF (e.g. compshare_image) must be refused by Apptainer wrapper
+    cs_rr = ResolvedRuntime(
+        capability="deepmd",
+        artifact_kind="compshare_image",
+        artifact_path_or_id="img-deepmd-v1",
+        digest="bb" * 32,
+    )
+    with pytest.raises(RuntimeWrapperError, match="requires a SIF runtime"):
+        render_runtime_wrapper(req, SITE, "/tmp/run-1", runtime=cs_rr)

@@ -78,11 +78,46 @@ def render_runtime_wrapper(
     request: Any,
     site: Any,
     run_dir: str,
+    runtime: Any = None,
 ) -> RenderedRuntime:
+    from dftworld_bench.hpc.runtime_resolution import ResolvedRuntime
+
     command = list(request.command)
     _validate_command(command)
     for key in request.environment:
         _require_env_allowed(key)
+
+    if runtime is not None:
+        if not isinstance(runtime, ResolvedRuntime):
+            raise RuntimeWrapperError("runtime must be a ResolvedRuntime instance")
+        if runtime.artifact_kind != "sif":
+            raise RuntimeWrapperError(
+                f"Apptainer wrapper requires a SIF runtime, got {runtime.artifact_kind}"
+            )
+        container_image = runtime.sif_path or runtime.artifact_path_or_id
+        runtime_digest = runtime.digest or runtime.sif_sha256 or runtime.declaration
+    else:
+        req_rr = getattr(request, "resolved_runtime", None)
+        if req_rr is not None:
+            if not isinstance(req_rr, ResolvedRuntime):
+                raise RuntimeWrapperError(
+                    "request.resolved_runtime must be a ResolvedRuntime instance"
+                )
+            if req_rr.artifact_kind != "sif":
+                raise RuntimeWrapperError(
+                    f"Apptainer wrapper requires a SIF runtime, got {req_rr.artifact_kind}"
+                )
+            container_image = req_rr.sif_path or req_rr.artifact_path_or_id
+            runtime_digest = req_rr.digest or req_rr.sif_sha256 or req_rr.declaration
+        else:
+            container_image = request.runtime
+            runtime_digest = request.runtime
+
+    apptainer_bin = (
+        getattr(site, "runtime_policy", {}).get("apptainer_bin")
+        if isinstance(site, object) and hasattr(site, "runtime_policy")
+        else APPTAINER_BIN
+    ) or APPTAINER_BIN
 
     bind_spec = f"--bind {run_dir}:{_IN_CONTAINER_MOUNT}:rw"
     joined = shlex.join(command)
@@ -96,14 +131,14 @@ def render_runtime_wrapper(
         "set -euo pipefail\n"
         f"cd {_IN_CONTAINER_MOUNT}\n"
         f"{env_exports}"
-        f"exec {APPTAINER_BIN} exec --cleanenv --contain \\\n"
+        f"exec {apptainer_bin} exec --cleanenv --contain \\\n"
         f"  {bind_spec} \\\n"
-        f"  {request.runtime} \\\n"
+        f"  {container_image} \\\n"
         f"  {joined}\n"
     )
     return RenderedRuntime(
         script=script,
-        runtime_digest=request.runtime,
+        runtime_digest=runtime_digest,
         run_dir=str(run_dir),
     )
 
