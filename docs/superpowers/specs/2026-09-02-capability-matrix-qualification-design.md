@@ -1,180 +1,363 @@
 # Capability-matrix qualification (design spec)
 
-**Status:** IMPLEMENTED — landed 2026-09-02 as `infra: capability-matrix
-qualification derivation`.  Implementation notes: §4 (option A + dropped
-`site_acl_blocked`), §5a (aggregate is INVALID|PASS only), §5b (`[hpc]`
-`qual_requires`, not `[execution]`), §5c (old receipt held INVALID by
-code-identity until a fresh re-seal), §8 (BLOCKED_SITE_ACL branch removed).
-**Touches (trust-anchor):** `schemas/dispatcher-qualification-receipt.schema.json`, `dftworld_bench/experiments/qualification_receipt.py` (`verify_receipt` derivation).
-**Frozen base:** `010b1d2` (`qualification-candidate-site-v1`).
+**Status:** APPROVED 2026-09-03 (审定).  Supersedes the 2026-09-02
+landing `infra: capability-matrix qualification derivation` (`840781e`),
+whose design decisions this revision reverses (§4 option A → per-job
+derivation, §5a PARTIAL removed → restored, §5b bare `qual_requires` →
+Infra-registry + `[hpc.qualification] requires`).  The `840781e` bytes stay
+in git history as the superseded cut; the code rework landed on top of the
+current HEAD after this spec was approved — spec-before-code was preserved.
+**Touches (trust-anchor, rework):**
+`schemas/dispatcher-qualification-receipt.schema.json`,
+`schemas/case.schema.json` + `dftworld_bench/contracts/case.py` (registry,
+`[hpc.qualification] requires` field), `dftworld_bench/experiments/qualification_receipt.py`,
+`release_builder.py`, 034 `task.toml` (adds the `cp2k` family to
+`[runtime] requirements`), 031–033 `task.toml`, `tests/hpc/test_qualification_receipt.py`.
+`activate_v2.py` is intentionally **not** touched — it consumes the aggregate
+(§5b).  **Frozen base:** `010b1d2` (`qualification-candidate-site-v1`).
 
 ## 1. Why
 
-The current receipt derives one global `qualification_status ∈ {PARTIAL, PASS, INVALID}` that **blocks on CP2K**: a `cp2k_gate` of `NOT_RUN` forces `PARTIAL`, so no case can be `formal_qualified` until CP2K is qualified site-wide. This couples unrelated cases to a runtime they may not use.
+The receipt derives one global `qualification_status` that **blocks on CP2K**:
+a `cp2k_gate` of `NOT_RUN` forces `PARTIAL`, so no case can be
+`formal_qualified` until CP2K is qualified site-wide.  This couples unrelated
+cases to a runtime they may not use.
 
-034 does use CP2K (`task.toml: required = ["ai2kit","cp2k"]`; `dft.method = "CP2K BLYP-D3 / TZV2P-GTH"`; smoke runs `dft_label_runs: 2`). But a case that only needs the GPU dispatcher + a MatClaw/DeePMD runtime should not be gated on `runtime.cp2k`.
+034 does use CP2K (`task.toml: required = ["ai2kit","cp2k"]`;
+`dft.method = "CP2K BLYP-D3 / TZV2P-GTH"`; smoke runs `dft_label_runs: 2`).
+But a case that only needs the GPU dispatcher + a MatClaw/DeePMD runtime
+should not be gated on `runtime.cp2k`.
 
-**Goal:** split the single verdict into a per-capability matrix. A case declares `requires:` and may run as soon as *its* capabilities are PASS — CP2K absent no longer blocks the dispatcher.
+**Goal:** split the single verdict into a per-capability matrix.  A case
+declares `requires:` and may run as soon as *its* capabilities are PASS —
+CP2K absent no longer blocks the MatClaw cases.  **The aggregate status must
+keep its legacy meaning for old consumers** — "CP2K not run" stays `PARTIAL`,
+never a false full `PASS`; new consumers gate finely on the matrix.
 
 ## 2. What does NOT change (invariants)
 
-- The receipt stays **verdict-free**. `qualification_status`, `formal_qualified`, per-gate labels, and the new capability statuses are all **derived by the verifier** from bound evidence — never stored on the receipt. This is the structural anti-forgery property and must not be weakened.
-- Evidence collection is unchanged: the canary still places the 7 sentinels, the two jobs (cpu echo + gpu nvidia-smi) and the optional cp2k job each carry their own audit/settlement/accounting/probe/fetch blocks. The evidence is already per-capability-shaped; only the **derivation mapping** changes.
-- All offline anchors survive: code-identity digests, SiteProfile digest, runtime-lock SIF digest, audit chain replay, sacct accounting re-parse, TRES reconciliation, settlement-digest recompute, artifact re-hash.
-- `memory_gb = memory per allocated node`, independent CPU/GPU ceilings, cancel-before-sentinel ordering — all preserved (they are contract tests, not part of this change).
+- The receipt stays **verdict-free**.  `qualification_status`,
+  `formal_qualified`, per-gate labels, and the capability statuses are all
+  **derived by the verifier** from bound evidence — never stored on the
+  receipt.  This is the structural anti-forgery property and must not be
+  weakened.
+- **Evidence format is unchanged.**  The canary still places the 7 sentinels;
+  the two jobs (cpu echo + gpu nvidia-smi) and the optional cp2k job each
+  carry their own audit/settlement/accounting/probe/fetch blocks; the receipt
+  bytes and the schema stay byte-compatible (one *additive optional* block,
+  §6).  Only the **derivation mapping inside the verifier** changes.
+- All offline anchors survive: code-identity digests, SiteProfile digest,
+  runtime-lock SIF digest, audit chain replay, sacct accounting re-parse,
+  TRES reconciliation, settlement-digest recompute, artifact re-hash.
+- `memory_gb = memory per allocated node`, independent CPU/GPU ceilings,
+  cancel-before-sentinel ordering — all preserved (contract tests, not part
+  of this change).
 
 ## 3. Capability namespace
 
-A capability is a `(domain, name)` pair, derived from exactly one evidence block:
+A capability is a `(domain, name)` pair, derived from exactly one evidence
+block:
 
 | Capability | Derived from | NOT_RUN when |
 |---|---|---|
-| `dispatcher.cpu` | the cpu-class canary job (`probe_class="cpu"`) | cpu job absent |
-| `dispatcher.gpu` | the gpu-class canary job (`probe_class="gpu"`) | gpu job absent |
-| `runtime.matclaw-gpu` | the same gpu job's `runtime_decl` SIF digest bound to the runtime lock | (shares the gpu job; cannot be NOT_RUN if `dispatcher.gpu` PASS) |
+| `dispatcher.cpu` | the cpu-class canary job (`probe_class="cpu"`) | —— absent cpu job is `FAIL` (coverage gate), never NOT_RUN |
+| `dispatcher.gpu` | the gpu-class canary job (`probe_class="gpu"`) | —— absent gpu job is `FAIL`, never NOT_RUN |
+| `runtime.matclaw-gpu` | the matclaw-cips SIF digest (`matclaw-cips-2.2.11-gpu-amd64.sif`) bound to the gpu job's `runtime_decl` (per-job provenance, §4) | shares the gpu job; cannot be NOT_RUN if `dispatcher.gpu` PASS |
+| `runtime.ai2kit` | `evidence.ai2kit_gate` (optional block, §6) | `ai2kit_gate.evidence` absent (site-v1 receipt: no ai2kit canary has run) |
 | `runtime.cp2k` | `evidence.cp2k_gate.evidence` | `cp2k_gate.evidence` is `null` (the current `NOT_RUN`) |
 
 A capability status is `PASS` | `FAIL` | `NOT_RUN`:
 - `PASS` — the evidence block is present and every sub-check re-derives clean.
-- `FAIL` — the evidence block is present but a sub-check breaks.
-- `NOT_RUN` — the evidence block is absent (only valid for capabilities whose evidence is optional, e.g. `runtime.cp2k`; `dispatcher.cpu`/`dispatcher.gpu` absent is `FAIL` because the canary coverage gate requires both classes).
+- `FAIL` — the evidence block is present but a sub-check breaks; or (for the
+  dispatcher tiers) the coverage gate is not met.
+- `NOT_RUN` — the evidence block is absent.  **Only valid for the optional
+  runtime evidence blocks** (`runtime.cp2k`, `runtime.ai2kit`).  A missing
+  canary class is `FAIL`, because the canary coverage gate requires both
+  classes.
 
-## 4. Derivation mapping (the only logic change)
+## 4. Derivation — per-job (revised; supersedes the 2026-09-02 "option A")
 
-`verify_receipt` today builds `gates: dict[str, list[str]]` (gate→problems) then maps to a single status. The change keeps `gates` (the raw problem ledger) and **adds a capability projection** in the returned `derived`:
+The 2026-09-02 review note recorded the structural problem: `_derive_job` has
+**no per-job sub-gates** — every job's `problem()` appends into *shared* gate
+buckets (`scheduler_facts`, `tres_reconciliation`, `containment_probe`,
+`gpu_device_probe`, `settlement_integrity`, `audit_ledger`,
+`artifact_manifest`, `provenance`), distinguishing attribution only by
+message-label prefix.  Option A then mapped the capabilities onto those
+shared buckets wholesale, so a broken gpu job marked `dispatcher.cpu` FAIL and
+vice versa ("shared fate") — implementable without re-plumbing, but it cannot
+accurately attribute CPU vs GPU evidence by gate name alone.
+
+The 2026-09-03 correction makes **per-job derivation the design**, with the
+evidence format unchanged.  Re-plumbed, not re-mapped:
 
 ```
-derived = {
-  "qualification_status": <aggregate, see §5>,
-  "formal_qualified": bool,
-  "capabilities": {
-     "dispatcher.cpu":    "PASS"|"FAIL",
-     "dispatcher.gpu":    "PASS"|"FAIL",
-     "runtime.matclaw-gpu": "PASS"|"FAIL",
-     "runtime.cp2k":      "PASS"|"FAIL"|"NOT_RUN",
-  },
-  "gates": <unchanged gate→PASS/FAIL map>,
-}
+def _derive_job(job, label) -> JobDerivation:
+    # returns PER-JOB buckets.  A job's problems land ONLY in its own
+    # buckets; the buckets keep today's names and problem strings.
+    #   scheduler_facts, tres_reconciliation, containment_probe,
+    #   gpu_device_probe (gpu-class jobs only; absent for cpu),   
+    #   settlement_integrity, audit_ledger (per-run chain),
+    #   artifact_manifest, provenance (INCLUDING the runtime_decl
+    #   SIF-digest binding — now per-job, no longer injected into a
+    #   shared provenance bucket).
 ```
 
-**IMPL note:** `site_acl_blocked` is **removed** from the derived dict, not kept
-as a constant False.  The old BLOCKED_SITE_ACL branch was `status == "PARTIAL"
-∧ cpu→gpu ACL mapping`; there is no PARTIAL under the matrix and the ACL facts
-are enforced elsewhere: the collector hard-refuses a profile that maps cpu
-workloads off the native queue (`QualifyError` up front), and the provenance
-gate re-checks `native_cpu_partition_accessible` against the rebuilt
-SiteProfile — a contradictory ACL claim fails closed as INVALID via
-`provenance`.  `release_builder` no longer emits BLOCKED_SITE_ACL.
+Capability projection (all statuses `PASS` iff the set has no problems):
 
-**Mapping design (revised after code audit 2026-09-02 — see review note below).**
+```
+shared_anchors  = envelope validation ∪ schema ∪ code identity ∪
+                  source commit ∪ SiteProfile digest rebuild ∪
+                  native_cpu_partition_accessible ACL fact   # computed ONCE
 
-> **Review finding:** `_derive_job` has **no per-job sub-gates**. Its `problem()` appends every job's problems into *shared* gate buckets (`scheduler_facts`, `tres_reconciliation`, `containment_probe`, `gpu_device_probe`, `settlement_integrity`, `audit_ledger`, `artifact_manifest`, `provenance`), distinguishing attribution only by message-label prefix. `_derive_cp2k` additionally calls `_derive_job(label="cp2k-job")`, so a broken cp2k job pollutes the shared buckets as well as `cp2k_gate`. An earlier draft of this section mapped `dispatcher.cpu/gpu` to "the cpu/gpu job's sub-gates" — that mapping is **not implementable without re-plumbing `_derive_job`**, and would let a cp2k failure mark `dispatcher.cpu/gpu` FAIL, defeating the matrix. Per-job bucket splitting (option B) was rejected: it changes trust-anchor plumbing and double-counts the shared anchors (schema, provenance, SiteProfile rebuild, code identity) that legitimately belong to every capability.
+dispatcher.cpu           ← shared_anchors ∪ cpu_derivation(passed)
+dispatcher.gpu           ← shared_anchors ∪ gpu_derivation(passed)
+runtime.matclaw-gpu      ← shared_anchors ∪ gpu_derivation.provenance
+                           (runtime_decl↔matclaw-cips lock binding clean)
+runtime.cp2k             ← shared_anchors ∪ cp2k_derivation
+runtime.ai2kit           ← shared_anchors ∪ ai2kit_derivation   (# §6; absent ⇒ NOT_RUN)
+```
 
-**Adopted mapping (option A — capabilities map to the EXISTING gate buckets wholesale):**
+The public `gates` ledger (`gate → list[problem]`) is the **union of all
+per-job buckets + the runtime buckets**, in the same map shape — the raw
+problem ledger that the offline-anchor tests and the aggregate read does not
+change shape, so the "evidence format unchanged" invariant (and the receipt
+bytes) hold.  The shared anchors are an explicit **overlay applied equally to
+every capability**, not a per-job re-derivation — this is what makes the
+per-job split affordable without double-counting (the cost the old review
+note cited).
 
-- `dispatcher.cpu` ← canary coverage + every shared gate, restricted to the cpu-class job's needs: PASS iff the shared gates carry no problem attributable to canary jobs (`canary_ok` in current code) **and** a cpu-class job exists with `probe_class="cpu"` deriving clean.
-- `dispatcher.gpu` ← same shared-gate set, with the gpu-class job present and its `gpu_device_probe` clean.
-- `runtime.matclaw-gpu` ← the gpu job's `runtime_decl@sha256` binding to the runtime-lock `sif_sha256` (already enforced in the shared `provenance` gate by `_derive_job`).
-- `runtime.cp2k` ← the dedicated `cp2k_gate` bucket only (self-contained in `_derive_cp2k`): input binding, output re-parse, runtime-lock bind, job derivation. `NOT_RUN` when `evidence.cp2k_gate.evidence is None`.
+Properties the tests pin (these are the behavioral flips vs `840781e`):
 
-Since cpu and gpu canary jobs both flow through the same shared buckets, `dispatcher.cpu` and `dispatcher.gpu` share fate in the shared gates — that is correct and intended: a broken scheduler-facts anchor means the whole dispatcher evidence is untrustworthy. What the matrix buys is **`runtime.cp2k` independence**: cp2k FAIL leaves `dispatcher.cpu/gpu` PASS and the aggregate INVALID, exactly as today; cp2k NOT_RUN leaves the aggregate PASS, which is the behavior change we want.
-
-No gate's PASS/FAIL computation changes — this is a **re-projection** at the end of `verify_receipt`, not a re-derivation. `_derive_job` and `_derive_cp2k` are untouched. The only semantic change is the aggregation (§5).
+- gpu device probe broken → `dispatcher.gpu: FAIL`, **`dispatcher.cpu: PASS`**
+  (was: both FAIL via shared buckets).
+- cpu canary broken → `dispatcher.cpu: FAIL`, `dispatcher.gpu: PASS`.
+- cp2k evidence broken → `runtime.cp2k: FAIL`, `dispatcher.cpu/gpu` PASS.
+- code-identity drift / schema break → every capability FAIL, aggregate
+  INVALID (the overlay; anti-forgery fundamentals unchanged).
 
 ## 5. Aggregation & backward compatibility
 
-Two questions to resolve in review (I have a recommendation, not a foregone conclusion):
+### 5a. Aggregate `qualification_status` — `PARTIAL` restored
 
-### 5a. What is the aggregate `qualification_status`?
-
-The old single status was the only thing formal drivers keyed on. To avoid churning every driver, `verify_receipt` keeps returning a top-level `qualification_status`, now defined as:
-
-```
-INVALID  if any PRESENT capability is FAIL   (schema-broken ⇒ dispatcher.* FAIL)
-PASS     if every PRESENT capability is PASS  (NOT_RUN does not block)
-```
-
-There is **no PARTIAL** any more: the capability matrix covers every state a
-receipt can derive, so the third bucket disappears.  The implementation folds
-the aggregate directly off the matrix — `INVALID if any(cap == "FAIL") else
-PASS` — since `dispatcher.*`/`runtime.matclaw-gpu` are never NOT_RUN (an
-absent canary class is FAIL; the coverage gate requires both).
-
-vs. today: `PARTIAL` whenever cp2k is `NOT_RUN`. **This is the semantic change:** a site with cpu+gpu canary clean and cp2k not yet run now derives `PASS` (cp2k is simply `NOT_RUN`, not a blocker). The old `formal_qualified = (status==PASS)` then means "dispatcher is formally qualified"; cp2k qualification is a separate, case-gated check.
-
-### 5b. How does a case gate on capabilities?
-
-A new, tiny function (not on the receipt):
+The old single status is the thing legacy formal drivers key on, and its
+meaning must not silently become "CP2K didn't run ⇒ full PASS".  `verify_receipt`
+keeps returning the top-level `qualification_status`:
 
 ```
-def case_requirements_satisfied(derived, requires: list[str]) -> bool:
-    return all(derived["capabilities"].get(c) == "PASS" for c in requires)
+INVALID  if the envelope is invalid (schema / code identity / digest / ACL)
+         or any capability is FAIL
+PARTIAL  if no FAIL but at least one capability is NOT_RUN     ← legacy
+PASS     if every capability is PASS
 ```
 
-**Case manifest field (decided): `[hpc].qual_requires`** — a list of capability
-names under the `[hpc]` block (not `[execution]`), e.g. in `034-…/task.toml`:
+- `formal_qualified = (status == PASS)` — the full pre-`840781e` meaning is
+  restored: a site with `runtime.cp2k` or `runtime.ai2kit` NOT_RUN derives
+  **PARTIAL**, never PASS, so an old consumer cannot misread "CP2K not run"
+  as full qualification.
+- `NOT_RUN` is only reachable for the optional runtime evidence blocks
+  (dispatcher class absence is a coverage FAIL).  Today, site-v1's
+  `runtime.cp2k = NOT_RUN` (and `runtime.ai2kit = NOT_RUN`) ⇒ aggregate
+  PARTIAL — **identical to the pre-matrix value**.
+- The capability matrix is what new consumers gate on (per-case §5b), not
+  the aggregate.  The aggregate is demoted to the legacy summary — the exact
+  split the correction asks for.
 
-```toml
-[hpc]
-contract_version = "hpc-execution/v1"
-required_capabilities = ["batch_jobs", "gpu", "artifact_fetch"]
-qual_requires = ["dispatcher.gpu", "runtime.matclaw-gpu", "runtime.cp2k"]
-```
+### 5b. How a case gates on capabilities — Infra registry + `[hpc.qualification] requires`
 
-A MatClaw-only case declares `["dispatcher.gpu", "runtime.matclaw-gpu"]` and runs without cp2k.  `CaseSpec` carries the tuple (`qual_requires`), validated
-against the schema pattern `^(dispatcher|runtime)\.[a-z0-9-]+$` even on the
-legacy path (fail-closed: a typo'd name blocks, never reads as satisfied).
+**No bare new field** (the `[hpc].qual_requires` array from the `840781e` cut
+is withdrawn).  Two layers:
 
-**The consumer that must actually be rewired: `release_builder.py`** (the non-test readers of the derived verdict are exactly two: `dftworld_bench/experiments/release_builder.py:181`, which releases on `qualification_status == "PASS"`, and `scripts/infra/qualify_hpc_dispatcher.py:928`, the operator print). After §5a, `release_builder`'s aggregate check alone would release a cp2k-dependent case with `runtime.cp2k = NOT_RUN` — the exact hole this section closes. The fix: `check_qualification_receipt(root, *, case_dir=…)` additionally resolves the named case's `qual_requires` (via `CaseSpec`) and requires `case_requirements_satisfied(derived, qual_requires)` before returning PASS; an unmet or unknown capability yields `BLOCKED_QUALIFICATION` detailing `unmet=[...] capabilities={...}`. A broken case manifest fails closed too. `qualify_hpc_dispatcher.py:928` stays on the aggregate (it is the site-qualification operator path, not per-case).
+1. **Infra registry** — a curated, site-independent table validated against
+   the frozen runtime-lock catalog, mapping declared **runtime families** to
+   capability names:
 
-### 5c. Existing site-v1 receipt
+   | declared runtime family | capability |
+   |---|---|
+   | `matclaw-cips` (031–033 locks `matclaw-cips-2.2.11-gpu-amd64.sif`) | `runtime.matclaw-gpu` |
+   | `ai2kit` (034 lock `dftworld-base-ai2kit:0.1.0-cpu-controller`) | `runtime.ai2kit` |
+   | `cp2k` (reference/runtime `cp2k-runtime.lock.json`) | `runtime.cp2k` |
 
-The existing `receipt.json` (evidence collected at `010b1d2`) re-derives under the new rules into:
+   **Scoping rules (curated, not mechanical):**
+   - `dispatcher.cpu` / `dispatcher.gpu` are **never auto-derived** from the
+     coarse legacy `[hpc] required_capabilities` — 031–033 and 034 all declare
+     `batch_jobs + gpu + artifact_fetch`, yet gate differently (031: GPU-only;
+     034: CPU controller + GPU work).  The tier declaration is always
+     explicit.
+   - `[hpc.scientific_capabilities]` do **not** map to `runtime.*` gates —
+     `031` lists `cp2k` there as a benchmark-domain descriptor and must not
+     thereby acquire a `runtime.cp2k` qualification gate.
+   - Fail closed: an unknown declared family, or a capability name outside
+     `^(dispatcher|runtime)\.[a-z0-9-]+$` and the registry, is a **CaseSpec
+     build error** — never silently satisfied.
+
+2. **Explicit declaration** — for the cases where the registry default is
+   incomplete or ambiguous, the authoritative per-case set lives in the
+   nested `[hpc.qualification]` block:
+
+   ```toml
+   [hpc.qualification]
+   requires = ["dispatcher.gpu", "runtime.matclaw-gpu"]
+   ```
+
+   The effective gate is `registry(auto, case) ∪ declared`; the declared list
+   is authoritative for the dispatcher tiers (§"scoping" above), so a typing
+   or registry drift cannot silently change a case's gate.
+
+**Case table (authoritative):**
+
+| Case | runtime families (locks) | `[hpc.qualification] requires` |
+|---|---|---|
+| 031–033 (MatClaw CIPS: active-distillation / curie-temperature / domain-wall-search) | `matclaw-cips` | `["dispatcher.gpu", "runtime.matclaw-gpu"]` |
+| 034 (ai2kit water64 end-to-end) | `ai2kit` + **`cp2k` (add to `[runtime] requirements` — the CP2K 2025.2 AIMD runtime bound by `software.cp2k` in the 034 lock)** | `["dispatcher.cpu", "dispatcher.gpu", "runtime.ai2kit", "runtime.cp2k"]` |
+
+Rationale for 034: the ai2kit controller is the `dftworld-base-ai2kit:0.1.0-
+cpu-controller` image (CPU-resident orchestration ⇒ `dispatcher.cpu`), the
+DeePMD/MatClaw-style GPU work and active-learning dispatch need the gpu
+dispatcher + ai2kit runtime (`runtime.ai2kit`), and the CP2K AIMD inner step
+needs the CP2K ENERGY canary (`runtime.cp2k`).  `runtime.matclaw-gpu` is
+**not** on 034 — MatClaw is not a dependency of the ai2kit water pipeline.
+
+**Consumers:** `release_builder.py` releases per case: with `case_dir` named,
+it resolves the case's effective requires (`_case_qualification_requires(case_dir)`
+→ `spec.effective_qualification_requires`) and gates purely on
+`case_requirements_satisfied(derived, requires)` — every requires PASS.  An
+unmet or unknown capability yields `BLOCKED_QUALIFICATION` with
+`unmet=[…] capabilities={…}`; a broken case manifest fails closed too.
+The no-`case_dir` release path, `activate_v2.py` (calls
+`check_qualification_receipt(ROOT)` with no `case_dir`), and the operator
+print (`qualify_hpc_dispatcher.py:928`) all stay on the **aggregate** — the
+site-qualification path, where PARTIAL is the honest legacy report.  An
+aggregate PARTIAL does not block a case-gated release whose requires are PASS;
+it only blocks the legacy no-case release path.
+
+### 5c. Site-v1 receipt under the revised rules
+
+The existing `receipt.json` (evidence collected at `010b1d2`) re-derives:
+
 ```
 capabilities: {dispatcher.cpu: PASS, dispatcher.gpu: PASS,
-               runtime.matclaw-gpu: PASS, runtime.cp2k: NOT_RUN}
-qualification_status: PASS   (was PARTIAL)
-formal_qualified: true       (was false)
+               runtime.matclaw-gpu: PASS, runtime.cp2k: NOT_RUN,
+               runtime.ai2kit: NOT_RUN}
+qualification_status: PARTIAL   (was PASS under 840781e; equals the legacy value)
+formal_qualified: false
 ```
-This is the intended behavior change. The old receipt is **not re-sealed**; only the verifier's view of it changes. Evidence stays byte-identical. Old `PARTIAL` consumers must move to capability checks.
 
-**IMPL note (reality of the trust anchor):** the receipt is content-addressed
-and bound to the *verifier bytes that sealed it* — the `code_identity` anchor
-(sha256 of `qualification_receipt.py`) recomputes on every verify.  Editing the
-verifier therefore holds the old on-disk receipt in INVALID
-(`provenance: code identity changed since qualification`) until a fresh re-seal
-under the new verifier — by design, and already pinned by
-`test_code_identity_drift_after_release`.  So the PARTIAL→PASS re-derivation
-above is proven at the fixture level (`TestGoldenDerives`), and the next
-real-site re-seal (Phase 2/3, separate authorization) will produce a fresh
-receipt bound to the new verifier with `runtime.cp2k` still NOT_RUN until the
-CP2K ENERGY canary runs.
+Per case:
+- **031–033 releaseable now:** `requires = {dispatcher.gpu, runtime.matclaw-gpu}`
+  ⊆ the PASS set ⇒ `case_requirements_satisfied` true **despite** global
+  PARTIAL.  This is precisely the outcome the project wants: MatClaw flows are
+  no longer blocked by a CP2K canary that hasn't run — while an old consumer
+  reading the aggregate still sees the honest PARTIAL.
+- **034 blocked** until both the CP2K ENERGY canary (`runtime.cp2k → PASS`)
+  and an ai2kit runtime canary (`runtime.ai2kit → PASS`) run.  Unmerged:
+  blocked is *correct* for 034.
+
+The old receipt is **not re-sealed**; only the verifier's view of it changes.
+**IMPL note (trust anchor):** the receipt is content-addressed and bound to
+the verifier bytes that sealed it — `code_identity` recomputes on every
+verify, so editing the verifier holds the on-disk receipt in INVALID
+(`provenance: code identity changed since qualification`) until a fresh
+re-seal under the reworked verifier.  The PARTIAL re-derivation above is
+proven at the fixture level (`TestGoldenDerives`), and the next real-site
+re-seal (Phase 2/3, separate authorization) produces the new receipt with
+`runtime.cp2k`/`runtime.ai2kit` still NOT_RUN until those canaries run.
 
 ## 6. Schema diff
 
-Minimal. The receipt **evidence** schema is unchanged (it already carries `jobs` + `cp2k_gate` as separate blocks). The only schema-level consideration: `evidence.cp2k_gate` is currently `required` in the `evidence` object — but its `evidence` sub-field is optional (NOT_RUN). That stays. No new required fields on the receipt.
+- **Receipt schema:** evidence block gains one **additive optional** member —
+  `evidence.ai2kit_gate` = `{detail?, evidence}`, where `evidence` is a
+  `runtimeCanaryEvidence` of `{job, runtime_lock}` — the ai2kit canary's full
+  job record (own audit/settlement/accounting/probe/fetch chain) plus its
+  runtime-lock SIF bind.  It mirrors the cp2k gate envelope but **without the
+  CP2K-domain input/output re-parse** (an ai2kit canary has no CP2K-style
+  artifact this verifier re-parses); the `evidence` sub-field is optional ⇒
+  absent derives NOT_RUN.  Nothing else moves; `jobs`, `cp2k_gate` structure
+  untouched.
+- **Case manifest schema:** remove `[hpc].qual_requires` (bare array,
+  withdrawn); add nested `[hpc.qualification].requires` (array of capability
+  names, pattern `^(dispatcher|runtime)\.[a-z0-9-]+$`).
+  `CaseSpec.qualification_requires` replaces the withdrawn `qual_requires`
+  field; the effective gate (registry auto-derivation ∪ declared) is exposed
+  as `CaseSpec.effective_qualification_requires`.
 
-If we later want a site-level capability record (the §7 containment-caching idea), that is a **separate** new artifact (`site-capability-record/v1`), not a modification of this receipt.
+## 7. Out of scope (deferred; unchanged)
 
-## 7. Out of scope (explicitly deferred)
+- Site-level containment qualification with expiry ("don't re-place 7
+  sentinels every run"): needs a new durable record + per-run lightweight
+  probes; separate spec.
+- The ai2kit *runtime canary* itself (evidence for `runtime.ai2kit`):
+  already authored on the CP2K-canary template, runs after an authorized
+  cluster phase.  Its `ai2kit_gate` evidence block shape is pinned here (§6)
+  so re-seals can carry it.
+- 034 smoke and any 031–033 release on-site: cluster-bound, after the
+  reworked verifier's re-seal.
 
-- Site-level containment qualification with expiry (the "don't re-place 7 sentinels every run" idea). This needs a new durable record + per-run lightweight probes; separate spec.
-- Unified `bench hpc resume` CLI and deletion of `recover_gpu_canary.py`. The durable `_submit_v2` marker-adoption logic already supports it; this is CLI/driver consolidation only.
-- `resource_class: gpu-small` alias layer on SiteProfile. `public_capabilities()` already exposes abstract classes; this is a config shorthand.
+## 8. Tests (reworked)
 
-## 8. Tests
-
-- **Update** `tests/hpc/test_qualification_receipt.py`: the derivation assertions that expect `PARTIAL` for cp2k NOT_RUN move to expecting `PASS` + `runtime.cp2k: NOT_RUN`. Add negatives: cp2k present-but-broken still → `INVALID` and `runtime.cp2k: FAIL` (with `dispatcher.cpu`/`dispatcher.gpu` still PASS — pins the §4 shared-bucket property, see `test_energy_tampered`); cpu canary broken → `dispatcher.cpu: FAIL` and aggregate `INVALID` (and, by shared fate, `dispatcher.gpu: FAIL`, see `test_cpu_canary_broken_marks_dispatcher_cpu_fail`). **Decided during implementation: the `BLOCKED_SITE_ACL` branch is removed, not repurposed** — there is no PARTIAL to key on, the collector refuses cpu→gpu mappings up front, and the provenance gate re-checks the ACL fact (spec §4 IMPL note).  `test_golden_receipt_derives_capability_matrix_pass` asserts the full four-key capabilities map and the aggregate PASS; `test_release_builder_sees_pass_without_cp2k` asserts the aggregate releases without cp2k.
-- **Add** `case_requirements_satisfied` unit tests (matrix gate: PASS list, NOT_RUN hole, unknown capability name) — `TestCaseRequirementsSatisfied`.
-- **Add** release-builder wiring tests: a cp2k-`qual_requires` case is BLOCKED while `runtime.cp2k` is NOT_RUN; a MatClaw-only `qual_requires` case is released once the aggregate is PASS; the same case is released once cp2k passes; a broken case manifest fails closed — `TestReleaseBuilderCaseGating`.
-- **Keep** the existing verdict-free / anti-forgery adversarial tests unchanged — they prove the receipt cannot declare a status, and that still holds (one docstring now reads INVALID instead of PARTIAL).
-- HPC + experiments + ablation suites green (444 passed).  Baseline reproduction on the frozen base shows the 5 unrelated `case_factory`/`matclaw` failures pre-existing — not from this change.
+- **Update `tests/hpc/test_qualification_receipt.py`:**
+  - `test_golden_receipt_derives_capability_matrix_pass` becomes
+    `…_partially_qualified_without_cp2k`: the 5-key capabilities map
+    (`dispatcher.cpu/gpu`, `runtime.matclaw-gpu` PASS; `runtime.cp2k`,
+    `runtime.ai2kit` NOT_RUN) and aggregate **PARTIAL** (not PASS).
+  - The `840781e` shared-fate assertion **flips**:
+    `test_cpu_canary_broken_marks_dispatcher_cpu_only` — cpu broken ⇒
+    `dispatcher.cpu: FAIL`, **`dispatcher.gpu: PASS`**; likewise gpu-probe
+    broken ⇒ `dispatcher.gpu: FAIL`, `dispatcher.cpu: PASS`.
+  - cp2k present-but-broken ⇒ aggregate INVALID with `runtime.cp2k: FAIL` and
+    `dispatcher.cpu/gpu` still PASS (per-job isolation, see
+    `test_energy_tampered`).
+  - New: `runtime.ai2kit` NOT_RUN (absent block) and FAIL (tampered
+    `ai2kit_gate`); overlay negatives: code-identity drift ⇒ every capability
+    FAIL, aggregate INVALID.
+- **Update `TestReleaseBuilderCaseGating`:** 031–033-style requires
+  (`dispatcher.gpu`, `runtime.matclaw-gpu`) released while the aggregate is
+  PARTIAL (proves "fine gating despite global PARTIAL"); 034-style requires
+  BLOCKED with `runtime.cp2k`/`runtime.ai2kit` NOT_RUN; unknown capability
+  name and unknown runtime family fail closed at CaseSpec build.
+- **New `TestCapabilityRegistry`:** curated table resolution per family,
+  dispatcher-tier non-derivation from legacy `required_capabilities`,
+  scientific-capability non-leak (031's `cp2k` descriptor adds no gate).
+- **Keep** the verdict-free / anti-forgery adversarial tests (receipt cannot
+  declare a status) and the offline-anchor tests — the `gates` union shape
+  keeps them green, with the PARTIAL-related docstrings restored.
+- HPC + experiments + ablation suites green; the 5 pre-existing
+  `case_factory`/`matclaw` failures reproduce on the frozen base and are not
+  from this change.
 
 ## 9. Rollout
 
-1. Implement `capabilities` projection in `verify_receipt` (§4, option A) + aggregate (§5a). No evidence change; `_derive_job`/`_derive_cp2k` untouched. **Done** — aggregate folds the matrix; `site_acl_blocked` removed.
-2. Add `case_requirements_satisfied`; wire `qual_requires` resolution into `release_builder` (§5b). **Done** — `CaseSpec.qual_requires`, `check_qualification_receipt(root, *, case_dir=…)`.
-3. Update derivation tests + add wiring tests (§8). **Done** — `TestGoldenDerives`, `TestCaseRequirementsSatisfied`, `TestReleaseBuilderCaseGating`, cp2k-independence and cpu-broken negatives; 444 HPC+experiments+ablation pass.
-4. Re-run `verify` on the existing site-v1 receipt: **see §5c IMPL note** — the live repo-root verify correctly reports `BLOCKED_QUALIFICATION` on `code identity changed` (the verifier just changed; the anchor is doing its job) plus the repo-local placeholder profile lacking `[slurm].account`.  The PARTIAL→PASS re-derivation is pinned by the fixture-level derivation tests; the next real-site re-seal under the new verifier produces the PASS+NOT_RUN receipt.
-5. Commit on top of `010b1d2` as `infra: capability-matrix qualification derivation`. Do **not** re-seal the old receipt.
-6. CP2K canary (next) then flips `runtime.cp2k` to PASS; 034 smoke becomes unblocked.
+1. **审定 this revision** — gate.  Passed 2026-09-03; status header updated
+   to APPROVED.  Steps 2–5 below landed together in the rework commit on top
+   of `48a5b8e`.
+2. Rework `verify_receipt`: per-job `_derive_job` (§4), shared-anchor overlay,
+   PARTIAL aggregate (§5a), `runtime.ai2kit` + optional `ai2kit_gate` (§3/§6),
+   `gates` union kept.  `qualify_hpc_dispatcher.py:928` unchanged (aggregate).
+3. Case layer: registry + `[hpc.qualification] requires` replaces
+   `qual_requires` (schema, `case.py`, `release_builder.py`); add the `cp2k`
+   family to 034's `[runtime] requirements`; set the 031–033 and 034 requires
+   per §5b table.  `activate_v2.py` is not part of the rework — it consumes
+   the aggregate (no `case_dir`), whose legacy meaning is preserved (§5a).
+4. Update tests per §8; flip the shared-fate assertions.
+5. Full suite green, 0 new failures vs the frozen base; commit on top of
+   `48a5b8e`.
+6. Frozen-code qualification re-run (re-derive site-v1 + any re-seal under
+   the reworked verifier; then CP2K ENERGY canary → `runtime.cp2k` PASS; then
+   ai2kit runtime canary → `runtime.ai2kit` PASS; then 034 smoke) — **deferred
+   to the authorized cluster phase**; no credentials in this environment.
+
+## 10. Delta vs the `840781e` landing (recorded for review)
+
+| Decision in `840781e` | Revision (this spec) |
+|---|---|
+| Capability projection over the shared gate buckets ("option A"); cpu/gpu share fate | Per-job `_derive_job` returning per-job derivation; shared anchors = explicit overlay; cpu and gpu isolated (§4) |
+| Aggregate INVALID\|PASS; PARTIAL deleted; CP2K NOT_RUN ⇒ PASS | `PARTIAL` restored (INVALID / PARTIAL / PASS); CP2K or ai2kit NOT_RUN ⇒ PARTIAL, never false PASS (§5a) |
+| Bare `[hpc].qual_requires` array | Infra-registry mapping (runtime families → `runtime.*`) + nested `[hpc.qualification] requires`; no bare field (§5b) |
+| 034 requires `["dispatcher.gpu","runtime.matclaw-gpu","runtime.cp2k"]` | 034 requires `["dispatcher.cpu","dispatcher.gpu","runtime.ai2kit","runtime.cp2k"]`; 031–033 `["dispatcher.gpu","runtime.matclaw-gpu"]` (§5b) |
+| No `runtime.ai2kit` capability | `runtime.ai2kit` added (optional `ai2kit_gate` evidence block, NOT_RUN absent) (§3/§6) |
+| `case_requirements_satisfied` gated release on the aggregate | Release gates on the matrix; aggregate PARTIAL is the legacy summary (§5a/§5b) |
+
+The `840781e` commit and its tests pin the superseded behavior and are
+reworked in step 2–4; nothing is deleted from history.  Because every receipt
+is bound to the verifier bytes that sealed it, both the `840781e` cut and the
+rework hold the un-resealed site-v1 receipt INVALID until the Phase 2/3
+re-seal — consistent, no re-seal here.

@@ -29,14 +29,19 @@ per-gate labels do not exist in the document — they are derived by
                                ``cp2k.out`` vs the claimed version / total
                                energy / SCF convergence (:func:`parse_cp2k_output`)
 
-Derivation ladder (capability matrix, 2026-09-02): per-capability statuses are
-projected from the same gate buckets — dispatcher.cpu/gpu and
-runtime.matclaw-gpu from the shared canary gates, runtime.cp2k from its
-dedicated gate.  Aggregate: every PRESENT capability PASS => PASS
-(formal_qualified); NOT_RUN no longer blocks (a case gates on its own
-[hpc].qual_requires via :func:`case_requirements_satisfied`); broken evidence
-anywhere => INVALID.  The verdict is always computed here — never read from
-the receipt.
+Derivation ladder (capability matrix, revised 2026-09-03): derivation is
+PER-JOB — :func:`_derive_job` returns its own gate buckets, so a broken cpu
+canary never fails ``dispatcher.gpu`` (and vice versa); the shared anchors
+(schema, content digest, code identity, SiteProfile rebuild) are an explicit
+overlay applied equally to every capability; ``runtime.cp2k`` /
+``runtime.ai2kit`` derive from their own optional evidence blocks.
+Aggregate: INVALID if any capability FAILs (or the overlay is broken);
+PARTIAL if a runtime canary is NOT_RUN — the legacy meaning is restored, so
+an old consumer never misreads "CP2K not run" as full PASS; PASS only when
+every capability PASSes.  A case gates on its own
+``[hpc.qualification].requires`` via :func:`case_requirements_satisfied`,
+never on the site-wide aggregate.  The verdict is always computed here —
+never read from the receipt.
 
 Offline bound (documented honestly): scheduler-side facts cannot be re-queried
 at verification time; they are bound via strictly-parsed raw accounting lines
@@ -75,6 +80,18 @@ CODE_IDENTITY_PATHS: tuple[str, ...] = (
 )
 
 DEFAULT_PROFILE_RELPATH = "scripts/hpc/cluster_profile.toml"
+
+# Capability namespace (spec §3): every name the verifier derives.
+# dispatcher.cpu / dispatcher.gpu / runtime.matclaw-gpu ride the two canary
+# jobs (cpu-class + gpu-class); runtime.cp2k / runtime.ai2kit derive from
+# their own optional evidence blocks — absent evidence is NOT_RUN.
+CAPABILITY_NAMESPACE: tuple[str, ...] = (
+    "dispatcher.cpu",
+    "dispatcher.gpu",
+    "runtime.matclaw-gpu",
+    "runtime.ai2kit",
+    "runtime.cp2k",
+)
 
 # BENCH_PROBE stdout protocol (emitted by the canary command, parsed both by
 # the trusted producer at collection time and independently by the verifier).
@@ -320,24 +337,37 @@ def verify_receipt(
     Returns::
 
         {"receipt_dir": ..., "digest_ok": bool, "problems": [...],
-         "derived": {"qualification_status": "PASS"|"INVALID",
+         "derived": {"qualification_status": "PASS"|"PARTIAL"|"INVALID",
                      "formal_qualified": bool,
                      "capabilities": {...} (per-capability PASS/FAIL/NOT_RUN),
                      "gates": {...}}}
 
-    ``capabilities`` is the capability-matrix projection (dispatcher.cpu,
-    dispatcher.gpu, runtime.matclaw-gpu, runtime.cp2k); the aggregate is PASS
-    when every PRESENT capability is PASS, INVALID when any PRESENT capability
-    is FAIL.  NOT_RUN (runtime.cp2k before its canary) never blocks the
-    aggregate — a case gates on its own ``[hpc].qual_requires`` via
-    :func:`case_requirements_satisfied`.
+    ``capabilities`` is the PER-JOB capability-matrix derivation (spec §4):
+    ``dispatcher.cpu`` reads only the cpu canary job's own buckets and
+    ``dispatcher.gpu`` the gpu job's — a broken route never fails the other
+    route.  The shared anchors (schema, content digest, code identity,
+    SiteProfile rebuild) are an explicit overlay applied equally to every
+    capability.  ``runtime.cp2k`` / ``runtime.ai2kit`` derive from their own
+    optional evidence blocks (absent => NOT_RUN).
+
+    Aggregate (§5a): INVALID if any capability FAILs or the overlay is broken;
+    PARTIAL if a runtime canary is NOT_RUN — the legacy meaning is restored,
+    so an old consumer never misreads "CP2K not run" as full PASS; PASS only
+    when every capability PASSes.  A case gates on its own
+    ``[hpc.qualification].requires`` via
+    :func:`case_requirements_satisfied`, never on the site-wide aggregate.
     """
     root = Path(root)
     receipt_dir = Path(receipt_dir)
-    gates: dict[str, list[str]] = {}
+
+    # -- layer 1: shared anchors (overlay) ---------------------------------
+    # Schema, content digest, source commit, code identity, the receipt-level
+    # runtime-lock binding and the rebuilt SiteProfile facts are envelope-wide:
+    # a broken overlay fails EVERY capability (anti-forgery), never one route.
+    overlay: dict[str, list[str]] = {}
 
     def problem(gate: str, message: str) -> None:
-        gates.setdefault(gate, []).append(message)
+        overlay.setdefault(gate, []).append(message)
 
     # -- schema + content digest ------------------------------------------
     schema_errors = _schema_errors(receipt)
@@ -451,15 +481,26 @@ def verify_receipt(
     except Exception as exc:  # noqa: BLE001 — resolver/schema failures stay fail-closed
         problem("provenance", f"SiteProfile rebuild failed: {exc}")
 
-    # -- per-job derivation ---------------------------------------------------
+    # -- layer 2: evidence-envelope (canary) gates ---------------------------
+    # Facts about the jobs ARRAY as a whole (coverage, duplicates) apply to
+    # both dispatcher capabilities, never to the runtime capabilities.
+    canary_gates: dict[str, list[str]] = {}
     jobs = evidence.get("jobs") or []
+
+    # -- layer 3: per-job derivation ------------------------------------------
+    # Each canary job derives into ITS OWN buckets — a problem in the cpu job
+    # never fails dispatcher.gpu and vice versa (spec §4).
+    job_buckets: list[tuple[dict[str, Any], dict[str, list[str]]]] = []
+    cpu_buckets: dict[str, list[str]] | None = None
+    gpu_buckets: dict[str, list[str]] | None = None
     seen_ids: set[tuple[str, str]] = set()
     for index, job in enumerate(jobs):
         label = f"jobs[{index}]({job.get('canary', '?')})"
+        own: dict[str, list[str]] = {}
         _derive_job(
             job, label, root=root, receipt_dir=receipt_dir,
             expected_sif_sha=(lock_block.get("sif_sha256") or ""),
-            lock_gpu=lock_gpu, gates=gates,
+            lock_gpu=lock_gpu, gates=own,
         )
         workload = workloads.get(job.get("probe_class")) or {}
         allowed_partitions = {
@@ -469,94 +510,134 @@ def verify_receipt(
         }
         actual_partition = (job.get("accounting") or {}).get("partition", "")
         if actual_partition and actual_partition not in allowed_partitions:
-            problem(
-                "scheduler_facts",
+            own.setdefault("scheduler_facts", []).append(
                 f"{label}: actual partition {actual_partition!r} is outside "
-                f"the resolved set {sorted(allowed_partitions)}",
+                f"the resolved set {sorted(allowed_partitions)}"
             )
         key = (job.get("run_id", ""), job.get("job_id", ""))
         if key in seen_ids:
-            problem("audit_ledger", f"{label}: duplicate run_id/job_id")
+            canary_gates.setdefault("audit_ledger", []).append(
+                f"{label}: duplicate run_id/job_id"
+            )
         seen_ids.add(key)
+        probe_class = job.get("probe_class")
+        if probe_class == "cpu":
+            cpu_buckets = own
+        elif probe_class == "gpu":
+            gpu_buckets = own
+        job_buckets.append((job, own))
 
     if not jobs:
-        problem("scheduler_facts", "no canary jobs recorded")
+        canary_gates.setdefault("scheduler_facts", []).append(
+            "no canary jobs recorded"
+        )
 
     # Canary coverage: the qualification must prove BOTH routes — a cpu-class
     # job on the native cpu queue and a gpu-class job under gres.
-    gates.setdefault("canary_coverage", [])
+    canary_gates.setdefault("canary_coverage", [])
     classes_seen = {job.get("probe_class") for job in jobs}
     if not {"cpu", "gpu"} <= classes_seen:
-        problem(
-            "canary_coverage",
-            f"canary set must include both probe classes; got "
-            f"{sorted(c for c in classes_seen if c)}",
+        canary_gates["canary_coverage"].append(
+            "canary set must include both probe classes; got "
+            f"{sorted(c for c in classes_seen if c)}"
         )
 
-    # -- cp2k gate: derived from its bound evidence, never declared -----------
+    # -- layer 4: optional runtime evidence gates -----------------------------
+    # Derived from their own bound evidence blocks, never declared.  A missing
+    # block is NOT_RUN; present evidence derives PASS/FAIL.
     cp2k_block = evidence.get("cp2k_gate") or {}
     if cp2k_block.get("evidence") is None:
-        gates.setdefault("cp2k_gate", [])
         cp2k_result = "NOT_RUN"
+        cp2k_gates: dict[str, list[str]] = {}
     else:
-        cp2k_result = _derive_cp2k(
-            cp2k_block, root=root, receipt_dir=receipt_dir,
-            lock_gpu=lock_gpu, gates=gates,
+        cp2k_result, cp2k_gates = _derive_cp2k(
+            cp2k_block, root=root, receipt_dir=receipt_dir, lock_gpu=lock_gpu,
         )
 
-    # -- assemble derived verdict ---------------------------------------------
+    ai2kit_block = evidence.get("ai2kit_gate") or {}
+    if ai2kit_block.get("evidence") is None:
+        ai2kit_result = "NOT_RUN"
+        ai2kit_gates: dict[str, list[str]] = {}
+    else:
+        ai2kit_result, ai2kit_gates = _derive_ai2kit(
+            ai2kit_block, root=root, receipt_dir=receipt_dir,
+        )
+
+    # -- assemble the public problem ledger -----------------------------------
+    # Union of the overlay + canary + per-job + runtime buckets.  Bucket names
+    # and message shapes are unchanged from the pre-matrix ledger; which
+    # capability a message fails was resolved per job above — the union is the
+    # informational view only, never the attribution source.
+    gates: dict[str, list[str]] = {}
+    for bucket in (overlay, canary_gates):
+        for name, msgs in bucket.items():
+            gates.setdefault(name, []).extend(msgs)
+    for _job, own in job_buckets:
+        for name, msgs in own.items():
+            gates.setdefault(name, []).extend(msgs)
+    for runtime_gates in (cp2k_gates, ai2kit_gates):
+        for name, msgs in runtime_gates.items():
+            gates.setdefault(name, []).extend(msgs)
+
     gate_results = {
         name: ("FAIL" if msgs else "PASS")
         for name, msgs in gates.items()
     }
-    gate_results["cp2k_gate"] = (
-        "FAIL" if gates.get("cp2k_gate") else cp2k_result
+    gate_results["cp2k_gate"] = "FAIL" if gates.get("cp2k_gate") else cp2k_result
+    gate_results["ai2kit_gate"] = (
+        "FAIL" if gates.get("ai2kit_gate") else ai2kit_result
     )
-    canary_ok = all(
-        result == "PASS"
-        for name, result in gate_results.items()
-        if name not in ("schema", "cp2k_gate")
-    )
-    schema_ok = "schema" not in gates
 
-    # Capability matrix (capability-matrix spec, 2026-09-02): a re-projection
-    # of the SAME gate buckets — per-capability verdicts consumers can gate on
-    # individually.  cpu/gpu canary jobs flow through the shared buckets, so
-    # dispatcher.cpu/gpu share fate there (a broken scheduler anchor unbinds
-    # the whole canary evidence); runtime.cp2k reads only its dedicated
-    # cp2k_gate bucket, so a cp2k failure or absence never marks the
-    # dispatcher capabilities.  runtime.matclaw-gpu rides the gpu job's
-    # runtime_decl binding (enforced in the shared provenance gate).
-    # Verdict-free invariant: capabilities are DERIVED here, never stored on
-    # the receipt.
-    dispatcher_ok = schema_ok and canary_ok
-    cpu_job_present = any(j.get("probe_class") == "cpu" for j in jobs)
-    gpu_job_present = any(j.get("probe_class") == "gpu" for j in jobs)
+    # -- capability projection (spec §4) --------------------------------------
+    # Overlay failures fail EVERY capability (the envelope is untrustworthy).
+    # Canary-level (coverage / array) failures fail the dispatcher
+    # capabilities.  Each per-job bucket set fails only its own dispatcher
+    # route.  runtime.* caps read only their own evidence: matclaw-gpu rides
+    # the gpu job's own buckets (absent gpu job => its evidence is absent, so
+    # the claimed-qualified runtime fails closed too).  Verdict-free
+    # invariant: capabilities are DERIVED here, never stored on the receipt.
+    def clean(buckets: dict[str, list[str]] | None) -> bool:
+        return buckets is not None and not any(buckets.values())
+
+    overlay_broken = any(overlay.values())
+    canary_broken = any(canary_gates.values())
     capabilities = {
-        "dispatcher.cpu": "PASS" if dispatcher_ok and cpu_job_present else "FAIL",
-        "dispatcher.gpu": "PASS" if dispatcher_ok and gpu_job_present else "FAIL",
-        "runtime.matclaw-gpu": "PASS" if dispatcher_ok and gpu_job_present else "FAIL",
-        "runtime.cp2k": cp2k_result,
+        "dispatcher.cpu": (
+            "PASS"
+            if not overlay_broken and not canary_broken and clean(cpu_buckets)
+            else "FAIL"
+        ),
+        "dispatcher.gpu": (
+            "PASS"
+            if not overlay_broken and not canary_broken and clean(gpu_buckets)
+            else "FAIL"
+        ),
+        "runtime.matclaw-gpu": (
+            "PASS" if not overlay_broken and clean(gpu_buckets) else "FAIL"
+        ),
+        "runtime.ai2kit": ai2kit_result if not overlay_broken else "FAIL",
+        "runtime.cp2k": cp2k_result if not overlay_broken else "FAIL",
     }
 
-    # Aggregate: PASS when every PRESENT capability is PASS; NOT_RUN does not
-    # block (previously cp2k NOT_RUN forced PARTIAL — that coupling is the
-    # behavior change this matrix removes; a case gates on its own
-    # qual_requires, never the site-wide aggregate).  Present-but-broken stays
-    # INVALID: the receipt cannot be trusted far enough to distinguish PARTIAL
-    # from forgery.  dispatcher.* / runtime.matclaw-gpu are never NOT_RUN — an
-    # absent canary class is FAIL (the coverage gate requires both) — so "any
-    # FAIL" is exactly "a PRESENT capability is broken".
-    status = "INVALID" if any(
-        status_ == "FAIL" for status_ in capabilities.values()
-    ) else "PASS"
+    # -- aggregate (§5a) -------------------------------------------------------
+    # INVALID when any capability FAILs (a broken overlay fails every
+    # capability, so an envelope breach is exactly this).  PARTIAL when a
+    # runtime canary is NOT_RUN — the legacy status meaning is restored, so
+    # "CP2K not run" never reads as full PASS to an old consumer.  PASS only
+    # when every capability PASSes; new consumers gate per case on the matrix,
+    # never on this aggregate.
+    if any(value == "FAIL" for value in capabilities.values()):
+        status = "INVALID"
+    elif any(value == "NOT_RUN" for value in capabilities.values()):
+        status = "PARTIAL"
+    else:
+        status = "PASS"
     formal_qualified = status == "PASS"
-    # The old BLOCKED_SITE_ACL branch (PARTIAL ∧ cpu→gpu ACL mapping) is gone
-    # with PARTIAL: the collector refuses to qualify a profile that maps cpu
-    # workloads off the native queue (QualifyError up front), and the
+    # BLOCKED_SITE_ACL (the old PARTIAL ∧ cpu→gpu ACL branch) is gone with the
+    # ACL era: the collector refuses to qualify a profile that maps cpu
+    # workloads off the native queue (QualifyError up front), and the overlay
     # provenance gate re-checks native_cpu_partition_accessible against the
-    # rebuilt SiteProfile, so a receipt cannot derive clean while claiming a
-    # contradictory ACL — it fails closed as INVALID instead.
+    # rebuilt SiteProfile — a contradictory ACL claim fails every capability.
 
     problems = [
         f"[{gate}] {message}" for gate, msgs in sorted(gates.items())
@@ -581,12 +662,14 @@ def case_requirements_satisfied(
 ) -> bool:
     """Gate a case on the derived capability matrix.
 
-    ``requires`` is the case manifest's ``[hpc].qual_requires`` list (capability
-    names such as ``dispatcher.gpu`` or ``runtime.cp2k``).  Returns True only
-    when every named capability derives PASS — NOT_RUN or FAIL blocks the
-    case.  Unknown names block too (fail-closed: a typo must never read as
-    satisfied).  This reads only the verifier's *derived* view; the receipt
-    itself carries no verdict fields.
+    ``requires`` is the case manifest's ``[hpc.qualification].requires`` list
+    (capability names such as ``dispatcher.gpu`` or ``runtime.matclaw-gpu``).
+    Returns True only when every named capability derives PASS — NOT_RUN or
+    FAIL blocks the case.  Unknown names block too (fail-closed: a typo must
+    never read as satisfied).  This reads only the verifier's *derived* view;
+    the receipt itself carries no verdict fields.  A case gates on ITS OWN
+    requires (spec §5b) — the site-wide aggregate PARTIAL does not block a case
+    whose requires are all PASS.
     """
     capabilities = derived.get("capabilities") or {}
     return all(capabilities.get(name) == "PASS" for name in requires)
@@ -598,9 +681,15 @@ def _derive_cp2k(
     root: Path,
     receipt_dir: Path,
     lock_gpu: str | None,
-    gates: dict[str, list[str]],
-) -> str:
-    """Derive the cp2k gate from bound evidence. Returns PASS or FAIL.
+) -> tuple[str, dict[str, list[str]]]:
+    """Derive the cp2k gate from bound evidence. Returns (PASS|FAIL, gates).
+
+    ``gates`` is scoped to THIS capability only (spec §4 layer 4): cp2k anchor
+    breaks land in the ``cp2k_gate`` bucket with a ``cp2k: `` prefix, and the
+    job record derives into its own per-job buckets under the ``cp2k-job: ``
+    label which are folded into ``cp2k_gate`` as aggregation messages.  Nothing
+    here can touch a dispatcher capability — a broken cp2k canary fails
+    ``runtime.cp2k`` alone.
 
     Anchors, in order: the cp2k runtime lock on disk (a distinct SIF and a
     pinned binary/version), the full job-record derivation (state, accounting,
@@ -611,6 +700,7 @@ def _derive_cp2k(
     convergence facts.
     """
     ev = block.get("evidence") or {}
+    gates: dict[str, list[str]] = {}
 
     def problem(message: str) -> None:
         gates.setdefault("cp2k_gate", []).append(f"cp2k: {message}")
@@ -647,20 +737,21 @@ def _derive_cp2k(
         broken = True
 
     # The job record must derive like any canary job; surface which buckets
-    # it polluted so the overall verdict fails closed with visibility.
+    # it polluted so the overall verdict fails closed with visibility.  The
+    # record derives into its OWN buckets (never the caller's), so a broken
+    # cp2k canary cannot contaminate the dispatcher derivations; the polluted
+    # buckets are folded into this capability's gate as aggregation messages.
     job = ev.get("job") or {}
-    before = {name: len(msgs) for name, msgs in gates.items()}
+    own: dict[str, list[str]] = {}
     _derive_job(
         job, "cp2k-job", root=root, receipt_dir=receipt_dir,
         expected_sif_sha=lock_block.get("sif_sha256") or "",
-        lock_gpu=lock_gpu, gates=gates,
+        lock_gpu=lock_gpu, gates=own,
     )
-    for name in list(gates):
-        msgs = gates[name]
-        if len(msgs) > before.get(name, 0):
-            problem(f"job evidence failed gate {name!r} "
-                    f"(+{len(msgs) - before.get(name, 0)} problem(s))")
-            broken = True
+    for name, msgs in own.items():
+        gates.setdefault(name, []).extend(msgs)
+        problem(f"job evidence failed gate {name!r} (+{len(msgs)} problem(s))")
+        broken = True
 
     # Input binding: declared text is self-hashed and byte-identical to the
     # staged artifact.
@@ -748,7 +839,71 @@ def _derive_cp2k(
             problem("SCF convergence marker absent from output artifact")
             broken = True
 
-    return "FAIL" if broken else "PASS"
+    return ("FAIL" if broken else "PASS"), gates
+
+
+def _derive_ai2kit(
+    block: dict[str, Any],
+    *,
+    root: Path,
+    receipt_dir: Path,
+) -> tuple[str, dict[str, list[str]]]:
+    """Derive the ai2kit gate from bound evidence. Returns (PASS|FAIL, gates).
+
+    Runtime-canary mirror of ``_derive_cp2k`` minus the domain re-parse: an
+    ai2kit canary has no CP2K-style input/output artifact for this verifier to
+    re-parse, so the anchors are the runtime lock on disk (the pinned ai2kit
+    controller image) and the full job-record derivation (state, accounting,
+    TRES, probes, settlement, audit ledger, artifacts) under the ``ai2kit-job:``
+    label.  Problems are scoped to THIS capability only — the job record
+    derives into its own buckets which are folded into the ``ai2kit_gate``
+    bucket as aggregation messages, exactly like the cp2k gate.  Absent
+    evidence (no block / null ``evidence``) is NOT_RUN, handled by the caller.
+    """
+    ev = block.get("evidence") or {}
+    gates: dict[str, list[str]] = {}
+
+    def problem(message: str) -> None:
+        gates.setdefault("ai2kit_gate", []).append(f"ai2kit: {message}")
+
+    broken = False
+
+    # Own runtime anchor: the evidence block pins the ai2kit runtime lock on
+    # disk; the pinned SIF fields must equal the on-disk lock's runtime record.
+    lock_block = ev.get("runtime_lock") or {}
+    lock_path = root / lock_block.get("path", "<missing>")
+    try:
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        runtime = lock.get("runtime") or {}
+        for field in ("sif_path_remote", "sif_sha256"):
+            if lock_block.get(field) != runtime.get(field):
+                problem(
+                    f"runtime_lock.{field} != on-disk ai2kit lock "
+                    f"(receipt={lock_block.get(field)!r} "
+                    f"lock={runtime.get(field)!r})"
+                )
+                broken = True
+    except FileNotFoundError:
+        problem(f"ai2kit runtime lock unreadable: {lock_path}")
+        broken = True
+    except json.JSONDecodeError as exc:
+        problem(f"ai2kit runtime lock malformed: {exc}")
+        broken = True
+
+    # The job record must derive like any canary job, into its own buckets.
+    job = ev.get("job") or {}
+    own: dict[str, list[str]] = {}
+    _derive_job(
+        job, "ai2kit-job", root=root, receipt_dir=receipt_dir,
+        expected_sif_sha=lock_block.get("sif_sha256") or "",
+        lock_gpu=None, gates=own,
+    )
+    for name, msgs in own.items():
+        gates.setdefault(name, []).extend(msgs)
+        problem(f"job evidence failed gate {name!r} (+{len(msgs)} problem(s))")
+        broken = True
+
+    return ("FAIL" if broken else "PASS"), gates
 
 
 def _tres_fields(raw: str) -> dict[str, str]:
@@ -782,6 +937,15 @@ def _derive_job(
     lock_gpu: str | None,
     gates: dict[str, list[str]],
 ) -> None:
+    """Derive ONE job record into PER-JOB buckets (spec §4 layer 3).
+
+    ``gates`` is always the calling job's own dict: the canary loop hands a
+    fresh dict per canary job, and the runtime gate derives
+    (``_derive_cp2k``/``_derive_ai2kit``) hand a fresh dict per runtime job
+    record.  A problem therefore lands only in the owning capability's set —
+    the bucket names and ``{label}: {message}`` shapes are unchanged from the
+    shared-ledger era, only the attribution is now structural.
+    """
     def problem(gate: str, message: str) -> None:
         gates.setdefault(gate, []).append(f"{label}: {message}")
 

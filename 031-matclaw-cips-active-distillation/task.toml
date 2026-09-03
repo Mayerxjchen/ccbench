@@ -14,6 +14,13 @@ files = [{ destination = ".", source = "public/**", strip_prefix = "public" }]
 [hpc]
 contract_version = "hpc-execution/v1"
 required_capabilities = ["batch_jobs", "gpu", "artifact_fetch"]
+# Capability-matrix gates (spec §5b): the site receipt must derive PASS for
+# every name before this case may run formally.  dispatcher.gpu is explicit
+# (dispatcher tiers are never auto-derived); runtime.matclaw-gpu is declared
+# too, so the gate survives even if the matclaw-cips registry mapping changes.
+
+[hpc.qualification]
+requires = ["dispatcher.gpu", "runtime.matclaw-gpu"]
 
 [hpc.scientific_capabilities]
 required = ["matclaw-cips", "cp2k"]

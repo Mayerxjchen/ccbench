@@ -136,26 +136,29 @@ def check_qualification_receipt(
     Returns a status dict::
 
         {"status": "PASS", "receipt_path": ..., "digest": ...,
-         "qual_requires": [...]}
+         "qualification_requires": [...]}
         {"status": "BLOCKED_QUALIFICATION", "detail": ...}
 
     The verdicts are never read from the receipt — it carries none.  Every
     status is *derived* by
     :func:`dftworld_bench.experiments.qualification_receipt.verify_receipt`
-    from the bound evidence; any broken anchor, missing receipt, or
-    capability-matrix gap yields ``BLOCKED_QUALIFICATION``.
+    from the bound evidence; a missing receipt or any broken anchor yields
+    ``BLOCKED_QUALIFICATION``.
 
-    ``case_dir`` optionally names the case being released: its
-    ``[hpc].qual_requires`` names must all derive PASS on the receipt's
-    capability matrix (via
-    :func:`dftworld_bench.experiments.qualification_receipt.case_requirements_satisfied`)
-    or the release is blocked — a case that needs CP2K is not released off an
-    aggregate PASS while ``runtime.cp2k`` is NOT_RUN.  A missing or unknown
-    name in ``qual_requires`` blocks too, naming the unmet capability.  The
-    legacy site-ACL status is gone: the collector refuses cpu-workloads-on-the
-    -gpu-queue profiles up front, and the provenance gate re-checks the ACL
-    fact against the rebuilt SiteProfile, so a contradictory site change fails
-    closed here as BLOCKED_QUALIFICATION.
+    ``case_dir`` optionally names the case being released (spec §5b): the
+    release gates on the case's OWN effective ``[hpc.qualification]`` requires
+    (declared ∪ registry auto-derivation) via
+    :func:`dftworld_bench.experiments.qualification_receipt.case_requirements_satisfied`
+    — never on the site-wide aggregate.  A MatClaw case whose
+    ``dispatcher.gpu`` / ``runtime.matclaw-gpu`` both derive PASS is released
+    while the aggregate is PARTIAL (cp2k/ai2kit canaries NOT_RUN); a
+    034-style case naming ``runtime.cp2k`` / ``runtime.ai2kit`` stays blocked
+    until those canaries ran.  Structural breakage (schema, code identity,
+    overlay) fails EVERY capability, so a case-gated release blocks on it too
+    without a separate problems gate.  Without ``case_dir`` the call keeps the
+    legacy operator semantics: the site-wide aggregate must be full PASS —
+    PARTIAL (a runtime canary NOT_RUN) is the honest report and is NOT a
+    release.
     """
     import json
 
@@ -180,37 +183,39 @@ def check_qualification_receipt(
     result = verify_receipt(
         receipt, root=root, receipt_dir=receipt_path.parent
     )
+    derived = result["derived"]
     common = {
         "receipt_path": str(receipt_path),
         "digest": receipt.get("digest"),
     }
-    if result["problems"]:
+    if case_dir is None:
+        # Legacy site-qualification path: full PASS only.  Problems always
+        # surface as a FAIL capability here, so the status check subsumes
+        # them; the detail keeps the aggregate readable for operators.
+        if result["problems"] or derived["qualification_status"] != "PASS":
+            return {
+                "status": "BLOCKED_QUALIFICATION",
+                "detail": (
+                    "D11 receipt derives "
+                    f"{derived['qualification_status']} "
+                    f"(gates={derived['gates']})"
+                ),
+                **common,
+            }
         return {
-            "status": "BLOCKED_QUALIFICATION",
-            "detail": "D11 receipt failed derivation: "
-            + "; ".join(result["problems"][:5]),
-            **common,
-        }
-    derived = result["derived"]
-    if derived["qualification_status"] != "PASS":
-        return {
-            "status": "BLOCKED_QUALIFICATION",
-            "detail": (
-                "D11 receipt derives "
-                f"{derived['qualification_status']} "
-                f"(gates={derived['gates']})"
-            ),
+            "status": "PASS",
+            "qualification_requires": [],
             **common,
         }
     try:
-        case_requires = _case_qual_requires(case_dir)
+        case_requires = _case_qualification_requires(case_dir)
     except ValueError as exc:
         return {
             "status": "BLOCKED_QUALIFICATION",
             "detail": str(exc),
             **common,
         }
-    if case_requires and not case_requirements_satisfied(derived, case_requires):
+    if not case_requirements_satisfied(derived, case_requires):
         capabilities = derived.get("capabilities") or {}
         unmet = [
             name for name in case_requires
@@ -219,21 +224,21 @@ def check_qualification_receipt(
         return {
             "status": "BLOCKED_QUALIFICATION",
             "detail": (
-                f"case {Path(case_dir).name} qual_requires not satisfied: "
-                f"unmet={unmet} capabilities={capabilities}"
+                f"case {Path(case_dir).name} qualification requires not "
+                f"satisfied: unmet={unmet} capabilities={capabilities}"
             ),
-            "qual_requires": list(case_requires),
+            "qualification_requires": list(case_requires),
             **common,
         }
     return {
         "status": "PASS",
-        "qual_requires": list(case_requires),
+        "qualification_requires": list(case_requires),
         **common,
     }
 
 
-def _case_qual_requires(case_dir: Path | None) -> tuple[str, ...]:
-    """Resolve ``[hpc].qual_requires`` from the case manifest (fail-closed).
+def _case_qualification_requires(case_dir: Path | None) -> tuple[str, ...]:
+    """Resolve the case's EFFECTIVE ``[hpc.qualification]`` requires.
 
     Returns () when no case is named.  A broken or conflicting manifest raises
     ValueError so the caller can block rather than release.
@@ -246,6 +251,7 @@ def _case_qual_requires(case_dir: Path | None) -> tuple[str, ...]:
         spec = CaseSpec.load(case_dir)
     except Exception as exc:  # noqa: BLE001 — a broken manifest must block
         raise ValueError(
-            f"case {Path(case_dir).name} qual_requires unresolvable: {exc}"
+            f"case {Path(case_dir).name} qualification requires "
+            f"unresolvable: {exc}"
         ) from exc
-    return tuple(spec.qual_requires)
+    return tuple(spec.effective_qualification_requires)

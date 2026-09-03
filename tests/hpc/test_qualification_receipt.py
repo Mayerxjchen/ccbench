@@ -25,6 +25,7 @@ from pathlib import Path
 
 import pytest
 
+from dftworld_bench.contracts.case import CaseContractError, CaseSpec
 from dftworld_bench.experiments import qualification_receipt as qr
 from dftworld_bench.experiments.release_builder import check_qualification_receipt
 from dftworld_bench.hpc.dispatcher import HpcDispatcher
@@ -581,22 +582,33 @@ def full(golden: Path) -> Path:
 
 
 class TestCp2kDerivation:
-    def test_golden_with_cp2k_derives_pass(self, full: Path) -> None:
+    def test_golden_with_cp2k_derives_runtime_cp2k_pass(self, full: Path) -> None:
+        """CP2K evidence derives runtime.cp2k PASS.  ai2kit has still never
+        run, so the AGGREGATE stays PARTIAL — the matrix cell is what a case
+        gates on, and that cell is releasable (spec §5)."""
         result = _verify(full, _load(full))
         assert _problems(result) == [], _problems(result)
         derived = result["derived"]
-        assert derived["qualification_status"] == "PASS"
-        assert derived["formal_qualified"] is True
+        assert derived["qualification_status"] == "PARTIAL"
+        assert derived["formal_qualified"] is False
         assert derived["capabilities"] == {
             "dispatcher.cpu": "PASS",
             "dispatcher.gpu": "PASS",
             "runtime.matclaw-gpu": "PASS",
+            "runtime.ai2kit": "NOT_RUN",
             "runtime.cp2k": "PASS",
         }
         assert derived["gates"]["cp2k_gate"] == "PASS"
+        assert derived["gates"]["ai2kit_gate"] == "NOT_RUN"
 
-    def test_release_builder_sees_pass(self, full: Path) -> None:
-        assert check_qualification_receipt(full)["status"] == "PASS"
+    def test_release_builder_aggregate_path_blocked_while_ai2kit_not_run(
+        self, full: Path
+    ) -> None:
+        """Even with CP2K PASS the no-case aggregate path stays BLOCKED while
+        runtime.ai2kit is NOT_RUN — full PASS requires every capability."""
+        checked = check_qualification_receipt(full)
+        assert checked["status"] == "BLOCKED_QUALIFICATION"
+        assert "PARTIAL" in checked["detail"]
 
     def test_energy_tampered(self, full: Path) -> None:
         receipt = copy.deepcopy(_load(full))
@@ -609,12 +621,15 @@ class TestCp2kDerivation:
         assert result["derived"]["formal_qualified"] is False
         assert any("energy mismatch" in p for p in _problems(result))
         capabilities = result["derived"]["capabilities"]
-        # A cp2k-specific break leaves the shared canary gates clean, so the
-        # dispatcher capabilities hold PASS while runtime.cp2k FAILs — the
-        # matrix's independence property (spec §4).
+        # A cp2k-specific break leaves the shared overlay and the canary jobs
+        # clean, so the dispatcher capabilities hold PASS while runtime.cp2k
+        # FAILs — the matrix's independence property (spec §4).  ai2kit has
+        # still not run, so its cell stays NOT_RUN (the FAIL dominates the
+        # aggregate either way).
         assert capabilities["dispatcher.cpu"] == "PASS"
         assert capabilities["dispatcher.gpu"] == "PASS"
         assert capabilities["runtime.matclaw-gpu"] == "PASS"
+        assert capabilities["runtime.ai2kit"] == "NOT_RUN"
         assert capabilities["runtime.cp2k"] == "FAIL"
 
     def test_output_artifact_byte_flip(self, full: Path) -> None:
@@ -732,6 +747,241 @@ class TestCp2kDerivation:
         )
 
 
+# -- ai2kit runtime-canary fixture extension ---------------------------------
+
+AI2KIT_SIF_SHA = "b" * 64
+AI2KIT_SIF_REMOTE = (
+    "/public/home/<site-user>/dftworld2-runs/ai2kit/"
+    "dftworld-base-ai2kit-0.1.0-cpu-controller.sif"
+)
+AI2KIT_IMAGE = "dftworld-base-ai2kit-0.1.0-cpu-controller"
+AI2KIT_LOCK_RELPATH = "reference/ai2kit-runtime.lock.json"
+
+
+def _write_ai2kit_lock(root: Path) -> None:
+    lock_path = root / AI2KIT_LOCK_RELPATH
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path.write_text(
+        json.dumps(
+            {
+                "schema": "dispatcher-ai2kit-runtime-lock/v1",
+                "runtime": {
+                    "sif_path_remote": AI2KIT_SIF_REMOTE,
+                    "sif_sha256": AI2KIT_SIF_SHA,
+                },
+            },
+            indent=1,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _run_real_ai2kit_dispatcher_job(base: Path) -> dict:
+    """Real dispatcher session for the ai2kit runtime canary: own audit chain,
+    own settlement report, own fetched logs under artifacts-ai2kit."""
+    run_id = "run-ai2kit-runtime-canary-fixt"
+    operation_id = "qual-ai2kit-runtime-01"
+    disp = HpcDispatcher.process_test(base / "site-ai2kit")
+    ws = base / "ws-ai2kit"
+    ws.mkdir(parents=True, exist_ok=True)
+    session = disp.open_run(run_id, workspace=ws)
+    try:
+        command = ["bash", "-c", "printf '%s\\n' " + " ".join(
+            shlex.quote(line) for line in CPU_PROBE_LINES
+        )]
+        spec = {
+            "schema_version": 1,
+            "idempotency_key": "qual-ai2kit-fixt",
+            "runtime": f"{AI2KIT_IMAGE}@sha256:{AI2KIT_SIF_SHA}",
+            "command": command,
+            "resources": {
+                "cpus": 2, "memory_gb": 8, "gpus": 0, "walltime_minutes": 15,
+            },
+            "inputs": [],
+            "outputs": [],
+        }
+        submitted = session.submit(spec, operation_id=operation_id, attempt=1)
+        job_id = submitted["job_id"]
+        for _ in range(200):
+            if session.status(job_id)["state"] in TERMINAL:
+                break
+            time.sleep(0.05)
+        state = session.status(job_id)["state"]
+        assert state == "SUCCEEDED", state
+        logs = session.logs(job_id)
+        report = session.settle(cancel_pending=True)
+        work = session.gateway._adapter._jobs[job_id]["work"]
+        target = base / "artifacts-ai2kit"
+        target.mkdir(exist_ok=True)
+        for name in ("stdout.log", "stderr.log"):
+            shutil.copy2(work / name, target / name)
+    finally:
+        session.close()
+    return {
+        "run_id": run_id,
+        "operation_id": operation_id,
+        "job_id": job_id,
+        "stdout": logs["stdout"],
+        "stderr": logs.get("stderr", ""),
+        "report": report.to_dict(),
+        "digest": report.digest,
+    }
+
+
+def _add_ai2kit(golden_root: Path) -> None:
+    """Merge well-formed ai2kit runtime-canary evidence into the golden receipt
+    on disk (own dispatcher session, own artifacts/audit ledger, own runtime
+    lock), then re-seal."""
+    _write_ai2kit_lock(golden_root)
+    real = _run_real_ai2kit_dispatcher_job(golden_root)
+
+    parsed = qr.parse_probe_stdout(real["stdout"])
+    job = {
+        "canary": "ai2kit-runtime-canary",
+        "run_id": real["run_id"],
+        "operation_id": real["operation_id"],
+        "attempt": 1,
+        "job_id": real["job_id"],
+        "scheduler_job_id": "3537004",
+        "runtime_decl": f"{AI2KIT_IMAGE}@sha256:{AI2KIT_SIF_SHA}",
+        "state": "SUCCEEDED",
+        "exit_code": 0,
+        "gpus_requested": 0,
+        "requested_resources": {
+            "cpus": 8, "memory_gb": 64, "gpus": 0,
+            "walltime_minutes": 15,
+        },
+        "probe_class": "cpu",
+        "accounting": _accounting(0, "3537004"),
+        "probe_results": {
+            key: parsed["probes"].get(key) == "pass"
+            for key in (
+                "workspace_rw",
+                "home_sentinel_absent",
+                "credential_sentinel_absent",
+                "other_run_dir_absent",
+                "solution_absent",
+                "reference_absent",
+                "runs_root_not_listable",
+            )
+        },
+        "stdout_tail": real["stdout"],
+        "stderr_tail": real["stderr"],
+        "settlement": {"report": real["report"], "digest": real["digest"]},
+        "fetch_manifest": {
+            "job_id": real["job_id"],
+            "entries": _manifest_entries(golden_root / "artifacts-ai2kit"),
+        },
+        "artifacts_dir": "../../../../artifacts-ai2kit",
+        "audit_log": "../../../../site-ai2kit/audit.jsonl",
+    }
+    receipt = _load(golden_root)
+    receipt["evidence"]["ai2kit_gate"] = {
+        "detail": "ai2kit runtime canary under separate authorization",
+        "evidence": {
+            "job": job,
+            "runtime_lock": {
+                "path": AI2KIT_LOCK_RELPATH,
+                "sif_path_remote": AI2KIT_SIF_REMOTE,
+                "sif_sha256": AI2KIT_SIF_SHA,
+            },
+        },
+    }
+    receipt_dir = golden_root / RECEIT_DIRNAME
+    (receipt_dir / "receipt.json").write_text(
+        json.dumps(_reseal(receipt), indent=2) + "\n", encoding="utf-8"
+    )
+
+
+class TestAi2kitDerivation:
+    """runtime.ai2kit (spec §3/§6): absent evidence is NOT_RUN; present
+    evidence derives PASS/FAIL from the ai2kit runtime lock + full job-record
+    derivation.  The derive is scoped to this capability alone — a broken
+    ai2kit canary never touches the dispatcher or cp2k cells."""
+
+    def test_absent_ai2kit_evidence_is_not_run(self, golden: Path) -> None:
+        result = _verify(golden, _load(golden))
+        derived = result["derived"]
+        assert derived["capabilities"]["runtime.ai2kit"] == "NOT_RUN"
+        assert derived["gates"]["ai2kit_gate"] == "NOT_RUN"
+        assert derived["qualification_status"] == "PARTIAL"
+
+    def test_ai2kit_evidence_derives_runtime_ai2kit_pass(self, golden: Path) -> None:
+        """ai2kit PASS with cp2k still NOT_RUN: the aggregate stays PARTIAL but
+        the runtime.ai2kit cell derives clean — 034's gate needs BOTH cells
+        PASS, so this pins the ai2kit half."""
+        _add_ai2kit(golden)
+        result = _verify(golden, _load(golden))
+        assert _problems(result) == [], _problems(result)
+        derived = result["derived"]
+        assert derived["qualification_status"] == "PARTIAL"
+        assert derived["formal_qualified"] is False
+        assert derived["capabilities"] == {
+            "dispatcher.cpu": "PASS",
+            "dispatcher.gpu": "PASS",
+            "runtime.matclaw-gpu": "PASS",
+            "runtime.ai2kit": "PASS",
+            "runtime.cp2k": "NOT_RUN",
+        }
+        assert derived["gates"]["ai2kit_gate"] == "PASS"
+        assert derived["gates"]["cp2k_gate"] == "NOT_RUN"
+
+    def test_cp2k_and_ai2kit_evidence_derive_full_pass(self, full: Path) -> None:
+        """Every capability PASS ⇒ the aggregate is PASS again and the no-case
+        operator release path opens — the legacy full-qualification meaning."""
+        _add_ai2kit(full)
+        result = _verify(full, _load(full))
+        assert _problems(result) == [], _problems(result)
+        derived = result["derived"]
+        assert derived["qualification_status"] == "PASS"
+        assert derived["formal_qualified"] is True
+        assert derived["capabilities"] == {
+            "dispatcher.cpu": "PASS",
+            "dispatcher.gpu": "PASS",
+            "runtime.matclaw-gpu": "PASS",
+            "runtime.ai2kit": "PASS",
+            "runtime.cp2k": "PASS",
+        }
+        checked = check_qualification_receipt(full)
+        assert checked["status"] == "PASS"
+
+    def test_ai2kit_runtime_lock_swapped(self, golden: Path) -> None:
+        """A forged ai2kit SIF digest breaks the lock anchor AND the job's
+        runtime_decl binding — runtime.ai2kit fails alone."""
+        _add_ai2kit(golden)
+        receipt = copy.deepcopy(_load(golden))
+        ev = receipt["evidence"]["ai2kit_gate"]["evidence"]
+        ev["runtime_lock"]["sif_sha256"] = "9" * 64
+        result = _verify(golden, _reseal(receipt))
+        assert result["consistent"] is False
+        joined = " | ".join(_problems(result))
+        assert "runtime_lock.sif_sha256" in joined
+        assert "runtime_decl" in joined
+        derived = result["derived"]
+        assert derived["qualification_status"] == "INVALID"
+        assert derived["capabilities"]["runtime.ai2kit"] == "FAIL"
+        assert derived["capabilities"]["dispatcher.cpu"] == "PASS"
+        assert derived["capabilities"]["dispatcher.gpu"] == "PASS"
+        assert derived["capabilities"]["runtime.cp2k"] == "NOT_RUN"
+
+    def test_ai2kit_job_tamper_fails_runtime_ai2kit_only(self, full: Path) -> None:
+        """A broken ai2kit canary job fails the runtime.ai2kit cell while the
+        dispatcher cells stay PASS — cross-gate isolation holds both ways."""
+        _add_ai2kit(full)
+        receipt = copy.deepcopy(_load(full))
+        job = receipt["evidence"]["ai2kit_gate"]["evidence"]["job"]
+        job["accounting"]["raw_state"] = "FAILED"
+        job["accounting"]["exit_code_raw"] = "1:0"
+        result = _verify(full, _reseal(receipt))
+        derived = result["derived"]
+        assert derived["qualification_status"] == "INVALID"
+        assert derived["capabilities"]["runtime.ai2kit"] == "FAIL"
+        assert derived["capabilities"]["dispatcher.cpu"] == "PASS"
+        assert derived["capabilities"]["dispatcher.gpu"] == "PASS"
+        assert derived["capabilities"]["runtime.cp2k"] == "PASS"
+
+
 def _load(golden_root: Path) -> dict:
     return json.loads(
         (golden_root / RECEIT_DIRNAME / "receipt.json").read_text(encoding="utf-8")
@@ -762,41 +1012,48 @@ def _problems(result: dict) -> list[str]:
 
 
 class TestGoldenDerives:
-    def test_golden_receipt_derives_capability_matrix_pass(self, golden: Path) -> None:
-        """cp2k NOT_RUN no longer forces PARTIAL: the aggregate is PASS and the
-        per-capability matrix carries the NOT_RUN where it belongs."""
+    def test_golden_receipt_derives_partially_qualified_without_cp2k(
+        self, golden: Path
+    ) -> None:
+        """The golden receipt runs only the two dispatcher canaries: the
+        runtime.cp2k AND runtime.ai2kit evidence blocks are absent, so both
+        derive NOT_RUN and the aggregate is PARTIAL — the legacy meaning is
+        restored (spec §5a), never a false full PASS.  The 5-key matrix
+        carries each NOT_RUN in its own cell."""
         result = _verify(golden, _load(golden))
         assert _problems(result) == [], _problems(result)
         derived = result["derived"]
-        assert derived["qualification_status"] == "PASS"
-        assert derived["formal_qualified"] is True
+        assert derived["qualification_status"] == "PARTIAL"
+        assert derived["formal_qualified"] is False
         assert derived["capabilities"] == {
             "dispatcher.cpu": "PASS",
             "dispatcher.gpu": "PASS",
             "runtime.matclaw-gpu": "PASS",
+            "runtime.ai2kit": "NOT_RUN",
             "runtime.cp2k": "NOT_RUN",
         }
         gates = derived["gates"]
         assert gates["cp2k_gate"] == "NOT_RUN"
+        assert gates["ai2kit_gate"] == "NOT_RUN"
         assert gates.get("canary_coverage") == "PASS"
-        for name, status in gates.items():
-            if name != "cp2k_gate":
-                assert status == "PASS", (name, status)
         assert result["digest_ok"] is True
 
-    def test_release_builder_sees_pass_without_cp2k(self, golden: Path) -> None:
-        """The aggregate releases a dispatcher capability set without cp2k; a
-        case that needs CP2K gates on runtime.cp2k itself (see
-        TestReleaseBuilderCaseGating)."""
+    def test_release_builder_aggregate_path_blocked_under_partial(
+        self, golden: Path
+    ) -> None:
+        """No case named: legacy operator semantics (spec §5b) — the
+        site-wide aggregate must be full PASS; PARTIAL (a runtime canary
+        NOT_RUN) is the honest report and is NOT a release.  New consumers
+        gate per case on the matrix (see TestReleaseBuilderCaseGating)."""
         checked = check_qualification_receipt(golden)
-        assert checked["status"] == "PASS"
-        assert checked["qual_requires"] == []
+        assert checked["status"] == "BLOCKED_QUALIFICATION"
+        assert "PARTIAL" in checked["detail"]
 
 
 # -- capability-matrix gate ----------------------------------------------------
 
 
-_QUAL_REQUIRES_CASE_TOML = """\
+_QUALIFICATION_CASE_TOML = """\
 schema_version = "1.2"
 
 [execution]
@@ -809,15 +1066,21 @@ submission_root = "."
 [hpc]
 contract_version = "hpc-execution/v1"
 required_capabilities = ["batch_jobs", "gpu"]
-qual_requires = {qual_requires}
+
+[hpc.qualification]
+requires = {qualification_requires}
 """
 
 
-def _write_qual_requires_case(tmp_path: Path, requires: list[str]) -> Path:
-    case_dir = tmp_path / "case-qual"
+def _write_qualification_case(
+    tmp_path: Path, requires: list[str], *, name: str = "case-qual"
+) -> Path:
+    case_dir = tmp_path / name
     case_dir.mkdir(parents=True, exist_ok=True)
     (case_dir / "task.toml").write_text(
-        _QUAL_REQUIRES_CASE_TOML.format(qual_requires=json.dumps(requires)),
+        _QUALIFICATION_CASE_TOML.format(
+            qualification_requires=json.dumps(requires)
+        ),
         encoding="utf-8",
     )
     (case_dir / "instruction.md").write_text(
@@ -861,51 +1124,98 @@ class TestCaseRequirementsSatisfied:
 
 
 class TestReleaseBuilderCaseGating:
-    """qual_requires wiring: the aggregate releases a dispatcher capability set
-    without cp2k; only a case that *declares* runtime.cp2k is gated on its
-    canary."""
+    """Spec §5b wiring: a case releases iff ITS OWN effective
+    ``[hpc.qualification]`` requires all derive PASS on the matrix — never on
+    the site-wide aggregate.  An aggregate that is PARTIAL (runtime canaries
+    NOT_RUN) still releases a 031–033-style MatClaw case and still blocks a
+    034-style case that names the unrun canaries."""
 
-    def test_cp2k_requiring_case_blocked_while_cp2k_not_run(
+    def test_matclaw_case_released_while_aggregate_partial(
         self, golden: Path, tmp_path: Path
     ) -> None:
-        case_dir = _write_qual_requires_case(
+        """The headline flip: 031–033-style requires all derive PASS on the
+        golden receipt even though its AGGREGATE is PARTIAL (cp2k + ai2kit
+        NOT_RUN).  MatClaw flows are no longer blocked by a CP2K canary that
+        has not run."""
+        case_dir = _write_qualification_case(
+            tmp_path, ["dispatcher.gpu", "runtime.matclaw-gpu"]
+        )
+        checked = check_qualification_receipt(golden, case_dir=case_dir)
+        assert checked["status"] == "PASS"
+        assert checked["qualification_requires"] == [
+            "dispatcher.gpu", "runtime.matclaw-gpu"
+        ]
+
+    def test_034_style_case_blocked_while_runtime_canaries_not_run(
+        self, golden: Path, tmp_path: Path
+    ) -> None:
+        case_dir = _write_qualification_case(
+            tmp_path,
+            ["dispatcher.cpu", "dispatcher.gpu", "runtime.ai2kit", "runtime.cp2k"],
+        )
+        checked = check_qualification_receipt(golden, case_dir=case_dir)
+        assert checked["status"] == "BLOCKED_QUALIFICATION"
+        assert "runtime.cp2k" in checked["detail"]
+        assert "runtime.ai2kit" in checked["detail"]
+        assert "unmet=" in checked["detail"]
+        assert checked["qualification_requires"] == [
+            "dispatcher.cpu", "dispatcher.gpu", "runtime.ai2kit", "runtime.cp2k"
+        ]
+
+    def test_cp2k_requiring_case_blocked_until_cp2k_evidence(
+        self, golden: Path, tmp_path: Path
+    ) -> None:
+        case_dir = _write_qualification_case(
             tmp_path, ["dispatcher.gpu", "runtime.matclaw-gpu", "runtime.cp2k"]
         )
         checked = check_qualification_receipt(golden, case_dir=case_dir)
         assert checked["status"] == "BLOCKED_QUALIFICATION"
         assert "runtime.cp2k" in checked["detail"]
-        assert checked["qual_requires"] == [
-            "dispatcher.gpu", "runtime.matclaw-gpu", "runtime.cp2k"
-        ]
-
-    def test_matclaw_only_case_released_off_aggregate_pass(
-        self, golden: Path, tmp_path: Path
-    ) -> None:
-        case_dir = _write_qual_requires_case(
-            tmp_path, ["dispatcher.gpu", "runtime.matclaw-gpu"]
-        )
-        checked = check_qualification_receipt(golden, case_dir=case_dir)
-        assert checked["status"] == "PASS"
-        assert checked["qual_requires"] == [
-            "dispatcher.gpu", "runtime.matclaw-gpu"
-        ]
 
     def test_cp2k_requiring_case_released_once_cp2k_pass(
         self, full: Path, tmp_path: Path
     ) -> None:
-        case_dir = _write_qual_requires_case(
+        """``full`` carries runtime.cp2k PASS; ai2kit stays NOT_RUN, but this
+        case does not require ai2kit, so it releases off the still-PARTIAL
+        aggregate."""
+        case_dir = _write_qualification_case(
             tmp_path, ["dispatcher.gpu", "runtime.matclaw-gpu", "runtime.cp2k"]
         )
         checked = check_qualification_receipt(full, case_dir=case_dir)
         assert checked["status"] == "PASS"
 
-    def test_case_without_qual_requires_is_aggregate_only(
+    def test_ai2kit_requiring_case_blocked_while_ai2kit_not_run(
+        self, full: Path, tmp_path: Path
+    ) -> None:
+        case_dir = _write_qualification_case(
+            tmp_path, ["dispatcher.gpu", "runtime.ai2kit"]
+        )
+        checked = check_qualification_receipt(full, case_dir=case_dir)
+        assert checked["status"] == "BLOCKED_QUALIFICATION"
+        assert "runtime.ai2kit" in checked["detail"]
+
+    def test_case_without_requires_vacuously_satisfied(
         self, golden: Path, tmp_path: Path
     ) -> None:
-        case_dir = _write_qual_requires_case(tmp_path, [])
+        """An empty effective requires set gates on nothing: the named-case
+        path reads only the case's own matrix (spec §5b)."""
+        case_dir = _write_qualification_case(tmp_path, [])
         checked = check_qualification_receipt(golden, case_dir=case_dir)
         assert checked["status"] == "PASS"
-        assert checked["qual_requires"] == []
+        assert checked["qualification_requires"] == []
+
+    def test_unknown_capability_name_blocks_fail_closed(
+        self, golden: Path, tmp_path: Path
+    ) -> None:
+        """Well-formed but unknown capability (``dispatcher.rsync``):
+        case_requirements_satisfied fails closed — a typo must never read as
+        satisfied."""
+        case_dir = _write_qualification_case(
+            tmp_path, ["dispatcher.gpu", "dispatcher.rsync"]
+        )
+        checked = check_qualification_receipt(golden, case_dir=case_dir)
+        assert checked["status"] == "BLOCKED_QUALIFICATION"
+        assert "dispatcher.rsync" in checked["detail"]
 
     def test_broken_case_manifest_blocks(self, golden: Path, tmp_path: Path) -> None:
         case_dir = tmp_path / "broken-case"
@@ -915,7 +1225,7 @@ class TestReleaseBuilderCaseGating:
         )
         checked = check_qualification_receipt(golden, case_dir=case_dir)
         assert checked["status"] == "BLOCKED_QUALIFICATION"
-        assert "qual_requires" in checked["detail"]
+        assert "qualification requires unresolvable" in checked["detail"]
 
     def test_missing_receipt_is_blocked_qualification(self, tmp_path: Path) -> None:
         checked = check_qualification_receipt(tmp_path)
@@ -928,6 +1238,171 @@ class TestReleaseBuilderCaseGating:
         assert parsed["probes"]["runs_root_not_listable"] == "pass"
 
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _controller_spec(
+    tmp_path: Path,
+    *,
+    families: tuple[str, ...] = (),
+    declared: tuple[str, ...] = (),
+    scientific: tuple[str, ...] = (),
+) -> "CaseSpec":
+    """Build a minimal hpc_controller case manifest and load it."""
+    case_dir = tmp_path / "case"
+    case_dir.mkdir(parents=True, exist_ok=True)
+    hpc_lines = ['[hpc]', 'contract_version = "hpc-execution/v1"',
+                 'required_capabilities = ["batch_jobs", "gpu"]']
+    if scientific:
+        hpc_lines.append("\n[hpc.scientific_capabilities]")
+        quoted = ", ".join(f'"{s}"' for s in scientific)
+        hpc_lines.append(f"required = [{quoted}]")
+    if declared:
+        hpc_lines.append("\n[hpc.qualification]")
+        quoted = ", ".join(f'"{d}"' for d in declared)
+        hpc_lines.append(f"requires = [{quoted}]")
+    runtime_lines = []
+    if families:
+        runtime_lines.append("\n[runtime]")
+        runtime_lines.append("requirements = [")
+        runtime_lines.extend(
+            f'  {{ family = "{f}", name = "{f}", version = "==1.0" }},'
+            for f in families
+        )
+        runtime_lines.append("]")
+    toml = "\n".join(
+        [
+            'schema_version = "1.2"',
+            "",
+            "[execution]",
+            'class = "hpc_controller"',
+            "",
+            "[candidate]",
+            'instruction = "instruction.md"',
+            'submission_root = "."',
+            "",
+            *hpc_lines,
+            *runtime_lines,
+            "",
+        ]
+    )
+    (case_dir / "task.toml").write_text(toml, encoding="utf-8")
+    (case_dir / "instruction.md").write_text("x\n", encoding="utf-8")
+    return CaseSpec.load(case_dir)
+
+
+class TestCapabilityRegistry:
+    """Spec §5b infra registry: declared runtime families auto-derive their
+    ``runtime.*`` capability for hpc_controller cases; dispatcher tiers are
+    never auto-derived from the coarse legacy ``required_capabilities``;
+    ``[hpc.scientific_capabilities]`` descriptors never leak a runtime gate;
+    unknown families and the withdrawn bare ``qual_requires`` field fail
+    closed at CaseSpec load."""
+
+    def test_real_031_requires_dispatcher_gpu_and_matclaw_gpu(self) -> None:
+        spec = CaseSpec.load(_REPO_ROOT / "031-matclaw-cips-active-distillation")
+        assert spec.effective_qualification_requires == (
+            "dispatcher.gpu", "runtime.matclaw-gpu",
+        )
+
+    def test_real_034_requires_cpu_and_gpu_and_both_runtime_canaries(self) -> None:
+        spec = CaseSpec.load(
+            _REPO_ROOT / "034-ai2kit-water64-end-to-end-potential"
+        )
+        assert spec.effective_qualification_requires == (
+            "dispatcher.cpu", "dispatcher.gpu",
+            "runtime.ai2kit", "runtime.cp2k",
+        )
+        # MatClaw is not a dependency of the ai2kit water pipeline.
+        assert "runtime.matclaw-gpu" not in spec.effective_qualification_requires
+
+    def test_family_auto_derivation_adds_runtime_gates(self, tmp_path: Path) -> None:
+        spec = _controller_spec(tmp_path, families=["ai2kit", "cp2k"])
+        assert spec.effective_qualification_requires == (
+            "runtime.ai2kit", "runtime.cp2k",
+        )
+
+    def test_dispatcher_tiers_never_auto_derived(self, tmp_path: Path) -> None:
+        """batch_jobs + gpu in required_capabilities does NOT imply
+        dispatcher.gpu — the tier declaration is always explicit."""
+        spec = _controller_spec(tmp_path, families=["matclaw-cips"])
+        assert spec.effective_qualification_requires == ("runtime.matclaw-gpu",)
+
+    def test_scientific_capability_descriptor_adds_no_runtime_gate(
+        self, tmp_path: Path
+    ) -> None:
+        """031 lists cp2k in scientific_capabilities (a benchmark-domain
+        descriptor) yet must not thereby acquire a runtime.cp2k gate."""
+        spec = _controller_spec(
+            tmp_path,
+            families=["matclaw-cips"],
+            declared=["dispatcher.gpu"],
+            scientific=["cp2k"],
+        )
+        assert spec.effective_qualification_requires == (
+            "dispatcher.gpu", "runtime.matclaw-gpu",
+        )
+
+    def test_declared_union_auto_derivation_dedupes(self, tmp_path: Path) -> None:
+        spec = _controller_spec(
+            tmp_path,
+            families=["matclaw-cips"],
+            declared=["dispatcher.gpu", "runtime.matclaw-gpu"],
+        )
+        assert spec.effective_qualification_requires == (
+            "dispatcher.gpu", "runtime.matclaw-gpu",
+        )
+
+    def test_unknown_runtime_family_fails_closed_at_load(
+        self, tmp_path: Path
+    ) -> None:
+        with pytest.raises(CaseContractError) as exc:
+            _controller_spec(tmp_path, families=["watmm"])
+        assert "unknown runtime family" in str(exc.value)
+
+    def test_withdrawn_bare_qual_requires_rejected(self, tmp_path: Path) -> None:
+        """The bare [hpc].qual_requires array is withdrawn: a manifest still
+        declaring it fails closed at CaseSpec load, loudly, on EVERY path —
+        including the legacy (non-schema-validated) one, so the migration
+        cannot silently change a case's gate."""
+        case_dir = tmp_path / "withdrawn"
+        case_dir.mkdir(parents=True, exist_ok=True)
+        # Legacy form: task.execution_backend (no [execution] class) skips
+        # schema validation, so the parse-level withdrawal check is what fires.
+        (case_dir / "task.toml").write_text(
+            'schema_version = "1.2"\n\n[task]\n'
+            'name = "benchmark/x"\nexecution_backend = "real_hpc_controller"\n\n'
+            "[hpc]\ncontract_version = \"hpc-execution/v1\"\n"
+            'required_capabilities = ["batch_jobs", "gpu"]\n'
+            'qual_requires = ["dispatcher.gpu"]\n',
+            encoding="utf-8",
+        )
+        (case_dir / "instruction.md").write_text("x\n", encoding="utf-8")
+        with pytest.raises(CaseContractError) as exc:
+            CaseSpec.load(case_dir)
+        assert "[hpc].qual_requires is withdrawn" in str(exc.value)
+
+    def test_malformed_capability_name_fails_closed_at_load(
+        self, tmp_path: Path
+    ) -> None:
+        """A capability name outside the dispatcher/runtime capability-name
+        pattern is a CaseSpec build error on the legacy path too — never
+        silently skipped."""
+        case_dir = tmp_path / "malformed"
+        case_dir.mkdir(parents=True, exist_ok=True)
+        (case_dir / "task.toml").write_text(
+            'schema_version = "1.2"\n\n[task]\n'
+            'name = "benchmark/x"\nexecution_backend = "real_hpc_controller"\n\n'
+            "[hpc]\ncontract_version = \"hpc-execution/v1\"\n"
+            'required_capabilities = ["batch_jobs", "gpu"]\n\n'
+            "[hpc.qualification]\nrequires = [\"gpu@#typo\"]\n",
+            encoding="utf-8",
+        )
+        (case_dir / "instruction.md").write_text("x\n", encoding="utf-8")
+        with pytest.raises(CaseContractError) as exc:
+            CaseSpec.load(case_dir)
+        assert "invalid [hpc].qualification.requires capability" in str(exc.value)
+
 # -- negatives ----------------------------------------------------------------------
 
 
@@ -939,7 +1414,7 @@ class TestTamperedReceiptsFailClosed:
         assert result["consistent"] is False
         assert any("exit_code" in p for p in _problems(result))
 
-    def test_cpu_canary_broken_marks_dispatcher_cpu_fail(self, golden: Path) -> None:
+    def test_cpu_canary_broken_marks_dispatcher_cpu_only(self, golden: Path) -> None:
         receipt = copy.deepcopy(_load(golden))
         cpu_job = next(
             j for j in receipt["evidence"]["jobs"] if j.get("probe_class") == "cpu"
@@ -951,9 +1426,28 @@ class TestTamperedReceiptsFailClosed:
         derived = result["derived"]
         assert derived["qualification_status"] == "INVALID"
         assert derived["capabilities"]["dispatcher.cpu"] == "FAIL"
-        # Shared-fate by design (spec §4): a broken cpu canary bucket unbinds
-        # the whole dispatcher evidence, so dispatcher.gpu falls too.
+        # Per-job isolation (spec §4): a broken cpu canary fails only its OWN
+        # dispatcher route — the gpu route and the matclaw runtime still pass
+        # (the 840781e shared-fate behavior is superseded).
+        assert derived["capabilities"]["dispatcher.gpu"] == "PASS"
+        assert derived["capabilities"]["runtime.matclaw-gpu"] == "PASS"
+
+    def test_gpu_canary_broken_marks_dispatcher_gpu_only(self, golden: Path) -> None:
+        """The mirror flip: a broken gpu canary fails dispatcher.gpu — and the
+        matclaw runtime that rides its provenance — while dispatcher.cpu holds
+        PASS."""
+        receipt = copy.deepcopy(_load(golden))
+        gpu_job = next(
+            j for j in receipt["evidence"]["jobs"] if j.get("probe_class") == "gpu"
+        )
+        gpu_job["accounting"]["raw_state"] = "FAILED"
+        gpu_job["accounting"]["exit_code_raw"] = "1:0"
+        result = _verify(golden, _reseal(receipt))
+        derived = result["derived"]
+        assert derived["qualification_status"] == "INVALID"
+        assert derived["capabilities"]["dispatcher.cpu"] == "PASS"
         assert derived["capabilities"]["dispatcher.gpu"] == "FAIL"
+        assert derived["capabilities"]["runtime.matclaw-gpu"] == "FAIL"
 
     def test_plain_tamper_breaks_content_digest(self, golden: Path) -> None:
         receipt = copy.deepcopy(_load(golden))

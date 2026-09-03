@@ -25,10 +25,28 @@ ExecutionClass = Literal["local_sandbox", "hpc_controller"]
 EXECUTION_ALIASES = {"real_hpc_controller": "hpc_controller"}
 EXECUTION_CLASSES = frozenset({"local_sandbox", "hpc_controller"})
 
-# Capability-matrix names a case may gate on in [hpc].qual_requires.  Mirrors
-# the case.schema.json pattern; enforced here too so the legacy (non-schema-
-# validated) path cannot skip the shape check.
-QUAL_REQUIRES_RE = re.compile(r"^(dispatcher|runtime)\.[a-z0-9-]+$")
+# Capability-matrix names a case may gate on in [hpc.qualification].requires.
+# Mirrors the case.schema.json pattern; enforced here too so the legacy
+# (non-schema-validated) path cannot skip the shape check.
+QUALIFICATION_REQUIRES_RE = re.compile(r"^(dispatcher|runtime)\.[a-z0-9-]+$")
+
+# Infra registry (capability-matrix spec §5b): declared runtime families →
+# qualification capabilities.  Curated and site-independent (validated against
+# the frozen runtime-lock catalog).  A family listed here AUTO-ADDS its
+# capability to a case's effective gate.  KNOWN_RUNTIME_FAMILIES is the union
+# of the registry keys and families the infra knows with NO qualification gate
+# yet (deepmd-jax): those add nothing but must not fail closed.  dispatcher.*
+# tiers are NEVER auto-derived — the coarse legacy [hpc] required_capabilities
+# declares batch_jobs+gpu for all of 031–034 yet they gate differently, so the
+# tier declaration is always explicit in [hpc.qualification].requires.
+RUNTIME_FAMILY_CAPABILITIES: dict[str, str] = {
+    "matclaw-cips": "runtime.matclaw-gpu",
+    "ai2kit": "runtime.ai2kit",
+    "cp2k": "runtime.cp2k",
+}
+KNOWN_RUNTIME_FAMILIES: frozenset[str] = frozenset(
+    set(RUNTIME_FAMILY_CAPABILITIES) | {"deepmd-jax"}
+)
 
 # Fields that belong to the infrastructure layer, not the case manifest.
 # Cases declare scientific requirements; the harness resolves these to
@@ -135,10 +153,13 @@ class CaseSpec:
     # Scientific compute capabilities declared by an hpc_controller case
     # (required / optional); consumed by category plugins, never by core dispatch.
     scientific_capabilities: ScientificCapabilities | None = None
-    # Qualification capabilities this case requires (capability-matrix names,
-    # e.g. "dispatcher.gpu" / "runtime.cp2k"); the site receipt must derive
-    # PASS for every name via case_requirements_satisfied before a formal run.
-    qual_requires: tuple[str, ...] = ()
+    # Qualification capabilities this case declares in [hpc.qualification].
+    #requires (capability-matrix names, e.g. "dispatcher.gpu" /
+    # "runtime.matclaw-gpu"); the site receipt must derive PASS for every name
+    # via case_requirements_satisfied before a formal run.  Declared names are
+    # authoritative for the dispatcher tiers; registry auto-derivation (see
+    # effective_qualification_requires) can only add runtime.* gates.
+    qualification_requires: tuple[str, ...] = ()
     # Case root, populated by CaseSpec.load; needed by the packager to resolve
     # glob sources and the instruction file.
     case_dir: Path | None = None
@@ -149,6 +170,28 @@ class CaseSpec:
         if self.case_dir is None:
             raise CaseContractError("CaseSpec carries no case root; use CaseSpec.load")
         return self.case_dir
+
+    @property
+    def effective_qualification_requires(self) -> tuple[str, ...]:
+        """Effective qualification gate = declared ∪ registry auto-derivation.
+
+        The registry (RUNTIME_FAMILY_CAPABILITIES) maps each declared
+        ``[runtime].requirements`` family to a runtime capability
+        (matclaw-cips → runtime.matclaw-gpu, ai2kit → runtime.ai2kit,
+        cp2k → runtime.cp2k); auto-derivation can only ADD gates, never remove
+        a declared one.  Families the infra knows with no gate yet (deepmd-jax)
+        add nothing.  Unknown non-empty families were rejected at load
+        (fail-closed), so this never silently skips a gate.
+        """
+        requires = list(self.qualification_requires)
+        if self.execution_class == "hpc_controller":
+            for req in self.runtime_requirements:
+                capability = RUNTIME_FAMILY_CAPABILITIES.get(
+                    (req.family or "").strip()
+                )
+                if capability and capability not in requires:
+                    requires.append(capability)
+        return tuple(requires)
 
     @classmethod
     def load(cls, case_dir: Path) -> "CaseSpec":
@@ -277,7 +320,7 @@ class CaseSpec:
         # ``required``/``optional`` name scientific capabilities (cp2k, dpmp,
         # ...); the category plugin translates them, never core execution.
         scientific_capabilities: ScientificCapabilities | None = None
-        qual_requires: tuple[str, ...] = ()
+        qualification_requires: tuple[str, ...] = ()
         if isinstance(hpc_block, dict):
             sc = hpc_block.get("scientific_capabilities")
             if isinstance(sc, dict):
@@ -285,25 +328,58 @@ class CaseSpec:
                     required=tuple(str(x) for x in (sc.get("required") or [])),
                     optional=tuple(str(x) for x in (sc.get("optional") or [])),
                 )
-            # [hpc].qual_requires: capability-matrix names the site receipt
-            # must derive PASS for before this case may run formally.  Strict
-            # shape + pattern check even on the legacy path (fail-closed: a
-            # typo'd name must block, never read as satisfied).
-            qr_names = hpc_block.get("qual_requires")
+            # [hpc].qual_requires is WITHDRAWN (capability-matrix spec §5b):
+            # a manifest still declaring the bare array is rejected loudly on
+            # every path so the migration cannot silently change a case's gate.
+            withdrawn = hpc_block.get("qual_requires")
+            if withdrawn is not None:
+                raise CaseContractError(
+                    "[hpc].qual_requires is withdrawn; declare "
+                    "[hpc.qualification].requires = [...] instead"
+                )
+            # [hpc.qualification].requires: capability-matrix names the site
+            # receipt must derive PASS for before this case may run formally.
+            # Strict shape + pattern check even on the legacy path (fail-
+            # closed: a typo'd name must block, never read as satisfied).
+            qual_block = hpc_block.get("qualification")
+            qr_names = None
+            if qual_block is not None:
+                if not isinstance(qual_block, dict):
+                    raise CaseContractError(
+                        "[hpc].qualification must be a table"
+                    )
+                qr_names = qual_block.get("requires")
             if qr_names is not None:
                 if not isinstance(qr_names, list) or any(
                     not isinstance(x, str) for x in qr_names
                 ):
                     raise CaseContractError(
-                        "[hpc].qual_requires must be an array of strings"
+                        "[hpc].qualification.requires must be an array of strings"
                     )
                 for name in qr_names:
-                    if not QUAL_REQUIRES_RE.match(name):
+                    if not QUALIFICATION_REQUIRES_RE.match(name):
                         raise CaseContractError(
-                            f"invalid [hpc].qual_requires capability {name!r}; "
+                            f"invalid [hpc].qualification.requires capability "
+                            f"{name!r}; "
                             r"expected ^(dispatcher|runtime)\.[a-z0-9-]+$"
                         )
-                qual_requires = tuple(qr_names)
+                qualification_requires = tuple(qr_names)
+
+        # Registry auto-derivation is driven by [runtime].requirements families
+        # and applies only to HPC cases (the sole gate consumer).  A non-empty
+        # family the infra does not know fails closed at load — a typo or a
+        # runtime with no catalog entry must never silently skip a gate.
+        if execution_class == "hpc_controller":
+            for req in runtime_requirements:
+                family = (req.family or "").strip()
+                if not family:
+                    continue
+                if family not in KNOWN_RUNTIME_FAMILIES:
+                    raise CaseContractError(
+                        f"unknown runtime family {family!r} in "
+                        f"[runtime].requirements; known: "
+                        f"{sorted(KNOWN_RUNTIME_FAMILIES)}"
+                    )
 
         return cls(
             case_id=str((raw.get("task") or {}).get("name", "")),
@@ -325,7 +401,7 @@ class CaseSpec:
             legacy_agent_fields=tuple(legacy_agent_fields),
             submission_contract=submission_contract,
             scientific_capabilities=scientific_capabilities,
-            qual_requires=qual_requires,
+            qualification_requires=qualification_requires,
             case_dir=case_dir,
         )
 

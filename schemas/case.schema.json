@@ -77,11 +77,18 @@
           },
           "additionalProperties": false
         },
-        "qual_requires": {
-          "type": "array",
-          "items": { "type": "string", "pattern": "^(dispatcher|runtime)\\.[a-z0-9-]+$" },
-          "uniqueItems": true,
-          "description": "Qualification capabilities the site receipt must derive PASS before this case may run formally (capability matrix; e.g. [\"dispatcher.gpu\", \"runtime.cp2k\"]). Names are verified against the derived matrix by case_requirements_satisfied — unknown names block, fail-closed."
+        "qualification": {
+          "type": "object",
+          "description": "Qualification gate (capability-matrix spec §5b). The effective gate is `declared requires` ∪ registry auto-derivation from [runtime].requirements families; the declared list is authoritative for the dispatcher tiers, which are never auto-derived. The withdrawn bare [hpc].qual_requires array is rejected.",
+          "properties": {
+            "requires": {
+              "type": "array",
+              "items": { "type": "string", "pattern": "^(dispatcher|runtime)\\.[a-z0-9-]+$" },
+              "uniqueItems": true,
+              "description": "Qualification capabilities the site receipt must derive PASS before this case may run formally (e.g. [\"dispatcher.gpu\", \"runtime.matclaw-gpu\"]). Names are verified against the derived matrix by case_requirements_satisfied — unknown names block, fail-closed."
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

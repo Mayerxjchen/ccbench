@@ -14,17 +14,25 @@ files = [{ destination = ".", source = "public/**", strip_prefix = "public" }]
 [hpc]
 contract_version = "hpc-execution/v1"
 required_capabilities = ["batch_jobs", "gpu", "artifact_fetch"]
-# Capability-matrix gates: the site receipt must derive PASS for every name
-# before this case may run formally (dispatcher.gpu + runtime.matclaw-gpu from
-# the gpu canary; runtime.cp2k from the CP2K ENERGY canary).
-qual_requires = ["dispatcher.gpu", "runtime.matclaw-gpu", "runtime.cp2k"]
+# Capability-matrix gates (spec §5b): the site receipt must derive PASS for
+# every name before this case may run formally.  034 drives CP2K AIMD through
+# the ai2kit controller, so BOTH runtime families gate (runtime.ai2kit +
+# runtime.cp2k from their runtime canaries), plus the dispatcher tiers the
+# workload actually uses (cpu + gpu).  matclaw-gpu is NOT a gate: no matclaw
+# runtime here.
+
+[hpc.qualification]
+requires = ["dispatcher.cpu", "dispatcher.gpu", "runtime.ai2kit", "runtime.cp2k"]
 
 [hpc.scientific_capabilities]
 required = ["ai2kit", "cp2k"]
 optional = ["gpu-training"]
 
 [runtime]
-requirements = [{ family = "ai2kit", name = "ai2kit", version = "==1.1.0" }]
+requirements = [
+  { family = "ai2kit", name = "ai2kit", version = "==1.1.0" },
+  { family = "cp2k", name = "cp2k", version = "==2025.2" },
+]
 
 [task]
 name = "benchmark/034-ai2kit-water64-end-to-end-potential"

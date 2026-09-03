@@ -116,6 +116,15 @@
             "detail": { "type": "string" },
             "evidence": { "$ref": "#/$defs/cp2kEvidence" }
           }
+        },
+        "ai2kit_gate": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Optional ai2kit runtime-canary block (capability-matrix spec §6). Same verdict-free discipline as cp2k_gate: absent 'evidence' derives NOT_RUN; present evidence is derived by the verifier into PASS or FAIL. The evidence shape mirrors the cp2k runtime canary minus the CP2K domain re-parse (an ai2kit canary has no CP2K-style input/output artifact this verifier re-parses).",
+          "properties": {
+            "detail": { "type": "string" },
+            "evidence": { "$ref": "#/$defs/runtimeCanaryEvidence" }
+          }
         }
       }
     },
@@ -235,6 +244,28 @@
             },
             "scf_converged": { "const": true }
           }
+        },
+        "runtime_lock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "sif_path_remote", "sif_sha256"],
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "sif_path_remote": { "type": "string", "minLength": 1 },
+            "sif_sha256": { "pattern": "^[0-9a-f]{64}$" }
+          }
+        }
+      }
+    },
+    "runtimeCanaryEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["job", "runtime_lock"],
+      "description": "Evidence for an optional runtime canary (capability-matrix spec §3/§6): the ai2kit canary's full job record plus its runtime-lock SIF bind. Mirrors cp2kEvidence minus the CP2K input/output re-parse.",
+      "properties": {
+        "job": {
+          "$ref": "#/$defs/job",
+          "description": "The ai2kit canary's full job record; derives under the same rules as a canary job (own audit ledger, settlement, accounting, probes, artifacts)."
         },
         "runtime_lock": {
           "type": "object",
