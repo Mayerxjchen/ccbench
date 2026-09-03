@@ -76,6 +76,19 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn("literature-to-mlp-spec", text)
         self.assertIn("mode=extract-spec category=mlp", text)
 
+    def test_install_sh_check_passes_for_shipped_package(self) -> None:
+        """Defect D2: install.sh once pinned PACKAGE_VERSION="2.1.0" while the
+        manifest shipped 2.3.x, making `install.sh --check` fail. The installer
+        must derive its version from manifest.json and validate the shipped
+        package end to end."""
+        text = (PACKAGE / "install.sh").read_text(encoding="utf-8")
+        self.assertNotRegex(text, r'PACKAGE_VERSION="[0-9]',
+                            "install.sh must not pin a literal version")
+        proc = subprocess.run(["bash", str(PACKAGE / "install.sh"), "--check"],
+                              text=True, capture_output=True)
+        self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
+        self.assertIn("contract valid", proc.stdout)
+
     def test_template_ships_runnable_verifier_chain(self) -> None:
         tests = BUILDER / "assets/case-template/common/tests"
         self.assertTrue((tests / "test.sh").is_file())
