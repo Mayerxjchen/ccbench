@@ -43,9 +43,9 @@ def package_files() -> list[str]:
 
 
 class PackageContractTests(unittest.TestCase):
-    def test_manifest_version_is_2_2_0(self) -> None:
+    def test_manifest_version_is_2_3_0(self) -> None:
         manifest = json.loads((PACKAGE / "manifest.json").read_text(encoding="utf-8"))
-        self.assertEqual("2.2.0", manifest["version"])
+        self.assertEqual("2.3.0", manifest["version"])
         self.assertEqual(["build-scientific-benchmark-case"], manifest["skills"])
         self.assertEqual("literature-to-mlp-spec", manifest["legacy"]["name"])
 
@@ -85,7 +85,9 @@ class PackageContractTests(unittest.TestCase):
         self.assertTrue(
             (BUILDER / "assets/case-template/common/public/submission-schema.json").is_file()
         )
-        for name in ("forged-manifest", "missing-model", "broken-lineage"):
+        for name in ("forged-manifest", "missing-model", "broken-lineage",
+                     "missing-artifact", "multi-hash-mismatch",
+                     "missing-plus-mismatch", "type-garbage-manifest"):
             fixture = tests / "fixtures/negative" / name
             self.assertTrue(fixture.is_dir(), f"negative fixture {name} missing")
             self.assertTrue(

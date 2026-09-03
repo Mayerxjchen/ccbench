@@ -313,14 +313,19 @@ class MlpAcceptanceTests(unittest.TestCase):
             plan = load_yaml(plan_out)
             self.assertEqual(4, plan["fixtures"]["negative"])
             verdict = self.run_common_json("generate_fixture_matrix.py", str(out), "--json")
-            # v2.2 template ships the four standard executable negatives, so the
-            # matrix is closed at scaffold time for the default and 4-count plans
+            # v2.3 template ships eight executable negatives (four standard +
+            # four C-V8 integrity probes), so the matrix is closed at scaffold
+            # time for the default and 4-count plans
             self.assertTrue(verdict["valid"], verdict["errors"])
-            shutil.rmtree(out / "tests/fixtures/negative/broken-lineage")
+            # count-based closure is fail-closed: losing more than the surplus
+            # over the plan's hard-outcome count must break the matrix
+            for lost in ("broken-lineage", "empty", "missing-model",
+                         "forged-manifest", "missing-artifact"):
+                shutil.rmtree(out / "tests/fixtures/negative" / lost)
             verdict = self.run_common_json(
                 "generate_fixture_matrix.py", str(out), "--json", check=False
             )
-            self.assertFalse(verdict["valid"])  # fail-closed when a standard negative is lost
+            self.assertFalse(verdict["valid"])  # 3 < required 4
             # 034-like complexity must not leak into Common Core
             leak = []
             for root in (SKILL / "references/common", SKILL / "assets/case-template/common"):

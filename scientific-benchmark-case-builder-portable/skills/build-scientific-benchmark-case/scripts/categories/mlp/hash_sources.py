@@ -3,10 +3,16 @@
 
 Uses only the Python standard library. It hashes local files/directories and can
 record a local Git repository HEAD/tree identity. It does not download sources.
+
+`--exclude PATTERN` (repeatable, fnmatch on the file name or its path relative
+to the walked root) drops leave-one-out answer files — `acceptance.json` and
+friends — from directory/repository hashes and records the patterns in the
+lock so the omission is auditable, not invisible.
 """
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import subprocess
@@ -25,17 +31,27 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def iter_files(root: Path) -> Iterable[Path]:
+def is_excluded(path: Path, root: Path, excludes: list[str]) -> bool:
+    rel = path.relative_to(root).as_posix()
+    return any(
+        fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(path.name, pattern)
+        for pattern in excludes
+    )
+
+
+def iter_files(root: Path, excludes: list[str] | None = None) -> Iterable[Path]:
     for path in sorted(root.rglob("*")):
         if path.is_symlink():
             raise SystemExit(f"symlink is not allowed in source tree: {path}")
         if path.is_file() and ".git" not in path.parts:
+            if excludes and is_excluded(path, root, excludes):
+                continue
             yield path
 
 
-def sha256_dir(root: Path) -> str:
+def sha256_dir(root: Path, excludes: list[str] | None = None) -> str:
     h = hashlib.sha256()
-    for path in iter_files(root):
+    for path in iter_files(root, excludes):
         rel = path.relative_to(root).as_posix().encode("utf-8")
         h.update(rel)
         h.update(b"\0")
@@ -66,6 +82,11 @@ def main() -> int:
     parser.add_argument("--dir", action="append", default=[], metavar="LABEL=PATH")
     parser.add_argument("--repo", action="append", default=[], metavar="LABEL=PATH")
     parser.add_argument("--identity", action="append", default=[], metavar="LABEL=VALUE")
+    parser.add_argument(
+        "--exclude", action="append", default=[], metavar="PATTERN",
+        help="fnmatch name/relpath pattern dropped from --dir/--repo trees "
+             "(e.g. acceptance.json); recorded in the lock",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -91,12 +112,15 @@ def main() -> int:
         path = Path(raw).expanduser().resolve()
         if not path.is_dir():
             raise SystemExit(f"not a directory: {path}")
-        sources[label] = {
+        entry: dict[str, object] = {
             "kind": "directory",
             "path": str(path),
-            "tree_sha256": sha256_dir(path),
+            "tree_sha256": sha256_dir(path, args.exclude or None),
             "retrieved_at": now,
         }
+        if args.exclude:
+            entry["excluded"] = list(args.exclude)
+        sources[label] = entry
 
     for item in args.repo:
         label, raw = split_label(item)
@@ -107,16 +131,19 @@ def main() -> int:
         tree = git(["rev-parse", "HEAD^{tree}"], path)
         status = git(["status", "--porcelain"], path)
         dirty = status is None or bool(status)
-        sources[label] = {
+        repo_entry: dict[str, object] = {
             "kind": "git_repository",
             "path": str(path),
             "commit": head,
             "tree": tree,
             "worktree_dirty": dirty,
-            "worktree_tree_sha256": sha256_dir(path),
+            "worktree_tree_sha256": sha256_dir(path, args.exclude or None),
             "identity_status": "locked" if head and tree and not dirty else "partial",
             "retrieved_at": now,
         }
+        if args.exclude:
+            repo_entry["excluded"] = list(args.exclude)
+        sources[label] = repo_entry
 
     for item in args.identity:
         label, value = split_label(item)

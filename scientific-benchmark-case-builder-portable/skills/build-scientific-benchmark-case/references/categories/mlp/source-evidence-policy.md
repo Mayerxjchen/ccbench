@@ -6,6 +6,30 @@
 
 A reproduction specification is only as trustworthy as the identity and provenance of the artifacts behind it. Keep **claim status**, **source kind**, and **conflict state** separate.
 
+## Leave-one-out intake
+
+Source discovery is a read over a declared window, not a browse of whatever is
+on disk. Declare the window in `case-design.yaml`:
+
+```yaml
+source_context:
+  allow: [paper/, repo/]        # the only roots the builder may read
+  exclude: [expected.json]      # extra answer-file names beyond the defaults
+```
+
+`hash_sources.py --exclude PATTERN` (repeatable) drops answer files from
+directory/repository digests and records the patterns in
+`source/sources.lock.json` under `"excluded"`, so an omission is auditable
+instead of invisible. `check_draft_consistency.py` (invariant H) then blocks:
+a locked source outside every allow root; a locked whole-file entry whose name
+is excluded; and a locked directory containing an excluded file whose omission
+the lock did not record. The default blocked names — `acceptance.json`,
+`expected-output.json`, `expected.json`, `held-out-targets.json`,
+`scores.json` — are forbidden even if the design's `exclude` list forgot them.
+If the only way to avoid a default name is to delete it from the source root,
+the root was the wrong allow target: narrow the allow list instead of
+loosening the check.
+
 ## Source identity
 
 Assign every source a stable `source_id` in `source-evidence-map.yaml`.

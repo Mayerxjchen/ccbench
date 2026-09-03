@@ -12,9 +12,16 @@ failure is attributable:
 
     VALID_RESULT / PASS                  technical chain passed
     AGENT_FAILURE / NO_SUBMISSION        sealed root absent or empty
-    AGENT_FAILURE / INVALID_SUBMISSION   manifest missing, unreadable, malformed
+    AGENT_FAILURE / INVALID_SUBMISSION   manifest missing, unreadable, malformed,
+                                         or type-invalid (checked before any
+                                         int()/sorted() conversion)
     AGENT_FAILURE / SCIENTIFIC_FAIL      a chain check failed with evidence
     INFRA_INVALID / VERIFIER_FAILURE     internal error (retryable, uncounted)
+
+Every chain check reports ALL of its findings: C-V8 verifies existence and
+hash of every declared artifact and never stops after the first failure, so
+one result names every problem instead of hiding later ones behind an
+earlier error.
 
 MLP-V4/V5/V6 hidden science stays `deferred` at Discovery MVP: this file
 never fakes a scientific PASS. Case-specific science belongs in
@@ -112,6 +119,65 @@ class Submission:
         if _path_safety_error(rel):
             return None
         return self.root / PurePosixPath(rel)
+
+
+def _is_hex64(value: Any) -> bool:
+    return (
+        isinstance(value, str) and len(value) == 64
+        and all(char in "0123456789abcdef" for char in value)
+    )
+
+
+def _is_plain_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def manifest_type_errors(manifest: dict[str, Any]) -> list[str]:
+    """Structural type gate for the sealed manifest.
+
+    Runs BEFORE any int()/sorted() in the chain, so a garbage manifest
+    classifies as the Agent's INVALID_SUBMISSION and never escapes as a
+    retryable INFRA_INVALID crash."""
+    errors: list[str] = []
+    if not _is_plain_int(manifest.get("schema_version")):
+        errors.append("schema_version must be an integer")
+    if not isinstance(manifest.get("case_id", ""), str):
+        errors.append("case_id must be a string")
+    for key in ("artifacts", "lineage", "runtime_receipts", "provenance_sources"):
+        if not isinstance(manifest.get(key), list):
+            errors.append(f"{key} must be a list")
+    for index, artifact in enumerate(manifest.get("artifacts") or []):
+        if not isinstance(artifact, dict):
+            errors.append(f"artifacts[{index}] must be an object")
+            continue
+        if not isinstance(artifact.get("path"), str) or not artifact.get("path"):
+            errors.append(f"artifacts[{index}].path must be a non-empty string")
+        if "sha256" in artifact and not _is_hex64(artifact["sha256"]):
+            errors.append(f"artifacts[{index}].sha256 must be a 64-char hex string")
+        if "frames" in artifact and not _is_plain_int(artifact["frames"]):
+            errors.append(f"artifacts[{index}].frames must be an integer")
+        for str_key in ("role", "source"):
+            if str_key in artifact and not isinstance(artifact[str_key], str):
+                errors.append(f"artifacts[{index}].{str_key} must be a string")
+    for index, entry in enumerate(manifest.get("lineage") or []):
+        if not isinstance(entry, dict):
+            errors.append(f"lineage[{index}] must be an object")
+            continue
+        if not _is_plain_int(entry.get("round")):
+            errors.append(
+                f"lineage[{index}].round must be an integer, "
+                f"got {type(entry.get('round')).__name__}"
+            )
+        for str_key in ("dataset", "model", "action"):
+            if str_key in entry and not isinstance(entry[str_key], str):
+                errors.append(f"lineage[{index}].{str_key} must be a string")
+    for index, receipt in enumerate(manifest.get("runtime_receipts") or []):
+        if not isinstance(receipt, dict):
+            errors.append(f"runtime_receipts[{index}] must be an object")
+    for index, source in enumerate(manifest.get("provenance_sources") or []):
+        if not isinstance(source, str):
+            errors.append(f"provenance_sources[{index}] must be a string")
+    return errors
 
 
 # --------------------------------------------------------------------------
@@ -230,6 +296,11 @@ def check_v7_runtime_receipts(sub: Submission) -> tuple[bool, list[str]]:
 
 
 def check_v8_integrity(sub: Submission) -> tuple[bool, list[str]]:
+    """C-V8: filesystem safety plus integrity of EVERY declared artifact.
+
+    Each declared artifact is checked for existence and hash independently;
+    an earlier finding never suppresses later ones, and a missing declared
+    artifact is itself a finding."""
     errors = _scan_filesystem(sub.root)
     for artifact in sub.manifest.get("artifacts") or []:
         if not isinstance(artifact, dict):
@@ -240,11 +311,12 @@ def check_v8_integrity(sub: Submission) -> tuple[bool, list[str]]:
             errors.append(f"C-V8: manifest {problem}")
             continue
         path = sub.resolve(rel)
-        if path is not None and path.is_file() and not errors:
-            expected = artifact.get("sha256")
-            if isinstance(expected, str) and len(expected) == 64:
-                if expected != _sha256(path):
-                    errors.append(f"C-V8: integrity mismatch for {rel}")
+        if path is None or not path.is_file():
+            errors.append(f"C-V8: declared artifact missing from sealed root: {rel}")
+            continue
+        expected = artifact.get("sha256")
+        if _is_hex64(expected) and expected != _sha256(path):
+            errors.append(f"C-V8: integrity mismatch for {rel}")
     return not errors, errors
 
 
@@ -288,6 +360,10 @@ def verify(submission_root: Path, run_id: str) -> dict[str, Any]:
     except (OSError, ValueError) as exc:
         return _result(run_id, "AGENT_FAILURE", "INVALID_SUBMISSION",
                        f"manifest.json unreadable: {exc}")
+    type_errors = manifest_type_errors(manifest)
+    if type_errors:
+        return _result(run_id, "AGENT_FAILURE", "INVALID_SUBMISSION",
+                       "manifest type validation failed: " + "; ".join(type_errors[:6]))
     sub.manifest = manifest
 
     failures: list[str] = []

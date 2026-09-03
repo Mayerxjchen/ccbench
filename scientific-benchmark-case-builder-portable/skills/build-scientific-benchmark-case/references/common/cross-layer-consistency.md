@@ -39,6 +39,20 @@ MVP machine invariants (enforced by the checker, fields declared in
     published-model labeling is not DFT.
 12. `CONTRACT.md` is staged into the bundle if and only if
     `contract.candidate_visible: true`.
+13. When `case-design source_context` is declared, the leave-one-out intake
+    contract holds: the `allow` roots resolve, every entry in
+    `source/sources.lock.json` sits under an allow root and under a
+    declaration whose kind matches it, and no answer file is consumed — names
+    matching the design's `exclude` or the default blocked list
+    (`acceptance.json`, `expected-output.json`, `expected.json`,
+    `held-out-targets.json`, `scores.json`) may never be locked whole, and a
+    locked directory tolerates such files only when `hash_sources.py
+    --exclude` recorded the omission in the lock.
+14. `verifier-plan.yaml` has exactly one authority: `derive_verifier_plan.py`
+    over `case_kind` + `workflow_capabilities`. Every applicable layer appears
+    explicitly with `status: selected` or `status: deferred` (a mandatory
+    layer's deferral carries a non-empty reason from the design's
+    `verifier_deferrals`); applicable layers are never silently absent.
 
 For MLP cases with `public/system.json`, run:
 

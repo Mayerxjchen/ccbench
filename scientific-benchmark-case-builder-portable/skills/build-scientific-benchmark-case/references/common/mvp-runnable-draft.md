@@ -24,13 +24,22 @@ executes, with the repository/runtime interpreter:
 1. `validate_case.py` — structural Common Core contract;
 2. category semantic validation and readiness (MLP: `validate_spec.py`,
    `check_readiness.py`; recoverable is allowed, blocked is not);
-3. `derive_verifier_plan.py`, compared layer-by-layer against the case plan;
+3. `derive_verifier_plan.py`, compared layer-by-layer against the case plan:
+   every applicable layer must appear explicitly with `status: selected` or
+   `status: deferred`, and a mandatory layer may only be deferred with a
+   non-empty reason — applicable layers never silently disappear (a case kind
+   that mandates V4 must ship V4 or explain its deferral);
 4. `generate_fixture_matrix.py` — plus the executable negative fixtures
-   (`empty`, `forged-manifest`, `missing-model`, `broken-lineage`) and one
-   structural positive fixture actually present under `tests/fixtures/`;
+   (`empty`, `forged-manifest`, `missing-model`, `broken-lineage`, and the
+   four integrity probes `missing-artifact`, `multi-hash-mismatch`,
+   `missing-plus-mismatch`, `type-garbage-manifest`) and one structural
+   positive fixture actually present under `tests/fixtures/`;
 5. `check_draft_consistency.py` — submission root, instruction/bundle paths,
    input-manifest candidate paths, held-out ownership, metric comparators,
-   capability-vs-label-source, CONTRACT.md visibility;
+   capability-vs-label-source, CONTRACT.md visibility, and leave-one-out
+   source context (invariant H: `source_context.allow` roots versus
+   `source/sources.lock.json`, with answer names like `acceptance.json`
+   never consumed);
 6. the **actual** `CaseSpec.load` + `package_candidate()` from the repository
    into a temporary directory;
 7. bundle agreement — instruction, input manifest, submission schema, and
@@ -39,7 +48,13 @@ executes, with the repository/runtime interpreter:
    sealed-root + result-directory layout: empty submission and forged/broken
    submissions must produce `AGENT_FAILURE`, the structural fixture must
    produce `VALID_RESULT` whose reason marks hidden science deferred, and a
-   broken entry must produce `INFRA_INVALID`;
+   broken entry must produce `INFRA_INVALID`. The four integrity probes are
+   graded by exact attribution and retryability, not merely run:
+   a missing declared artifact must be named as missing, *every* corrupt hash
+   must be named in one result (no short-circuiting behind an earlier
+   finding), and a type-invalid manifest must classify as
+   `INVALID_SUBMISSION` with `retryable: false` — never escape as an
+   infrastructure crash the harness would excuse;
 9. every produced `result.json` validates against the common result schema
    with failure attribution in `reason`;
 10. honesty — `benchmark_valid=false`, and reference/thresholds may be

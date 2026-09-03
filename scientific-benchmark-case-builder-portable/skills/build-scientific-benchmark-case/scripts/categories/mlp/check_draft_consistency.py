@@ -9,16 +9,18 @@ Two layers of checks run here:
    agreement across task/design/verifier-plan, instruction paths versus the
    predicted packaged bundle, input-manifest candidate paths, held-out set
    ownership uniqueness, metric comparator agreement, capability-vs-label
-   source honesty, and CONTRACT.md candidate visibility. Every machine check
-   reads declared machine-readable fields; none parse free prose. Each is
-   conditional on its inputs being present so partial drafts fail with a
-   specific error instead of a crash.
+   source honesty, CONTRACT.md candidate visibility, and leave-one-out source
+   context (allow roots versus the sources lock, with default blocked names).
+   Every machine check reads declared machine-readable fields; none parse free
+   prose. Each is conditional on its inputs being present so partial drafts
+   fail with a specific error instead of a crash.
 
 Run with --json for the machine-readable verdict; exit 1 when any error.
 """
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import re
@@ -44,6 +46,15 @@ METRIC_OPERATORS = {"<", "<=", ">", ">="}
 # Label sources that are NOT DFT; claiming dft_dynamics with these is a
 # capability overstatement (e.g. teacher-potential labeling written as DFT).
 NON_DFT_LABEL_SOURCES = {"teacher_inference", "published_model", "self_generated"}
+# Leave-one-out intake (invariant H): files of these names must never sit in a
+# locked source tree when source_context is declared, even if the declared
+# exclude list forgot them — an acceptance target leaking into the builder
+# context is a protocol defect, not a detail.
+DEFAULT_SOURCE_EXCLUDES = (
+    "acceptance.json", "expected-output.json", "expected.json",
+    "held-out-targets.json", "scores.json",
+)
+_SOURCE_WALK_LIMIT = 200_000
 _PATH_TOKEN_RE = re.compile(r"`([A-Za-z0-9._@+-]+(?:/[A-Za-z0-9._@+-]+)+)`")
 _COMPARATOR_RE = re.compile(r"(<=|>=|<|>)\s*(-?\d+(?:\.\d+)?)")
 
@@ -247,6 +258,137 @@ def instruction_input_tokens(case_dir: Path) -> set[str]:
     return tokens
 
 
+def _source_patterns(exclude: list[str]) -> list[str]:
+    return list(exclude) + [p for p in DEFAULT_SOURCE_EXCLUDES if p not in exclude]
+
+
+def _excluded_match(rel: str, patterns: list[str]) -> str | None:
+    name = PurePosixPath(rel).name
+    for pattern in patterns:
+        if fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(name, pattern):
+            return pattern
+    return None
+
+
+def _under_any(path: Path, roots: list[Path]) -> bool:
+    for root in roots:
+        try:
+            path.relative_to(root)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
+def _check_source_context(case_dir: Path, design: dict[str, Any]) -> list[str]:
+    """Invariant H: the declared leave-one-out source context is respected.
+
+    When a design declares `source_context`, its allow roots must resolve,
+    every locked source in `source/sources.lock.json` must sit under an allow
+    root, and no locked path (or file inside a locked directory/repository)
+    may match an exclude pattern or a default blocked name such as
+    `acceptance.json`. Conditional by design: trees without source_context
+    are untouched."""
+    ctx = design.get("source_context")
+    if ctx is None:
+        return []
+    errors: list[str] = []
+    if not isinstance(ctx, dict):
+        return ["case-design source_context must be a mapping"]
+    allow = ctx.get("allow") or []
+    exclude = ctx.get("exclude") or []
+    for field, value in (("allow", allow), ("exclude", exclude)):
+        if not isinstance(value, list) or any(
+                not isinstance(v, str) or not v for v in value):
+            errors.append(
+                f"case-design source_context.{field} must be a list of non-empty strings"
+            )
+    if errors:
+        return errors
+    patterns = _source_patterns(exclude)
+
+    resolved_roots: list[Path] = []
+    for root in allow:
+        candidate = Path(root).expanduser()
+        if candidate.is_absolute():
+            if not candidate.exists():
+                errors.append(f"source_context.allow root does not exist: {root}")
+            else:
+                resolved_roots.append(candidate.resolve())
+            continue
+        found = next(
+            (parent / candidate for parent in (case_dir, *case_dir.parents)
+             if (parent / candidate).is_dir() or (parent / candidate).is_file()),
+            None,
+        )
+        if found is None:
+            errors.append(f"source_context.allow root does not resolve: {root}")
+        else:
+            resolved_roots.append(found.resolve())
+
+    lock_path = case_dir / "source" / "sources.lock.json"
+    if not lock_path.is_file():
+        errors.append(
+            "source_context declared but source/sources.lock.json missing; "
+            "lock the allowed sources with hash_sources.py --exclude"
+        )
+        return errors
+    try:
+        lock = _json(lock_path)
+    except (OSError, ValueError) as exc:
+        return errors + [f"source/sources.lock.json: unreadable: {exc}"]
+    sources = lock.get("sources") or {}
+    if not isinstance(sources, dict):
+        errors.append("source/sources.lock.json: sources must be a mapping")
+        sources = {}
+    for label, entry in sorted(sources.items()):
+        if not isinstance(entry, dict):
+            errors.append(f"sources.lock {label}: entry must be an object")
+            continue
+        raw_path = str(entry.get("path", ""))
+        if not raw_path:
+            continue
+        path = Path(raw_path)
+        if resolved_roots and not _under_any(path.resolve(), resolved_roots):
+            errors.append(
+                f"sources.lock {label}: locked path {raw_path} is outside every "
+                "source_context.allow root; the builder may only consume declared sources"
+            )
+        kind = str(entry.get("kind", ""))
+        if kind == "file":
+            hit = _excluded_match(path.as_posix(), patterns)
+            if hit:
+                errors.append(
+                    f"sources.lock {label}: excluded pattern {hit!r} matched locked "
+                    f"source {raw_path}; a locked file entry is consumed whole — "
+                    "do not lock held-out answers as sources"
+                )
+        elif kind in ("directory", "git_repository") and path.is_dir():
+            recorded = {str(p) for p in (entry.get("excluded") or [])}
+            hits: list[str] = []
+            for walked in sorted(path.rglob("*"))[:_SOURCE_WALK_LIMIT]:
+                if not walked.is_file():
+                    continue
+                rel = walked.relative_to(path).as_posix()
+                hit = _excluded_match(rel, patterns)
+                # An omission is only legitimate if hash_sources.py recorded the
+                # pattern in the lock (so the digest demonstrably excludes it);
+                # an unrecorded answer file was consumed into the hash.
+                if hit and hit not in recorded:
+                    hits.append(f"{rel} (pattern {hit!r})")
+                if len(hits) >= 5:
+                    break
+            for h in hits:
+                errors.append(
+                    f"sources.lock {label}: excluded file inside locked source "
+                    f"{raw_path}: {h}; re-hash with hash_sources.py --exclude "
+                    "<pattern> so the omission is recorded in the lock — an "
+                    "answer file consumed un-recorded into the builder "
+                    "context is a protocol defect"
+                )
+    return errors
+
+
 def check_machine_layers(case_dir: Path) -> list[str]:
     """WP3 invariants; every check is conditional on its declared inputs."""
     errors: list[str] = []
@@ -423,6 +565,9 @@ def check_machine_layers(case_dir: Path) -> list[str]:
             f"workflow capability drift: dft_dynamics claimed but labels come from "
             f"{label_source}; teacher-published labeling is not DFT dynamics"
         )
+
+    # (H) Leave-one-out source context, when declared.
+    errors.extend(_check_source_context(case_dir, design))
 
     return errors
 

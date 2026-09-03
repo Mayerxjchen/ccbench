@@ -71,7 +71,11 @@ ${CLAUDE_SKILL_DIR}/scripts/categories/mlp/hash_sources.py
 ```
 
 Artifacts remain `source-evidence-map.yaml`, `mlp-reproduction-spec.yaml`,
-`reproducibility-assessment.yaml`, and `sources.lock.json`.
+`reproducibility-assessment.yaml`, and `sources.lock.json`. Source reads obey
+the leave-one-out intake contract declared in `case-design source_context`
+(`allow` roots, `exclude` names on top of defaults like `acceptance.json`);
+`hash_sources.py --exclude` records audited omissions in the lock. See
+`references/categories/mlp/source-evidence-policy.md`.
 
 The MLP category owns model roles, dataset/label/reference-method fingerprint,
 implementation, architecture, training, validation, access/license, readiness,

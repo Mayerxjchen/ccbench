@@ -17,7 +17,12 @@ the repository/runtime interpreter (never a substitute syntax parser):
                                              layout: empty -> AGENT_FAILURE,
                                              forged -> AGENT_FAILURE,
                                              structural -> VALID_RESULT,
-                                             broken entry -> INFRA_INVALID
+                                             broken entry -> INFRA_INVALID,
+                                             plus the four v3 integrity probes
+                                             (missing-artifact, multi-hash,
+                                             missing-plus-mismatch,
+                                             type-garbage) graded by exact
+                                             attribution and retryability
     9. common result schema                  every smoke result.json validated
    10. honesty                                benchmark_valid false; no
                                              fabricated reference/thresholds
@@ -52,6 +57,22 @@ RESULT_CLASSES = {"VALID_RESULT", "AGENT_FAILURE", "INFRA_INVALID"}
 STANDARD_RESULT_PATH = "/logs/verifier/result.json"
 REQUIRED_NEGATIVE_FIXTURES = (
     "empty", "forged-manifest", "missing-model", "broken-lineage",
+    "missing-artifact", "multi-hash-mismatch", "missing-plus-mismatch",
+    "type-garbage-manifest",
+)
+# v3 integrity probes: (fixture, class, codes, reason needles, retryable).
+# These are behavior probes, not existence probes: the negatives must be
+# GRADED with this exact attribution, never merely described.
+V3_INTEGRITY_PROBES = (
+    ("negative/missing-artifact", "AGENT_FAILURE", ("SCIENTIFIC_FAIL",),
+     ("declared artifact missing",), False),
+    ("negative/multi-hash-mismatch", "AGENT_FAILURE", ("SCIENTIFIC_FAIL",),
+     ("integrity mismatch for artifacts/model/student.pb",
+      "integrity mismatch for artifacts/dataset/train.raw"), False),
+    ("negative/missing-plus-mismatch", "AGENT_FAILURE", ("SCIENTIFIC_FAIL",),
+     ("declared artifact missing", "integrity mismatch"), False),
+    ("negative/type-garbage-manifest", "AGENT_FAILURE", ("INVALID_SUBMISSION",),
+     ("manifest type validation failed",), False),
 )
 STRUCTURAL_POSITIVE_FIXTURE = "positive/structural-minimal"
 DEFERRED_RELEASE_WORK = [
@@ -201,6 +222,34 @@ def check_verifier_plan(case_dir: Path, verdict: Verdict) -> None:
                     errors.append(
                         f"verifier-plan layers {plan_ids} disagree with derived {derived_ids}"
                     )
+                derived_by_id = {
+                    layer["id"]: layer for layer in derived_plan.get("layers") or []
+                    if isinstance(layer, dict)
+                }
+                for layer in plan.get("layers") or []:
+                    if not isinstance(layer, dict):
+                        errors.append("verifier-plan layers must be objects")
+                        continue
+                    lid = str(layer.get("id", "?"))
+                    status = layer.get("status")
+                    if status not in ("selected", "deferred"):
+                        errors.append(
+                            f"verifier-plan {lid}: status {status!r} must be selected or "
+                            "deferred — applicable layers are never silently absent"
+                        )
+                        continue
+                    if layer.get("mandatory") is True and status == "deferred" \
+                            and not str(layer.get("reason", "")).strip():
+                        errors.append(
+                            f"verifier-plan {lid}: mandatory layer deferred without a reason"
+                        )
+                    derived_layer = derived_by_id.get(lid)
+                    if derived_layer is not None \
+                            and derived_layer.get("status") != status:
+                        errors.append(
+                            f"verifier-plan {lid}: status {status!r} disagrees with "
+                            f"derived {derived_layer.get('status')!r}"
+                        )
                 if plan.get("result_path") not in (None, STANDARD_RESULT_PATH):
                     errors.append(
                         f"verifier-plan result_path {plan.get('result_path')!r} != {STANDARD_RESULT_PATH}"
@@ -343,7 +392,8 @@ def _run_mounted(tests_dir: Path, tmp: Path, submission: Path | None,
 
 
 def _result_errors(run: dict[str, Any], expect_class: str,
-                   expect_codes: tuple[str, ...], expect_reason: tuple[str, ...]) -> list[str]:
+                   expect_codes: tuple[str, ...], expect_reason: tuple[str, ...],
+                   expect_retryable: bool | None = None) -> list[str]:
     errors: list[str] = []
     result = run.get("result")
     if result is None:
@@ -368,6 +418,11 @@ def _result_errors(run: dict[str, Any], expect_class: str,
     for needle in expect_reason:
         if needle not in reason:
             errors.append(f"reason {reason!r} does not attribute the failure via {needle!r}")
+    if expect_retryable is not None and result.get("retryable") is not expect_retryable:
+        errors.append(
+            f"retryable={result.get('retryable')!r}, expected {expect_retryable!r}: "
+            "this failure must not be charged to (or excused by) the harness"
+        )
     return errors
 
 
@@ -403,6 +458,14 @@ def check_mount_smoke(case_dir: Path, workdir: Path, verdict: Verdict) -> None:
         errors.extend(_result_errors(
             _run_mounted(tests_dir, tmp, staged_fixture(name), name.replace("/", "-")),
             "AGENT_FAILURE", ("SCIENTIFIC_FAIL",), ("V",),
+        ))
+
+    for probe in V3_INTEGRITY_PROBES:
+        probe_name, probe_class, probe_codes, probe_needles, probe_retry = probe
+        errors.extend(_result_errors(
+            _run_mounted(tests_dir, tmp, staged_fixture(probe_name),
+                         probe_name.replace("/", "-")),
+            probe_class, probe_codes, probe_needles, expect_retryable=probe_retry,
         ))
 
     structural = fixtures / STRUCTURAL_POSITIVE_FIXTURE

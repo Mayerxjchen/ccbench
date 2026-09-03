@@ -4,8 +4,12 @@
 This file proves, in a faithful /tests + sealed-submission + result-dir mount
 layout, that tests/verifier.py + tests/test.sh always produce a schema-valid
 common result.json and classify empty/forged/missing-model/broken-lineage
-submissions as AGENT_FAILURE. It is a case-construction quality test: it runs
-under pytest at build time and is never invoked from tests/test.sh.
+submissions as AGENT_FAILURE. The v3 integrity probes (missing-artifact,
+multi-hash-mismatch, missing-plus-mismatch, type-garbage-manifest) pin that
+C-V8 checks every declared artifact without short-circuiting and that
+type-invalid manifests fail submission-side, never as infrastructure. It is a
+case-construction quality test: it runs under pytest at build time and is
+never invoked from tests/test.sh.
 
 Run from anywhere: all paths are computed relative to this file, never from
 the current working directory.
@@ -119,6 +123,66 @@ def test_broken_lineage_fails_chain(tmp_path: Path) -> None:
     assert code == 1
     assert result["result_class"] == "AGENT_FAILURE"
     assert "V3" in result["reason"]
+
+
+# ------------------------------------------------- v3 integrity probes
+
+
+def test_declared_artifact_missing_is_attributed(tmp_path: Path) -> None:
+    result, code = run_test_sh(tmp_path, sealed_fixture(tmp_path, "negative/missing-artifact"))
+    _assert_common_schema(result)
+    assert code == 1
+    assert result["result_class"] == "AGENT_FAILURE"
+    assert result["failure_code"] == "SCIENTIFIC_FAIL"
+    assert "declared artifact missing" in result["reason"]
+    assert "artifacts/dataset/train.raw" in result["reason"]
+    assert result["retryable"] is False
+
+
+def test_every_hash_mismatch_is_reported_without_short_circuit(tmp_path: Path) -> None:
+    result, code = run_test_sh(
+        tmp_path, sealed_fixture(tmp_path, "negative/multi-hash-mismatch")
+    )
+    _assert_common_schema(result)
+    assert code == 1
+    assert result["result_class"] == "AGENT_FAILURE"
+    assert result["failure_code"] == "SCIENTIFIC_FAIL"
+    # Both corrupted artifacts must be named: an earlier finding may not
+    # suppress a later one, or the agent gets a partial repair list.
+    assert "integrity mismatch for artifacts/model/student.pb" in result["reason"]
+    assert "integrity mismatch for artifacts/dataset/train.raw" in result["reason"]
+    assert result["retryable"] is False
+
+
+def test_missing_and_mismatch_are_both_attributed(tmp_path: Path) -> None:
+    result, code = run_test_sh(
+        tmp_path, sealed_fixture(tmp_path, "negative/missing-plus-mismatch")
+    )
+    _assert_common_schema(result)
+    assert code == 1
+    assert result["result_class"] == "AGENT_FAILURE"
+    assert result["failure_code"] == "SCIENTIFIC_FAIL"
+    assert "declared artifact missing" in result["reason"]
+    assert "integrity mismatch for artifacts/labels/train.lbl" in result["reason"]
+    assert result["retryable"] is False
+
+
+def test_type_garbage_manifest_is_invalid_not_infra(tmp_path: Path) -> None:
+    # A manifest whose fields carry wrong types (int sha256, string round) used
+    # to crash the int() conversions and surface as retryable INFRA_INVALID —
+    # charging the harness for an agent's malformed contract. Pre-chain type
+    # validation must classify it INVALID_SUBMISSION, retryable=False.
+    result, code = run_test_sh(
+        tmp_path, sealed_fixture(tmp_path, "negative/type-garbage-manifest")
+    )
+    _assert_common_schema(result)
+    assert code == 1
+    assert result["result_class"] == "AGENT_FAILURE"
+    assert result["failure_code"] == "INVALID_SUBMISSION"
+    assert "manifest type validation failed" in result["reason"]
+    assert result["retryable"] is False
+    # An agent-side contract failure is charged to the agent, not the harness.
+    assert result["is_counted_scientifically"] is True
 
 
 def test_unmounted_submission_is_infra_invalid(tmp_path: Path) -> None:
