@@ -216,3 +216,99 @@ def test_ai2kit_phase_refuses_empty_sif_digest_before_any_io():
     with pytest.raises(q.QualifyError) as exc:
         q.ai2kit_phase({}, lock, ai2kit_lock_relpath="x", profile_path=Path())
     assert "sif_sha256" in str(exc.value)
+
+
+# -- C5: qualification completeness (cancel probe, orphan gate, --site) ------
+
+
+def test_cancel_phase_is_wired_authorization_gated_and_merge_only():
+    """--phase cancel exists as its own scope; the merge refuses without a
+    base receipt, refuses to overwrite existing cancel evidence, and refuses
+    an inconsistent base (same discipline as the runtime gates)."""
+    text = QUALIFIER.read_text()
+    assert '"cancel"' in text  # --phase choice
+    assert 'args.phase == "cancel"' in text
+    assert "--phase cancel requires --authorized" in text
+    body = text[text.index("def cancel_phase"):text.index("def build_receipt")]
+    assert "run --phase canary first" in body
+    assert "cancel_gate evidence is already sealed" in body
+    assert "refusing merge" in body
+
+
+def test_cancel_probe_never_lands_in_canary_or_resume():
+    """The canary and the durable resume path stay two-job / submit-free:
+    _run_cancel_probe is called ONLY from cancel_phase, and RunSession.cancel
+    appears nowhere in canary."""
+    text = QUALIFIER.read_text()
+    assert text.count("_run_cancel_probe(") == 2  # def + one call site
+    call = text.index("_run_cancel_probe(profile", text.index("def cancel_phase"))
+    assert text.index("def cancel_phase") < call < text.index("def build_receipt")
+    canary_body = text[text.index("def canary"):text.index("def _cp2k_script")]
+    assert "_run_cancel_probe" not in canary_body
+    assert "session.cancel(" not in canary_body
+    resume_body = text[text.index("def resume"):text.index("def main")]
+    assert "_run_cancel_probe" not in resume_body
+    assert "session.submit(" not in resume_body
+
+
+def test_canary_refuses_to_overwrite_a_sealed_receipt():
+    """Stale-evidence rule (retain, never overwrite): the live canary phase
+    refuses to clobber an existing receipt — re-qualification needs a fresh
+    --site dir."""
+    text = QUALIFIER.read_text()
+    assert "refusing to overwrite sealed receipt" in text
+    main_body = text[text.index("def main"):]
+    guard = main_body.index("args.phase == \"canary\" and RECEIPT_PATH.is_file()")
+    run = main_body.index("evidence = canary(profile, lock)")
+    assert guard < run
+
+
+def test_orphan_sweep_wired_into_canary_and_resume(monkeypatch):
+    """Both collector paths record a terminal scheduler sweep, and the sweep
+    recomputes active_total from the per-run match (no trust in the count)."""
+    import qualify_hpc_dispatcher as q
+
+    text = QUALIFIER.read_text()
+    assert text.count('evidence["orphan_check"] = _orphan_sweep(') == 2
+
+    def fake_ssh(profile, command, timeout=120, *, retries=4):
+        if command.startswith("squeue"):
+            return "100\n200\n"
+        if "show job 100" in command:
+            return "JobId=100 WorkDir=/root/dispatcher-qual/run-a/job-0001"
+        return "JobId=200 WorkDir=/elsewhere"
+
+    monkeypatch.setattr(q, "_ssh", fake_ssh)
+    result = q._orphan_sweep({"ssh": {}}, ["run-a", "run-b"])
+    assert result["runs"] == {"run-a": "100", "run-b": None}
+    assert result["active_total"] == 1
+    assert "WorkDir" in result["method"]
+
+
+def test_set_site_rebinds_evidence_paths_and_rejects_unsafe_names():
+    """--site parameterizes where the receipt and per-run evidence land;
+    traversal-ish names fail closed before any path is built."""
+    import qualify_hpc_dispatcher as q
+
+    orig = (q.CANARY_ROOT, q.RECEIPT_PATH)
+    try:
+        q.set_site("site-v3")
+        assert q.CANARY_ROOT.name == "site-v3"
+        assert q.RECEIPT_PATH == q.CANARY_ROOT / "receipt.json"
+        assert q.CANARY_ROOT.is_relative_to(q.ROOT / "evidence")
+        for bad in ("../escape", "a/b", "", ".", "..", "-hidden"):
+            with pytest.raises(q.QualifyError, match="unsafe"):
+                q.set_site(bad)
+    finally:
+        q.CANARY_ROOT, q.RECEIPT_PATH = orig
+
+
+def test_preflight_refuses_multi_queue_partitions():
+    """Full-GPU and MIG are separate profiles and separate qualifications
+    (P4 scope); preflight rejects a comma list before any submission,
+    matching SiteProfile.from_cluster_config."""
+    text = QUALIFIER.read_text()
+    body = text[text.index("def preflight"):text.index("def _build_site_profile")]
+    assert "names multiple queues" in body
+    # def + the two call sites: partition and cpu_partition
+    assert body.count("_known_queue(") == 3

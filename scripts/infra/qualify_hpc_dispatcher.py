@@ -53,6 +53,19 @@ declared by this producer and never trusted as input.
                ``runtime.ai2kit`` derives PASS iff the lock anchor and the
                full job record hold.
 
+  cancel     — REQUIRES ITS OWN EXPLICIT USER AUTHORIZATION (``--authorized``;
+               P4 step 7, the teardown half of the dispatcher.cpu proof): one
+               longer sleep on the native cpu route in the pinned runtime,
+               cancelled only after it reaches RUNNING, through the
+               dispatcher's cancel operation (gateway token + ownership +
+               adapter scancel — never a raw scancel by this driver).  Settles
+               terminal CANCELLED, runs the post-cancel orphan sweep, and
+               MERGES ``evidence.cancel_gate`` into the existing consistent
+               receipt — ``dispatcher.cancel`` derives PASS iff the gateway
+               cancel event, CANCELLED settlement, allocated-then-killed
+               accounting and empty sweep all hold.  Kept out of the canary on
+               purpose: the durable ``--phase resume`` path stays submit-free.
+
   verify     — replay every anchor offline and derive the status; prints the
                derivation result and exits non-zero on any broken anchor.
 
@@ -104,8 +117,28 @@ from scripts.ablation.transport.slurm_transport import (  # noqa: E402
     normalize_state,
 )
 
-CANARY_ROOT = ROOT / "evidence" / "hpc-dispatcher" / "qualification" / "site-v1"
+# Per-site evidence root, REBOUND by main() from --site (qualify_case passes
+# it through).  site-v1 stays the default so existing fixtures and operator
+# muscle memory keep working; site-v3 re-seals land under their own dir and
+# never touch old evidence (retain, never overwrite or delete).
+DEFAULT_SITE = "site-v1"
+CANARY_ROOT = ROOT / "evidence" / "hpc-dispatcher" / "qualification" / DEFAULT_SITE
 RECEIPT_PATH = CANARY_ROOT / "receipt.json"
+
+# First character must be alphanumeric: "." and ".." are path components,
+# not site names, even though every character in them is otherwise legal.
+_SITE_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
+
+
+def set_site(site_name: str) -> None:
+    """Rebind the module-level evidence paths for one qualification run."""
+    global CANARY_ROOT, RECEIPT_PATH
+    if not _SITE_NAME_RE.match(site_name):
+        raise QualifyError(f"unsafe --site name: {site_name!r}")
+    CANARY_ROOT = (
+        ROOT / "evidence" / "hpc-dispatcher" / "qualification" / site_name
+    )
+    RECEIPT_PATH = CANARY_ROOT / "receipt.json"
 
 TERMINAL = {"SUCCEEDED", "FAILED", "CANCELLED", "TIMEOUT", "LOST"}
 
@@ -182,25 +215,28 @@ def preflight(profile: dict, lock: dict) -> dict:
     checks["node_arch"] = arch
 
     partition = profile["slurm"]["partition"]
-    sinfo = _ssh(profile, "sinfo -h -o '%R'")
-    known = {ln.strip() for ln in sinfo.splitlines() if ln.strip()}
-    # comma lists are legal sbatch multi-partitions; validate each element
-    parts = [p.strip() for p in partition.split(",") if p.strip()]
-    unknown = [p for p in parts if p not in known]
-    if unknown:
-        raise QualifyError(
-            f"partitions {unknown} from {partition!r} not known to sinfo")
+    # ADR 2026-09-03 §5: one queue per profile.  A comma list (full-GPU plus
+    # MIG) would mix compute classes inside one site identity — SiteProfile
+    # refuses it too; preflight refuses before any submission attempt.
+    def _known_queue(name: str, label: str) -> str:
+        if "," in name:
+            raise QualifyError(
+                f"[slurm] {label} {name!r} names multiple queues; full-GPU "
+                "and MIG need separate cluster profiles and separate "
+                "qualifications"
+            )
+        sinfo = _ssh(profile, "sinfo -h -o '%R'")
+        known = {ln.strip() for ln in sinfo.splitlines() if ln.strip()}
+        if name not in known:
+            raise QualifyError(f"queue {name!r} ({label}) not known to sinfo")
+        return name
+
+    _known_queue(partition, "partition")
     checks["partition"] = partition
 
     cpu_partition = profile["slurm"].get("cpu_partition")
     if cpu_partition:
-        cpu_sinfo = _ssh(
-            profile, f"sinfo -h -o '%R' | grep -Fx {shlex.quote(cpu_partition)}"
-        )
-        if cpu_partition not in cpu_sinfo:
-            raise QualifyError(
-                f"cpu partition {cpu_partition!r} not known to sinfo"
-            )
+        _known_queue(cpu_partition, "cpu_partition")
         checks["cpu_partition"] = cpu_partition
 
     apptainer = profile["paths"]["apptainer"]
@@ -640,7 +676,143 @@ def _run_dispatcher_job(
         session.close()
 
 
-# -- phase: canary (authorized scope: one combined GPU job) -------------------
+# -- phase: cancel (P4 step 7 — explicit cancel probe, separate authorization) -
+
+
+def _run_cancel_probe(
+    profile: dict, site, resolved, lock: dict, stamp: str
+) -> dict:
+    """P4 step 7 — the explicit cancel probe.
+
+    Submits a long-running sleep on the native CPU route THROUGH the
+    dispatcher, waits until the scheduler has allocated and started it, then
+    cancels it through the dispatcher's cancel operation (gateway token
+    check + ownership check + adapter scancel — never a raw scancel by the
+    driver).  The probe's value is exactly what the canaries cannot show:
+    a *running* containerized job can be torn down, reaches terminal
+    CANCELLED, and leaves no orphan.  Anchors for offline derivation: the
+    hash-chained ``cancel`` audit event in this run's ledger, the settlement
+    attempt state, and scheduler accounting (AllocTRES present because the
+    job was RUNNING when cancelled).
+    """
+    session, transport = _open_session(
+        site, resolved, profile, lock, f"run-cancel-probe-{stamp}"
+    )
+    session.gateway._adapter._runtime_wrapper = _wrapper_renderer(profile, lock)
+    sif_digest = lock["runtime"]["sif_sha256"]
+    runtime_decl = f"matclaw-cips@sha256:{sif_digest}"
+    spec = _spec(
+        runtime_decl, ["sleep", "3600"],
+        cpus=resolved.max_cpus,
+        memory_gb=min(resolved.max_memory_gb, 8),
+        gpus=0,
+        walltime_minutes=15,
+    )
+    try:
+        submitted = session.submit(
+            spec, operation_id="qual-cancel-probe-01", attempt=1
+        )
+        job_id = submitted["job_id"]
+        # Wait for allocation: cancelling a PENDING job would prove strictly
+        # less (no running container to tear down).  Refuse to record a
+        # pending-state cancel rather than silently weaken the probe.
+        deadline = time.monotonic() + 1800
+        state = ""
+        while time.monotonic() < deadline:
+            state = session.status(job_id)["state"]
+            if state in ("RUNNING",) or state in TERMINAL:
+                break
+            time.sleep(10.0)
+        if state != "RUNNING":
+            session.settle(cancel_pending=True)
+            raise QualifyError(
+                f"cancel probe never reached RUNNING (observed {state!r}); "
+                "refusing to record a weaker probe"
+            )
+        cancelled = session.cancel(job_id)
+        final = _wait_terminal(session, job_id, timeout_sec=900)
+        status_after = session.status(job_id)["state"]
+        usage_op = session.usage()
+        if (
+            cancelled.get("state") != "CANCELLED"
+            or final != "CANCELLED"
+            or status_after != "CANCELLED"
+        ):
+            session.settle(cancel_pending=True)
+            raise QualifyError(
+                f"cancel probe inconsistent: cancel={cancelled!r} "
+                f"final={final!r} status_after={status_after!r}"
+            )
+        slurm_id = session.gateway._adapter._jobs[job_id]["slurm_id"]
+        accounting = transport.accounting(str(slurm_id))
+        exit_code = int((accounting.get("exit_code_raw") or "-1").split(":")[0])
+        workdir = session.gateway._adapter._jobs[job_id]["workspace"]
+        local_out = CANARY_ROOT / f"fetched-cancel-probe-{stamp}"
+        try:
+            fetched = transport.fetch(
+                [f"{workdir}/stdout.log", f"{workdir}/stderr.log"], str(local_out)
+            )
+            fetched_by_name = {p.name: p for p in fetched if p.exists()}
+        except Exception:  # noqa: BLE001 — artifacts may be partial on kill
+            fetched_by_name = {}
+
+        record: dict[str, object] = {
+            "canary": "cancel-probe",
+            "run_id": session.run_id,
+            "operation_id": "qual-cancel-probe-01",
+            "attempt": 1,
+            "job_id": job_id,
+            "scheduler_job_id": str(slurm_id),
+            "runtime_decl": runtime_decl,
+            "state": final,
+            "exit_code": exit_code,
+            "gpus_requested": 0,
+            "requested_resources": dict(spec["resources"]),
+            "probe_class": "cpu",
+            "cancel_proved": True,
+            "cancel_ops": {
+                "cancelled_via": "dispatcher.cancel",
+                "state_at_cancel": "RUNNING",
+                "status_after_cancel": status_after,
+                "usage_op": dict(usage_op),
+            },
+            "accounting": accounting,
+            "stdout_tail": (
+                fetched_by_name.get("stdout.log", Path(""))
+                .read_text(encoding="utf-8", errors="replace")[-2000:]
+                if "stdout.log" in fetched_by_name else ""
+            ),
+            "stderr_tail": (
+                fetched_by_name.get("stderr.log", Path(""))
+                .read_text(encoding="utf-8", errors="replace")[-800:]
+                if "stderr.log" in fetched_by_name else ""
+            ),
+            "fetch_manifest": {
+                "job_id": job_id,
+                "entries": [
+                    {
+                        "path": name_,
+                        "sha256": hashlib.sha256(p.read_bytes()).hexdigest(),
+                        "size_bytes": p.stat().st_size,
+                    }
+                    for name_, p in sorted(fetched_by_name.items())
+                ],
+            },
+            "artifacts_dir": local_out.name,
+            "audit_log": f"{session.run_id}/audit.jsonl",
+        }
+        report = session.settle(cancel_pending=True)
+        record["settlement"] = {"report": report.to_dict(), "digest": report.digest}
+        return record
+    except BaseException:
+        # Any unexpected exit: make sure the killed-sleep cannot outlive us.
+        try:
+            session.settle(cancel_pending=True)
+        except Exception:  # noqa: BLE001 — report the original failure
+            pass
+        raise
+    finally:
+        session.close()
 
 
 def canary(profile: dict, lock: dict, *, skip_preflight: bool = False) -> dict:
@@ -651,10 +823,13 @@ def canary(profile: dict, lock: dict, *, skip_preflight: bool = False) -> dict:
       2. GPU job (``gpu`` partition, --gres=gpu:1): nvidia-smi device probe +
          containment probes.
 
-    Uses the production SiteProfile resolver for resource mapping and live
-    ACL pre-checks on both partitions.  The ACL-era assumption that cpu
-    workloads must ride the gpu queue is gone: the profile must map cpu
-    workloads natively or this phase refuses to run.
+    The explicit cancel probe (P4 step 7) is a SEPARATE authorized phase
+    (``--phase cancel``) merged into the receipt afterwards — keeping it out
+    of the canary means the durable ``--phase resume`` path stays
+    submit-free.  Uses the production SiteProfile resolver for resource
+    mapping and live ACL pre-checks on both partitions.  The ACL-era
+    assumption that cpu workloads must ride the gpu queue is gone: the
+    profile must map cpu workloads natively or this phase refuses to run.
     """
     if not skip_preflight:
         preflight(profile, lock)
@@ -682,7 +857,8 @@ def canary(profile: dict, lock: dict, *, skip_preflight: bool = False) -> dict:
         "authorization": "user-authorized scope: two short jobs "
         "(CPU echo/hostname + containment on the native cpu partition; GPU "
         "nvidia-smi + containment under --gres=gpu:1); no CP2K, no image "
-        "transfer, nothing else",
+        "transfer, nothing else (the cancel probe is its own phase and its "
+        "own authorization)",
         "site_profile_digest": site.digest,
         "resolved_workloads": {
             "cpu": _resolved_dict(resolved_cpu),
@@ -702,6 +878,10 @@ def canary(profile: dict, lock: dict, *, skip_preflight: bool = False) -> dict:
         "ai2kit_gate": {
             "detail": "ai2kit runtime canary awaits separate authorization; "
                       "absent evidence derives NOT_RUN",
+        },
+        "cancel_gate": {
+            "detail": "explicit cancel probe awaits separate authorization "
+                      "(--phase cancel); absent evidence derives NOT_RUN",
         },
     }
 
@@ -766,6 +946,19 @@ def canary(profile: dict, lock: dict, *, skip_preflight: bool = False) -> dict:
         if cleanup["leftover"]:
             raise QualifyError(f"sentinel cleanup left {cleanup['leftover']}")
         evidence["sentinel_cleanup"] = cleanup
+
+        # P4 pass-condition "no orphan job": both canary runs must be fully
+        # settled in the scheduler's view before anything is sealed.
+        evidence["orphan_check"] = _orphan_sweep(
+            profile,
+            [f"run-cpu-echo-probe-containment-{stamp}",
+             f"run-gpu-nvidia-probe-containment-{stamp}"],
+        )
+        if evidence["orphan_check"]["active_total"]:
+            raise QualifyError(
+                f"orphan jobs still active after canary: "
+                f"{evidence['orphan_check']['runs']}"
+            )
     finally:
         # Never leave sentinels behind even on failure.
         try:
@@ -1165,6 +1358,89 @@ def ai2kit_phase(
     return result["consistent"] and derived["qualification_status"] == "PASS"
 
 
+def cancel_phase(profile: dict, lock: dict, *, profile_path: Path) -> bool:
+    """Explicit cancel probe (P4 step 7), merged into an existing receipt.
+
+    The dispatcher.cpu proof's teardown half: a long-running containerized
+    sleep is submitted through the Gateway on the native cpu route, reaches
+    RUNNING under the pinned SIF, is cancelled through ``session.cancel``
+    (token check + ownership check + adapter scancel — never a raw scancel
+    by the driver), settles terminal CANCELLED, and the post-cancel orphan
+    sweep comes back empty.  Requires its own explicit authorization,
+    refuses to run over an inconsistent receipt, never overwrites existing
+    cancel evidence, and only ever adds/derives ``evidence.cancel_gate``.
+    """
+    if not RECEIPT_PATH.is_file():
+        raise QualifyError(
+            f"no receipt to merge into ({RECEIPT_PATH}); run --phase canary first"
+        )
+    receipt = json.loads(RECEIPT_PATH.read_text(encoding="utf-8"))
+    gate = (receipt.get("evidence") or {}).get("cancel_gate") or {}
+    if gate.get("evidence"):
+        raise QualifyError(
+            "cancel_gate evidence is already sealed in this receipt; keep "
+            "old evidence — archive the site directory (or choose a new "
+            "--site) and re-qualify instead of overwriting"
+        )
+    base = verify_receipt(
+        receipt,
+        root=ROOT,
+        receipt_dir=RECEIPT_PATH.parent,
+        profile_path=profile_path,
+    )
+    if not base["consistent"]:
+        raise QualifyError(
+            "existing receipt fails derivation; refusing merge: "
+            + "; ".join(base["problems"][:3])
+        )
+
+    preflight(profile, lock)
+    site = _build_site_profile(profile)
+    resolved_cpu = site.resolve_workload("cpu")
+    stamp = secrets.token_hex(4)
+    record = _run_cancel_probe(profile, site, resolved_cpu, lock, stamp)
+    orphan = _orphan_sweep(profile, [f"run-cancel-probe-{stamp}"])
+    if orphan["active_total"]:
+        raise QualifyError(
+            f"cancel probe left an orphan job: {orphan['runs']}"
+        )
+
+    receipt["evidence"]["cancel_gate"] = {
+        "detail": (
+            "explicit cancel probe under separate authorization: a RUNNING "
+            "containerized sleep on the native cpu route was cancelled via "
+            "dispatcher.cancel, reached terminal CANCELLED, settled with the "
+            "cancel recorded in the attempt ledger, and the post-cancel "
+            "orphan sweep found no active job; absent evidence derived "
+            "NOT_RUN before this merge"
+        ),
+        "evidence": {"job": record, "orphan_check": orphan},
+    }
+
+    # Re-seal and re-verify the merged receipt; the derivation must now
+    # produce a consistent envelope or the merge fails on the return code.
+    receipt.pop("digest", None)
+    from dftworld_bench.experiments.qualification_receipt import seal_receipt
+
+    merged = seal_receipt(receipt)
+    RECEIPT_PATH.write_text(
+        json.dumps(merged, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    result = verify_receipt(
+        merged,
+        root=ROOT,
+        receipt_dir=RECEIPT_PATH.parent,
+        profile_path=profile_path,
+    )
+    derived = result["derived"]
+    print(
+        f"receipt merged: {RECEIPT_PATH}  "
+        f"derived={derived['qualification_status']} "
+        f"formal_qualified={derived['formal_qualified']}"
+    )
+    return result["consistent"] and derived["qualification_status"] == "PASS"
+
+
 def build_receipt(
     profile: dict, lock: dict, evidence: dict, *, lock_relpath: str
 ) -> Path:
@@ -1260,6 +1536,23 @@ def _find_active_by_dirname(profile: dict, run_id: str) -> str | None:
         if run_id in info:
             return job_id
     return None
+
+
+def _orphan_sweep(profile: dict, run_ids: list[str]) -> dict:
+    """P4 pass-condition anchor: no orphan job left by this phase.
+
+    Every qualification run directory is matched against the live queue via
+    ``scontrol`` WorkDir — the same lookup the durable resume path uses — so
+    an abandoned allocation under a qualification run id cannot hide behind
+    a renamed job.  The receipt records the sweep; offline derivation
+    refuses PASS while ``active_total`` is nonzero.
+    """
+    runs = {run_id: _find_active_by_dirname(profile, run_id) for run_id in run_ids}
+    return {
+        "method": "squeue -u $USER + scontrol WorkDir match per qualification run",
+        "runs": runs,
+        "active_total": sum(1 for v in runs.values() if v is not None),
+    }
 
 
 def _find_accounted_by_dirname(profile: dict, run_id: str, since: str) -> list[str]:
@@ -1758,7 +2051,8 @@ def resume(
         "authorization": "user-authorized scope: two short jobs "
         "(CPU echo/hostname + containment on the native cpu partition; GPU "
         "nvidia-smi + containment under --gres=gpu:1); no CP2K, no image "
-        "transfer, nothing else",
+        "transfer, nothing else (the cancel probe is its own phase and its "
+        "own authorization)",
         "site_profile_digest": site.digest,
         "resolved_workloads": {
             "cpu": _resolved_dict(resolved_cpu),
@@ -1778,6 +2072,10 @@ def resume(
         "ai2kit_gate": {
             "detail": "ai2kit runtime canary awaits separate authorization; "
                       "absent evidence derives NOT_RUN",
+        },
+        "cancel_gate": {
+            "detail": "explicit cancel probe awaits separate authorization "
+                      "(--phase cancel); absent evidence derives NOT_RUN",
         },
     }
 
@@ -1824,6 +2122,19 @@ def resume(
         if cleanup["leftover"]:
             raise QualifyError(f"sentinel cleanup left {cleanup['leftover']}")
         evidence["sentinel_cleanup"] = cleanup
+
+        # Same no-orphan gate as the live canary phase: the recovered stamp's
+        # two runs must both be fully settled in the scheduler's view.
+        evidence["orphan_check"] = _orphan_sweep(
+            profile,
+            [f"run-cpu-echo-probe-containment-{stamp}",
+             f"run-gpu-nvidia-probe-containment-{stamp}"],
+        )
+        if evidence["orphan_check"]["active_total"]:
+            raise QualifyError(
+                f"orphan jobs still active after resume: "
+                f"{evidence['orphan_check']['runs']}"
+            )
     finally:
         try:
             _cleanup_sentinels(profile, sentinels)
@@ -1836,12 +2147,16 @@ def resume(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="scripts/hpc/cluster_profile.toml")
+    parser.add_argument("--site", default=DEFAULT_SITE,
+                        help="site evidence directory name under "
+                             "evidence/hpc-dispatcher/qualification/ "
+                             "(receipt + per-run evidence land here)")
     parser.add_argument("--runtime-lock",
                         default="033-matclaw-cips-domain-wall-search/reference/"
                                 "compute-runtime.lock.json")
     parser.add_argument("--phase",
-                        choices=("preflight", "canary", "cp2k", "ai2kit",
-                                 "verify", "resume"),
+                        choices=("preflight", "canary", "cancel", "cp2k",
+                                 "ai2kit", "verify", "resume"),
                         required=True)
     parser.add_argument("--verify", metavar="RECEIPT_JSON")
     parser.add_argument("--stamp", default=None,
@@ -1863,9 +2178,10 @@ def main() -> int:
                              "--phase ai2kit): runtime.{sif_path_remote,"
                              "sif_sha256} + software.ai2_kit")
     parser.add_argument("--authorized", action="store_true",
-                        help="explicit user authorization for --phase cp2k "
-                             "and --phase ai2kit (separate scopes from the "
-                             "2026-08-22 echo canary)")
+                        help="explicit user authorization for --phase cancel, "
+                             "--phase cp2k and --phase ai2kit (each is its "
+                             "own scope, separate from the 2026-08-22 echo "
+                             "canary)")
     args = parser.parse_args()
 
     profile_path = ROOT / args.profile
@@ -1873,6 +2189,20 @@ def main() -> int:
     if args.verify:
         result = verify(Path(args.verify), profile_path=profile_path)
         return 0 if result["consistent"] else 1
+
+    set_site(args.site)
+
+    if args.phase == "cancel":
+        if not args.authorized:
+            parser.error(
+                "--phase cancel requires --authorized: the cancel probe "
+                "submits a 15-minute RUNNING sleep on the cpu route before "
+                "tearing it down — its own authorization scope"
+            )
+        profile = _load_profile(profile_path)
+        lock = json.loads((ROOT / args.runtime_lock).read_text(encoding="utf-8"))
+        ok = cancel_phase(profile, lock, profile_path=profile_path)
+        return 0 if ok else 1
 
     if args.phase == "cp2k":
         if not args.cp2k_lock:
@@ -1936,6 +2266,15 @@ def main() -> int:
             f"formal_qualified={derived['formal_qualified']}"
         )
         return 0 if result["consistent"] else 1
+
+    if args.phase == "canary" and RECEIPT_PATH.is_file():
+        # Stale-evidence rule: old qualification evidence is archived, never
+        # overwritten in place.  A fresh attempt needs a fresh site dir.
+        raise QualifyError(
+            f"refusing to overwrite sealed receipt {RECEIPT_PATH}: archive "
+            "the site directory (or choose a new --site) before re-running "
+            "the canary"
+        )
 
     CANARY_ROOT.mkdir(parents=True, exist_ok=True)
     evidence = canary(profile, lock)

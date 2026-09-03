@@ -34,7 +34,8 @@ PER-JOB — :func:`_derive_job` returns its own gate buckets, so a broken cpu
 canary never fails ``dispatcher.gpu`` (and vice versa); the shared anchors
 (schema, content digest, code identity, SiteProfile rebuild) are an explicit
 overlay applied equally to every capability; ``runtime.cp2k`` /
-``runtime.ai2kit`` derive from their own optional evidence blocks.
+``runtime.ai2kit`` / ``dispatcher.cancel`` derive from their own optional
+evidence blocks.
 Aggregate: INVALID if any capability FAILs (or the overlay is broken);
 PARTIAL if a runtime canary is NOT_RUN — the legacy meaning is restored, so
 an old consumer never misreads "CP2K not run" as full PASS; PASS only when
@@ -83,11 +84,13 @@ DEFAULT_PROFILE_RELPATH = "scripts/hpc/cluster_profile.toml"
 
 # Capability namespace (spec §3): every name the verifier derives.
 # dispatcher.cpu / dispatcher.gpu / runtime.matclaw-gpu ride the two canary
-# jobs (cpu-class + gpu-class); runtime.cp2k / runtime.ai2kit derive from
-# their own optional evidence blocks — absent evidence is NOT_RUN.
+# jobs (cpu-class + gpu-class); dispatcher.cancel rides the explicit cancel
+# probe (P4 step 7, merged by --phase cancel); runtime.cp2k / runtime.ai2kit
+# derive from their own optional evidence blocks — absent evidence is NOT_RUN.
 CAPABILITY_NAMESPACE: tuple[str, ...] = (
     "dispatcher.cpu",
     "dispatcher.gpu",
+    "dispatcher.cancel",
     "runtime.matclaw-gpu",
     "runtime.ai2kit",
     "runtime.cp2k",
@@ -542,6 +545,31 @@ def verify_receipt(
             f"{sorted(c for c in classes_seen if c)}"
         )
 
+    # P4 pass condition "no orphan job" at the envelope level: the canary
+    # phase must record a settled scheduler sweep over its own run
+    # directories (an orphaned allocation fails BOTH dispatcher routes).
+    # The cancel probe carries its own sweep inside cancel_gate and derives
+    # dispatcher.cancel independently.
+    orphan = evidence.get("orphan_check")
+    if not isinstance(orphan, dict) or not orphan.get("method"):
+        canary_gates.setdefault("orphan_check", []).append(
+            "evidence.orphan_check missing: the canary phase must record a "
+            "terminal squeue/WorkDir sweep over its qualification runs "
+            "(P4 pass condition 'no orphan job')"
+        )
+    else:
+        runs_map = orphan.get("runs") or {}
+        dirty = {rid: jid for rid, jid in runs_map.items() if jid is not None}
+        if dirty:
+            canary_gates.setdefault("orphan_check", []).append(
+                f"orphan sweep found active jobs after collection: {dirty}"
+            )
+        elif orphan.get("active_total") != 0:
+            canary_gates.setdefault("orphan_check", []).append(
+                "orphan_check is internally inconsistent: no run is active "
+                f"but active_total={orphan.get('active_total')!r}"
+            )
+
     # -- layer 4: optional runtime evidence gates -----------------------------
     # Derived from their own bound evidence blocks, never declared.  A missing
     # block is NOT_RUN; present evidence derives PASS/FAIL.
@@ -563,6 +591,16 @@ def verify_receipt(
             ai2kit_block, root=root, receipt_dir=receipt_dir,
         )
 
+    cancel_block = evidence.get("cancel_gate") or {}
+    if cancel_block.get("evidence") is None:
+        cancel_result = "NOT_RUN"
+        cancel_gates: dict[str, list[str]] = {}
+    else:
+        cancel_result, cancel_gates = _derive_cancel(
+            cancel_block, root=root, receipt_dir=receipt_dir,
+            expected_sif_sha=lock_block.get("sif_sha256") or "",
+        )
+
     # -- assemble the public problem ledger -----------------------------------
     # Union of the overlay + canary + per-job + runtime buckets.  Bucket names
     # and message shapes are unchanged from the pre-matrix ledger; which
@@ -575,7 +613,7 @@ def verify_receipt(
     for _job, own in job_buckets:
         for name, msgs in own.items():
             gates.setdefault(name, []).extend(msgs)
-    for runtime_gates in (cp2k_gates, ai2kit_gates):
+    for runtime_gates in (cp2k_gates, ai2kit_gates, cancel_gates):
         for name, msgs in runtime_gates.items():
             gates.setdefault(name, []).extend(msgs)
 
@@ -586,6 +624,9 @@ def verify_receipt(
     gate_results["cp2k_gate"] = "FAIL" if gates.get("cp2k_gate") else cp2k_result
     gate_results["ai2kit_gate"] = (
         "FAIL" if gates.get("ai2kit_gate") else ai2kit_result
+    )
+    gate_results["cancel_gate"] = (
+        "FAIL" if gates.get("cancel_gate") else cancel_result
     )
 
     # -- capability projection (spec §4) --------------------------------------
@@ -617,6 +658,10 @@ def verify_receipt(
         ),
         "runtime.ai2kit": ai2kit_result if not overlay_broken else "FAIL",
         "runtime.cp2k": cp2k_result if not overlay_broken else "FAIL",
+        # The cancel probe is an INDEPENDENT cell: it cannot rescue a broken
+        # canary, and a missing probe never downgrades the canary routes —
+        # it only keeps the aggregate from claiming full PASS.
+        "dispatcher.cancel": cancel_result if not overlay_broken else "FAIL",
     }
 
     # -- aggregate (§5a) -------------------------------------------------------
@@ -904,6 +949,223 @@ def _derive_ai2kit(
         broken = True
 
     return ("FAIL" if broken else "PASS"), gates
+
+
+def _derive_cancel(
+    block: dict[str, Any],
+    *,
+    root: Path,
+    receipt_dir: Path,
+    expected_sif_sha: str,
+) -> tuple[str, dict[str, list[str]]]:
+    """Derive the explicit cancel probe (P4 step 7). Returns (PASS|FAIL, gates).
+
+    Mirror of ``_derive_ai2kit`` for a fundamentally DIFFERENT job shape: a
+    SUCCEEDED canary proves the forward path; this record proves the teardown
+    path — a RUNNING containerized job reaches terminal CANCELLED through
+    ``dispatcher.cancel`` and leaves no orphan.  So it cannot ride
+    :func:`_derive_job` (which demands SUCCEEDED, exit 0 and containment
+    probe lines that a killed sleep does not have).  The anchors: the digest
+    suffix binding the pinned SIF, scheduler accounting normalized to
+    CANCELLED with an AllocTRES that proves the job WAS allocated (a
+    pending-state cancel would prove strictly less and is refused), the
+    cancel_ops triple re-checked independently of the schema, the settlement
+    ledger recording exactly this attempt as CANCELLED with a recomputed
+    report digest, the hash-chained audit ledger replayed for the
+    submit/settle lineage PLUS the gateway's own ``cancel`` event, the
+    re-hashed fetched artifacts, and the post-cancel orphan sweep.  Absent
+    evidence is NOT_RUN, handled by the caller.
+    """
+    from scripts.ablation.transport.slurm_transport import normalize_state
+    from dftworld_bench.hpc.tres import parse_tres
+
+    ev = block.get("evidence") or {}
+    gates: dict[str, list[str]] = {}
+
+    def problem(gate: str, message: str) -> None:
+        gates.setdefault(gate, []).append(f"cancel-probe: {message}")
+
+    job = ev.get("job") or {}
+    label_run = job.get("run_id", "?")
+
+    def fact(message: str) -> None:
+        problem("cancel_probe_facts", message)
+
+    # Runtime binding: the probe ran the SAME pinned SIF as the canaries.
+    decl = job.get("runtime_decl", "")
+    if expected_sif_sha and not decl.endswith(f"@sha256:{expected_sif_sha}"):
+        problem(
+            "provenance",
+            f"runtime_decl {decl!r} does not bind the frozen SIF "
+            f"@sha256:{expected_sif_sha}",
+        )
+
+    # Terminal state triangulation: record, raw accounting, and cancel_ops.
+    if job.get("state") != "CANCELLED":
+        fact(f"state={job.get('state')!r}, probe did not end CANCELLED")
+    if job.get("cancel_proved") is not True:
+        fact(f"cancel_proved={job.get('cancel_proved')!r}")
+    accounting = job.get("accounting") or {}
+    raw_state = accounting.get("raw_state", "")
+    normalized = normalize_state(raw_state)
+    if normalized is None or normalized.name != "CANCELLED":
+        fact(
+            f"accounting.raw_state={raw_state!r} is not scheduler-CANCELLED; "
+            "the teardown claim is unanchored"
+        )
+    for field in ("source", "partition", "node_list"):
+        if not accounting.get(field):
+            fact(f"accounting.{field} is missing")
+    exit_raw = str(accounting.get("exit_code_raw", ""))
+    exit_code = job.get("exit_code")
+    try:
+        # Signal-killed exits are site-dependent (schema demands no const),
+        # but the recorded code must equal the raw prefix recomputed here.
+        if not exit_raw or int(exit_raw.split(":")[0]) != int(exit_code):
+            fact(
+                f"exit_code={exit_code!r} inconsistent with "
+                f"accounting.exit_code_raw={exit_raw!r}"
+            )
+    except (TypeError, ValueError):
+        fact(f"exit_code={exit_code!r} / exit_code_raw={exit_raw!r} unparseable")
+
+    # CPU-only teardown, and it must be an ALLOCATED teardown: AllocTRES
+    # proving cpu is what distinguishes "cancelled a RUNNING job" from
+    # "cancelled a queued job".
+    requested = job.get("requested_resources") or {}
+    if requested.get("gpus") != 0 or job.get("gpus_requested") != 0:
+        fact("cancel probe must be gpu-free")
+    req_parsed = parse_tres(accounting.get("req_tres", ""))
+    alloc_parsed = parse_tres(accounting.get("alloc_tres", ""))
+    if req_parsed.count or alloc_parsed.count:
+        fact("cancel probe carries GPU TRES")
+    if not requested.get("cpus") or not requested.get("memory_gb"):
+        fact("requested_resources.cpus / memory_gb must be explicit")
+    alloc_cpu = _tres_fields(accounting.get("alloc_tres", "")).get("cpu", "")
+    try:
+        allocated = int(alloc_cpu) > 0
+    except ValueError:
+        allocated = False
+    if not allocated:
+        fact(
+            f"AllocTRES cpu={alloc_cpu!r}: no allocation recorded, so the "
+            "job cannot be shown to have reached RUNNING — a pending-state "
+            "cancel proves strictly less and is refused"
+        )
+
+    # Cancel operation re-checked independently of the schema consts.
+    ops = job.get("cancel_ops") or {}
+    if ops.get("cancelled_via") != "dispatcher.cancel":
+        fact(
+            f"cancelled_via={ops.get('cancelled_via')!r} "
+            "(must go through the dispatcher)"
+        )
+    if ops.get("state_at_cancel") != "RUNNING":
+        fact(
+            f"state_at_cancel={ops.get('state_at_cancel')!r} "
+            "(probe must cancel a RUNNING job)"
+        )
+    if ops.get("status_after_cancel") != "CANCELLED":
+        fact(
+            f"status_after_cancel={ops.get('status_after_cancel')!r} != "
+            "CANCELLED: scheduler never acknowledged the teardown"
+        )
+    usage_op = ops.get("usage_op")
+    if not isinstance(usage_op, dict) or not usage_op:
+        fact("cancel_ops.usage_op missing: post-cancel usage was not probed")
+
+    # Settlement: exact single-attempt lineage, attempt state CANCELLED.
+    settlement = job.get("settlement") or {}
+    report = settlement.get("report") or {}
+    if settlement.get("digest") != compute_settlement_digest(report):
+        problem("settlement_integrity", "settlement digest does not match report")
+    if report.get("run_id") != job.get("run_id"):
+        problem(
+            "settlement_integrity",
+            f"settlement.run_id={report.get('run_id')!r} != job.run_id",
+        )
+    attempts = report.get("attempts") or []
+    expected_attempt = {
+        "operation_id": job.get("operation_id"),
+        "attempt": job.get("attempt"),
+        "job_id": job.get("job_id"),
+        "state": "CANCELLED",
+    }
+    if attempts != [expected_attempt]:
+        problem(
+            "settlement_integrity",
+            f"settlement attempts != [{expected_attempt}] (got {attempts})",
+        )
+    if report.get("cancelled_jobs"):
+        # The probe job was already terminal at settle time; anything in
+        # cancelled_jobs means settle itself killed a stray — an orphan.
+        problem(
+            "settlement_integrity",
+            f"settle had to cancel strays: {report.get('cancelled_jobs')}",
+        )
+
+    # Audit ledger: replay the chain + bind submit/settle lineage, then
+    # require the gateway's OWN cancel event (the raw-scancel forgery gap).
+    audit_rel = job.get("audit_log", "")
+    audit_path = receipt_dir / audit_rel
+    prefixer = lambda gate_, msg_: problem(gate_, f"cancel-probe: {msg_}")  # noqa: E731
+    entries = _load_audit(audit_path, prefixer)
+    if entries is not None:
+        _check_audit(entries, job, prefixer)
+        cancels = [
+            e for e in entries
+            if (e.get("event") or {}).get("kind") == "cancel"
+            and (e.get("event") or {}).get("run_id") == job.get("run_id")
+            and (e.get("event") or {}).get("job_id") == job.get("job_id")
+        ]
+        if len(cancels) < 1:
+            problem(
+                "audit_ledger",
+                f"no gateway cancel event for {label_run} / "
+                f"{job.get('job_id')!r}; a cancel that never passed the "
+                "gateway's token+ownership checks is not dispatcher proof",
+            )
+
+    # Fetch manifest: re-hash the fetched bytes on disk.
+    manifest = job.get("fetch_manifest") or {}
+    artifacts_dir = receipt_dir / job.get("artifacts_dir", "")
+    for entry in manifest.get("entries") or []:
+        path = artifacts_dir / entry.get("path", "")
+        if not path.is_file():
+            problem("artifact_manifest", f"artifact missing: {path}")
+            continue
+        data = path.read_bytes()
+        if len(data) != entry.get("size_bytes"):
+            problem(
+                "artifact_manifest",
+                f"artifact size drift: {entry.get('path')} "
+                f"(manifest={entry.get('size_bytes')} disk={len(data)})",
+            )
+        have = hashlib.sha256(data).hexdigest()
+        if have != entry.get("sha256"):
+            problem(
+                "artifact_manifest",
+                f"artifact digest drift: {entry.get('path')} "
+                f"(manifest={entry.get('sha256')} disk={have})",
+            )
+
+    # Post-cancel orphan sweep, recomputed from its own runs map.
+    orphan = ev.get("orphan_check") or {}
+    if not orphan.get("method"):
+        fact("orphan_check records no sweep method")
+    runs_map = orphan.get("runs") or {}
+    if job.get("run_id") not in runs_map:
+        fact(f"orphan_check does not cover the probe run {job.get('run_id')!r}")
+    dirty = {rid: jid for rid, jid in runs_map.items() if jid is not None}
+    if dirty:
+        fact(f"orphan sweep found active jobs after the cancel: {dirty}")
+    elif orphan.get("active_total") != 0:
+        fact(
+            f"orphan_check inconsistent: no run active but "
+            f"active_total={orphan.get('active_total')!r}"
+        )
+
+    return ("FAIL" if any(gates.values()) else "PASS"), gates
 
 
 def _tres_fields(raw: str) -> dict[str, str]:

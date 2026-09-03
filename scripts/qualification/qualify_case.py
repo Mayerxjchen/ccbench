@@ -2,8 +2,9 @@
 """``bench hpc qualify`` — thin operator wrapper around the trusted driver.
 
 Runs exactly the qualification phases a named case needs, in the fixed
-order canary (creates/seals the site receipt) then runtime gates
-(merge into it), and never reruns a capability that already derives PASS.
+order canary (creates/seals the site receipt) then the separately
+authorized submit phases — cancel probe / runtime gates (each merges into
+the receipt) — and never reruns a capability that already derives PASS.
 
     python scripts/qualification/qualify_case.py \
         --case 034-ai2kit-water64-end-to-end-potential \
@@ -23,8 +24,9 @@ settlement / evidence-merging step stays in
     the site evidence dir so an interrupted canary can be recovered via
     ``--phase resume`` on the driver.
 
-Runtime gates (ai2kit / cp2k) need explicit ``--authorized``, exactly like
-the underlying driver phases — this wrapper never authorizes silently.
+Runtime gates (ai2kit / cp2k) and the explicit cancel probe (P4 step 7,
+--phase cancel) need explicit ``--authorized``, exactly like the
+underlying driver phases — this wrapper never authorizes silently.
 """
 
 from __future__ import annotations
@@ -48,6 +50,7 @@ CANARY_CAPABILITIES = ("dispatcher.cpu", "dispatcher.gpu", "runtime.matclaw-gpu"
 CAPABILITY_PHASE = {
     "dispatcher.cpu": "canary",
     "dispatcher.gpu": "canary",
+    "dispatcher.cancel": "cancel",
     "runtime.matclaw-gpu": "canary",
     "runtime.ai2kit": "ai2kit",
     "runtime.cp2k": "cp2k",
@@ -59,7 +62,9 @@ DEFAULT_RUNTIME_LOCK = (
 DEFAULT_AI2KIT_LOCK = "reference/runtime/ai2kit-runtime.lock.json"
 DEFAULT_CP2K_LOCK = "reference/runtime/cp2k-runtime.lock.json"
 
-_SITE_NAME_RE = re.compile(r"^[a-zA-Z0-9._-]+$")
+# First character must be alphanumeric: '.' and '..' are path components,
+# not site names (same hardening as the driver — both entry points reject).
+_SITE_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
 
 
 class QualifyPlanError(RuntimeError):
@@ -174,6 +179,7 @@ def driver_argv(
     phase: str,
     *,
     profile_path: Path,
+    site_name: str,
     runtime_lock: str,
     ai2kit_lock: str,
     cp2k_lock: str,
@@ -185,6 +191,10 @@ def driver_argv(
     argv = [
         sys.executable, str(DRIVER),
         "--profile", str(profile_path),
+        # The driver's evidence dir must be the SAME site dir this wrapper
+        # reads receipts from — without --site the driver would default to
+        # site-v1 while we derive from <site>.
+        "--site", site_name,
         "--phase", phase,
         "--runtime-lock", str(ROOT / runtime_lock),
     ]
@@ -192,11 +202,11 @@ def driver_argv(
         argv += ["--ai2kit-lock", str(ROOT / ai2kit_lock)]
     if phase == "cp2k":
         argv += ["--cp2k-lock", str(ROOT / cp2k_lock)]
-    if phase in ("ai2kit", "cp2k"):
+    if phase in ("ai2kit", "cp2k", "cancel"):
         if not authorized:
             raise QualifyPlanError(
                 f"phase {phase!r} needs explicit --authorized "
-                f"(no such runtime canary scope is on file)"
+                f"(no such submission scope is on file)"
             )
         argv.append("--authorized")
     if phase == "resume":
@@ -282,8 +292,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ai2kit-lock", default=DEFAULT_AI2KIT_LOCK)
     parser.add_argument("--cp2k-lock", default=DEFAULT_CP2K_LOCK)
     parser.add_argument("--authorized", action="store_true",
-                        help="explicitly authorize runtime canaries "
-                             "(needed when the plan includes ai2kit/cp2k)")
+                        help="explicitly authorize separately-scoped submit "
+                             "phases (needed when the plan includes "
+                             "ai2kit/cp2k/cancel)")
     parser.add_argument("--resume", action="store_true",
                         help="first recover an interrupted canary via the "
                              "driver's --phase resume (never resubmits)")
@@ -324,6 +335,7 @@ def main(argv: list[str] | None = None) -> int:
         argv_resume = driver_argv(
             "resume",
             profile_path=profile_path,
+            site_name=args.site,
             runtime_lock=args.runtime_lock,
             ai2kit_lock=args.ai2kit_lock,
             cp2k_lock=args.cp2k_lock,
@@ -364,10 +376,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[qualify] all {len(requires)} required capabilities already PASS")
         return 0
 
-    if any(p in ("ai2kit", "cp2k") for p in plan) and not args.authorized:
+    if any(p in ("ai2kit", "cp2k", "cancel") for p in plan) and not args.authorized:
         print(
-            "[qualify] the plan includes a runtime canary "
-            f"({sorted(set(plan) & {'ai2kit', 'cp2k'})}); rerun with "
+            "[qualify] the plan includes a separately-authorized submit phase "
+            f"({sorted(set(plan) & {'ai2kit', 'cp2k', 'cancel'})}); rerun with "
             "--authorized to authorize it explicitly",
             file=sys.stderr,
         )
@@ -378,6 +390,7 @@ def main(argv: list[str] | None = None) -> int:
         argv_phase = driver_argv(
             phase,
             profile_path=profile_path,
+            site_name=args.site,
             runtime_lock=args.runtime_lock,
             ai2kit_lock=args.ai2kit_lock,
             cp2k_lock=args.cp2k_lock,

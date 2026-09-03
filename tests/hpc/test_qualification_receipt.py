@@ -317,6 +317,15 @@ def _build_golden(base: Path) -> dict:
             "gpu": _resolved_dict(site.resolve_workload("gpu")),
         },
         "native_cpu_partition_accessible": True,
+        "orphan_check": {
+            "method": "squeue -u $USER + scontrol WorkDir match per "
+                      "qualification run",
+            "runs": {
+                "run-cpu-echo-probe-containment-fixt": None,
+                "run-gpu-nvidia-probe-containment-fixt": None,
+            },
+            "active_total": 0,
+        },
         "sentinel_cleanup": {
             "removed": [
                 "/home/<site-user>/.bench-sentinel-fixture",
@@ -594,12 +603,14 @@ class TestCp2kDerivation:
         assert derived["capabilities"] == {
             "dispatcher.cpu": "PASS",
             "dispatcher.gpu": "PASS",
+            "dispatcher.cancel": "NOT_RUN",
             "runtime.matclaw-gpu": "PASS",
             "runtime.ai2kit": "NOT_RUN",
             "runtime.cp2k": "PASS",
         }
         assert derived["gates"]["cp2k_gate"] == "PASS"
         assert derived["gates"]["ai2kit_gate"] == "NOT_RUN"
+        assert derived["gates"]["cancel_gate"] == "NOT_RUN"
 
     def test_release_builder_aggregate_path_blocked_while_ai2kit_not_run(
         self, full: Path
@@ -894,6 +905,136 @@ def _add_ai2kit(golden_root: Path) -> None:
     )
 
 
+# -- cancel-probe fixture (P4 step 7) ------------------------------------------
+
+CANCEL_SACCT_ID = "3537005"
+
+
+def _accounting_cancelled(sacct_id: str, *, raw: str = "CANCELLED by 1000",
+                          exit_raw: str = "0:0") -> dict:
+    """A cancelled RUNNING job's sacct view: CANCELLED raw state, cpu/mem
+    allocation present (that is what proves it was ALLOCATED), no GPU."""
+    return {
+        "raw_state": raw,
+        "exit_code_raw": exit_raw,
+        "partition": "cpu",
+        "node_list": "cpu001",
+        "req_tres": "cpu=8,mem=64G",
+        "alloc_tres": "cpu=8,mem=64G",
+        "source": f"sacct -X -P -n --format=JobID,State,ExitCode,ReqTRES,"
+                  f"AllocTRES -j {sacct_id}",
+    }
+
+
+def _run_real_cancel_probe(base: Path, *, via_gateway: bool = True) -> dict:
+    """Real ProcessTestAdapter session for the explicit cancel probe: submit
+    a sleep, confirm RUNNING, cancel — through the session (gateway token +
+    ownership + hash-chained ``cancel`` audit event) or, when
+    ``via_gateway=False``, straight on the adapter (the raw-scancel
+    forgery scenario).  Settlement and audit chain are genuine either way."""
+    run_id = "run-cancel-probe-fixt"
+    operation_id = "qual-cancel-probe-01"
+    disp = HpcDispatcher.process_test(base / "site-cancel")
+    ws = base / "ws-cancel"
+    ws.mkdir(parents=True, exist_ok=True)
+    session = disp.open_run(run_id, workspace=ws)
+    try:
+        spec = {
+            "schema_version": 1,
+            "idempotency_key": "qual-cancel-fixt",
+            "runtime": f"matclaw-cips@sha256:{SIF_SHA}",
+            "command": ["bash", "-c", "sleep 3600"],
+            "resources": {
+                "cpus": 8, "memory_gb": 64, "gpus": 0, "walltime_minutes": 15,
+            },
+            "inputs": [],
+            "outputs": [],
+        }
+        submitted = session.submit(spec, operation_id=operation_id, attempt=1)
+        job_id = submitted["job_id"]
+        assert session.status(job_id)["state"] == "RUNNING"
+        if via_gateway:
+            cancelled = session.cancel(job_id)
+            assert cancelled["state"] == "CANCELLED", cancelled
+        else:
+            session.gateway._adapter.cancel(job_id)
+        assert session.status(job_id)["state"] == "CANCELLED"
+        usage_op = session.usage()
+        report = session.settle(cancel_pending=True)
+        work = session.gateway._adapter._jobs[job_id]["work"]
+        target = base / "artifacts-cancel"
+        target.mkdir(exist_ok=True)
+        for name in ("stdout.log", "stderr.log"):
+            shutil.copy2(work / name, target / name)
+    finally:
+        session.close()
+    return {
+        "run_id": run_id,
+        "operation_id": operation_id,
+        "job_id": job_id,
+        "usage": usage_op,
+        "report": report.to_dict(),
+        "digest": report.digest,
+    }
+
+
+def _add_cancel(golden_root: Path, *, via_gateway: bool = True) -> None:
+    """Merge well-formed cancel-probe evidence into the golden receipt on
+    disk (own dispatcher session, own artifacts/audit ledger, own post-cancel
+    orphan sweep), then re-seal — mirroring the driver's --phase cancel."""
+    real = _run_real_cancel_probe(golden_root, via_gateway=via_gateway)
+    job = {
+        "canary": "cancel-probe",
+        "run_id": real["run_id"],
+        "operation_id": real["operation_id"],
+        "attempt": 1,
+        "job_id": real["job_id"],
+        "scheduler_job_id": CANCEL_SACCT_ID,
+        "runtime_decl": f"matclaw-cips@sha256:{SIF_SHA}",
+        "state": "CANCELLED",
+        "exit_code": 0,
+        "gpus_requested": 0,
+        "requested_resources": {
+            "cpus": 8, "memory_gb": 64, "gpus": 0, "walltime_minutes": 15,
+        },
+        "probe_class": "cpu",
+        "cancel_proved": True,
+        "cancel_ops": {
+            "cancelled_via": "dispatcher.cancel",
+            "state_at_cancel": "RUNNING",
+            "status_after_cancel": "CANCELLED",
+            "usage_op": dict(real["usage"]),
+        },
+        "accounting": _accounting_cancelled(CANCEL_SACCT_ID),
+        "stdout_tail": "",
+        "stderr_tail": "",
+        "settlement": {"report": real["report"], "digest": real["digest"]},
+        "fetch_manifest": {
+            "job_id": real["job_id"],
+            "entries": _manifest_entries(golden_root / "artifacts-cancel"),
+        },
+        "artifacts_dir": "../../../../artifacts-cancel",
+        "audit_log": "../../../../site-cancel/audit.jsonl",
+    }
+    receipt = _load(golden_root)
+    receipt["evidence"]["cancel_gate"] = {
+        "detail": "explicit cancel probe under separate authorization",
+        "evidence": {
+            "job": job,
+            "orphan_check": {
+                "method": "squeue -u $USER + scontrol WorkDir match per "
+                          "qualification run",
+                "runs": {real["run_id"]: None},
+                "active_total": 0,
+            },
+        },
+    }
+    receipt_dir = golden_root / RECEIT_DIRNAME
+    (receipt_dir / "receipt.json").write_text(
+        json.dumps(_reseal(receipt), indent=2) + "\n", encoding="utf-8"
+    )
+
+
 class TestAi2kitDerivation:
     """runtime.ai2kit (spec §3/§6): absent evidence is NOT_RUN; present
     evidence derives PASS/FAIL from the ai2kit runtime lock + full job-record
@@ -920,6 +1061,7 @@ class TestAi2kitDerivation:
         assert derived["capabilities"] == {
             "dispatcher.cpu": "PASS",
             "dispatcher.gpu": "PASS",
+            "dispatcher.cancel": "NOT_RUN",
             "runtime.matclaw-gpu": "PASS",
             "runtime.ai2kit": "PASS",
             "runtime.cp2k": "NOT_RUN",
@@ -928,9 +1070,11 @@ class TestAi2kitDerivation:
         assert derived["gates"]["cp2k_gate"] == "NOT_RUN"
 
     def test_cp2k_and_ai2kit_evidence_derive_full_pass(self, full: Path) -> None:
-        """Every capability PASS ⇒ the aggregate is PASS again and the no-case
-        operator release path opens — the legacy full-qualification meaning."""
+        """Every capability PASS — including the cancel probe's teardown half
+        (P4 step 7) — ⇒ the aggregate is PASS again and the no-case operator
+        release path opens; a missing cancel probe keeps it PARTIAL."""
         _add_ai2kit(full)
+        _add_cancel(full)
         result = _verify(full, _load(full))
         assert _problems(result) == [], _problems(result)
         derived = result["derived"]
@@ -939,6 +1083,7 @@ class TestAi2kitDerivation:
         assert derived["capabilities"] == {
             "dispatcher.cpu": "PASS",
             "dispatcher.gpu": "PASS",
+            "dispatcher.cancel": "PASS",
             "runtime.matclaw-gpu": "PASS",
             "runtime.ai2kit": "PASS",
             "runtime.cp2k": "PASS",
@@ -982,6 +1127,139 @@ class TestAi2kitDerivation:
         assert derived["capabilities"]["runtime.cp2k"] == "PASS"
 
 
+class TestCancelDerivation:
+    """dispatcher.cancel (P4 step 7): absent evidence is NOT_RUN; present
+    evidence derives PASS/FAIL from a genuine cancel-probe chain (gateway
+    cancel event, CANCELLED settlement, allocated-then-killed accounting,
+    post-cancel orphan sweep).  The cell is INDEPENDENT — its failure never
+    touches the canary routes, and its absence never downgrades them."""
+
+    def test_absent_cancel_evidence_is_not_run(self, golden: Path) -> None:
+        result = _verify(golden, _load(golden))
+        assert _problems(result) == [], _problems(result)
+        derived = result["derived"]
+        assert derived["capabilities"]["dispatcher.cancel"] == "NOT_RUN"
+        assert derived["capabilities"]["dispatcher.cpu"] == "PASS"
+        assert derived["gates"]["cancel_gate"] == "NOT_RUN"
+        assert derived["qualification_status"] == "PARTIAL"
+
+    def test_real_gateway_cancel_probe_derives_pass(self, golden: Path) -> None:
+        _add_cancel(golden)
+        result = _verify(golden, _load(golden))
+        assert _problems(result) == [], _problems(result)
+        derived = result["derived"]
+        assert derived["capabilities"]["dispatcher.cancel"] == "PASS"
+        assert derived["capabilities"]["dispatcher.cpu"] == "PASS"
+        assert derived["gates"]["cancel_gate"] == "PASS"
+
+    def test_raw_scancel_without_gateway_event_fails(self, golden: Path) -> None:
+        """The forgery gap this cell exists to close: a job killed straight
+        on the adapter leaves an honest-looking CANCELLED record and
+        settlement — but NO gateway ``cancel`` audit event, so it was never
+        token/ownership-checked and cannot pass."""
+        _add_cancel(golden, via_gateway=False)
+        result = _verify(golden, _load(golden))
+        derived = result["derived"]
+        assert derived["capabilities"]["dispatcher.cancel"] == "FAIL"
+        assert derived["capabilities"]["dispatcher.cpu"] == "PASS"
+        assert derived["capabilities"]["dispatcher.gpu"] == "PASS"
+        assert derived["qualification_status"] == "INVALID"
+        assert any("no gateway cancel event" in p for p in _problems(result))
+
+    def test_pending_state_cancel_refused(self, golden: Path) -> None:
+        """No AllocTRES cpu: the job was never shown to run, and a
+        pending-state cancel proves strictly less — refused."""
+        _add_cancel(golden)
+        receipt = copy.deepcopy(_load(golden))
+        job = receipt["evidence"]["cancel_gate"]["evidence"]["job"]
+        job["accounting"]["alloc_tres"] = "mem=64G"  # valid shape, no cpu term
+        result = _verify(golden, _reseal(receipt))
+        derived = result["derived"]
+        assert derived["capabilities"]["dispatcher.cancel"] == "FAIL"
+        assert derived["capabilities"]["dispatcher.cpu"] == "PASS"
+        assert any("reached RUNNING" in p for p in _problems(result))
+
+    def test_raw_state_lie_fails(self, golden: Path) -> None:
+        """Record claims CANCELLED, scheduler says COMPLETED: the teardown
+        is unanchored and the cell FAILs on the accounting re-check."""
+        _add_cancel(golden)
+        receipt = copy.deepcopy(_load(golden))
+        job = receipt["evidence"]["cancel_gate"]["evidence"]["job"]
+        job["accounting"]["raw_state"] = "COMPLETED"
+        result = _verify(golden, _reseal(receipt))
+        derived = result["derived"]
+        assert derived["capabilities"]["dispatcher.cancel"] == "FAIL"
+        assert any("not scheduler-CANCELLED" in p for p in _problems(result))
+
+    def test_settle_time_stray_detected(self, golden: Path) -> None:
+        """Non-empty cancelled_jobs means settle itself had to kill an
+        orphan — exactly what the probe's no-orphan condition forbids.
+        Digest recomputed so only the content check can catch it."""
+        _add_cancel(golden)
+        receipt = copy.deepcopy(_load(golden))
+        settlement = receipt["evidence"]["cancel_gate"]["evidence"]["job"]["settlement"]
+        settlement["report"]["cancelled_jobs"] = ["job-0009"]
+        settlement["digest"] = qr.compute_settlement_digest(settlement["report"])
+        result = _verify(golden, _reseal(receipt))
+        derived = result["derived"]
+        assert derived["capabilities"]["dispatcher.cancel"] == "FAIL"
+        assert any("settle had to cancel strays" in p for p in _problems(result))
+
+    def test_orphan_after_cancel_fails(self, golden: Path) -> None:
+        _add_cancel(golden)
+        receipt = copy.deepcopy(_load(golden))
+        oc = receipt["evidence"]["cancel_gate"]["evidence"]["orphan_check"]
+        oc["runs"]["run-cancel-probe-fixt"] = "999"
+        oc["active_total"] = 1
+        result = _verify(golden, _reseal(receipt))
+        derived = result["derived"]
+        assert derived["capabilities"]["dispatcher.cancel"] == "FAIL"
+        assert derived["capabilities"]["dispatcher.cpu"] == "PASS"
+        assert any("orphan sweep found active jobs" in p for p in _problems(result))
+
+    def test_runtime_decl_must_bind_pinned_sif(self, golden: Path) -> None:
+        _add_cancel(golden)
+        receipt = copy.deepcopy(_load(golden))
+        job = receipt["evidence"]["cancel_gate"]["evidence"]["job"]
+        job["runtime_decl"] = f"matclaw-cips@sha256:{'7' * 64}"
+        result = _verify(golden, _reseal(receipt))
+        derived = result["derived"]
+        assert derived["capabilities"]["dispatcher.cancel"] == "FAIL"
+        assert any("does not bind the frozen SIF" in p for p in _problems(result))
+
+
+class TestOrphanGate:
+    """P4 pass condition "no orphan job" at the envelope level: the canary
+    phase's own sweep is required, and a forged active_total is recomputed
+    out of existence."""
+
+    def test_missing_orphan_check_fails_both_dispatcher_routes(
+        self, golden: Path
+    ) -> None:
+        receipt = copy.deepcopy(_load(golden))
+        del receipt["evidence"]["orphan_check"]
+        result = _verify(golden, _reseal(receipt))
+        derived = result["derived"]
+        assert derived["capabilities"]["dispatcher.cpu"] == "FAIL"
+        assert derived["capabilities"]["dispatcher.gpu"] == "FAIL"
+        # canary-array gates never touch the runtime cells (spec §4):
+        assert derived["capabilities"]["runtime.matclaw-gpu"] == "PASS"
+        assert any("orphan_check missing" in p for p in _problems(result))
+
+    def test_forged_active_total_recomputed(self, golden: Path) -> None:
+        """runs says a job is active, active_total claims 0: the derived
+        count is recomputed from the map, and the lie fails closed."""
+        receipt = copy.deepcopy(_load(golden))
+        receipt["evidence"]["orphan_check"]["runs"][
+            "run-cpu-echo-probe-containment-fixt"
+        ] = "777"
+        result = _verify(golden, _reseal(receipt))
+        derived = result["derived"]
+        assert derived["capabilities"]["dispatcher.cpu"] == "FAIL"
+        assert any("found active jobs after collection" in p
+                   for p in _problems(result))
+
+
 def _load(golden_root: Path) -> dict:
     return json.loads(
         (golden_root / RECEIT_DIRNAME / "receipt.json").read_text(encoding="utf-8")
@@ -1016,10 +1294,11 @@ class TestGoldenDerives:
         self, golden: Path
     ) -> None:
         """The golden receipt runs only the two dispatcher canaries: the
-        runtime.cp2k AND runtime.ai2kit evidence blocks are absent, so both
-        derive NOT_RUN and the aggregate is PARTIAL — the legacy meaning is
-        restored (spec §5a), never a false full PASS.  The 5-key matrix
-        carries each NOT_RUN in its own cell."""
+        runtime.cp2k AND runtime.ai2kit evidence blocks are absent, and the
+        cancel probe has never run, so all three derive NOT_RUN and the
+        aggregate is PARTIAL — the legacy meaning is restored (spec §5a),
+        never a false full PASS.  The 6-key matrix carries each NOT_RUN in
+        its own cell."""
         result = _verify(golden, _load(golden))
         assert _problems(result) == [], _problems(result)
         derived = result["derived"]
@@ -1028,6 +1307,7 @@ class TestGoldenDerives:
         assert derived["capabilities"] == {
             "dispatcher.cpu": "PASS",
             "dispatcher.gpu": "PASS",
+            "dispatcher.cancel": "NOT_RUN",
             "runtime.matclaw-gpu": "PASS",
             "runtime.ai2kit": "NOT_RUN",
             "runtime.cp2k": "NOT_RUN",
@@ -1035,6 +1315,7 @@ class TestGoldenDerives:
         gates = derived["gates"]
         assert gates["cp2k_gate"] == "NOT_RUN"
         assert gates["ai2kit_gate"] == "NOT_RUN"
+        assert gates["cancel_gate"] == "NOT_RUN"
         assert gates.get("canary_coverage") == "PASS"
         assert result["digest_ok"] is True
 

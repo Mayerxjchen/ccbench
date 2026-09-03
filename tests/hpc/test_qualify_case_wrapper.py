@@ -19,8 +19,8 @@ import scripts.qualification.qualify_case as qc  # noqa: E402
 
 def _caps() -> dict:
     return {name: "NOT_RUN" for name in (
-        "dispatcher.cpu", "dispatcher.gpu", "runtime.matclaw-gpu",
-        "runtime.ai2kit", "runtime.cp2k",
+        "dispatcher.cpu", "dispatcher.gpu", "dispatcher.cancel",
+        "runtime.matclaw-gpu", "runtime.ai2kit", "runtime.cp2k",
     )}
 
 
@@ -56,6 +56,11 @@ def test_site_root_validates_site_name():
     assert qc.site_root("site-v1").name == "site-v1"
     with pytest.raises(qc.QualifyPlanError):
         qc.site_root("../escape")
+    # '.' and '..' match the loose regex many sites once used; they are path
+    # components, not evidence dirs (same hardening as the driver, C5)
+    for bad in (".", "..", "-hidden", "a/b", ""):
+        with pytest.raises(qc.QualifyPlanError):
+            qc.site_root(bad)
 
 
 # -- planning ----------------------------------------------------------------
@@ -111,31 +116,56 @@ def test_plan_matclaw_case_needs_canary_only():
     assert qc.plan_phases(requires, _caps(), receipt_present=False) == ["canary"]
 
 
+def test_plan_dispatcher_cancel_is_a_merge_phase():
+    """dispatcher.cancel rides its own --phase cancel (P4 step 7).  It merges
+    into an existing receipt, so without one the plan establishes canary
+    first; with one, cancel alone is planned."""
+    assert qc.CAPABILITY_PHASE["dispatcher.cancel"] == "cancel"
+    assert qc.plan_phases(["dispatcher.cancel"], {},
+                          receipt_present=False) == ["canary", "cancel"]
+    assert qc.plan_phases(["dispatcher.cancel"], _caps(),
+                          receipt_present=True) == ["cancel"]
+    assert qc.plan_phases(
+        ["dispatcher.cancel"], _pass("dispatcher.cancel"), receipt_present=True
+    ) == []
+
+
 # -- driver argv construction -------------------------------------------------
 
 
 def test_driver_argv_canary_pins_runtime_lock():
-    argv = qc.driver_argv("canary", profile_path=Path("/p"),
+    argv = qc.driver_argv("canary", profile_path=Path("/p"), site_name="site-t",
                           runtime_lock="x.json", ai2kit_lock="a.json",
                           cp2k_lock="c.json", authorized=False)
     assert "--phase" in argv and argv[argv.index("--phase") + 1] == "canary"
     assert argv[argv.index("--runtime-lock") + 1].endswith("x.json")
+    # every phase must land in the SAME site evidence dir the wrapper reads
+    # from — the driver would otherwise default to site-v1 (C5 fix)
+    assert argv[argv.index("--site") + 1] == "site-t"
 
 
 def test_driver_argv_runtime_phases_require_explicit_authorization():
-    for phase in ("ai2kit", "cp2k"):
+    for phase in ("ai2kit", "cp2k", "cancel"):
         with pytest.raises(qc.QualifyPlanError, match="--authorized"):
-            qc.driver_argv(phase, profile_path=Path("/p"), runtime_lock="r",
-                           ai2kit_lock="a", cp2k_lock="c", authorized=False)
-        argv = qc.driver_argv(phase, profile_path=Path("/p"), runtime_lock="r",
-                              ai2kit_lock="a", cp2k_lock="c", authorized=True)
+            qc.driver_argv(phase, profile_path=Path("/p"), site_name="site-t",
+                           runtime_lock="r", ai2kit_lock="a", cp2k_lock="c",
+                           authorized=False)
+        argv = qc.driver_argv(phase, profile_path=Path("/p"), site_name="site-t",
+                              runtime_lock="r", ai2kit_lock="a", cp2k_lock="c",
+                              authorized=True)
         assert "--authorized" in argv
+        assert argv[argv.index("--phase") + 1] == phase
+    for phase in ("ai2kit", "cp2k"):
+        argv = qc.driver_argv(phase, profile_path=Path("/p"), site_name="site-t",
+                              runtime_lock="r", ai2kit_lock="a", cp2k_lock="c",
+                              authorized=True)
         assert "--ai2kit-lock" in argv or "--cp2k-lock" in argv
 
 
 def test_driver_argv_resume_carries_stamp_and_since():
-    argv = qc.driver_argv("resume", profile_path=Path("/p"), runtime_lock="r",
-                          ai2kit_lock="a", cp2k_lock="c", authorized=False,
+    argv = qc.driver_argv("resume", profile_path=Path("/p"), site_name="site-t",
+                          runtime_lock="r", ai2kit_lock="a", cp2k_lock="c",
+                          authorized=False,
                           stamp="abc1", gpu_job_id="3512345", since="2026-09-01")
     assert "--stamp" in argv and argv[argv.index("--stamp") + 1] == "abc1"
     assert argv[argv.index("--gpu-job-id") + 1] == "3512345"
