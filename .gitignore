@@ -24,4 +24,7 @@ H2O-RESTART.wfn*
 # private site paths). Stays intact locally — receipt verification depends on
 # the relative positions of artifacts/audit. Packaged as a standalone
 # qualification artifact with SHA-256 at release time, tied to the release tag.
+# site-v1/ is archived (stale pre-C5 code identity); site-v3/ is the live dir.
 /evidence/hpc-dispatcher/qualification/site-v1/
+/evidence/hpc-dispatcher/qualification/site-v1-archived-*/
+/evidence/hpc-dispatcher/qualification/site-v3/
