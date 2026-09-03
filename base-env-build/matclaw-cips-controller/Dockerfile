@@ -19,16 +19,11 @@ FROM dftworld-base-matclaw-cips:2.2.11-cpu
 # validator, and the fixed Slurm templates for every case (031/032/033).  They
 # sit side by side so the CLI can import them without the repo package tree.
 COPY scripts/ablation/transport/slurm_transport.py /opt/dftworld/controller/slurm_transport.py
-COPY scripts/matclaw_hpc_gateway.py /opt/dftworld/controller/matclaw_hpc_gateway.py
-COPY scripts/matclaw_hpc_controller.py /opt/dftworld/controller/matclaw_hpc_controller.py
 COPY scripts/cluster_profile.py /opt/dftworld/controller/cluster_profile.py
 COPY scripts/matclaw_runtime_lock.py /opt/dftworld/controller/matclaw_runtime_lock.py
 COPY scripts/hpc/031_matclaw_gpu.slurm /opt/dftworld/controller/hpc/031_matclaw_gpu.slurm
 COPY scripts/hpc/032_matclaw_gpu.slurm /opt/dftworld/controller/hpc/032_matclaw_gpu.slurm
 COPY scripts/hpc/033_matclaw_gpu.slurm /opt/dftworld/controller/hpc/033_matclaw_gpu.slurm
-
-RUN chmod +x /opt/dftworld/controller/matclaw_hpc_controller.py && \
-    ln -s /opt/dftworld/controller/matclaw_hpc_controller.py /usr/local/bin/matclaw-hpc-controller
 
 # bench-hpc CLI (Task 12): the trusted HTTP job client that replaces the
 # remote-shell transport.  The whole dftworld_bench package + schemas are

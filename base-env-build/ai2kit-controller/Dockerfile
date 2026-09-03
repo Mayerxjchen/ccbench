@@ -15,13 +15,8 @@ FROM dftworld-base-ai2kit:0.1.0-cpu
 # loader, fail-closed runtime-lock validator.  No private key, no SSH config /
 # known-hosts, no hidden solution/reference/tests trees.
 COPY scripts/ablation/transport/slurm_transport.py /opt/dftworld/controller/slurm_transport.py
-COPY scripts/matclaw_hpc_gateway.py /opt/dftworld/controller/matclaw_hpc_gateway.py
-COPY scripts/matclaw_hpc_controller.py /opt/dftworld/controller/matclaw_hpc_controller.py
 COPY scripts/cluster_profile.py /opt/dftworld/controller/cluster_profile.py
 COPY scripts/matclaw_runtime_lock.py /opt/dftworld/controller/matclaw_runtime_lock.py
-
-RUN chmod +x /opt/dftworld/controller/matclaw_hpc_controller.py && \
-    ln -s /opt/dftworld/controller/matclaw_hpc_controller.py /usr/local/bin/matclaw-hpc-controller
 
 # bench-hpc CLI (Task 12): the trusted HTTP job client.  The whole
 # dftworld_bench package + schemas are copied so the controller can later

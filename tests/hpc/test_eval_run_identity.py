@@ -296,16 +296,14 @@ def test_controller_docker_args_reach_host_gateway() -> None:
     assert "host.docker.internal:host-gateway" in args
 
 
-def test_controller_image_copies_gateway_module() -> None:
-    """The controller container imports matclaw_hpc_gateway at _build_transport
-    time; the image must carry the module next to the controller CLI (flat
-    /opt/dftworld/controller layout).  Without it the gateway fallback import
-    raises ImportError and every controller task crashes."""
+def test_controller_image_copies_bench_hpc_package() -> None:
+    """The controller container carries the unified bench-hpc gateway client
+    and dftworld_bench package under /opt/dftworld/controller."""
     df = (ROOT / "base-env-build" / "matclaw-cips-controller" / "Dockerfile").read_text(
         encoding="utf-8"
     )
     assert (
-        "COPY scripts/matclaw_hpc_gateway.py /opt/dftworld/controller/matclaw_hpc_gateway.py"
+        "COPY dftworld_bench /opt/dftworld/controller/dftworld_bench"
         in df
     )
 
