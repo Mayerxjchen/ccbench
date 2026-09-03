@@ -43,9 +43,9 @@ def package_files() -> list[str]:
 
 
 class PackageContractTests(unittest.TestCase):
-    def test_manifest_version_is_2_3_0(self) -> None:
+    def test_manifest_version_is_2_3_1(self) -> None:
         manifest = json.loads((PACKAGE / "manifest.json").read_text(encoding="utf-8"))
-        self.assertEqual("2.3.0", manifest["version"])
+        self.assertEqual("2.3.1", manifest["version"])
         self.assertEqual(["build-scientific-benchmark-case"], manifest["skills"])
         self.assertEqual("literature-to-mlp-spec", manifest["legacy"]["name"])
 

@@ -337,9 +337,16 @@ def check_bundle_agreement(case_dir: Path, bundle: dict[str, Any] | None,
         data = json.loads(input_manifest_path.read_text(encoding="utf-8"))
         raw_files = data.get("files") or []
         if isinstance(raw_files, dict):
-            names = sorted(raw_files)
+            # map of {candidate_path: entry_dict}
+            names = [
+                path for path, entry in sorted(raw_files.items())
+                if not (isinstance(entry, dict) and entry.get("candidate_generated") is True)
+            ]
         else:
-            names = [str(e.get("candidate_path", "")) for e in raw_files if isinstance(e, dict)]
+            names = [
+                str(e.get("candidate_path", "")) for e in raw_files
+                if isinstance(e, dict) and e.get("candidate_generated") is not True
+            ]
         for name in names:
             if name and not consistency._path_exists_in_bundle(name, bundle_paths):
                 errors.append(

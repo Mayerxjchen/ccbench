@@ -383,3 +383,63 @@ def test_scaffold_ships_probe_fixtures_and_no_dead_stubs(tmp_path: Path) -> None
     plan = yaml.safe_load((out / "verifier-plan.yaml").read_text(encoding="utf-8"))
     assert plan["schema_version"] == 2
     assert "deferred_layers" in plan and "case_kind" in plan
+
+
+def test_bundle_agreement_skips_candidate_generated_entries(tmp_path: Path) -> None:
+    """Test D1 fix: public/input-manifest.json entries marked candidate_generated: true
+
+    must not fail bundle_agreement even though the candidate packaging rule never stages them.
+    Covers both list format and path-map format.
+    """
+    case_dir = tmp_path / "case"
+    case_dir.mkdir()
+    public_dir = case_dir / "public"
+    public_dir.mkdir()
+
+    # List format: 1 staged input, 1 candidate_generated output, 1 missing input without flag
+    manifest_list = {
+        "schema_version": 1,
+        "files": [
+            {"candidate_path": "public/input.txt", "candidate_generated": False},
+            {"candidate_path": "public/output-submission.json", "candidate_generated": True},
+        ],
+    }
+    (public_dir / "input-manifest.json").write_text(json.dumps(manifest_list), encoding="utf-8")
+
+    bundle = {
+        "paths": ["public/input.txt", "submission-schema.json"],
+    }
+    design = {"contract": {"candidate_visible": False}}
+
+    verdict = runnable.Verdict()
+    runnable.check_bundle_agreement(case_dir, bundle, design, verdict)
+    assert verdict.checks["bundle_agreement"]["status"] == "pass", verdict.checks["bundle_agreement"]["errors"]
+
+    # Negative control: remove candidate_generated flag -> must fail
+    manifest_list_fail = {
+        "schema_version": 1,
+        "files": [
+            {"candidate_path": "public/input.txt"},
+            {"candidate_path": "public/output-submission.json"},
+        ],
+    }
+    (public_dir / "input-manifest.json").write_text(json.dumps(manifest_list_fail), encoding="utf-8")
+    verdict_fail = runnable.Verdict()
+    runnable.check_bundle_agreement(case_dir, bundle, design, verdict_fail)
+    assert verdict_fail.checks["bundle_agreement"]["status"] == "fail"
+    errs = verdict_fail.checks["bundle_agreement"]["errors"]
+    assert any("public/output-submission.json" in e for e in errs)
+
+    # Path-map format: 1 staged, 1 candidate_generated
+    manifest_map = {
+        "schema_version": 1,
+        "files": {
+            "public/input.txt": {"role": "input"},
+            "public/output-submission.json": {"candidate_generated": True},
+        },
+    }
+    (public_dir / "input-manifest.json").write_text(json.dumps(manifest_map), encoding="utf-8")
+    verdict_map = runnable.Verdict()
+    runnable.check_bundle_agreement(case_dir, bundle, design, verdict_map)
+    assert verdict_map.checks["bundle_agreement"]["status"] == "pass", verdict_map.checks["bundle_agreement"]["errors"]
+
