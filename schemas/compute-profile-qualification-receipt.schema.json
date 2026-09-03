@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/compute-profile-qualification-receipt.schema.json",
+  "title": "bench-hpc ComputeProfile Qualification Receipt (Layer 2)",
+  "description": "Evidence bundle binding a ComputeProfile to qualified site profiles and verifying cloud GPU instance recycling and zero-orphan invariants.",
+  "type": "object",
+  "required": [
+    "kind",
+    "schema_id",
+    "compute_profile_id",
+    "compute_profile_digest",
+    "routes",
+    "site_receipts",
+    "cloud_recycling_evidence"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "hpc-compute-profile-qualification/v1"
+    },
+    "schema_id": {
+      "const": "https://mlip-bench.example/schemas/compute-profile-qualification-receipt.schema.json"
+    },
+    "compute_profile_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "compute_profile_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "routes": {
+      "type": "object",
+      "required": ["cpu", "gpu"],
+      "additionalProperties": false,
+      "properties": {
+        "cpu": { "type": "string", "minLength": 1 },
+        "gpu": { "type": "string", "minLength": 1 }
+      }
+    },
+    "site_receipts": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+    },
+    "cloud_recycling_evidence": {
+      "type": "object",
+      "required": [
+        "stock_checked",
+        "instance_id",
+        "image_id",
+        "gpu_type",
+        "task_executed",
+        "fetch_verified",
+        "credentials_isolated",
+        "settlement_terminated",
+        "active_instances_count",
+        "orphan_instances_count"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "stock_checked": { "type": "boolean" },
+        "instance_id": { "type": "string", "minLength": 1 },
+        "image_id": { "type": "string", "minLength": 1 },
+        "gpu_type": { "type": "string", "minLength": 1 },
+        "gpu_vram_gb": { "type": "integer", "minimum": 1 },
+        "task_executed": { "type": "boolean" },
+        "fetch_verified": { "type": "boolean" },
+        "credentials_isolated": { "type": "boolean" },
+        "settlement_terminated": { "type": "boolean" },
+        "active_instances_count": { "type": "integer", "minimum": 0 },
+        "orphan_instances_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}
+
