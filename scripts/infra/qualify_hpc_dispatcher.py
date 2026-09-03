@@ -37,6 +37,18 @@ declared by this producer and never trusted as input.
                qualification_status=PASS (formal_qualified=true) when every
                anchor holds.
 
+  ai2kit     — REQUIRES EXPLICIT USER AUTHORIZATION (``--authorized``; no
+               ai2kit canary authorization is on file) plus an ai2kit runtime
+               lock (``--ai2kit-lock``: own SIF digest + ``software.ai2_kit``
+               version, 034's ``dftworld-base-ai2kit:0.1.0-cpu-controller``).
+               Runs one CPU job in the pinned controller container that
+               imports ai2kit, asserts the version equals the lock, round-trips
+               a minimal workflow config through the workspace, and passes the
+               standard containment probes; fetches stdout/stderr, and MERGES
+               ``evidence.ai2kit_gate`` into the existing consistent receipt —
+               ``runtime.ai2kit`` derives PASS iff the lock anchor and the
+               full job record hold.
+
   verify     — replay every anchor offline and derive the status; prints the
                derivation result and exits non-zero on any broken anchor.
 
@@ -58,6 +70,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import secrets
 import shlex
 import subprocess
@@ -682,6 +695,10 @@ def canary(profile: dict, lock: dict, *, skip_preflight: bool = False) -> dict:
             "detail": "CP2K ENERGY canary awaits separate authorization; "
                       "absent evidence derives NOT_RUN",
         },
+        "ai2kit_gate": {
+            "detail": "ai2kit runtime canary awaits separate authorization; "
+                      "absent evidence derives NOT_RUN",
+        },
     }
 
     sentinels = _place_sentinels(profile, stamp)
@@ -888,6 +905,222 @@ def cp2k_phase(
                 "runtime_lock": {
                     "path": cp2k_lock_relpath,
                     "sif_path_remote": cp2k_lock["runtime"]["sif_path_remote"],
+                    "sif_sha256": sif_digest,
+                },
+            },
+        }
+    finally:
+        # Never leave sentinels behind even on failure.
+        try:
+            _cleanup_sentinels(profile, sentinels)
+        except QualifyError:
+            pass
+
+    # Re-seal and re-verify the merged receipt; the derivation must now
+    # produce PASS or the merge is refused on disk.
+    receipt.pop("digest", None)
+    from dftworld_bench.experiments.qualification_receipt import seal_receipt
+
+    merged = seal_receipt(receipt)
+    RECEIPT_PATH.write_text(
+        json.dumps(merged, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    result = verify_receipt(
+        merged,
+        root=ROOT,
+        receipt_dir=RECEIPT_PATH.parent,
+        profile_path=profile_path,
+    )
+    derived = result["derived"]
+    print(
+        f"receipt merged: {RECEIPT_PATH}  "
+        f"derived={derived['qualification_status']} "
+        f"formal_qualified={derived['formal_qualified']}"
+    )
+    return result["consistent"] and derived["qualification_status"] == "PASS"
+
+
+# -- phase: ai2kit (requires separate explicit authorization) ------------------
+
+
+def _ai2kit_script(ai2kit_lock: dict, probe: str) -> str:
+    """In-container ai2kit runtime canary (cpu-partition).
+
+    Imports the ai2kit package, asserts the version equals the lock's
+    ``software.ai2_kit``, round-trips a minimal workflow config through
+    /workspace (config parsing + workspace write in one shot), then runs the
+    standard containment probes and the containment marker.  The script's own
+    assertions fail the job — the phase additionally re-checks the version and
+    config markers on the fetched stdout before sealing any evidence.
+
+    The heredoc is quoted ('PY') so bash performs NO interpolation; every
+    injected value is produced by :func:`json.dumps`, which is a valid Python
+    literal for these scalars.  ``python`` is the image's interpreter (034 lock
+    software.python 3.11.15; the controller image runs ``python``).
+    """
+    version_raw = str(ai2kit_lock["software"]["ai2_kit"])
+    version_lit = json.dumps(version_raw)
+    cfg_lit = json.dumps(
+        {
+            "benchmark_id": "034-ai2kit-water64-end-to-end-potential",
+            "software": ai2kit_lock.get("software") or {},
+        },
+        sort_keys=True,
+    )
+    python_lines = [
+        "import json, os",
+        "try:",
+        "    import ai2kit as _a",
+        "    _mod = 'ai2kit'",
+        "except ImportError:",
+        "    import ai2_kit as _a",
+        "    _mod = 'ai2_kit'",
+        "version = str(getattr(_a, '__version__', '?'))",
+        "print('AI2KIT_MODULE=' + _mod)",
+        "print('AI2KIT_VERSION=' + version)",
+        f"assert version == {version_lit}, version",
+        f"cfg = {cfg_lit}",
+        "path = '/workspace/qual-ai2kit-min-config.json'",
+        "with open(path, 'w', encoding='utf-8') as fh:",
+        "    json.dump(cfg, fh)",
+        "loaded = json.load(open(path, encoding='utf-8'))",
+        "assert loaded == cfg, (loaded, cfg)",
+        "os.remove(path)",
+        "print('AI2KIT_CONFIG_LOAD=pass')",
+    ]
+    body = "python - <<'PY'\n" + "\n".join(python_lines) + "\nPY\n"
+    return (
+        body
+        + "rc=$?\n"
+        + probe + f'\necho {MARKER_CONTAINMENT}\n'
+        "exit $rc\n"
+    )
+
+
+def _ai2kit_version_from_stdout(stdout: str) -> str:
+    """The ``AI2KIT_VERSION=...`` line the canary script emits."""
+    match = re.search(r"^AI2KIT_VERSION=(\S+)\s*$", stdout, re.MULTILINE)
+    return match.group(1) if match else ""
+
+
+def ai2kit_phase(
+    profile: dict,
+    ai2kit_lock: dict,
+    *,
+    ai2kit_lock_relpath: str,
+    profile_path: Path,
+) -> bool:
+    """AI2Kit runtime canary, merged into the existing receipt (fail-closed).
+
+    Requirement behind 034's ``runtime.ai2kit`` cell (spec §3/§5b): the
+    ai2kit controller image must import, report its locked version, load a
+    minimal workflow config, and pass containment — all inside a pinned-SIF,
+    single-node dispatcher job on the native cpu partition.  Requires its own
+    explicit user authorization and an existing consistent receipt; the phase
+    refuses to run on any pre-existing inconsistency, never overwrites
+    evidence, and only ever adds/derives ``evidence.ai2kit_gate``.
+    """
+    runtime = ai2kit_lock.get("runtime") or {}
+    if not runtime.get("sif_sha256"):
+        raise QualifyError(
+            "--ai2kit-lock has no runtime.sif_sha256 yet: the ai2kit "
+            "controller SIF digest is captured at its first real gateway run "
+            "(034 lock note) — fill the lock (mandatory runtime data) before "
+            "running this phase; an empty digest keeps runtime.ai2kit NOT_RUN"
+        )
+    if not RECEIPT_PATH.is_file():
+        raise QualifyError(
+            f"no receipt to merge into ({RECEIPT_PATH}); run --phase canary first"
+        )
+    receipt = json.loads(RECEIPT_PATH.read_text(encoding="utf-8"))
+    base = verify_receipt(
+        receipt,
+        root=ROOT,
+        receipt_dir=RECEIPT_PATH.parent,
+        profile_path=profile_path,
+    )
+    if not base["consistent"]:
+        raise QualifyError(
+            "existing receipt fails derivation; refusing merge: "
+            + "; ".join(base["problems"][:3])
+        )
+
+    preflight(profile, ai2kit_lock)
+    site = _build_site_profile(profile)
+    resolved_cpu = site.resolve_workload("cpu")
+
+    stamp = secrets.token_hex(4)
+    sif_digest = runtime["sif_sha256"]
+    image_name = ai2kit_lock.get(
+        "image_name", "dftworld-base-ai2kit-0.1.0-cpu-controller"
+    )
+    runtime_decl = f"{image_name}@sha256:{sif_digest}"
+
+    sentinels = _place_sentinels(profile, stamp)
+    try:
+        probe = _containment_fragment(profile, sentinels)
+        records: list = []
+        try:
+            _run_dispatcher_job(
+                profile, site, resolved_cpu, ai2kit_lock, stamp,
+                name="ai2kit-runtime-canary",
+                operation_id="qual-ai2kit-runtime-01",
+                spec=_spec(
+                    runtime_decl,
+                    ["/bin/bash", "-c", _ai2kit_script(ai2kit_lock, probe)],
+                    gpus=0,
+                    cpus=resolved_cpu.max_cpus,
+                    memory_gb=min(resolved_cpu.max_memory_gb, 32),
+                    walltime_minutes=30,
+                ),
+                timeout_sec=3600,
+                sentinels=sentinels,
+                records_sink=records,
+                probe_class="cpu",
+            )
+        finally:
+            try:
+                _cleanup_sentinels(profile, sentinels)
+            except QualifyError:
+                pass
+        record = records[-1]
+
+        cleanup = _cleanup_sentinels(profile, sentinels)
+        if cleanup["leftover"]:
+            raise QualifyError(f"sentinel cleanup left {cleanup['leftover']}")
+
+        # Cross-check the canary's own assertions on the RAW fetched stdout —
+        # the receipt binds only the record bytes, so an honest canary must
+        # pass here before its evidence is sealed at all.
+        stdout = (
+            CANARY_ROOT / record["artifacts_dir"] / "stdout.log"
+        ).read_text(encoding="utf-8", errors="replace")
+        locked_version = str(ai2kit_lock["software"]["ai2_kit"])
+        observed_version = _ai2kit_version_from_stdout(stdout)
+        if observed_version != locked_version:
+            raise QualifyError(
+                f"ai2kit canary reported version {observed_version!r}, "
+                f"lock pins {locked_version}"
+            )
+        if "AI2KIT_CONFIG_LOAD=pass" not in stdout:
+            raise QualifyError(
+                f"ai2kit minimal config load failed in-container; "
+                f"stdout tail: {stdout[-400:]}"
+            )
+
+        receipt["evidence"]["ai2kit_gate"] = {
+            "detail": (
+                "ai2kit runtime canary under separate authorization: "
+                f"import + version {locked_version} (lock software.ai2_kit) "
+                "+ minimal config load + containment probes, in the pinned "
+                "controller image; absent evidence derived NOT_RUN before "
+                "this merge"
+            ),
+            "evidence": {
+                "job": record,
+                "runtime_lock": {
+                    "path": ai2kit_lock_relpath,
+                    "sif_path_remote": runtime["sif_path_remote"],
                     "sif_sha256": sif_digest,
                 },
             },
@@ -1533,6 +1766,10 @@ def resume(
             "detail": "CP2K ENERGY canary awaits separate authorization; "
                       "absent evidence derives NOT_RUN",
         },
+        "ai2kit_gate": {
+            "detail": "ai2kit runtime canary awaits separate authorization; "
+                      "absent evidence derives NOT_RUN",
+        },
     }
 
     gpu_record = _resume_gpu(
@@ -1594,8 +1831,8 @@ def main() -> int:
                         default="033-matclaw-cips-domain-wall-search/reference/"
                                 "compute-runtime.lock.json")
     parser.add_argument("--phase",
-                        choices=("preflight", "canary", "cp2k", "verify",
-                                 "resume"),
+                        choices=("preflight", "canary", "cp2k", "ai2kit",
+                                 "verify", "resume"),
                         required=True)
     parser.add_argument("--verify", metavar="RECEIPT_JSON")
     parser.add_argument("--stamp", default=None,
@@ -1611,9 +1848,15 @@ def main() -> int:
                         help="runtime lock for the cp2k stack (required by "
                              "--phase cp2k): runtime.{sif_path_remote,"
                              "sif_sha256} + cp2k.{binary,version}")
+    parser.add_argument("--ai2kit-lock",
+                        default="reference/runtime/ai2kit-runtime.lock.json",
+                        help="runtime lock for the ai2kit stack (required by "
+                             "--phase ai2kit): runtime.{sif_path_remote,"
+                             "sif_sha256} + software.ai2_kit")
     parser.add_argument("--authorized", action="store_true",
                         help="explicit user authorization for --phase cp2k "
-                             "(separate scope from the 2026-08-22 echo canary)")
+                             "and --phase ai2kit (separate scopes from the "
+                             "2026-08-22 echo canary)")
     args = parser.parse_args()
 
     profile_path = ROOT / args.profile
@@ -1636,6 +1879,25 @@ def main() -> int:
             profile,
             cp2k_lock,
             cp2k_lock_relpath=args.cp2k_lock,
+            profile_path=profile_path,
+        )
+        return 0 if ok else 1
+
+    if args.phase == "ai2kit":
+        if not args.authorized:
+            parser.error(
+                "--phase ai2kit requires --authorized: no ai2kit canary "
+                "authorization is on file (the 2026-08-22 scope excluded "
+                "runtime canaries for new stacks)"
+            )
+        profile = _load_profile(profile_path)
+        ai2kit_lock = json.loads(
+            (ROOT / args.ai2kit_lock).read_text(encoding="utf-8")
+        )
+        ok = ai2kit_phase(
+            profile,
+            ai2kit_lock,
+            ai2kit_lock_relpath=args.ai2kit_lock,
             profile_path=profile_path,
         )
         return 0 if ok else 1

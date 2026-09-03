@@ -1,12 +1,15 @@
 # Runtime locks
 
 Frozen runtime identities consumed by dispatcher/qualification tooling via
-explicit CLI paths (`--cp2k-lock`, etc.). Lock files are **data, not config**:
-tooling must read them; nothing regenerates them silently.
+explicit CLI paths (`--cp2k-lock`, `--ai2kit-lock`). Lock files are **data,
+not config**: tooling must read them; nothing regenerates them silently.
 
 Changing a runtime identity means writing a **new** lock file (or a reviewed,
 committed update) together with fresh acceptance evidence — never editing a
-lock in place to match whatever happens to be deployed.
+lock in place to match whatever happens to be deployed. The one exception:
+`runtime.sif_sha256` on the ai2kit controller lock is captured at the
+controller's **first real gateway run** (034 lock note) — that digest is
+mandatory runtime data recorded at the site, not a code change.
 
 ## cp2k-runtime.lock.json
 
@@ -29,3 +32,17 @@ lock in place to match whatever happens to be deployed.
 - Origin: built 2026-08-25 from the version-captured ai2kit-stack image;
   jax 0.5.3 / flax 0.10.6 / `deepmd_jax` editable @48a981a; G1 smoke ALL PASS
 - Consumer: Case 042 draft runs / dispatcher deepmd phase
+
+## ai2kit-runtime.lock.json
+
+- Schema: `dispatcher-ai2kit-runtime-lock/v1`
+- Image: `dftworld-base-ai2kit:0.1.0-cpu-controller` (linux/amd64),
+  docker image `sha256:8a840aa2e477…` (the same source image the cp2k lock was
+  built from; also 034 lock `runtime_image.image_id`)
+- Software: `ai2_kit` 1.1.0 (= 034 lock + registry `ai2kit-water-v1`)
+- Remote SIF: `/public/home/<site-user>/dftworld2-runs/ai2kit/dftworld-base-ai2kit-0.1.0-cpu-controller.sif`
+  (`runtime.sif_sha256` captured at the controller's first real gateway run;
+  empty digest ⇒ the ai2kit phase refuses and `runtime.ai2kit` stays NOT_RUN)
+- Consumer: `scripts/qualification/run_hpc_dispatcher.sh --phase ai2kit …`
+  + `--ai2kit-lock reference/runtime/ai2kit-runtime.lock.json`
+  (034 `runtime.ai2kit` qualification gate; requires explicit caller authorization)

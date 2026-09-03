@@ -1,0 +1,19 @@
+{
+  "schema": "dispatcher-ai2kit-runtime-lock/v1",
+  "image_name": "dftworld-base-ai2kit-0.1.0-cpu-controller",
+  "note": "Frozen ai2kit controller runtime identity for the 034 runtime.ai2kit qualification gate.  Image lineage: sha256:8a840aa2e477fcea05f60edb8cceb17e73fbb2bd568dd9abfff312e919034840 (dftworld-base-ai2kit:0.1.0-cpu), the same source image reference/runtime/cp2k-runtime.lock.json was built from; 034 lock runtime_image.image_id 8a840aa2e477 is its prefix.  Software: ai2_kit 1.1.0 (= 034 lock software.ai2_kit and the registry ai2kit-water-v1 compute profile).  Per the 034 lock note, the controller SIF's full sha256 digest is captured at the FIRST REAL GATEWAY RUN and recorded in runtime.sif_sha256 here; until then an empty digest keeps runtime.ai2kit NOT_RUN (filling it in is mandatory runtime data captured at the site, not a code change).",
+  "source": {
+    "docker_image_id": "sha256:8a840aa2e477fcea05f60edb8cceb17e73fbb2bd568dd9abfff312e919034840",
+    "tag": "dftworld-base-ai2kit:0.1.0-cpu-controller",
+    "platform": "linux/amd64",
+    "note": "controller tag of the base image recorded in reference/runtime/cp2k-runtime.lock.json source"
+  },
+  "software": {
+    "ai2_kit": "1.1.0",
+    "python": "3.11.15"
+  },
+  "runtime": {
+    "sif_path_remote": "/public/home/<site-user>/dftworld2-runs/ai2kit/dftworld-base-ai2kit-0.1.0-cpu-controller.sif",
+    "sif_sha256": ""
+  }
+}

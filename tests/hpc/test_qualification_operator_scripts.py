@@ -110,3 +110,95 @@ def test_cleanup_sentinels_reports_leftover(monkeypatch):
     assert len(calls) == 1 + len(sentinels)
     assert any(c.startswith("rm -rf ") for c in calls)
     assert all("test -e" in c for c in calls[1:])
+
+
+def _load_ai2kit_lock() -> dict:
+    import json as _json
+
+    return _json.loads(
+        (ROOT / "reference/runtime/ai2kit-runtime.lock.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+
+def test_ai2kit_phase_is_wired_and_authorization_gated():
+    """--phase ai2kit exists, defaults to the frozen controller lock, and is
+    gated behind --authorized exactly like cp2k (no ai2kit canary scope is on
+    file)."""
+    text = QUALIFIER.read_text()
+    assert '"ai2kit"' in text  # --phase choice
+    assert "--ai2kit-lock" in text
+    assert "reference/runtime/ai2kit-runtime.lock.json" in text
+    assert 'args.phase == "ai2kit"' in text
+    # the empty-digest guard stays BEFORE the receipt/preflight/network step
+    body = text[text.index("def ai2kit_phase"):]
+    guard = body.index("has no runtime.sif_sha256 yet")
+    merge = body.index("receipt to merge into")
+    assert guard < merge
+
+
+def test_ai2kit_lock_file_is_valid_and_self_consistent():
+    """The frozen dispatcher-ai2kit-runtime-lock/v1 lock carries the identity
+    the driver renders: image_name (job-schema-safe), software.ai2_kit 1.1.0
+    matching the 034 lock / registry, and the two runtime fields the
+    verifier's _derive_ai2kit binds."""
+    lock = _load_ai2kit_lock()
+    assert lock["schema"] == "dispatcher-ai2kit-runtime-lock/v1"
+    assert lock["image_name"] == "dftworld-base-ai2kit-0.1.0-cpu-controller"
+    assert lock["software"]["ai2_kit"] == "1.1.0"
+    assert "sif_path_remote" in lock["runtime"]
+    assert lock["runtime"]["sif_sha256"] == ""
+    # docker image id prefix matches the 034 lock runtime_image.image_id
+    # (8a840aa2e477) — the controller is the same image lineage.
+    assert lock["source"]["docker_image_id"].startswith(
+        "sha256:8a840aa2e477"
+    )
+
+
+def test_ai2kit_script_imports_version_config_and_probes():
+    """The canary script asserts import + version==lock + a minimal config
+    round-trip through /workspace, then the standard containment probe and
+    marker, with rc taken from the python step so any assertion failure fails
+    the job (a SUCCEEDED ai2kit job therefore proves all four facts)."""
+    import qualify_hpc_dispatcher as q
+
+    lock = _load_ai2kit_lock()
+    script = q._ai2kit_script(lock, "BENCH_PROBE workspace_rw=pass")
+    assert "import ai2kit as _a" in script
+    assert 'assert version == "1.1.0"' in script
+    assert "AI2KIT_CONFIG_LOAD=pass" in script
+    assert "qual-ai2kit-min-config.json" in script
+    assert "BENCH_PROBE workspace_rw=pass" in script
+    assert q.MARKER_CONTAINMENT in script
+    assert "rc=$?" in script
+    assert "exit $rc" in script
+
+
+def test_ai2kit_version_from_stdout_parses_marker():
+    import qualify_hpc_dispatcher as q
+
+    assert q._ai2kit_version_from_stdout("AI2KIT_VERSION=1.1.0\n") == "1.1.0"
+    # not fooled by a partial/tampered line
+    assert q._ai2kit_version_from_stdout("AI2KIT_VERSIONx=1.1.0\n") == ""
+    assert q._ai2kit_version_from_stdout("no marker\n") == ""
+    assert (
+        q._ai2kit_version_from_stdout(
+            "x AI2KIT_VERSION=2.0.0\nAI2KIT_VERSION=1.1.0\n"
+        )
+        == "1.1.0"
+    )
+
+
+def test_ai2kit_phase_refuses_empty_sif_digest_before_any_io():
+    """An unfilled controller SIF digest fails cleanly in-process: no receipt
+    load, no profile parse, no ssh — runtime.ai2kit stays NOT_RUN until the
+    gateway-run digest lands in the lock."""
+    import qualify_hpc_dispatcher as q
+    import pytest
+
+    lock = dict(_load_ai2kit_lock())
+    lock["runtime"] = {"sif_path_remote": "/runs/x.sif", "sif_sha256": ""}
+    with pytest.raises(q.QualifyError) as exc:
+        q.ai2kit_phase({}, lock, ai2kit_lock_relpath="x", profile_path=Path())
+    assert "sif_sha256" in str(exc.value)
