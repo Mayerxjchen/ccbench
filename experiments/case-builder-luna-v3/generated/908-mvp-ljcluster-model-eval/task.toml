@@ -1,0 +1,20 @@
+# Canonical v2 case manifest. Execution class comes from the validated design
+# (never inferred); candidate file rules keep the public/ prefix
+# (destination "." preserves the source layout) so instruction paths match the
+# packaged bundle byte-for-byte.
+schema_version = 1
+
+[task]
+name = "908-mvp-ljcluster-model-eval"
+title = "LC-MLP v1 cluster cohesive-energy model evaluation (Discovery MVP)"
+
+[execution]
+class = "local_sandbox"
+
+[candidate]
+instruction = "instruction.md"
+submission_root = "."
+legacy_submission_layout = false
+files = [
+  { source = "public/**", destination = "." },
+]

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "case_id": "908-mvp-ljcluster-model-eval",
+  "verifier": {
+    "entry": "tests/test.sh",
+    "implementation": "tests/verifier.py",
+    "result_path": "/logs/verifier/result.json",
+    "layers": ["MLP-V0", "MLP-V1", "MLP-V2", "MLP-V4", "C-V7", "C-V8"],
+    "deferred_at_mvp": ["MLP-V4 hidden static accuracy execution"]
+  },
+  "frozen": false,
+  "objects": {}
+}

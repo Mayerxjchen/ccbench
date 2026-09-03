@@ -1,0 +1,6 @@
+schema_version: 1
+category: mlp
+case_kinds:
+  - model_evaluation
+workflow_capabilities:
+  - hidden_static_accuracy

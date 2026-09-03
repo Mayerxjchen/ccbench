@@ -68,3 +68,23 @@ The v3 hardening criteria are completely satisfied across both the steering and 
 - installed to `~/.claude/skills/build-scientific-benchmark-case`, byte-
   identical to the merged package (diff clean), D1 skip-rule present;
 - not pushed (local merge only, per standing instruction).
+
+## Step 9 — v2.3.1 single-completion confirmation (case 908, steering regime)
+
+- Driver: fresh context, glm-5.3-flash[1M], against the **installed** v2.3.1
+  skill (real usage path). 907 attempt aborted on API 429 (archived, not a
+  data point); 908 is the frozen first completion.
+- Gate (driver-run and evaluator-replayed with installed scripts):
+  `mvp_runnable=True state=runnable_draft`, 9/9 checks, blocking_errors [].
+- Plan: schema 2, V0/V1/V2/V4/C-V7/C-V8 all `selected`, no silent drops.
+- Intake: `sources.lock.json` records acceptance.json/expected.json under
+  `"excluded"`, no answer file locked whole, invariant H green.
+- Leak audit: tokens/gold values absent from tree (grep rc=1); transcript
+  audit — no planted-path access request and no planted content entered the
+  model-visible transcript (`notes/908-access-audit.txt`, classified in
+  `notes/access-audit-summary.txt`).
+- Fingerprints of planted materials: unchanged after the run.
+
+**v3 closure: all steps of the user's 2→9 sequence are complete. v2.3.1
+confirmed on the installed release; the D1 fix is exercised by a real driver
+completion, not only by unit tests.**

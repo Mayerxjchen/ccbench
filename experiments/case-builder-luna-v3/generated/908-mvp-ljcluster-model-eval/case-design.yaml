@@ -1,0 +1,77 @@
+objective: Evaluate the published LC-MLP v1 checkpoint on a candidate-generated evaluation
+  descriptor table for Lennard-Jones clusters and reproduce the paper's reported metric
+  band (MAE <= 0.031 eV/atom, RMSE <= 0.045 eV/atom).
+source_relationship:
+  selected: paper_faithful
+  allowed:
+  - paper_faithful
+  - benchmark_adaptation
+execution:
+  class: local_sandbox
+candidate_inputs:
+- public/system.json
+- public/input-manifest.json
+- public/submission-schema.json
+- public/descriptor-recipe.md
+source_context:
+  allow:
+  - experiments/case-builder-luna-v3/materials/paper
+  - experiments/case-builder-luna-v3/materials/repo
+  - experiments/case-builder-luna-v3/materials/data
+  - experiments/case-builder-luna-v3/materials/LICENSE-NOTES.md
+  exclude:
+  - acceptance.json
+  - expected.json
+workflow_capabilities:
+- hidden_static_accuracy
+label_source: published_model
+submission_roles:
+- candidate_executes_published_checkpoint
+- candidate_authors_manifest_with_metrics
+scientific_observables:
+- energy_per_atom_eV
+submission:
+  root: .
+validation_sets:
+- name: calibration-table-lj01-lj24
+  owner: candidate_generated
+  note: Re-serialized descriptor table derived by the candidate from the published
+    24-cluster calibration table (materials/data/dataset.csv, CC-BY-4.0); the candidate
+    computes predictions on it.
+- name: lc-mlp-v1-static-accuracy-hidden
+  owner: verifier_hidden
+  note: Hidden held-out clusters LJ-25..LJ-32 with gold labels (MLP-V4); deferred
+    at Discovery MVP, generated only at release from authorized reference work.
+- name: paper-reported-metric-band
+  owner: expert_calibration
+  note: Paper Table 1 reference band (MAE 0.031 / RMSE 0.045 eV/atom) anchoring the
+    dual thresholds; frozen only by threshold calibration.
+metric_contract:
+- name: energy_mae_ev_per_atom
+  unit: eV/atom
+  operator: <=
+  threshold: 0.031
+- name: energy_rmse_ev_per_atom
+  unit: eV/atom
+  operator: <=
+  threshold: 0.045
+contract:
+  candidate_visible: false
+hidden_verification:
+  strategy: Hidden verifier runs the template technical chain (V0/V1/V2/V3/C-V7/C-V8).
+    MLP-V4 hidden static accuracy (recomputing per-atom cohesive-energy predictions
+    on the hidden held-out cluster set and comparing against the frozen thresholds)
+    is selected in the plan but its execution is deferred release work; no dynamic
+    or physical-observable layer applies to this design.
+profiles:
+  smoke: profiles/smoke.yaml
+  formal: profiles/formal.yaml
+non_goals:
+- retraining or fine-tuning LC-MLP v1 (no model_training capability)
+- regenerating DFT/MD reference labels (no dft_dynamics; labels are published)
+- hidden dynamic stability or physical-observable checks (V5/V6 inapplicable)
+blockers: []
+schema_version: 1
+category: mlp
+case_kind: model_evaluation
+case_status: draft

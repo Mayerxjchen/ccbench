@@ -1,0 +1,67 @@
+{
+  "artifacts": [
+    {
+      "path": "artifacts/model/student.pb",
+      "role": "student_model",
+      "sha256": "59f1b420b175690076b4ce5bb26eabfe714b7054e9d467e4c47dab633d05fb29"
+    },
+    {
+      "frames": 2,
+      "path": "artifacts/dataset/train.raw",
+      "role": "dataset",
+      "sha256": "5b2e9f70b0b80684a53f83edde03127246e8472ebda0b0e035e230b73e65b9c4",
+      "source": "teacher MD round 1"
+    },
+    {
+      "path": "artifacts/labels/train.lbl",
+      "role": "labels",
+      "sha256": "18f5130c271a8d8143ef6f540d7e0bb719c842c5fae379ca27f6674e027e3a1e",
+      "source": "published teacher inference (not DFT)"
+    },
+    {
+      "path": "artifacts/logs-round1.log",
+      "role": "log",
+      "sha256": "a07f5fff193060ba502d1c1a72fb6fee0fc40b59999b52912c43b671820e52ea"
+    },
+    {
+      "path": "artifacts/logs-round2.log",
+      "role": "log",
+      "sha256": "bd27c7a33c839d39444e305d8aa7f5dc965e890a7aaf115116718a984a0ec973"
+    }
+  ],
+  "case_id": "draft-case",
+  "lineage": [
+    {
+      "action": "train initial student on seed dataset",
+      "dataset": "artifacts/dataset/train.raw",
+      "model": "artifacts/model/student.pb",
+      "round": 1
+    },
+    {
+      "action": "retrain after teacher relabeling",
+      "dataset": "artifacts/dataset/train.raw",
+      "model": "artifacts/model/student.pb",
+      "round": 2
+    }
+  ],
+  "metrics": [],
+  "provenance_sources": [
+    "published CIPS-style teacher model (source-locked)",
+    "teacher MD trajectory labeling"
+  ],
+  "runtime_receipts": [
+    {
+      "backend": "local_sandbox",
+      "exit_status": "completed",
+      "job_id": "smoke-round-1",
+      "walltime_sec": 1.0
+    },
+    {
+      "backend": "local_sandbox",
+      "exit_status": "0",
+      "job_id": "smoke-round-2",
+      "walltime_sec": 1.0
+    }
+  ],
+  "schema_version": 1
+}

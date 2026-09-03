@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "case_id": "908-mvp-ljcluster-model-eval",
+  "provenance_sources": [
+    "published LC-MLP v1 checkpoint (source-locked)",
+    "published 24-cluster calibration descriptor table"
+  ],
+  "artifacts": [
+    {
+      "path": "artifacts/model/model.txt",
+      "role": "student_model",
+      "sha256": "b8e5ac6f09902b8a4c6ab3800824d55ac52dc43a75c1a458d80ab2ac802b5f6a",
+      "source": "published LC-MLP v1 checkpoint stand-in (fixture bytes)"
+    },
+    {
+      "path": "artifacts/dataset/eval-table.csv",
+      "role": "dataset",
+      "frames": 2,
+      "sha256": "04941dac7074f51ce2d484bbdedecd6702850d1483e9f3952506dd56db407713",
+      "source": "re-serialized calibration descriptor rows (fixture subset)"
+    }
+  ],
+  "lineage": [
+    {
+      "round": 1,
+      "action": "evaluate published checkpoint on the re-serialized descriptor table (single round; no training)",
+      "dataset": "artifacts/dataset/eval-table.csv",
+      "model": "artifacts/model/model.txt"
+    }
+  ],
+  "runtime_receipts": [
+    {
+      "job_id": "alt-valid-eval-1",
+      "backend": "local_sandbox",
+      "exit_status": "completed",
+      "walltime_sec": 1.0
+    }
+  ],
+  "metrics": []
+}
