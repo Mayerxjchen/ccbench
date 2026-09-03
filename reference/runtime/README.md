@@ -6,10 +6,10 @@ not config**: tooling must read them; nothing regenerates them silently.
 
 Changing a runtime identity means writing a **new** lock file (or a reviewed,
 committed update) together with fresh acceptance evidence — never editing a
-lock in place to match whatever happens to be deployed. The one exception:
-`runtime.sif_sha256` on the ai2kit controller lock is captured at the
-controller's **first real gateway run** (034 lock note) — that digest is
-mandatory runtime data recorded at the site, not a code change.
+lock in place to match whatever happens to be deployed. Where a lock carries
+an empty `runtime.sif_sha256`, that digest is mandatory runtime data to be
+captured at the site, not invented; an empty digest keeps its qualification
+gate NOT_RUN.
 
 ## cp2k-runtime.lock.json
 
@@ -35,14 +35,26 @@ mandatory runtime data recorded at the site, not a code change.
 
 ## ai2kit-runtime.lock.json
 
-- Schema: `dispatcher-ai2kit-runtime-lock/v1`
-- Image: `dftworld-base-ai2kit:0.1.0-cpu-controller` (linux/amd64),
-  docker image `sha256:8a840aa2e477…` (the same source image the cp2k lock was
-  built from; also 034 lock `runtime_image.image_id`)
-- Software: `ai2_kit` 1.1.0 (= 034 lock + registry `ai2kit-water-v1`)
-- Remote SIF: `/public/home/<site-user>/dftworld2-runs/ai2kit/dftworld-base-ai2kit-0.1.0-cpu-controller.sif`
-  (`runtime.sif_sha256` captured at the controller's first real gateway run;
-  empty digest ⇒ the ai2kit phase refuses and `runtime.ai2kit` stays NOT_RUN)
+- Schema: `dispatcher-ai2kit-runtime-lock/v2` — identity `ai2kit-runtime-v1`,
+  capability `ai2kit`, mode `derived-runtime-reuse`
+- **Runtime, not a control plane** (Architecture Freeze §4): holds no SSH
+  credentials, issues no raw sbatch, shared rather than per-case
+- Lineage (R2, 2026-09-03): the original `dftworld-base-ai2kit` controller
+  image is unrecoverable (archive deleted after cp2k acceptance, recipe never
+  committed). This runtime's rootfs **is** the trusted CP2K SIF rootfs
+  (parent `05f708b1…5cfef5dd`), which offline inspection proved already ships
+  `ai2_kit` 1.1.0 with `/opt/ai2kit/bin` materialized first in PATH; direct
+  reuse of the locked SIF was approved instead of building a new image. The
+  lock records apptainer 1.4.0, the rootfs manifest digest
+  (`5c7e6edf…3572`, sorted `unsquashfs -l` listing), and keeps the
+  unrecoverable OCI/Dockerfile/archive digests **null** — never fabricated.
+- Software: `ai2_kit` 1.1.0 (= 034 lock + registry `ai2kit-runtime-v1`); the
+  package has no `__version__` (empty `__init__.py`) — probe via
+  `importlib.metadata.version("ai2_kit")`
+- Remote SIF: same file as the cp2k lock
+  (`05f708b1b03d949af095a770c00ca7930fea293b161a2383d71ea99e5cfef5dd`)
 - Consumer: `scripts/qualification/run_hpc_dispatcher.sh --phase ai2kit …`
   + `--ai2kit-lock reference/runtime/ai2kit-runtime.lock.json`
   (034 `runtime.ai2kit` qualification gate; requires explicit caller authorization)
+- If an R4 replayable build replaces this runtime, its digest changes and
+  site qualification MUST be re-run under a new candidate tag

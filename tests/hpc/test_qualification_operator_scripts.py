@@ -139,33 +139,47 @@ def test_ai2kit_phase_is_wired_and_authorization_gated():
 
 
 def test_ai2kit_lock_file_is_valid_and_self_consistent():
-    """The frozen dispatcher-ai2kit-runtime-lock/v1 lock carries the identity
-    the driver renders: image_name (job-schema-safe), software.ai2_kit 1.1.0
-    matching the 034 lock / registry, and the two runtime fields the
-    verifier's _derive_ai2kit binds."""
+    """The frozen dispatcher-ai2kit-runtime-lock/v2 lock carries the identity
+    the driver renders: capability-sealed image_name (ai2kit-runtime-v1),
+    software.ai2_kit 1.1.0 matching the 034 lock, and the two runtime fields
+    the verifier's _derive_ai2kit binds.  The v2 lock records the R2
+    derived-runtime lineage: the runtime IS the trusted CP2K SIF rootfs —
+    unrecoverable original-image fields stay null, never fabricated."""
     lock = _load_ai2kit_lock()
-    assert lock["schema"] == "dispatcher-ai2kit-runtime-lock/v1"
-    assert lock["image_name"] == "dftworld-base-ai2kit-0.1.0-cpu-controller"
+    assert lock["schema"] == "dispatcher-ai2kit-runtime-lock/v2"
+    assert lock["image_name"] == "ai2kit-runtime-v1"
+    assert lock["capability"] == "ai2kit"
+    assert lock["mode"] == "derived-runtime-reuse"
     assert lock["software"]["ai2_kit"] == "1.1.0"
     assert "sif_path_remote" in lock["runtime"]
-    assert lock["runtime"]["sif_sha256"] == ""
-    # docker image id prefix matches the 034 lock runtime_image.image_id
-    # (8a840aa2e477) — the controller is the same image lineage.
-    assert lock["source"]["docker_image_id"].startswith(
-        "sha256:8a840aa2e477"
+    assert lock["runtime"]["sif_sha256"] == (
+        "05f708b1b03d949af095a770c00ca7930fea293b161a2383d71ea99e5cfef5dd"
     )
+    # derived lineage: parent is the locked CP2K SIF, same source image id as
+    # the 034 lock runtime_image.image_id (8a840aa2e477)
+    lineage = lock["lineage"]
+    assert lineage["parent_sif"]["sif_sha256"] == lock["runtime"]["sif_sha256"]
+    assert lineage["imported_oci_image_digest"] is None
+    assert lineage["dockerfile_sha256"] is None
+    assert lineage["rootfs_manifest_sha256"]
+    assert lineage["apptainer_version"] == "1.4.0"
+    assert lineage["base_image_source_id"].startswith("sha256:8a840aa2e477")
 
 
 def test_ai2kit_script_imports_version_config_and_probes():
     """The canary script asserts import + version==lock + a minimal config
     round-trip through /workspace, then the standard containment probe and
     marker, with rc taken from the python step so any assertion failure fails
-    the job (a SUCCEEDED ai2kit job therefore proves all four facts)."""
+    the job (a SUCCEEDED ai2kit job therefore proves all four facts).
+    The version must come from importlib.metadata — ai2_kit 1.1.0 ships an
+    empty __init__.py with no __version__ (Architecture Freeze §4)."""
     import qualify_hpc_dispatcher as q
 
     lock = _load_ai2kit_lock()
     script = q._ai2kit_script(lock, "BENCH_PROBE workspace_rw=pass")
-    assert "import ai2kit as _a" in script
+    assert "import ai2_kit as _a" in script
+    assert "_md.version('ai2_kit')" in script
+    assert "importlib.metadata" in script
     assert 'assert version == "1.1.0"' in script
     assert "AI2KIT_CONFIG_LOAD=pass" in script
     assert "qual-ai2kit-min-config.json" in script

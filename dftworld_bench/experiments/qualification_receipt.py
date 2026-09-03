@@ -118,8 +118,8 @@ _PROBE_KEYS = (
 # env but not image ENV), and the correct GTH-PBE-q1 potential for hydrogen.
 # Its exact bytes are hashed into the receipt (input.sha256) and must equal
 # the staged artifact bytes, so this text is a frozen part of the contract
-# once a receipt exists.  Smoke-validated in
-# dftworld-base-ai2kit:0.1.0-cpu-controller (cp2k.psmp, 2025.2).
+# once a receipt exists.  Smoke-validated in the locked CP2K runtime SIF
+# (cp2k.psmp, 2025.2 — the ai2kit-stack base image; reference/runtime).
 CP2K_INPUT_NAME = "cp2k-energy.inp"
 CP2K_OUTPUT_NAME = "cp2k.out"
 CP2K_INPUT_TEXT = """\
@@ -852,8 +852,8 @@ def _derive_ai2kit(
 
     Runtime-canary mirror of ``_derive_cp2k`` minus the domain re-parse: an
     ai2kit canary has no CP2K-style input/output artifact for this verifier to
-    re-parse, so the anchors are the runtime lock on disk (the pinned ai2kit
-    controller image) and the full job-record derivation (state, accounting,
+    re-parse, so the anchors are the runtime lock on disk (the pinned
+    ai2kit runtime) and the full job-record derivation (state, accounting,
     TRES, probes, settlement, audit ledger, artifacts) under the ``ai2kit-job:``
     label.  Problems are scoped to THIS capability only — the job record
     derives into its own buckets which are folded into the ``ai2kit_gate``

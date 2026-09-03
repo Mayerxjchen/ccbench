@@ -129,14 +129,14 @@ def default_profiles() -> tuple[RuntimeProfile, ...]:
             image="dftworld-base-matclaw-cips:2.2.11-cpu",
         ),
         RuntimeProfile(
-            name="ai2kit-water-v1",
+            name="ai2kit-runtime-v1",
             role="compute",
             family="ai2kit",
             provides=("ai2kit",),
             version="1.1.0",
             platform="linux/amd64",
             execution_classes=frozenset({"local_sandbox", "hpc_controller"}),
-            image="dftworld-base-ai2kit:1.1.0-cpu",
+            image="ai2kit-runtime-v1",
         ),
         # -- control ---------------------------------------------------------
         RuntimeProfile(

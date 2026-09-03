@@ -40,9 +40,13 @@ declared by this producer and never trusted as input.
   ai2kit     — REQUIRES EXPLICIT USER AUTHORIZATION (``--authorized``; no
                ai2kit canary authorization is on file) plus an ai2kit runtime
                lock (``--ai2kit-lock``: own SIF digest + ``software.ai2_kit``
-               version, 034's ``dftworld-base-ai2kit:0.1.0-cpu-controller``).
-               Runs one CPU job in the pinned controller container that
-               imports ai2kit, asserts the version equals the lock, round-trips
+               version, ``ai2kit-runtime-v1`` — the derived-runtime lock
+               whose SIF is the trusted CP2K SIF rootfs, per the Architecture
+               Freeze §4; AI2Kit is a runtime, not a control plane).
+               Runs one CPU job in the pinned runtime container that
+               imports ai2_kit, asserts the version equals the lock (via
+               importlib.metadata — the package ships no __version__),
+               round-trips
                a minimal workflow config through the workspace, and passes the
                standard containment probes; fetches stdout/stderr, and MERGES
                ``evidence.ai2kit_gate`` into the existing consistent receipt —
@@ -956,7 +960,13 @@ def _ai2kit_script(ai2kit_lock: dict, probe: str) -> str:
     The heredoc is quoted ('PY') so bash performs NO interpolation; every
     injected value is produced by :func:`json.dumps`, which is a valid Python
     literal for these scalars.  ``python`` is the image's interpreter (034 lock
-    software.python 3.11.15; the controller image runs ``python``).
+    software.python 3.11.15; the runtime image runs ``python``).
+
+    Version probe discipline (Architecture Freeze §4): the ``ai2_kit`` 1.1.0
+    distribution ships an EMPTY ``__init__.py`` with no ``__version__``, so
+    ``getattr(mod, '__version__', ...)`` can never equal the lock.  The truth
+    is the dist-info METADATA, read via ``importlib.metadata.version`` with
+    the attribute as fallback only.
     """
     version_raw = str(ai2kit_lock["software"]["ai2_kit"])
     version_lit = json.dumps(version_raw)
@@ -969,14 +979,13 @@ def _ai2kit_script(ai2kit_lock: dict, probe: str) -> str:
     )
     python_lines = [
         "import json, os",
+        "import ai2_kit as _a  # the only module the dist ships (no ai2kit alias)",
+        "import importlib.metadata as _md",
         "try:",
-        "    import ai2kit as _a",
-        "    _mod = 'ai2kit'",
-        "except ImportError:",
-        "    import ai2_kit as _a",
-        "    _mod = 'ai2_kit'",
-        "version = str(getattr(_a, '__version__', '?'))",
-        "print('AI2KIT_MODULE=' + _mod)",
+        "    version = _md.version('ai2_kit')",
+        "except Exception:",
+        "    version = str(getattr(_a, '__version__', '?'))",
+        "print('AI2KIT_MODULE=ai2_kit')",
         "print('AI2KIT_VERSION=' + version)",
         f"assert version == {version_lit}, version",
         f"cfg = {cfg_lit}",
@@ -1024,9 +1033,9 @@ def ai2kit_phase(
     if not runtime.get("sif_sha256"):
         raise QualifyError(
             "--ai2kit-lock has no runtime.sif_sha256 yet: the ai2kit "
-            "controller SIF digest is captured at its first real gateway run "
-            "(034 lock note) — fill the lock (mandatory runtime data) before "
-            "running this phase; an empty digest keeps runtime.ai2kit NOT_RUN"
+            "runtime SIF digest is mandatory runtime data captured at the "
+            "site (fill the lock before running this phase); an empty "
+            "digest keeps runtime.ai2kit NOT_RUN"
         )
     if not RECEIPT_PATH.is_file():
         raise QualifyError(
@@ -1051,10 +1060,9 @@ def ai2kit_phase(
 
     stamp = secrets.token_hex(4)
     sif_digest = runtime["sif_sha256"]
-    image_name = ai2kit_lock.get(
-        "image_name", "dftworld-base-ai2kit-0.1.0-cpu-controller"
-    )
-    runtime_decl = f"{image_name}@sha256:{sif_digest}"
+    # Capability-sealed declaration (Architecture Freeze §3): evidence names
+    # the capability, the digest suffix stays the receipt's binding anchor.
+    runtime_decl = f"ai2kit@sha256:{sif_digest}"
 
     sentinels = _place_sentinels(profile, stamp)
     try:
@@ -1111,10 +1119,11 @@ def ai2kit_phase(
         receipt["evidence"]["ai2kit_gate"] = {
             "detail": (
                 "ai2kit runtime canary under separate authorization: "
-                f"import + version {locked_version} (lock software.ai2_kit) "
+                f"import + version {locked_version} (lock software.ai2_kit, "
+                "via importlib.metadata) "
                 "+ minimal config load + containment probes, in the pinned "
-                "controller image; absent evidence derived NOT_RUN before "
-                "this merge"
+                "shared runtime (ai2kit-runtime-v1, derived lineage); absent "
+                "evidence derived NOT_RUN before this merge"
             ),
             "evidence": {
                 "job": record,
