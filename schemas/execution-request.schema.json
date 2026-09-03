@@ -8,6 +8,7 @@
     "schema_version",
     "operation_id",
     "attempt",
+    "compute_class",
     "runtime",
     "command",
     "resources",
@@ -15,9 +16,35 @@
     "outputs"
   ],
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": { "compute_class": { "const": "cpu" } },
+        "required": ["compute_class"]
+      },
+      "then": {
+        "properties": { "resources": { "properties": { "gpus": { "const": 0 } } } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "compute_class": { "const": "gpu" } },
+        "required": ["compute_class"]
+      },
+      "then": {
+        "properties": {
+          "resources": { "properties": { "gpus": { "minimum": 1 } } }
+        }
+      }
+    }
+  ],
   "properties": {
     "schema_version": {
       "const": 2
+    },
+    "compute_class": {
+      "enum": ["cpu", "gpu"],
+      "description": "The only compute decision an Agent makes. Never inferred from gpus in v2; the router maps class -> site profile via the operator's ComputeProfile, and cpu/gpu classes are mechanically consistent with resources.gpus."
     },
     "operation_id": {
       "type": "string",

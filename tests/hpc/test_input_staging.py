@@ -30,6 +30,7 @@ def _make_request(tmp_path, body: bytes):
                 "schema_version": 2,
                 "operation_id": "cp2k-round-01",
                 "attempt": 1,
+                "compute_class": "cpu",
                 "runtime": DIGEST,
                 "command": ["/usr/local/bin/cp2k", "-i", "input.inp"],
                 "resources": {

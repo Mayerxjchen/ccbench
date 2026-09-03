@@ -27,6 +27,7 @@ def valid_payload() -> dict:
         "schema_version": 2,
         "operation_id": "cp2k-round-01",
         "attempt": 1,
+        "compute_class": "cpu",
         "runtime": DIGEST,
         "command": ["/usr/local/bin/cp2k", "-i", "input.inp"],
         "resources": {"cpus": 1, "memory_gb": 1, "gpus": 0, "walltime_minutes": 5},

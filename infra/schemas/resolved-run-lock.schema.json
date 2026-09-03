@@ -69,7 +69,19 @@
       "properties": {
         "site_profile_digest": {"type": "string"},
         "scheduler": {"type": "string"},
-        "capabilities": {"type": "array", "items": {"type": "string"}}
+        "capabilities": {"type": "array", "items": {"type": "string"}},
+        "compute_profile_id": {"type": "string"},
+        "compute_profile_digest": {"type": "string"},
+        "compute_route": {
+          "type": "object",
+          "description": "The routing decision bound into this run: the agent-selected compute class and the operator-mapped site profile that served it.",
+          "properties": {
+            "compute_class": {"enum": ["cpu", "gpu"]},
+            "site_profile": {"type": "string"}
+          },
+          "required": ["compute_class", "site_profile"],
+          "additionalProperties": false
+        }
       }
     },
     "verifier": {

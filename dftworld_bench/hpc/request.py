@@ -51,12 +51,17 @@ class ExecutionRequestV2:
     schema_version: int = 2
     operation_id: str = ""
     attempt: int = 1
+    compute_class: str = ""
     runtime: str = ""
     command: tuple[str, ...] = ()
     resources: JobResources = field(default_factory=JobResources)
     environment: dict[str, str] = field(default_factory=dict)
     input_entries: tuple[InputEntry, ...] = ()
     outputs: tuple[str, ...] = ()
+    # Provenance of compute_class: only "explicit" is admissible from an
+    # agent; "legacy-inferred" is stamped by the v1 compat bridge below and
+    # exists so old internal callers keep working while P10 deletes them.
+    compute_class_source: str = "explicit"
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "ExecutionRequestV2":
@@ -98,10 +103,15 @@ class ExecutionRequestV2:
         operation_id = payload["operation_id"]
         if not _OPERATION_ID_RE.match(operation_id) or "\\" in operation_id:
             raise RequestError(f"unsafe operation_id: {operation_id!r}")
+        compute_class = payload["compute_class"]
+        # The schema's allOf already gates the mechanical rule; this
+        # defense-in-depth check keeps it true even if the schema evolves.
+        _check_compute_class_consistency(compute_class, resources)
         return cls(
             schema_version=2,
             operation_id=operation_id,
             attempt=int(payload["attempt"]),
+            compute_class=compute_class,
             runtime=payload["runtime"],
             command=tuple(payload["command"]),
             resources=resources,
@@ -118,12 +128,14 @@ class ExecutionRequestV2:
             schema_version=self.schema_version,
             operation_id=self.operation_id,
             attempt=attempt,
+            compute_class=self.compute_class,
             runtime=self.runtime,
             command=self.command,
             resources=self.resources,
             environment=dict(self.environment),
             input_entries=self.input_entries,
             outputs=self.outputs,
+            compute_class_source=self.compute_class_source,
         )
 
     def with_input(self, path: str, *, sha256: str, size_bytes: int) -> "ExecutionRequestV2":
@@ -134,12 +146,14 @@ class ExecutionRequestV2:
             schema_version=self.schema_version,
             operation_id=self.operation_id,
             attempt=self.attempt,
+            compute_class=self.compute_class,
             runtime=self.runtime,
             command=self.command,
             resources=self.resources,
             environment=dict(self.environment),
             input_entries=tuple(sorted(entries, key=lambda e: e.path)),
             outputs=self.outputs,
+            compute_class_source=self.compute_class_source,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -147,6 +161,7 @@ class ExecutionRequestV2:
             "schema_version": self.schema_version,
             "operation_id": self.operation_id,
             "attempt": self.attempt,
+            "compute_class": self.compute_class,
             "runtime": self.runtime,
             "command": list(self.command),
             "resources": self.resources.to_dict(),
@@ -234,6 +249,56 @@ def _reject_unsafe_path(raw: str, kind: str) -> None:
     parts = Path(raw).parts
     if ".." in parts:
         raise RequestError(f"{kind} path must not contain '..': {raw!r}")
+
+
+def _check_compute_class_consistency(compute_class: str, resources: JobResources) -> None:
+    """Mechanical rule: cpu means zero GPUs, gpu means at least one."""
+    if compute_class == "cpu" and resources.gpus != 0:
+        raise RequestError(
+            f"compute_class=cpu requires gpus=0, request carries gpus="
+            f"{resources.gpus}"
+        )
+    if compute_class == "gpu" and resources.gpus < 1:
+        raise RequestError(
+            f"compute_class=gpu requires gpus>=1, request carries gpus="
+            f"{resources.gpus}"
+        )
+
+
+def request_from_legacy_v1_spec(spec: dict[str, Any]) -> ExecutionRequestV2:
+    """Hidden v1-compat bridge: infer compute_class from gpus, marked legacy.
+
+    A v2 agent payload must state compute_class explicitly — ``from_dict``
+    rejects one that does not.  Internal callers still on the v1 JobSpec wire
+    enter here; the inference is mechanical (gpus==0 -> cpu, else gpu) and
+    the result is stamped ``compute_class_source="legacy-inferred"`` so
+    audit/evidence consumers can see it was never an agent decision. This
+    bridge is deleted with the v1 protocol in P10.
+    """
+    try:
+        resources = JobResources(
+            cpus=spec["resources"]["cpus"],
+            memory_gb=spec["resources"]["memory_gb"],
+            gpus=spec["resources"]["gpus"],
+            walltime_minutes=spec["resources"]["walltime_minutes"],
+        )
+    except (KeyError, TypeError) as exc:
+        raise RequestError(f"invalid legacy v1 resources: {exc}") from exc
+    compute_class = "cpu" if resources.gpus == 0 else "gpu"
+    operation_id = str(spec.get("operation_id") or "legacy-operation")
+    if not _OPERATION_ID_RE.match(operation_id):
+        raise RequestError(f"unsafe legacy operation_id: {operation_id!r}")
+    return ExecutionRequestV2(
+        schema_version=2,
+        operation_id=operation_id,
+        attempt=int(spec.get("attempt") or 1),
+        compute_class=compute_class,
+        runtime=str(spec.get("runtime", "")),
+        command=tuple(spec.get("command", ())),
+        resources=resources,
+        environment=dict(spec.get("environment", {})),
+        compute_class_source="legacy-inferred",
+    )
 
 
 def _load_schema() -> dict[str, Any]:

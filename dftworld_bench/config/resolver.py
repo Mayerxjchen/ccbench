@@ -88,6 +88,7 @@ def resolve_formal(
     overrides: dict[str, Any] | None = None,
     run_config: Any = None,
     run_metadata: dict[str, Any] | None = None,
+    compute_route: Any = None,
 ) -> ResolvedRunLock:
     """Resolve a formal run lock from a frozen experiment.
 
@@ -198,11 +199,15 @@ def resolve_formal(
     }
 
     # Add HPC block if site profile is provided
-    if experiment.site_profile:
+    if experiment.site_profile or compute_route is not None:
         payload["hpc"] = {
-            "site_profile_digest": digest_bytes(canonical_json(experiment.site_profile)),
-            "scheduler": experiment.site_profile.get("scheduler", ""),
-            "capabilities": experiment.site_profile.get("capabilities", []),
+            "site_profile_digest": digest_bytes(canonical_json(experiment.site_profile or {})),
+            "scheduler": (experiment.site_profile or {}).get("scheduler", ""),
+            "capabilities": (experiment.site_profile or {}).get("capabilities", []),
         }
+    if compute_route is not None:
+        # P1 binding: ComputeProfile digest + selected SiteProfile digest +
+        # the actual route the agent's compute_class resolved to.
+        payload["hpc"].update(compute_route.lock_hpc_block())
 
     return ResolvedRunLock.create(payload)

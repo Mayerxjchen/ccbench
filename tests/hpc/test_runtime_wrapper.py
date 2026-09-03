@@ -29,6 +29,7 @@ def _request(command: list[str], *, env: dict | None = None) -> ExecutionRequest
         "schema_version": 2,
         "operation_id": "cp2k-round-01",
         "attempt": 1,
+        "compute_class": "gpu",
         "runtime": DIGEST,
         "command": command,
         "resources": {"cpus": 8, "memory_gb": 32, "gpus": 1, "walltime_minutes": 60},

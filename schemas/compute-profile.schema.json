@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/compute-profile.schema.json",
+  "title": "bench-hpc ComputeProfile v1",
+  "description": "Routing-only identity above SiteProfile: compute_class (cpu|gpu) -> named site profile. A Case, the Agent, or the hpc-submit skill selects a class; only this operator-owned document maps the class to a site, and it never carries hosts, partitions, regions, image IDs, credentials, or resource ceilings — those belong to the referenced SiteProfile. Unknown keys fail closed.",
+  "type": "object",
+  "required": ["schema_version", "profile_id", "routes"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "profile_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "description": "Stable name for this routing identity; bound into every RunLock that runs under it."
+    },
+    "routes": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 2,
+      "propertyNames": { "enum": ["cpu", "gpu"] },
+      "additionalProperties": false,
+      "properties": {
+        "cpu": { "$ref": "#/$defs/route" },
+        "gpu": { "$ref": "#/$defs/route" }
+      },
+      "description": "A missing route is legal here and fatal at routing time: the router fails closed for a class with no route instead of falling back to another site."
+    }
+  },
+  "$defs": {
+    "route": {
+      "type": "object",
+      "required": ["site_profile"],
+      "additionalProperties": false,
+      "properties": {
+        "site_profile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$",
+          "description": "Name of an operator-registered SiteProfile; existence is verified at router construction, not here."
+        }
+      }
+    }
+  }
+}

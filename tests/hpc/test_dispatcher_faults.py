@@ -171,6 +171,7 @@ def test_candidate_input_mutation_after_validation_fails_closed(tmp_path):
             "schema_version": 2,
             "operation_id": "op",
             "attempt": 1,
+            "compute_class": "cpu",
             "runtime": DIGEST,
             "command": ["tool", "-i", "input.inp"],
             "resources": {"cpus": 1, "memory_gb": 1, "gpus": 0,
