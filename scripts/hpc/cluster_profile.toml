@@ -4,6 +4,10 @@
 # every value for YOUR cluster, and pass its path via --profile.  All keys
 # are REQUIRED; a missing or wrong-typed key fails fast.
 # The SIF path and SHA live in the runtime lock (F3), not here.
+#
+# COMPUTE-CLASS SEPARATION: partition must name exactly ONE queue.
+# Full-GPU and MIG are separate profiles, filled in separately, with
+# separate qualifications — never one profile with "gpu,gpu-mig-*".
 
 [ssh]
 host = "<site-alias>"          # ssh-config alias of your login node
@@ -42,3 +46,5 @@ nodes = "1"
 [runtime]
 expected_node_arch = "x86_64"
 sync_strategy = "sync_back"  # rsync back to the site root on settle
+lock_dir = "reference/runtime"  # optional; locked <capability>-runtime.lock.json
+                                # files the trusted runtime resolver reads

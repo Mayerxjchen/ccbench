@@ -139,6 +139,23 @@ class HpcSiteProfile:
         ssh = config["ssh"]
         paths = config["paths"]
 
+        def _single_queue(name: str, value: str) -> str:
+            # Compute-class separation (Architecture Freeze §5): a profile is
+            # ONE queue.  Full-GPU and MIG are separate private profiles with
+            # separate qualifications; a comma list ("gpu,gpu-mig-*") would
+            # silently mix compute classes in one site identity.
+            if "," in value:
+                raise SiteProfileError(
+                    f"slurm.{name} must name exactly one partition; "
+                    f"full-GPU and MIG sites require separate cluster "
+                    f"profiles and separate qualifications, got {value!r}"
+                )
+            return value
+
+        _single_queue("partition", str(slurm["partition"]))
+        if slurm.get("cpu_partition"):
+            _single_queue("cpu_partition", str(slurm["cpu_partition"]))
+
         def _memory_gb(key: str, fallback: str) -> int:
             return int(str(slurm.get(key, fallback)).rstrip("Gg"))
 
@@ -196,7 +213,14 @@ class HpcSiteProfile:
             "resource_classes": slurm.get("resource_classes", {}),
             "runtime_policy": {
                 "requires_apptainer": True,
+                # Explicit runtime facts (Architecture Freeze §5): the store
+                # that holds locked SIFs, the apptainer binary the exec line
+                # must use, and the lock directory the runtime resolver reads.
                 "runtime_store": paths["remote_root"],
+                "apptainer_bin": paths["apptainer"],
+                "runtime_lock_dir": str(
+                    config.get("runtime", {}).get("lock_dir", "reference/runtime")
+                ),
             },
         }
         return cls.from_dict(payload)

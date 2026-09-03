@@ -81,5 +81,12 @@ def build_slurm_stack(
             "adapter": "slurm",
             "adapter_instance": adapter,
             "token_ttl_sec": token_ttl_sec,
+            # P1 boundary: GatewayRuntime composes the RuntimeResolver from
+            # the locked runtime directory, wires the gateway (capability ->
+            # sealed digest) and attaches the digest -> SIF store to the
+            # adapter.  Agents submit capability tokens; digests stay here.
+            "runtime_lock_dir": site.runtime_policy.get(
+                "runtime_lock_dir", "reference/runtime"
+            ),
         },
     }

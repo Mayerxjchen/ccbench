@@ -20,6 +20,7 @@ dev = [
 
 [project.scripts]
 dftworld-config = "dftworld_bench.config.cli:main"
+mlffbench = "dftworld_bench.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["dftworld_bench*"]

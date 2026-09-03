@@ -141,6 +141,43 @@ def test_cluster_config_supports_distinct_cpu_queue_ceilings():
     )
 
 
+def test_cluster_config_carries_explicit_runtime_facts():
+    """P3 (freeze §5): apptainer binary path and runtime lock directory are
+    explicit SiteProfile policy, not caller folklore."""
+    config = {
+        "ssh": {"host": "site", "user": "operator", "port": 22},
+        "paths": {"remote_root": "/runs", "apptainer": "/opt/apptainer/bin/apptainer"},
+        "runtime": {"lock_dir": "reference/runtime"},
+        "slurm": {
+            "account": "acct", "partition": "gpu", "qos": "normal",
+            "cpus_per_task": "8", "mem": "64G", "time_paper": "08:00:00",
+        },
+    }
+    site = HpcSiteProfile.from_cluster_config(config)
+    assert site.runtime_policy["apptainer_bin"] == "/opt/apptainer/bin/apptainer"
+    assert site.runtime_policy["runtime_lock_dir"] == "reference/runtime"
+    assert site.runtime_policy["runtime_store"] == "/runs"
+
+
+def test_cluster_config_rejects_mixed_gpu_mig_partitions():
+    """Full-GPU and MIG are separate profiles and separate qualifications;
+    a comma list would mix compute classes inside one site identity."""
+    base = {
+        "ssh": {"host": "site", "user": "operator", "port": 22},
+        "paths": {"remote_root": "/runs", "apptainer": "/bin/apptainer"},
+        "slurm": {
+            "account": "acct", "partition": "gpu,gpu-mig-1g", "qos": "normal",
+            "cpus_per_task": "8", "mem": "64G", "time_paper": "08:00:00",
+        },
+    }
+    with pytest.raises(SiteProfileError, match="separate cluster"):
+        HpcSiteProfile.from_cluster_config(base)
+    mixed_cpu = dict(base)
+    mixed_cpu["slurm"] = {**base["slurm"], "partition": "gpu", "cpu_partition": "cpu,mig"}
+    with pytest.raises(SiteProfileError, match="separate cluster"):
+        HpcSiteProfile.from_cluster_config(mixed_cpu)
+
+
 # -- resource_class alias layer -----------------------------------------------
 
 
