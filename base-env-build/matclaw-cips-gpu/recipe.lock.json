@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "image_name": "mlff-matclaw-cips-gpu-v1",
+  "target_cases": [
+    "031",
+    "032",
+    "033"
+  ],
+  "target_capabilities": [
+    "matclaw-cips",
+    "deepmd",
+    "lammps"
+  ],
+  "platform": "linux/amd64",
+  "status": "RECIPE_VERIFIED",
+  "image_status": "UNBUILT",
+  "base_image": {
+    "image": "compshare/pytorch:2.1.2-cuda12.1-cudnn8-devel-ubuntu22.04",
+    "oci_digest": "sha256:7f4955b274534a62580a6bbf08365f50ef917c91350a4b7fef557116b0a88092"
+  },
+  "python": {
+    "version": "3.11.15",
+    "implementation": "CPython"
+  },
+  "requirements_lock": {
+    "path": "base-env-build/matclaw-cips-gpu/requirements.lock",
+    "sha256": "99aad5f79949c2735dc7cfa45201681daa02420c5387bd7ab2d6fdf10c3234ce",
+    "package_count": 55
+  },
+  "assets": [
+    {
+      "name": "frozen_model.pb",
+      "path": "benchmark/sources/matclaw/common/teacher-model/frozen_model.pb",
+      "sha256": "a3e7cf9c8168c649ee1ba6e39a7212f3f9db29fc0162b093beb908927e956b4d"
+    },
+    {
+      "name": "CuInP2S6.cif",
+      "path": "benchmark/sources/matclaw/common/CuInP2S6.cif",
+      "sha256": "b9e3b0c4470274d5e3e1ce19e7c8834bda323e50483eef9791b1e744bbd629de"
+    },
+    {
+      "name": "type_map.raw",
+      "path": "benchmark/sources/matclaw/common/teacher-model/type_map.raw",
+      "sha256": "ddd5c423f4f087be6301609fdfd5ac93a2241b3254f7bd732d33457b1f091d8e"
+    }
+  ],
+  "probes": [
+    {
+      "name": "qualify_gpu.py",
+      "path": "base-env-build/matclaw-cips-gpu/qualify_gpu.py",
+      "sha256": "ef863ffc7c2ad5259738e1c62ca03bbfc30b200e28c708ae5e3fb30a7ac5c5b2"
+    }
+  ],
+  "recipe_digest": "sha256:2e2d41847edacdf78d94a8854699260ea72e895a9b26ed101700bc6319809bbc"
+}

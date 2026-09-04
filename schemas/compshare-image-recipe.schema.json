@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/compshare-image-recipe.schema.json",
+  "title": "CompShare Image Recipe Specification",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "image_name",
+    "target_cases",
+    "target_capabilities",
+    "platform",
+    "status",
+    "image_status",
+    "base_image",
+    "python",
+    "requirements_lock",
+    "assets",
+    "probes",
+    "recipe_digest"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "image_name": { "type": "string", "minLength": 1 },
+    "target_cases": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["031", "032", "033"] },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "target_capabilities": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["matclaw-cips", "deepmd", "lammps"] },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "platform": { "const": "linux/amd64" },
+    "status": { "const": "RECIPE_VERIFIED" },
+    "image_status": { "const": "UNBUILT" },
+    "base_image": {
+      "type": "object",
+      "required": ["image", "oci_digest"],
+      "additionalProperties": false,
+      "properties": {
+        "image": { "type": "string", "minLength": 1 },
+        "oci_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "python": {
+      "type": "object",
+      "required": ["version", "implementation"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "implementation": { "type": "string", "enum": ["CPython"] }
+      }
+    },
+    "requirements_lock": {
+      "type": "object",
+      "required": ["path", "sha256", "package_count"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "package_count": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "sha256"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "probes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "sha256"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "recipe_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

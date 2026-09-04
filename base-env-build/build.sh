@@ -29,6 +29,7 @@ Targets:
   xtb  dftworld-base-xtb   (ase3.25/rdkit/tblite/pymatgen，依赖 base)
   mace dftworld-base-mace  (ase3.25/rdkit/mace-torch，依赖 base)
   matclaw-cips dftworld-base-matclaw-cips (DeePMD 2.2.11 + LAMMPS + CIPS teacher)
+  matclaw-cips-gpu dftworld-base-matclaw-cips:2.2.11-gpu (DeePMD 2.2.11 + CUDA 12 + qualify_gpu)
   matclaw-cips-controller dftworld-base-matclaw-cips:2.2.11-controller (HPC 控制层，依赖 matclaw-cips)
   ai2kit-controller dftworld-base-ai2kit:0.1.0-cpu-controller (HPC 控制层，依赖外部 ai2kit base)
   skills       dftworld-skills:<sha>      (skill bundle，非执行镜像；生成 .skill-image.json)
@@ -198,6 +199,7 @@ expand() {
             xtb) echo base; echo xtb ;;
             mace) echo base; echo mace ;;
             matclaw-cips) echo base; echo matclaw-cips ;;
+            matclaw-cips-gpu) echo base; echo matclaw-cips; echo matclaw-cips-gpu ;;
             matclaw-cips-controller) echo base; echo matclaw-cips; echo matclaw-cips-controller ;;
             ai2kit-controller) echo ai2kit-controller ;;
             skills) echo skills ;;
@@ -211,6 +213,7 @@ expand() {
             dftworld-base-xtb) echo base; echo xtb ;;
             dftworld-base-mace) echo base; echo mace ;;
             dftworld-base-matclaw-cips) echo base; echo matclaw-cips ;;
+            dftworld-base-matclaw-cips:2.2.11-gpu) echo base; echo matclaw-cips; echo matclaw-cips-gpu ;;
             dftworld-base-matclaw-cips:2.2.11-controller) echo base; echo matclaw-cips; echo matclaw-cips-controller ;;
             dftworld-base-ai2kit:0.1.0-cpu-controller) echo ai2kit-controller ;;
             dftworld-skills) echo skills ;;
@@ -314,6 +317,14 @@ for step in "${STEPS[@]}"; do
                 -f "$DIR/matclaw-cips/Dockerfile" \
                 -t dftworld-base-matclaw-cips:2.2.11-cpu \
                 -t dftworld-base-matclaw-cips \
+                "$ROOT"
+            ;;
+        matclaw-cips-gpu)
+            rmi_if_force dftworld-base-matclaw-cips:2.2.11-gpu
+            echo "=== Building dftworld-base-matclaw-cips:2.2.11-gpu ==="
+            docker build \
+                -f "$DIR/matclaw-cips-gpu/Dockerfile" \
+                -t dftworld-base-matclaw-cips:2.2.11-gpu \
                 "$ROOT"
             ;;
         matclaw-cips-controller)
