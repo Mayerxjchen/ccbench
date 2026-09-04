@@ -1,28 +1,34 @@
 {
-  "schema": "dispatcher-compshare-runtime-lock/v1",
+  "schema": "dispatcher-compshare-runtime-lock/v2",
   "capability": "jax",
   "image_name": "mlff-jax-gpu-v1",
   "note": "Frozen JAX/DPMP GPU runtime for maintainer evaluation on CompShare. Based on official CUDA 12.2 devel image with JAX 0.5.3 (CUDA 12), JAX-MD, Flax, Optax, and DPMP. Reusable custom image asset.",
-  "base_image": "compshare/cuda:12.2-devel-ubuntu22.04",
-  "cuda_version": "12.2",
-  "software_versions": {
-    "jax": "0.5.3",
-    "jax-md": "0.2.8",
-    "flax": "0.10.6",
-    "optax": "0.2.4",
-    "dpmp": "0.2.0",
-    "python": "3.11.8",
-    "cuda": "12.2"
+  "provider": "compshare",
+  "artifact": {
+    "kind": "compshare_image",
+    "image_id": null,
+    "image_source": "custom"
   },
-  "runtime": {
-    "artifact_kind": "compshare_image",
-    "image_id": "img-jax-gpu-v1",
-    "image_sha256": "8b9e02d91f36e4c2345b6789cdef0123456789abcdef0123456789abcdef0123",
-    "provider": "compshare"
+  "provenance": {
+    "base_image": "compshare/cuda:12.2-devel-ubuntu22.04",
+    "cuda_version": "12.2",
+    "software_versions": {
+      "jax": "0.5.3",
+      "jax-md": "0.2.8",
+      "flax": "0.10.6",
+      "optax": "0.2.4",
+      "dpmp": "0.2.0",
+      "python": "3.11.8",
+      "cuda": "12.2"
+    }
+  },
+  "qualification": {
+    "status": "NOT_RUN",
+    "receipt_path": null,
+    "receipt_digest": null
   },
   "env": {
     "JAX_ENABLE_X64": "1",
     "CUDA_VISIBLE_DEVICES": "0"
   }
 }
-

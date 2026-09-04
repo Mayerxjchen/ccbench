@@ -6,8 +6,27 @@ import json
 import os
 import re
 from pathlib import Path
+from unittest.mock import patch
 
 import jsonschema
+
+
+def _mock_verify_receipt_ok(receipt, *, scheduler, root, receipt_dir):
+    """Mock verify_site_receipt that returns a successful derivation."""
+    return {
+        "receipt_dir": str(receipt_dir),
+        "digest_ok": True,
+        "problems": {},
+        "derived": {
+            "qualification_status": "PASS",
+            "formal_qualified": True,
+            "capabilities": {
+                "dispatcher.cpu": "PASS",
+                "dispatcher.gpu": "PASS",
+            },
+            "gates": {},
+        },
+    }
 import pytest
 
 from dftworld_bench.contracts.case import CaseSpec
@@ -57,12 +76,13 @@ def test_g2_clean_executor_contract():
 
 
 def test_g3_runtime_locks_valid():
-    """G3: Runtime locks exist and parse cleanly."""
+    """G3: Runtime locks exist and parse cleanly, and unbuilt runtimes are not qualified."""
     ref_runtime = ROOT / "reference" / "runtime"
     resolver = RuntimeResolver.from_lock_dir(ref_runtime)
-    caps = resolver.capabilities()
+    all_caps = resolver.all_capabilities()
     for cap in ("cp2k", "ai2kit", "deepmd", "jax"):
-        assert cap in caps
+        assert cap in all_caps
+    assert resolver.qualified_capabilities() == []
 
 
 def test_g4_prompt_fidelity():
@@ -92,17 +112,15 @@ def test_g6_clean_schema_validation():
 
 
 def test_g7_route_aware_resolver():
-    """G7: Resolver distinguishes SIF and CompShare image targets."""
-    resolver = RuntimeResolver.from_lock_dir(ROOT / "reference" / "runtime")
-    res_deepmd = resolver.resolve("deepmd")
-    assert res_deepmd.artifact_kind == "compshare_image"
-    assert res_deepmd.image_id == "img-deepmd-gpu-v1"
-    assert res_deepmd.provider == "compshare"
+    """G7: Resolver distinguishes SIF and CompShare image targets and fails closed when unbuilt."""
+    from dftworld_bench.hpc.runtime_resolution import RuntimeResolutionError
 
-    res_jax = resolver.resolve("jax")
-    assert res_jax.artifact_kind == "compshare_image"
-    assert res_jax.image_id == "img-jax-gpu-v1"
-    assert res_jax.provider == "compshare"
+    resolver = RuntimeResolver.from_lock_dir(ROOT / "reference" / "runtime")
+    # Gate A1 requirement: unbuilt runtimes without qualification fail closed
+    with pytest.raises(RuntimeResolutionError, match="UNBUILT"):
+        resolver.resolve("deepmd")
+    with pytest.raises(RuntimeResolutionError, match="UNBUILT"):
+        resolver.resolve("jax")
 
 
 def test_g8_driver_conformance():
@@ -145,13 +163,27 @@ def test_g9_containment_and_sandboxing(tmp_path: Path):
     assert "--contain" in rendered.script
 
 
-def test_g10_two_layer_qualification():
+def _mock_site_receipts_dir(tmp_path: Path) -> tuple[Path, str, str]:
+    import hashlib
+    import json
+    site_dir = tmp_path / "site_receipts"
+    site_dir.mkdir(parents=True, exist_ok=True)
+    cpu_b = json.dumps({"site_id": "ikkem-cpu", "verdict": "PASS"}, sort_keys=True).encode("utf-8")
+    gpu_b = json.dumps({"site_id": "compshare-gpu", "verdict": "PASS"}, sort_keys=True).encode("utf-8")
+    (site_dir / "ikkem-cpu.receipt.json").write_bytes(cpu_b)
+    (site_dir / "compshare-gpu.receipt.json").write_bytes(gpu_b)
+    return site_dir, f"sha256:{hashlib.sha256(cpu_b).hexdigest()}", f"sha256:{hashlib.sha256(gpu_b).hexdigest()}"
+
+
+@patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+def test_g10_two_layer_qualification(tmp_path: Path):
     """G10: ComputeProfile qualification verifies both routes."""
     from dftworld_bench.experiments.compute_profile_qualification import (
         compute_receipt_digest,
         verify_and_derive_qualification,
     )
 
+    site_dir, cpu_sha, gpu_sha = _mock_site_receipts_dir(tmp_path)
     receipt = {
         "kind": "hpc-compute-profile-qualification/v1",
         "schema_id": "https://mlip-bench.example/schemas/compute-profile-qualification-receipt.schema.json",
@@ -159,8 +191,8 @@ def test_g10_two_layer_qualification():
         "compute_profile_digest": "a" * 64,
         "routes": {"cpu": "ikkem-cpu", "gpu": "compshare-gpu"},
         "site_receipts": {
-            "ikkem-cpu": f"sha256:{'1' * 64}",
-            "compshare-gpu": f"sha256:{'2' * 64}",
+            "ikkem-cpu": cpu_sha,
+            "compshare-gpu": gpu_sha,
         },
         "cloud_recycling_evidence": {
             "stock_checked": True,
@@ -177,17 +209,19 @@ def test_g10_two_layer_qualification():
         },
     }
     receipt["digest"] = compute_receipt_digest(receipt)
-    verdict = verify_and_derive_qualification(receipt)
+    verdict = verify_and_derive_qualification(receipt, site_receipts_dir=site_dir)
     assert verdict.passed is True
 
 
-def test_g11_zero_orphan_gate():
+@patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+def test_g11_zero_orphan_gate(tmp_path: Path):
     """G11: Zero-orphan gate rejects receipts with active billing instances."""
     from dftworld_bench.experiments.compute_profile_qualification import (
         compute_receipt_digest,
         verify_and_derive_qualification,
     )
 
+    site_dir, cpu_sha, gpu_sha = _mock_site_receipts_dir(tmp_path)
     receipt = {
         "kind": "hpc-compute-profile-qualification/v1",
         "schema_id": "https://mlip-bench.example/schemas/compute-profile-qualification-receipt.schema.json",
@@ -195,8 +229,8 @@ def test_g11_zero_orphan_gate():
         "compute_profile_digest": "a" * 64,
         "routes": {"cpu": "ikkem-cpu", "gpu": "compshare-gpu"},
         "site_receipts": {
-            "ikkem-cpu": f"sha256:{'1' * 64}",
-            "compshare-gpu": f"sha256:{'2' * 64}",
+            "ikkem-cpu": cpu_sha,
+            "compshare-gpu": gpu_sha,
         },
         "cloud_recycling_evidence": {
             "stock_checked": True,
@@ -212,20 +246,24 @@ def test_g11_zero_orphan_gate():
         },
     }
     receipt["digest"] = compute_receipt_digest(receipt)
-    verdict = verify_and_derive_qualification(receipt)
+    verdict = verify_and_derive_qualification(receipt, site_receipts_dir=site_dir)
     assert verdict.passed is False
     assert verdict.cloud_recycling_passed is False
 
 
-def test_g12_all_cases_valid():
-    """G12: All five benchmark cases (031-034, 042) are signed benchmark_valid=true."""
-    for case_num in ("031", "032", "033", "034", "042"):
+def test_g12_case_validation_states():
+    """G12: Cases 031-033 are verified baseline valid; 034/042 reflect actual construction status."""
+    for case_num in ("031", "032", "033"):
         matches = list(ROOT.glob(f"{case_num}-*"))
         assert len(matches) == 1
-        bv_file = matches[0] / "benchmark_valid.json"
-        assert bv_file.is_file(), f"Missing benchmark_valid.json in {matches[0]}"
-        data = json.loads(bv_file.read_text())
-        assert data.get("benchmark_valid") is True, f"Case {case_num} benchmark_valid is not True: {data}"
+        data = json.loads((matches[0] / "benchmark_valid.json").read_text())
+        assert data.get("benchmark_valid") is True
+
+    for case_num in ("034", "042"):
+        matches = list(ROOT.glob(f"{case_num}-*"))
+        assert len(matches) == 1
+        data = json.loads((matches[0] / "benchmark_valid.json").read_text())
+        assert data.get("benchmark_valid") is False
 
 
 def test_g13_user_cli_compute():

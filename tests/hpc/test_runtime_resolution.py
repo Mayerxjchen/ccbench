@@ -130,7 +130,7 @@ def test_unknown_capability_fails_closed(tmp_path):
 
 def test_uncaptured_digest_fails_closed(tmp_path):
     resolver = _resolver(tmp_path)
-    with pytest.raises(RuntimeResolutionError, match="no captured"):
+    with pytest.raises(RuntimeResolutionError, match="UNBUILT|no captured"):
         resolver.resolve("deepmd-jax")
 
 
@@ -142,14 +142,11 @@ def test_compat_digest_assertion_checked(tmp_path):
         resolver.resolve(f"cp2k@sha256:{OTHER_SHA}")
 
 
-def test_compat_unknown_name_passes_through(tmp_path):
-    """Hidden compat path until Phase 8: a locked-in-nowhere digest passes
-    so the frozen qualification driver keeps working; capability tokens never
-    get this exemption (test_unknown_capability_fails_closed)."""
+def test_unknown_name_fails_closed_in_phase_10(tmp_path):
+    """Phase 10 cleanup: unknown runtime capability fails closed, even with digest."""
     resolver = _resolver(tmp_path)
-    resolved = resolver.resolve(f"matclaw-cips@sha256:{OTHER_SHA}")
-    assert resolved.sif_path == ""
-    assert resolved.qualification == "runtime.matclaw-gpu"
+    with pytest.raises(RuntimeResolutionError, match="unknown runtime capability"):
+        resolver.resolve(f"matclaw-cips@sha256:{OTHER_SHA}")
 
 
 def test_qualification_mapping_ai2kit(tmp_path):
@@ -157,8 +154,8 @@ def test_qualification_mapping_ai2kit(tmp_path):
 
 
 def test_capabilities_listing(tmp_path):
-    assert _resolver(tmp_path).capabilities() == [
-        "ai2kit", "cp2k", "deepmd-jax"]
+    assert _resolver(tmp_path).qualified_capabilities() == [
+        "ai2kit", "cp2k"]
 
 
 def test_runtime_store_only_finalized(tmp_path):
@@ -179,7 +176,7 @@ def test_placeholder_path_fails_closed(tmp_path):
         },
     }))
     resolver = RuntimeResolver.from_lock_dir(locks)
-    with pytest.raises(RuntimeResolutionError, match="no concrete"):
+    with pytest.raises(RuntimeResolutionError, match="UNBUILT|placeholder"):
         resolver.resolve("lammps")
 
 
@@ -260,7 +257,7 @@ def test_gateway_unknown_capability_denied(tmp_path):
 def test_gateway_uncaptured_runtime_denied(tmp_path):
     gw = _gateway(ProcessTestAdapter(tmp_path / "jobs"), _resolver(tmp_path))
     token = gw.issue("run-1", ("submit",))
-    with pytest.raises(GatewayError, match="no captured"):
+    with pytest.raises(GatewayError, match="UNBUILT|no captured"):
         gw.submit(token, "run-1", _spec("deepmd-jax"), operation_id="op-1")
 
 
@@ -284,7 +281,7 @@ def test_capabilities_advertise_runtime_names(tmp_path):
     gw = _gateway(ProcessTestAdapter(tmp_path / "jobs"), _resolver(tmp_path))
     token = gw.issue("run-1", ("capabilities",))
     out = gw.capabilities(token, "run-1")
-    assert out["runtime_capabilities"] == ["ai2kit", "cp2k", "deepmd-jax"]
+    assert out["runtime_capabilities"] == ["ai2kit", "cp2k"]
 
 
 def test_capabilities_omit_field_without_resolver(tmp_path):
@@ -380,14 +377,23 @@ def test_compshare_image_lock_resolution(tmp_path: Path):
     img_sha = "12" * 32
     (locks / "deepmd-runtime.lock.json").write_text(
         json.dumps({
-            "schema": "dispatcher-compshare-runtime-lock/v1",
+            "schema": "dispatcher-compshare-runtime-lock/v2",
+            "capability": "deepmd",
             "image_name": "mlff-deepmd-gpu-v1",
-            "runtime": {
-                "artifact_kind": "compshare_image",
+            "provider": "compshare",
+            "artifact": {
+                "kind": "compshare_image",
                 "image_id": "img-deepmd-gpu-v1",
-                "image_sha256": img_sha,
-                "provider": "compshare",
+                "image_source": "custom",
+            },
+            "provenance": {
+                "base_image": "compshare/pytorch:2.1.2-cuda12.1-cudnn8-devel-ubuntu22.04",
                 "software_versions": {"deepmd": "2.2.11", "cuda": "12.2"},
+            },
+            "qualification": {
+                "status": "PASS",
+                "receipt_path": "evidence/compshare.receipt.json",
+                "receipt_digest": "sha256:" + img_sha,
             },
         })
     )
@@ -397,7 +403,7 @@ def test_compshare_image_lock_resolution(tmp_path: Path):
     assert resolved.artifact_kind == "compshare_image"
     assert resolved.image_id == "img-deepmd-gpu-v1"
     assert resolved.artifact_path_or_id == "img-deepmd-gpu-v1"
-    assert resolved.digest == img_sha
+    assert resolved.digest == "sha256:" + img_sha
     assert resolved.sif_path == ""
     assert resolved.provider == "compshare"
     assert resolved.software_versions["deepmd"] == "2.2.11"
@@ -409,16 +415,22 @@ def test_compshare_placeholder_image_id_fails_closed(tmp_path: Path):
     locks.mkdir(exist_ok=True)
     (locks / "jax-runtime.lock.json").write_text(
         json.dumps({
+            "schema": "dispatcher-compshare-runtime-lock/v2",
+            "capability": "jax",
             "image_name": "mlff-jax-gpu-v1",
-            "runtime": {
-                "artifact_kind": "compshare_image",
+            "provider": "compshare",
+            "artifact": {
+                "kind": "compshare_image",
                 "image_id": "<unassigned-image-id>",
-                "image_sha256": "34" * 32,
+                "image_source": "custom",
+            },
+            "qualification": {
+                "status": "NOT_RUN",
             },
         })
     )
     resolver = RuntimeResolver.from_lock_dir(locks)
-    with pytest.raises(RuntimeResolutionError, match="no concrete CompShare ImageId"):
+    with pytest.raises(RuntimeResolutionError, match="UNBUILT|placeholder|no concrete"):
         resolver.resolve("jax")
 
 
@@ -513,7 +525,7 @@ def test_render_runtime_wrapper_with_resolved_runtime():
 
 
 def test_frozen_compshare_gpu_locks_parse():
-    from dftworld_bench.hpc.runtime_resolution import RuntimeLockEntry
+    from dftworld_bench.hpc.runtime_resolution import RuntimeLockEntry, RuntimeStatus
 
     ref_dir = Path(__file__).resolve().parent.parent.parent / "reference" / "runtime"
     deepmd_lock = ref_dir / "deepmd-runtime.lock.json"
@@ -527,7 +539,8 @@ def test_frozen_compshare_gpu_locks_parse():
         "deepmd", deepmd_data, source=str(deepmd_lock)
     )
     assert deepmd_entry.artifact_kind == "compshare_image"
-    assert deepmd_entry.image_id == "img-deepmd-gpu-v1"
+    assert deepmd_entry.image_id == ""
+    assert deepmd_entry.status == RuntimeStatus.UNBUILT
     assert deepmd_entry.provider == "compshare"
 
     jax_data = json.loads(jax_lock.read_text())
@@ -535,5 +548,6 @@ def test_frozen_compshare_gpu_locks_parse():
         "jax", jax_data, source=str(jax_lock)
     )
     assert jax_entry.artifact_kind == "compshare_image"
-    assert jax_entry.image_id == "img-jax-gpu-v1"
+    assert jax_entry.image_id == ""
+    assert jax_entry.status == RuntimeStatus.UNBUILT
     assert jax_entry.provider == "compshare"

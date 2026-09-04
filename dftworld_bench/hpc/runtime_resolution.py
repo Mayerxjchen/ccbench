@@ -36,7 +36,7 @@ from dftworld_bench.contracts.case import RUNTIME_FAMILY_CAPABILITIES
 # name is the same token grammar the execution-request schema accepts; the
 # digest suffix is optional (its presence marks the legacy compat form).
 RUNTIME_DECL_RE = re.compile(
-    r"^(?P<name>[a-z0-9][a-z0-9./_-]*)(?:@sha256:(?P<digest>[0-9a-f]{64}))?$"
+    r"^(?P<name>[a-z0-9][a-z0-9./_-]*)(?:@(?:sha256:)?(?P<digest>[0-9a-f]{64}|img-[a-z0-9._-]+))?$"
 )
 CAPABILITY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
@@ -67,6 +67,14 @@ def qualification_for(capability: str) -> str:
     return RUNTIME_FAMILY_CAPABILITIES.get(capability, f"runtime.{capability}")
 
 
+class RuntimeStatus:
+    UNBUILT = "UNBUILT"
+    BUILT_NOT_QUALIFIED = "BUILT_NOT_QUALIFIED"
+    QUALIFIED = "QUALIFIED"
+    FAILED = "FAILED"
+    REVOKED = "REVOKED"
+
+
 @dataclass(frozen=True)
 class RuntimeLockEntry:
     """One locked runtime identity, read from a ``<capability>-runtime.lock.json`` or SiteProfile."""
@@ -79,6 +87,10 @@ class RuntimeLockEntry:
     artifact_kind: str = "sif"  # "sif" | "compshare_image"
     artifact_path_or_id: str = ""
     digest: str = ""
+    status: str = RuntimeStatus.UNBUILT
+    lock_digest: str = ""
+    qualification_receipt_path: str = ""
+    qualification_receipt_digest: str = ""
     software_versions: dict[str, str] = field(default_factory=dict, hash=False)
     provider: str = "slurm"
     site_profile_id: str = ""
@@ -108,19 +120,64 @@ class RuntimeLockEntry:
     def from_lock_doc(
         cls, capability: str, doc: Mapping[str, object], *, source: str
     ) -> "RuntimeLockEntry":
+        image_name = str(doc.get("image_name") or capability)
+        runtime_profile_id = str(doc.get("runtime_profile_id") or doc.get("image_name") or capability)
+
+        # Compute content-addressed canonical digest of the lock doc itself
+        canon_lock = json.dumps(doc, sort_keys=True, separators=(",", ":"))
+        lock_digest = f"sha256:{hashlib.sha256(canon_lock.encode('utf-8')).hexdigest()}"
+
+        # Schema v2: dispatcher-compshare-runtime-lock/v2
+        if doc.get("schema") == "dispatcher-compshare-runtime-lock/v2":
+            artifact = doc.get("artifact") or {}
+            provenance = doc.get("provenance") or {}
+            qual = doc.get("qualification") or {}
+            raw_image_id = artifact.get("image_id")
+            image_id = str(raw_image_id) if raw_image_id is not None else ""
+            qual_status = str(qual.get("status") or "NOT_RUN").upper()
+            receipt_path = qual.get("receipt_path")
+            receipt_digest = qual.get("receipt_digest")
+
+            if not image_id or is_placeholder_artifact(image_id):
+                status = RuntimeStatus.UNBUILT
+                image_id = ""
+            elif qual_status != "PASS" or not receipt_path or not receipt_digest:
+                status = RuntimeStatus.BUILT_NOT_QUALIFIED
+            else:
+                status = RuntimeStatus.QUALIFIED
+
+            return cls(
+                capability=capability,
+                image_name=image_name,
+                source=source,
+                artifact_kind="compshare_image",
+                artifact_path_or_id=image_id,
+                digest=str(receipt_digest or ""),
+                status=status,
+                lock_digest=lock_digest,
+                qualification_receipt_path=str(receipt_path or ""),
+                qualification_receipt_digest=str(receipt_digest or ""),
+                software_versions=dict(provenance.get("software_versions") or {}),
+                provider=str(doc.get("provider") or "compshare"),
+                runtime_profile_id=runtime_profile_id,
+            )
+
         runtime = doc.get("runtime")
         if not isinstance(runtime, Mapping):
             raise RuntimeResolutionError(
                 f"lock {source}: missing 'runtime' block for capability {capability!r}"
             )
-        image_name = str(doc.get("image_name") or capability)
         software_versions = dict(doc.get("software_versions") or runtime.get("software_versions") or {})
-        runtime_profile_id = str(doc.get("runtime_profile_id") or doc.get("image_name") or capability)
 
-        # CompShare custom image lock
+        # CompShare custom image lock (v1 / legacy)
         if runtime.get("artifact_kind") == "compshare_image" or "image_id" in runtime:
-            image_id = str(runtime.get("image_id") or "")
-            digest = str(runtime.get("image_sha256") or runtime.get("digest") or "")
+            raw_image_id = runtime.get("image_id")
+            image_id = str(raw_image_id) if raw_image_id is not None else ""
+            if not image_id or is_placeholder_artifact(image_id):
+                status = RuntimeStatus.UNBUILT
+                image_id = ""
+            else:
+                status = RuntimeStatus.BUILT_NOT_QUALIFIED
             provider = str(runtime.get("provider") or "compshare")
             return cls(
                 capability=capability,
@@ -128,7 +185,9 @@ class RuntimeLockEntry:
                 source=source,
                 artifact_kind="compshare_image",
                 artifact_path_or_id=image_id,
-                digest=digest,
+                digest="",  # No pseudo-digest derivation!
+                status=status,
+                lock_digest=lock_digest,
                 software_versions=software_versions,
                 provider=provider,
                 runtime_profile_id=runtime_profile_id,
@@ -138,6 +197,11 @@ class RuntimeLockEntry:
         sif_path = str(runtime.get("sif_path_remote") or "")
         sif_sha = str(runtime.get("sif_sha256") or "")
         provider = str(runtime.get("provider") or "slurm")
+        if not sif_path or is_placeholder_artifact(sif_path) or not sif_sha or is_placeholder_artifact(sif_sha):
+            status = RuntimeStatus.UNBUILT
+        else:
+            status = RuntimeStatus.QUALIFIED
+
         return cls(
             capability=capability,
             image_name=image_name,
@@ -147,6 +211,8 @@ class RuntimeLockEntry:
             artifact_kind="sif",
             artifact_path_or_id=sif_path,
             digest=sif_sha,
+            status=status,
+            lock_digest=lock_digest,
             software_versions=software_versions,
             provider=provider,
             runtime_profile_id=runtime_profile_id,
@@ -196,6 +262,9 @@ class ResolvedRuntime:
     artifact_path_or_id: str = ""
     digest: str = ""
     software_versions: dict[str, str] = field(default_factory=dict, hash=False)
+    status: str = RuntimeStatus.QUALIFIED
+    qualification_verified: bool = True
+    qualification_receipt_digest: str = ""
 
     def __post_init__(self) -> None:
         if self.artifact_kind == "sif":
@@ -238,6 +307,24 @@ class ResolvedRuntime:
             "sif_sha256": self.sif_sha256,
             "runtime_profile_digest": self.runtime_profile_digest,
         }
+
+
+_PLACEHOLDER_SUBSTRINGS = (
+    "<",
+    "placeholder",
+    "unqualified",
+    "dummy",
+    "not validated",
+    "unverified",
+)
+
+
+def is_placeholder_artifact(val: str | None) -> bool:
+    """Check if an artifact identifier contains unresolvable placeholders or unverified tags."""
+    if not val:
+        return True
+    lower = val.lower().strip()
+    return any(p in lower for p in _PLACEHOLDER_SUBSTRINGS)
 
 
 class RuntimeResolver:
@@ -291,14 +378,24 @@ class RuntimeResolver:
         scheduler = getattr(site_profile, "scheduler", "slurm")
         for cap, img in images.items():
             if isinstance(img, Mapping):
+                art_id = str(img.get("image_id") or img.get("sif_path") or "")
+                dig = str(img.get("image_sha256") or img.get("digest") or img.get("sif_sha256") or "")
+                qual_verified = bool(img.get("qualification_verified") or img.get("qualified"))
+                if not art_id or is_placeholder_artifact(art_id):
+                    st = RuntimeStatus.UNBUILT
+                elif qual_verified or (dig and not is_placeholder_artifact(dig)):
+                    st = RuntimeStatus.QUALIFIED
+                else:
+                    st = RuntimeStatus.BUILT_NOT_QUALIFIED
                 entries.append(
                     RuntimeLockEntry(
                         capability=cap,
                         image_name=str(img.get("image_name") or cap),
                         source=f"site_profile:{site_id}",
                         artifact_kind=str(img.get("artifact_kind") or ("compshare_image" if scheduler == "compshare" else "sif")),
-                        artifact_path_or_id=str(img.get("image_id") or img.get("sif_path") or ""),
-                        digest=str(img.get("image_sha256") or img.get("digest") or img.get("sif_sha256") or ""),
+                        artifact_path_or_id=art_id,
+                        digest=dig,
+                        status=st,
                         software_versions=dict(img.get("software_versions") or {}),
                         provider=scheduler,
                         site_profile_id=site_id,
@@ -307,8 +404,18 @@ class RuntimeResolver:
                 )
         return cls(entries)
 
-    def capabilities(self) -> list[str]:
-        """Capability tokens agents may name (image-name aliases excluded)."""
+    def qualified_capabilities(self) -> list[str]:
+        """Capability tokens agents may name (strictly QUALIFIED runtimes only)."""
+        result = set()
+        for entry in self._by_name.values():
+            if not CAPABILITY_RE.match(entry.capability):
+                continue
+            if entry.status == RuntimeStatus.QUALIFIED:
+                result.add(entry.capability)
+        return sorted(result)
+
+    def all_capabilities(self) -> list[str]:
+        """All capability tokens parsed from lock files regardless of qualification status."""
         return sorted(
             {
                 entry.capability
@@ -317,13 +424,18 @@ class RuntimeResolver:
             }
         )
 
+    def capabilities(self, *, resolved_only: bool = True) -> list[str]:
+        """Capability tokens agents may name (delegates to qualified_capabilities)."""
+        return self.qualified_capabilities()
+
     def runtime_store(self) -> dict[str, str]:
         """Digest -> SIF path map for adapters (locked runtimes only)."""
         return {
             entry.sif_sha256: entry.sif_path
             for entry in set(self._by_name.values())
             if entry.sif_sha256 and entry.sif_path
-            and "<" not in entry.sif_path
+            and not is_placeholder_artifact(entry.sif_path)
+            and entry.status == RuntimeStatus.QUALIFIED
         }
 
     def resolve(
@@ -339,48 +451,35 @@ class RuntimeResolver:
         eff_provider = provider or (getattr(site_profile, "scheduler", "") if site_profile else "")
 
         if entry is None:
-            if digest is not None:
-                # Hidden compat path (removal deferred to Phase 10): a legacy
-                # digest-shaped declaration for a runtime this site does not
-                # lock passes through unchanged. Capability tokens never get
-                # this exemption.
-                return ResolvedRuntime(
-                    capability=name,
-                    sif_path="",
-                    sif_sha256=digest,
-                    runtime_profile_digest="",
-                    qualification=qualification_for(name),
-                    provider=eff_provider or "slurm",
-                    site_profile_id=site_id,
-                    runtime_profile_id=name,
-                    artifact_kind="sif",
-                    artifact_path_or_id="",
-                    digest=digest,
-                )
             raise RuntimeResolutionError(
                 f"unknown runtime capability {name!r}; this site resolves: "
-                f"{', '.join(self.capabilities())}"
+                f"{', '.join(self.qualified_capabilities())}"
+            )
+
+        if entry.status != RuntimeStatus.QUALIFIED:
+            raise RuntimeResolutionError(
+                f"runtime {name!r} ({entry.source}) is {entry.status}; only QUALIFIED runtimes can be resolved"
             )
 
         eff_provider = eff_provider or entry.provider or "slurm"
         site_id = site_id or entry.site_profile_id
 
         if entry.artifact_kind == "sif":
-            if not entry.sif_sha256:
+            if not entry.sif_sha256 or is_placeholder_artifact(entry.sif_sha256):
                 raise RuntimeResolutionError(
                     f"locked runtime {name!r} ({entry.source}) has no captured "
-                    "SIF digest; the qualification gate stays NOT_RUN until the "
-                    "site records it"
+                    "SIF digest (or placeholder/unqualified); the qualification gate stays "
+                    "NOT_RUN until the site records it"
+                )
+            if not entry.sif_path or is_placeholder_artifact(entry.sif_path):
+                raise RuntimeResolutionError(
+                    f"locked runtime {name!r} ({entry.source}) has no concrete "
+                    "SIF path on this site (placeholder/unqualified rejected)"
                 )
             if digest is not None and digest != entry.sif_sha256:
                 raise RuntimeResolutionError(
                     f"declared digest for {name!r} does not match the locked "
                     "runtime; digests are infra assertions, not Agent choices"
-                )
-            if not entry.sif_path or "<" in entry.sif_path:
-                raise RuntimeResolutionError(
-                    f"locked runtime {name!r} ({entry.source}) has no concrete "
-                    "SIF path on this site"
                 )
             return ResolvedRuntime(
                 capability=entry.capability,
@@ -398,15 +497,15 @@ class RuntimeResolver:
             )
 
         elif entry.artifact_kind == "compshare_image":
-            if not entry.artifact_path_or_id or "<" in entry.artifact_path_or_id:
+            if not entry.artifact_path_or_id or is_placeholder_artifact(entry.artifact_path_or_id):
                 raise RuntimeResolutionError(
                     f"locked runtime {name!r} ({entry.source}) has no concrete "
-                    "CompShare ImageId on this site"
+                    "CompShare ImageId on this site (placeholder/unqualified rejected)"
                 )
-            if not entry.digest:
+            if not entry.digest or is_placeholder_artifact(entry.digest):
                 raise RuntimeResolutionError(
                     f"locked runtime {name!r} ({entry.source}) has no captured "
-                    "image digest"
+                    "image digest (placeholder/unqualified rejected)"
                 )
             if digest is not None and digest != entry.digest:
                 raise RuntimeResolutionError(
@@ -419,7 +518,7 @@ class RuntimeResolver:
                 sif_sha256=entry.digest,
                 runtime_profile_digest=entry.profile_digest(),
                 qualification=qualification_for(entry.capability),
-                provider=eff_provider or "compshare",
+                provider=eff_provider,
                 site_profile_id=site_id,
                 runtime_profile_id=entry.runtime_profile_id,
                 artifact_kind="compshare_image",
@@ -442,3 +541,10 @@ class RuntimeResolver:
             digest=entry.digest,
             software_versions=entry.software_versions,
         )
+
+
+def default_resolver(lock_dir: Path | None = None) -> RuntimeResolver:
+    """Return resolver initialized from reference/runtime directory."""
+    if lock_dir is None:
+        lock_dir = Path(__file__).resolve().parents[2] / "reference" / "runtime"
+    return RuntimeResolver.from_lock_dir(lock_dir)
