@@ -57,6 +57,16 @@ def test_start_rejects_unknown_adapter(tmp_path: Path) -> None:
         runtime.start("run-1", {"adapter": "no-such-adapter"})
 
 
+def test_start_rejects_bare_runtime_lock_dir_without_catalog(tmp_path: Path) -> None:
+    """Runtime locks are not authority; only the composition root may inject a Catalog."""
+    runtime = GatewayRuntime(networks_factory=_fake_networks)
+    with pytest.raises(GatewayRuntimeError, match="runtime_lock_dir alone"):
+        runtime.start(
+            "run-1",
+            {**_config(tmp_path), "runtime_lock_dir": str(tmp_path / "locks")},
+        )
+
+
 def test_second_lease_for_same_run_replaces_first(tmp_path: Path) -> None:
     runtime = GatewayRuntime(networks_factory=_fake_networks)
     first = runtime.start("run-1", _config(tmp_path))

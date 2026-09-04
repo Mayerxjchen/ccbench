@@ -149,16 +149,12 @@ class GatewayRuntime:
                     "runtime_catalog must be a TrustedRuntimeCatalog created by "
                     "the trusted composition root"
                 )
-        else:
-            lock_dir = adapter_config.get("runtime_lock_dir")
-            if lock_dir:
-                catalog = TrustedRuntimeCatalog(
-                    lock_dir=Path(lock_dir),
-                    qualification_root=adapter_config.get("qualification_root"),
-                    trust_store=adapter_config.get("trust_store"),
-                    trusted_site_profiles=adapter_config.get("trusted_site_profiles"),
-                    repo_root=adapter_config.get("repo_root"),
-                )
+        elif "runtime_lock_dir" in adapter_config:
+            raise GatewayRuntimeError(
+                "runtime_lock_dir alone cannot configure runtime resolution; "
+                "the trusted composition root must inject a "
+                "TrustedRuntimeCatalog as runtime_catalog"
+            )
         if catalog is not None:
             resolver = catalog.to_resolver()
             attach = getattr(adapter, "set_runtime_store", None)

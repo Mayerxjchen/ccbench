@@ -31,6 +31,8 @@ def build_slurm_stack(
     audit_path: Path,
     token_ttl_sec: float = 7200.0,
     workload: str = "gpu",
+    qualification_root: Path | str | None = None,
+    trust_store: Any | None = None,
 ) -> dict[str, Any]:
     """Compose {audit, adapter, run_adapter_config, site_profile}.
 
@@ -43,6 +45,24 @@ def build_slurm_stack(
     site = HpcSiteProfile.from_cluster_config(raw)
     ssh = raw["ssh"]
     resolved = site.resolve_workload(workload)
+    lock_dir = Path(
+        site.runtime_policy.get("runtime_lock_dir", "reference/runtime")
+    )
+    if not lock_dir.is_dir():
+        raise RuntimeError(
+            f"configured runtime lock directory does not exist: {lock_dir}"
+        )
+    lock_files = tuple(lock_dir.glob("*-runtime.lock.json"))
+    if lock_files and qualification_root is None:
+        raise RuntimeError(
+            "Slurm runtime locks require an explicit qualification_root; "
+            "refusing to infer it from the lock directory"
+        )
+    if lock_files and trust_store is None:
+        raise RuntimeError(
+            "Slurm runtime locks require an explicit qualification trust_store; "
+            "qualification cannot proceed without operator trust anchors"
+        )
 
     transport = SshSlurmTransport(
         ssh=SshConfig(
@@ -76,15 +96,13 @@ def build_slurm_stack(
         resource_profile=resource_profile,
         script_dir=Path("jobs/hpc-scripts"),
     )
-    lock_dir = Path(
-        site.runtime_policy.get("runtime_lock_dir", "reference/runtime")
-    )
     # The explicit profile registry and Catalog are the only authority passed
     # to GatewayRuntime.  A bare lock parser is deliberately not sufficient
     # for a production runtime.
     runtime_catalog = TrustedRuntimeCatalog(
         lock_dir=lock_dir,
-        qualification_root=lock_dir.parent.parent,
+        qualification_root=qualification_root,
+        trust_store=trust_store,
         trusted_site_profiles={site.site_id: site},
     )
     return {
@@ -97,7 +115,9 @@ def build_slurm_stack(
             "token_ttl_sec": token_ttl_sec,
             "runtime_catalog": runtime_catalog,
             "runtime_lock_dir": str(lock_dir),
-            "qualification_root": str(lock_dir.parent.parent),
+            "qualification_root": (
+                str(qualification_root) if qualification_root is not None else None
+            ),
         },
     }
 
@@ -146,6 +166,8 @@ def build_hybrid_stack(
             audit_path=audit_path,
             token_ttl_sec=token_ttl_sec,
             workload="cpu",
+            qualification_root=qualification_root,
+            trust_store=trust_store,
         )
         slurm_site = slurm_stack["site_profile"]
         site_profiles[slurm_site.site_id] = slurm_site

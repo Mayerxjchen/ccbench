@@ -558,8 +558,14 @@ def _executor_deps(
     from dftworld_bench.hpc.dispatcher import HpcDispatcher
     from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
     from dftworld_bench.hpc.production import build_hybrid_stack, build_slurm_stack
+    from dftworld_bench.hpc.trust_store import QualificationTrustStore
 
     effective_cluster = cluster_profile_path or site_profile_path or Path("scripts/hpc/cluster_profile.toml")
+    # These are explicit composition-root inputs.  The checked-in trust store
+    # is intentionally UNCONFIGURED; loading it here keeps the runtime
+    # fail-closed until an operator injects active qualification anchors.
+    qualification_root = ROOT
+    trust_store = QualificationTrustStore.load_default()
 
     if compute_profile_path is not None and Path(compute_profile_path).is_file():
         stack = build_hybrid_stack(
@@ -568,6 +574,9 @@ def _executor_deps(
             gpu_site_profile_path=gpu_site_profile_path,
             case_id=f"eval-{task.name}",
             audit_path=Path("jobs/hpc-audit.jsonl"),
+            qualification_root=qualification_root,
+            trust_store=trust_store,
+            repo_root=ROOT,
         )
         dispatcher = HpcDispatcher(
             GatewayRuntime(audit=stack["audit"]),
@@ -588,10 +597,10 @@ def _executor_deps(
         cluster_profile_path=effective_cluster,
         case_id=f"eval-{task.name}",
         audit_path=Path("jobs/hpc-audit.jsonl"),
+        qualification_root=qualification_root,
+        trust_store=trust_store,
     )
-    dispatcher = HpcDispatcher(GatewayRuntime(audit=stack["audit"]), {
-        "adapter": "slurm", "adapter_instance": stack["adapter"],
-    })
+    dispatcher = HpcDispatcher(GatewayRuntime(audit=stack["audit"]), stack["run_adapter_config"])
     return {
         "dispatcher": dispatcher,
         "run_adapter_config": stack["run_adapter_config"],
