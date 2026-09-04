@@ -131,7 +131,10 @@ class Gateway:
     ) -> None:
         self._adapter = adapter
         self._quota = quota
-        self._runtime_resolver = runtime_resolver or getattr(adapter, "runtime_resolver", None)
+        # Resolver authority is injected by the trusted composition root.  An
+        # adapter is not an authority and may not smuggle a resolver into the
+        # gateway (or replace the Catalog selected by the harness).
+        self._runtime_resolver = runtime_resolver
         self._now = now or time.time
         self._tokens: dict[str, Capability] = {}
         self._jobs: dict[str, dict[str, str]] = {}  # run_id -> key -> job_id

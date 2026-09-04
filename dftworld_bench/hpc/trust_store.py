@@ -47,6 +47,17 @@ class QualificationTrustStore:
         return cls.from_dict(doc)
 
     @classmethod
+    def load_default(cls) -> QualificationTrustStore:
+        """Load the operator-pinned default trust store.
+
+        ``verify_receipt_signature`` historically called this name while the
+        store only exposed ``from_file``.  Keeping the alias here makes the
+        default path explicit and, importantly, still fails closed when the
+        checked-in store is absent or contains UNCONFIGURED keys.
+        """
+        return cls.from_file()
+
+    @classmethod
     def from_dict(cls, doc: Mapping[str, Any]) -> QualificationTrustStore:
         raw_keys = doc.get("keys") or {}
         keys: dict[str, TrustKey] = {}

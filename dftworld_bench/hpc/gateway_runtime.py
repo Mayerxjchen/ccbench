@@ -20,6 +20,7 @@ from typing import Any, Callable
 from dftworld_bench.hpc.adapters.process_test import ProcessTestAdapter
 from dftworld_bench.hpc.audit import GatewayAudit
 from dftworld_bench.hpc.gateway import ALL_OPS, Gateway
+from dftworld_bench.hpc.runtime_catalog import TrustedRuntimeCatalog
 from dftworld_bench.hpc.runtime_resolution import RuntimeResolver
 
 NetworksFactory = Callable[[str], tuple[str, str]]
@@ -137,13 +138,29 @@ class GatewayRuntime:
     def start(self, run_id: str, adapter_config: dict[str, Any]) -> GatewayLease:
         adapter = build_adapter(adapter_config)
         workspace_root = adapter_config.get("workspace_root")
-        # Trusted composition: the site supplies the runtime lock directory;
-        # the resolver turns Agent capability tokens into locked runtimes and
-        # gives adapters the digest -> SIF path map (Architecture Freeze §3).
+        # Trusted composition: a Catalog, not a bare lock parser, turns Agent
+        # capability tokens into runtimes.  A bare lock contains artifact
+        # facts only and can never advertise or resolve a capability.
         resolver: RuntimeResolver | None = None
-        lock_dir = adapter_config.get("runtime_lock_dir")
-        if lock_dir:
-            resolver = RuntimeResolver.from_lock_dir(Path(lock_dir))
+        catalog = adapter_config.get("runtime_catalog")
+        if catalog is not None:
+            if not isinstance(catalog, TrustedRuntimeCatalog):
+                raise GatewayRuntimeError(
+                    "runtime_catalog must be a TrustedRuntimeCatalog created by "
+                    "the trusted composition root"
+                )
+        else:
+            lock_dir = adapter_config.get("runtime_lock_dir")
+            if lock_dir:
+                catalog = TrustedRuntimeCatalog(
+                    lock_dir=Path(lock_dir),
+                    qualification_root=adapter_config.get("qualification_root"),
+                    trust_store=adapter_config.get("trust_store"),
+                    trusted_site_profiles=adapter_config.get("trusted_site_profiles"),
+                    repo_root=adapter_config.get("repo_root"),
+                )
+        if catalog is not None:
+            resolver = catalog.to_resolver()
             attach = getattr(adapter, "set_runtime_store", None)
             if attach is not None:
                 attach(resolver.runtime_store())

@@ -20,6 +20,7 @@ from scripts.ablation.transport.slurm_transport import (
 
 from dftworld_bench.hpc.adapters.slurm import SlurmAdapter
 from dftworld_bench.hpc.audit import GatewayAudit
+from dftworld_bench.hpc.runtime_catalog import TrustedRuntimeCatalog
 from dftworld_bench.hpc.site_profile import HpcSiteProfile
 
 
@@ -75,6 +76,17 @@ def build_slurm_stack(
         resource_profile=resource_profile,
         script_dir=Path("jobs/hpc-scripts"),
     )
+    lock_dir = Path(
+        site.runtime_policy.get("runtime_lock_dir", "reference/runtime")
+    )
+    # The explicit profile registry and Catalog are the only authority passed
+    # to GatewayRuntime.  A bare lock parser is deliberately not sufficient
+    # for a production runtime.
+    runtime_catalog = TrustedRuntimeCatalog(
+        lock_dir=lock_dir,
+        qualification_root=lock_dir.parent.parent,
+        trusted_site_profiles={site.site_id: site},
+    )
     return {
         "audit": GatewayAudit(audit_path),
         "adapter": adapter,
@@ -83,13 +95,9 @@ def build_slurm_stack(
             "adapter": "slurm",
             "adapter_instance": adapter,
             "token_ttl_sec": token_ttl_sec,
-            # P1 boundary: GatewayRuntime composes the RuntimeResolver from
-            # the locked runtime directory, wires the gateway (capability ->
-            # sealed digest) and attaches the digest -> SIF store to the
-            # adapter.  Agents submit capability tokens; digests stay here.
-            "runtime_lock_dir": site.runtime_policy.get(
-                "runtime_lock_dir", "reference/runtime"
-            ),
+            "runtime_catalog": runtime_catalog,
+            "runtime_lock_dir": str(lock_dir),
+            "qualification_root": str(lock_dir.parent.parent),
         },
     }
 
@@ -105,6 +113,8 @@ def build_hybrid_stack(
     audit_path: Path,
     token_ttl_sec: float = 7200.0,
     runtime_lock_dir: Path | str = "reference/runtime",
+    qualification_root: Path | str | None = None,
+    trust_store: Any | None = None,
 ) -> dict[str, Any]:
     """Compose heterogeneous hybrid stack routing CPU to Slurm and GPU to CompShare."""
     import json
@@ -112,7 +122,6 @@ def build_hybrid_stack(
     from dftworld_bench.hpc.drivers.compshare import CompShareCli, CompShareDriver
     from dftworld_bench.hpc.drivers.routed import RoutedDriver
     from dftworld_bench.hpc.drivers.slurm import SlurmDriver
-    from dftworld_bench.hpc.runtime_resolution import RuntimeResolver
 
     compute_profile = ComputeProfile.from_file(Path(compute_profile_path))
     site_profiles: dict[str, HpcSiteProfile] = {}
@@ -166,9 +175,22 @@ def build_hybrid_stack(
 
     router = ComputeRouter(compute_profile, site_profiles=site_profiles)
     lock_dir = Path(runtime_lock_dir)
-    resolver = RuntimeResolver.from_lock_dir(lock_dir) if lock_dir.is_dir() else None
+    runtime_catalog = TrustedRuntimeCatalog(
+        lock_dir=lock_dir,
+        qualification_root=(
+            Path(qualification_root)
+            if qualification_root is not None
+            else lock_dir.parent.parent
+        ),
+        trust_store=trust_store,
+        trusted_site_profiles={
+            profile.site_id: profile for profile in site_profiles.values()
+        },
+    )
 
-    routed = RoutedDriver(router, drivers, runtime_resolver=resolver)
+    routed = RoutedDriver(
+        router, drivers, runtime_resolver=runtime_catalog.to_resolver()
+    )
 
     return {
         "audit": audit,
@@ -180,6 +202,12 @@ def build_hybrid_stack(
             "adapter": "routed",
             "adapter_instance": routed,
             "token_ttl_sec": token_ttl_sec,
+            "runtime_catalog": runtime_catalog,
             "runtime_lock_dir": str(runtime_lock_dir),
+            "qualification_root": str(
+                qualification_root
+                if qualification_root is not None
+                else lock_dir.parent.parent
+            ),
         },
     }

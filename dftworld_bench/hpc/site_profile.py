@@ -19,7 +19,7 @@ import dataclasses
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 import jsonschema
 
@@ -121,6 +121,10 @@ class HpcSiteProfile:
     resource_mapping: dict[str, dict[str, Any]] = field(default_factory=dict)
     resource_classes: dict[str, dict[str, Any]] = field(default_factory=dict)
     runtime_policy: dict[str, Any] = field(default_factory=dict)
+    # Qualification policy is part of the trusted site identity.  It is not
+    # merely collector configuration: changing the required probes or signing
+    # key must change the profile digest and therefore invalidate receipts.
+    qualification_policy: dict[str, Any] = field(default_factory=dict)
     digest: str = ""
 
     @classmethod
@@ -222,6 +226,15 @@ class HpcSiteProfile:
                     config.get("runtime", {}).get("lock_dir", "reference/runtime")
                 ),
             },
+            "qualification_policy": {
+                # A cluster profile with a GPU queue must prove both classes;
+                # a CPU-only profile proves the class it can actually route.
+                "required_probe_classes": (
+                    ["cpu", "gpu"]
+                    if "cpu" in queues and "gpu" in queues
+                    else (["gpu"] if "gpu" in queues else ["cpu"])
+                ),
+            },
         }
         return cls.from_dict(payload)
 
@@ -254,6 +267,7 @@ class HpcSiteProfile:
             resource_mapping=frozen.get("resource_mapping", {}),
             resource_classes=resource_classes,
             runtime_policy=frozen["runtime_policy"],
+            qualification_policy=frozen.get("qualification_policy", {}),
             digest=_digest(_canonical(frozen)),
         )
 
@@ -301,6 +315,30 @@ class HpcSiteProfile:
             "resource_mapping": _deep_copy(self.resource_mapping),
             "resource_classes": _deep_copy(self.resource_classes),
             "runtime_policy": _deep_copy(self.runtime_policy),
+            "qualification_policy": _deep_copy(self.qualification_policy),
+            "digest": self.digest,
+        }
+
+    def to_trusted_dict(self) -> dict[str, Any]:
+        """Return the complete non-secret profile document for verification.
+
+        This projection is intentionally distinct from ``to_public_dict``:
+        qualification verification needs the policy and connection identity,
+        while neither credentials nor private key bytes are allowed in either
+        projection.  The profile's computed digest is included as an
+        assertion and callers must still compare it to their receipt.
+        """
+        return {
+            "schema_version": 1,
+            "site_id": self.site_id,
+            "scheduler": self.scheduler,
+            "connection": _deep_copy(self.connection),
+            "account": self.account,
+            "queues": _deep_copy(self.queues),
+            "resource_mapping": _deep_copy(self.resource_mapping),
+            "resource_classes": _deep_copy(self.resource_classes),
+            "runtime_policy": _deep_copy(self.runtime_policy),
+            "qualification_policy": _deep_copy(self.qualification_policy),
             "digest": self.digest,
         }
 
@@ -496,6 +534,83 @@ class HpcSiteProfile:
         }
 
 
+class TrustedSiteProfileRegistry:
+    """Explicit operator-owned registry of profiles used for qualification.
+
+    A route or receipt must name a profile already present in this registry;
+    neither a receipt directory nor a provider name can supply one.  Values
+    are required to be :class:`HpcSiteProfile` instances so the schema,
+    credential-byte rejection, and digest calculation have already run before
+    the registry is handed to a verifier or runtime catalog.
+    """
+
+    def __init__(self, profiles: dict[str, HpcSiteProfile] | Mapping[str, HpcSiteProfile]):
+        if not isinstance(profiles, Mapping) or not profiles:
+            raise SiteProfileError("trusted SiteProfile registry must be non-empty")
+        checked: dict[str, HpcSiteProfile] = {}
+        for name, profile in profiles.items():
+            if not isinstance(name, str) or not name:
+                raise SiteProfileError(f"trusted SiteProfile key is invalid: {name!r}")
+            if not isinstance(profile, HpcSiteProfile):
+                raise SiteProfileError(
+                    f"trusted SiteProfile {name!r} must be an HpcSiteProfile, "
+                    f"got {type(profile).__name__}"
+                )
+            if profile.site_id != name:
+                raise SiteProfileError(
+                    f"trusted SiteProfile key {name!r} does not match profile.site_id "
+                    f"{profile.site_id!r}"
+                )
+            if not profile.digest:
+                raise SiteProfileError(f"trusted SiteProfile {name!r} has no digest")
+            if name in checked:
+                raise SiteProfileError(f"duplicate trusted SiteProfile {name!r}")
+            checked[name] = profile
+        self._profiles = checked
+
+    @classmethod
+    def from_paths(cls, paths: Mapping[str, str | Path]) -> "TrustedSiteProfileRegistry":
+        """Load an explicit set of JSON profile paths (never by directory scan)."""
+        profiles: dict[str, HpcSiteProfile] = {}
+        for name, path in paths.items():
+            raw = json.loads(Path(path).read_text(encoding="utf-8"))
+            profile = HpcSiteProfile.from_dict(raw)
+            if profile.site_id != name:
+                raise SiteProfileError(
+                    f"profile at {path} declares site_id={profile.site_id!r}, "
+                    f"registry key is {name!r}"
+                )
+            profiles[name] = profile
+        return cls(profiles)
+
+    def get(self, site_id: str) -> HpcSiteProfile | None:
+        return self._profiles.get(site_id)
+
+    def require(self, site_id: str) -> HpcSiteProfile:
+        profile = self.get(site_id)
+        if profile is None:
+            raise SiteProfileError(
+                f"SiteProfile {site_id!r} is not in the explicit trusted registry"
+            )
+        return profile
+
+    def as_mapping(self) -> dict[str, HpcSiteProfile]:
+        """Return a copy suitable for APIs that accept a mapping."""
+        return dict(self._profiles)
+
+    def __contains__(self, site_id: object) -> bool:
+        return site_id in self._profiles
+
+    def __getitem__(self, site_id: str) -> HpcSiteProfile:
+        return self._profiles[site_id]
+
+    def __iter__(self):
+        return iter(self._profiles)
+
+    def __len__(self) -> int:
+        return len(self._profiles)
+
+
 def _reject_credential_bytes(payload: Any, path: str = "$") -> None:
     if isinstance(payload, dict):
         for key, value in payload.items():
@@ -523,12 +638,14 @@ def _freeze(payload: dict[str, Any]) -> dict[str, Any]:
             for name, alias in payload.get("resource_classes", {}).items()
         },
         "runtime_policy": dict(payload["runtime_policy"]),
+        "qualification_policy": dict(payload.get("qualification_policy", {})),
         # Policy identity binds everything except the site label itself.
         "_bind": {
             "target_binding": payload["connection"]["target_binding"],
             "remote_user": payload["connection"]["remote_user"],
             "remote_root_policy": payload["connection"]["remote_root_policy"],
             "account": payload["account"],
+            "qualification_policy": dict(payload.get("qualification_policy", {})),
         },
     }
 

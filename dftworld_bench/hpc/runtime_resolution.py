@@ -29,7 +29,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Mapping
+from typing import Any, Iterable, Mapping
 
 from dftworld_bench.contracts.case import RUNTIME_FAMILY_CAPABILITIES
 
@@ -77,6 +77,32 @@ class RuntimeStatus:
     QUALIFIED = "QUALIFIED"
     FAILED = "FAILED"
     REVOKED = "REVOKED"
+
+
+def canonical_lock_document(doc: Mapping[str, object]) -> dict[str, object]:
+    """Return the canonical lock identity document.
+
+    ``qualification.receipt_digest`` is a back-reference from the lock to a
+    receipt whose ``runtime_lock.digest`` points back to this lock.  Excluding
+    only that back-reference avoids a circular hash while retaining every
+    runtime, artifact, provenance, qualification-path and status field in the
+    lock identity.
+    """
+    clone = dict(doc)
+    qualification = clone.get("qualification")
+    if isinstance(qualification, Mapping):
+        q = dict(qualification)
+        q.pop("receipt_digest", None)
+        clone["qualification"] = q
+    return clone
+
+
+def canonical_lock_digest(doc: Mapping[str, object]) -> str:
+    """Compute the content-addressed canonical digest for a runtime lock."""
+    canon_lock = json.dumps(
+        canonical_lock_document(doc), sort_keys=True, separators=(",", ":")
+    )
+    return f"sha256:{hashlib.sha256(canon_lock.encode('utf-8')).hexdigest()}"
 
 
 @dataclass(frozen=True)
@@ -129,8 +155,7 @@ class RuntimeLockEntry:
         runtime_profile_id = str(doc.get("runtime_profile_id") or doc.get("image_name") or capability)
 
         # Compute content-addressed canonical digest of the lock doc itself
-        canon_lock = json.dumps(doc, sort_keys=True, separators=(",", ":"))
-        lock_digest = f"sha256:{hashlib.sha256(canon_lock.encode('utf-8')).hexdigest()}"
+        lock_digest = canonical_lock_digest(doc)
 
         # Schema v2: dispatcher-compshare-runtime-lock/v2
         if doc.get("schema") == "dispatcher-compshare-runtime-lock/v2" or "dispatcher-compshare-runtime-lock/v2" in str(doc.get("schema_id") or ""):
@@ -156,13 +181,26 @@ class RuntimeLockEntry:
                 source=source,
                 artifact_kind="compshare_image",
                 artifact_path_or_id=image_id,
-                digest=str(receipt_digest or ""),
+                # A qualification receipt digest is not an image digest.  It
+                # is kept in its own field and can only be promoted by the
+                # trusted catalog after the receipt is verified.
+                digest=str(
+                    artifact.get("sha256")
+                    or artifact.get("digest")
+                    or artifact.get("image_sha256")
+                    or ""
+                ),
                 status=status,
                 lock_digest=lock_digest,
                 qualification_receipt_path=str(receipt_path or ""),
                 qualification_receipt_digest=str(receipt_digest or ""),
                 software_versions=dict(provenance.get("software_versions") or {}),
                 provider=str(doc.get("provider") or "compshare"),
+                site_profile_id=str(
+                    doc.get("site_profile_id")
+                    or qual.get("site_profile_id")
+                    or ""
+                ),
                 runtime_profile_id=runtime_profile_id,
                 qualification_verified=False,
             )
@@ -205,7 +243,10 @@ class RuntimeLockEntry:
         if not sif_path or is_placeholder_artifact(sif_path) or not sif_sha or is_placeholder_artifact(sif_sha):
             status = RuntimeStatus.UNBUILT
         else:
-            status = RuntimeStatus.QUALIFIED
+            # A lock captures an artifact, not a qualification attestation.
+            # Even a complete SIF path/digest must remain below QUALIFIED until
+            # TrustedRuntimeCatalog verifies a materialized signed receipt.
+            status = RuntimeStatus.BUILT_NOT_QUALIFIED
 
         return cls(
             capability=capability,
@@ -233,6 +274,11 @@ class RuntimeLockEntry:
                     "digest": self.digest,
                     "image_id": self.artifact_path_or_id,
                     "image_name": self.image_name,
+                    "lock_digest": self.lock_digest,
+                    "qualification_receipt_digest": self.qualification_receipt_digest,
+                    "provider": self.provider,
+                    "site_profile_id": self.site_profile_id,
+                    "runtime_profile_id": self.runtime_profile_id,
                 },
                 sort_keys=True,
                 separators=(",", ":"),
@@ -244,6 +290,11 @@ class RuntimeLockEntry:
                     "image_name": self.image_name,
                     "sif_path": self.sif_path or self.artifact_path_or_id,
                     "sif_sha256": self.sif_sha256 or self.digest,
+                    "lock_digest": self.lock_digest,
+                    "qualification_receipt_digest": self.qualification_receipt_digest,
+                    "provider": self.provider,
+                    "site_profile_id": self.site_profile_id,
+                    "runtime_profile_id": self.runtime_profile_id,
                 },
                 sort_keys=True,
                 separators=(",", ":"),
@@ -267,8 +318,13 @@ class ResolvedRuntime:
     artifact_path_or_id: str = ""
     digest: str = ""
     software_versions: dict[str, str] = field(default_factory=dict, hash=False)
-    status: str = RuntimeStatus.QUALIFIED
-    qualification_verified: bool = True
+    # A resolved runtime is an attested value produced by the trusted
+    # resolver.  Do not make hand-built values look attested by default: a
+    # caller that constructs ``ResolvedRuntime(...)`` must opt into neither
+    # qualification nor submission accidentally.  The catalog-backed
+    # resolver supplies these fields explicitly when it promotes an entry.
+    status: str = RuntimeStatus.BUILT_NOT_QUALIFIED
+    qualification_verified: bool = False
     qualification_receipt_digest: str = ""
 
     def __post_init__(self) -> None:
@@ -311,6 +367,9 @@ class ResolvedRuntime:
             "qualification": self.qualification,
             "sif_sha256": self.sif_sha256,
             "runtime_profile_digest": self.runtime_profile_digest,
+            "status": self.status,
+            "qualification_verified": self.qualification_verified,
+            "qualification_receipt_digest": self.qualification_receipt_digest,
         }
 
 
@@ -335,7 +394,11 @@ def is_placeholder_artifact(val: str | None) -> bool:
 class RuntimeResolver:
     """Maps capability (and lock image names) to locked runtime identities."""
 
-    def __init__(self, entries: Iterable[RuntimeLockEntry]) -> None:
+    def __init__(self, entries: Iterable[RuntimeLockEntry], *, trusted: bool = False) -> None:
+        # Only TrustedRuntimeCatalog may set this bit.  It prevents a caller
+        # from manufacturing a QUALIFIED RuntimeLockEntry and treating a
+        # parser result as an attestation.
+        self._trusted = bool(trusted)
         self._by_name: dict[str, RuntimeLockEntry] = {}
         for entry in entries:
             for alias in {entry.capability, entry.image_name}:
@@ -348,7 +411,7 @@ class RuntimeResolver:
                 self._by_name[alias] = entry
 
     @classmethod
-    def from_lock_dir(cls, lock_dir: Path) -> "RuntimeResolver":
+    def from_lock_dir(cls, lock_dir: Path, *, trusted: bool = False) -> "RuntimeResolver":
         """Load every ``<capability>-runtime.lock.json`` in ``lock_dir``."""
         lock_dir = Path(lock_dir)
         if not lock_dir.is_dir():
@@ -367,7 +430,7 @@ class RuntimeResolver:
                     capability, doc, source=str(path)
                 )
             )
-        return cls(entries)
+        return cls(entries, trusted=trusted)
 
     @classmethod
     def from_site_profile(cls, site_profile: Any) -> "RuntimeResolver":
@@ -385,12 +448,14 @@ class RuntimeResolver:
             if isinstance(img, Mapping):
                 art_id = str(img.get("image_id") or img.get("sif_path") or "")
                 dig = str(img.get("image_sha256") or img.get("digest") or img.get("sif_sha256") or "")
-                qual_verified = bool(img.get("qualification_verified") or img.get("qualified"))
                 if not art_id or is_placeholder_artifact(art_id):
                     st = RuntimeStatus.UNBUILT
-                elif qual_verified or (dig and not is_placeholder_artifact(dig)):
-                    st = RuntimeStatus.QUALIFIED
                 else:
+                    # A SiteProfile is policy, not a qualification receipt.  A
+                    # digest or a boolean copied from a profile cannot promote
+                    # an image into the trusted runtime set.  Promotion is
+                    # reserved for TrustedRuntimeCatalog after it verifies a
+                    # signed, materialized receipt.
                     st = RuntimeStatus.BUILT_NOT_QUALIFIED
                 entries.append(
                     RuntimeLockEntry(
@@ -405,9 +470,15 @@ class RuntimeResolver:
                         provider=scheduler,
                         site_profile_id=site_id,
                         runtime_profile_id=str(img.get("runtime_profile_id") or cap),
+                        qualification_verified=False,
                     )
                 )
-        return cls(entries)
+        return cls(entries, trusted=False)
+
+    @property
+    def trusted(self) -> bool:
+        """Whether this resolver came from a receipt-verifying catalog."""
+        return self._trusted
 
     def qualified_capabilities(self) -> list[str]:
         """Capability tokens agents may name (strictly QUALIFIED runtimes only)."""
@@ -415,7 +486,7 @@ class RuntimeResolver:
         for entry in self._by_name.values():
             if not CAPABILITY_RE.match(entry.capability):
                 continue
-            if entry.status == RuntimeStatus.QUALIFIED:
+            if self._trusted and entry.status == RuntimeStatus.QUALIFIED:
                 result.add(entry.capability)
         return sorted(result)
 
@@ -433,6 +504,10 @@ class RuntimeResolver:
         """Capability tokens agents may name (delegates to qualified_capabilities)."""
         return self.qualified_capabilities()
 
+    def get(self, capability: str) -> RuntimeLockEntry | None:
+        """Return a parsed lock entry without implying that it is trusted."""
+        return self._by_name.get(capability)
+
     def runtime_store(self) -> dict[str, str]:
         """Digest -> SIF path map for adapters (locked runtimes only)."""
         return {
@@ -440,6 +515,7 @@ class RuntimeResolver:
             for entry in set(self._by_name.values())
             if entry.sif_sha256 and entry.sif_path
             and not is_placeholder_artifact(entry.sif_path)
+            and self._trusted
             and entry.status == RuntimeStatus.QUALIFIED
         }
 
@@ -461,9 +537,14 @@ class RuntimeResolver:
                 f"{', '.join(self.qualified_capabilities())}"
             )
 
-        if entry.status != RuntimeStatus.QUALIFIED:
+        if entry.status != RuntimeStatus.QUALIFIED or not entry.qualification_verified:
             raise UnqualifiedRuntimeError(
                 f"runtime {name!r} ({entry.source}) is {entry.status}; only QUALIFIED runtimes can be resolved"
+            )
+        if not self._trusted:
+            raise UnqualifiedRuntimeError(
+                f"runtime {name!r} is QUALIFIED in an untrusted resolver; "
+                "only TrustedRuntimeCatalog may promote runtimes"
             )
 
         eff_provider = eff_provider or entry.provider or "slurm"
@@ -499,6 +580,9 @@ class RuntimeResolver:
                 artifact_path_or_id=entry.sif_path,
                 digest=entry.sif_sha256,
                 software_versions=entry.software_versions,
+                status=entry.status,
+                qualification_verified=entry.qualification_verified,
+                qualification_receipt_digest=entry.qualification_receipt_digest,
             )
 
         elif entry.artifact_kind == "compshare_image":
@@ -507,20 +591,20 @@ class RuntimeResolver:
                     f"locked runtime {name!r} ({entry.source}) has no concrete "
                     "CompShare ImageId on this site (placeholder/unqualified rejected)"
                 )
-            if not entry.digest or is_placeholder_artifact(entry.digest):
-                raise RuntimeResolutionError(
-                    f"locked runtime {name!r} ({entry.source}) has no captured "
-                    "image digest (placeholder/unqualified rejected)"
-                )
-            if digest is not None and digest != entry.digest:
+            # CompShare image IDs are provider identities, not SHA-256 SIF
+            # digests.  A legacy ``name@...`` suffix is accepted only when a
+            # lock explicitly carries the same artifact digest; a receipt
+            # digest is never compared to an Agent declaration.
+            artifact_digest = entry.digest
+            if digest is not None and (not artifact_digest or digest != artifact_digest):
                 raise RuntimeResolutionError(
                     f"declared digest for {name!r} does not match the locked "
-                    "runtime; digests are infra assertions, not Agent choices"
+                    "artifact; digests are infra assertions, not Agent choices"
                 )
             return ResolvedRuntime(
                 capability=entry.capability,
                 sif_path="",
-                sif_sha256=entry.digest,
+                sif_sha256=artifact_digest,
                 runtime_profile_digest=entry.profile_digest(),
                 qualification=qualification_for(entry.capability),
                 provider=eff_provider,
@@ -528,8 +612,11 @@ class RuntimeResolver:
                 runtime_profile_id=entry.runtime_profile_id,
                 artifact_kind="compshare_image",
                 artifact_path_or_id=entry.artifact_path_or_id,
-                digest=entry.digest,
+                digest=artifact_digest,
                 software_versions=entry.software_versions,
+                status=entry.status,
+                qualification_verified=entry.qualification_verified,
+                qualification_receipt_digest=entry.qualification_receipt_digest,
             )
 
         return ResolvedRuntime(
@@ -545,6 +632,9 @@ class RuntimeResolver:
             artifact_path_or_id=entry.artifact_path_or_id,
             digest=entry.digest,
             software_versions=entry.software_versions,
+            status=entry.status,
+            qualification_verified=entry.qualification_verified,
+            qualification_receipt_digest=entry.qualification_receipt_digest,
         )
 
 

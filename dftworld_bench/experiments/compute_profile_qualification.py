@@ -278,7 +278,7 @@ def verify_receipt_signature_detailed(
 def check_evidence_containment(evidence_root: Path, file_path: str | Path) -> Path:
     """Validate that file_path is relative, non-symlink, and strictly contained in evidence_root."""
     p = Path(file_path)
-    if p.is_absolute():
+    if p.is_absolute() or ".." in p.parts:
         raise ValueError(f"Absolute evidence path forbidden: {file_path}")
     resolved = (evidence_root / p).resolve()
     real_root = evidence_root.resolve()
@@ -290,6 +290,29 @@ def check_evidence_containment(evidence_root: Path, file_path: str | Path) -> Pa
         if curr.is_symlink():
             raise ValueError(f"Symlink forbidden in evidence path: {file_path}")
     return resolved
+
+
+def _trusted_profile_document(profile: Any) -> dict[str, Any] | None:
+    """Return a validated profile document for verifier-only operations."""
+    if profile is None:
+        return None
+    if hasattr(profile, "to_trusted_dict"):
+        value = profile.to_trusted_dict()
+        return dict(value) if isinstance(value, Mapping) else None
+    if isinstance(profile, Mapping):
+        return dict(profile)
+    return None
+
+
+def _trusted_profile_digest(profile: Any) -> str:
+    """Use the immutable HpcSiteProfile digest, never a receipt-supplied hash."""
+    if hasattr(profile, "digest") and getattr(profile, "digest"):
+        return str(getattr(profile, "digest"))
+    if isinstance(profile, Mapping) and profile.get("digest"):
+        return str(profile["digest"])
+    from dftworld_bench.experiments.qualification_receipt import canonical_digest
+
+    return canonical_digest(dict(profile)) if isinstance(profile, Mapping) else ""
 
 
 def verify_site_receipt(
@@ -329,7 +352,11 @@ def verify_site_receipt(
         source_commit,
     )
 
-    eff_profile = trusted_site_profile or site_profile
+    # ``site_profile`` is retained for legacy/read-only Slurm callers, but a
+    # formal CompShare receipt is never allowed to select its own policy.  The
+    # only accepted policy source there is the explicit trusted registry value.
+    strict_trusted_profile = trusted_site_profile is not None
+    eff_profile = _trusted_profile_document(trusted_site_profile or site_profile)
     if scheduler is None:
         if eff_profile and eff_profile.get("scheduler"):
             scheduler = eff_profile["scheduler"]
@@ -339,11 +366,56 @@ def verify_site_receipt(
             scheduler = "compshare"
         else:
             scheduler = "slurm"
+    if scheduler == "compshare" and not strict_trusted_profile:
+        # Do not use an untrusted profile mapping even to determine policy.
+        eff_profile = None
 
     problems: dict[str, list[str]] = {}
 
     def problem(gate: str, msg: str) -> None:
         problems.setdefault(gate, []).append(msg)
+
+    if scheduler == "compshare" and not strict_trusted_profile:
+        problem(
+            "provenance",
+            "formal CompShare qualification requires an explicit trusted SiteProfile",
+        )
+    if strict_trusted_profile and eff_profile is None:
+        problem("provenance", "trusted SiteProfile is malformed")
+    if strict_trusted_profile and eff_profile is not None:
+        if receipt_data.get("site_profile_id") != eff_profile.get("site_id"):
+            problem(
+                "provenance",
+                "receipt site_profile_id does not match the trusted SiteProfile",
+            )
+    if (
+        strict_trusted_profile
+        and eff_profile is not None
+        and scheduler is not None
+        and eff_profile.get("scheduler") != scheduler
+    ):
+        problem(
+            "provenance",
+            "scheduler does not match the explicitly trusted SiteProfile",
+        )
+
+    # The required canary classes are a SiteProfile policy, not something a
+    # receipt may infer by listing whichever jobs happened to run.
+    if strict_trusted_profile and eff_profile is not None:
+        policy = eff_profile.get("qualification_policy") or {}
+        policy_classes = policy.get("required_probe_classes")
+        if not isinstance(policy_classes, list) or not policy_classes:
+            problem(
+                "qualification_policy",
+                "trusted SiteProfile must declare non-empty qualification_policy.required_probe_classes",
+            )
+        elif required_probe_classes is None:
+            required_probe_classes = set(policy_classes)
+        elif set(required_probe_classes) != set(policy_classes):
+            problem(
+                "qualification_policy",
+                "requested probe classes do not equal trusted SiteProfile policy",
+            )
 
     # -- Universal checks (both schedulers) ------------------------------------
     # Content-addressed digest
@@ -405,6 +477,18 @@ def verify_site_receipt(
             receipt_dir=receipt_dir,
             required_probe_classes=required_probe_classes,
         )
+        if problems:
+            vr = dict(vr)
+            prior = list(vr.get("problems") or [])
+            prior.extend(
+                f"[{gate}] {message}" for gate, messages in problems.items()
+                for message in messages
+            )
+            vr["problems"] = prior
+            derived = dict(vr.get("derived") or {})
+            derived["qualification_status"] = "INVALID"
+            derived["formal_qualified"] = False
+            vr["derived"] = derived
         return vr
 
     elif scheduler == "compshare":
@@ -449,7 +533,7 @@ def verify_site_receipt(
         if not site_digest or not SHA256_PATTERN.match(site_digest):
             problem("provenance", f"CompShare receipt missing or invalid site_profile_digest: {site_digest!r}")
         if eff_profile is not None:
-            expected_sp_digest = canonical_digest(eff_profile)
+            expected_sp_digest = _trusted_profile_digest(eff_profile)
             if not expected_sp_digest.startswith("sha256:"):
                 expected_sp_digest = f"sha256:{expected_sp_digest}"
             norm_actual_site_digest = site_digest if site_digest and site_digest.startswith("sha256:") else f"sha256:{site_digest}"
@@ -459,20 +543,34 @@ def verify_site_receipt(
                     f"CompShare receipt site_profile_digest mismatch: receipt claims {site_digest} != trusted {expected_sp_digest}",
                 )
 
-        # Check canary jobs
+        # Check canary jobs.  The explicit SiteProfile policy is authoritative
+        # when present; never infer required coverage from receipt contents.
         jobs = evidence.get("jobs") or []
+        policy_classes = set(required_probe_classes or ())
+        if not policy_classes and eff_profile is not None:
+            policy_classes = set(
+                (eff_profile.get("qualification_policy") or {}).get(
+                    "required_probe_classes", []
+                )
+            )
+        if not policy_classes:
+            policy_classes = {"gpu"}
+        classes_seen = {j.get("probe_class") for j in jobs}
+        for missing in sorted(policy_classes - classes_seen):
+            problem(
+                "canary_coverage",
+                f"CompShare receipt missing SiteProfile-required {missing!r} canary job",
+            )
         gpu_jobs = [j for j in jobs if j.get("probe_class") == "gpu"]
-        if not gpu_jobs:
-            problem("canary_coverage", "CompShare receipt must include at least one GPU canary job")
-        else:
-            for job in gpu_jobs:
+        for job in jobs:
+            if job.get("probe_class") in policy_classes:
                 accounting = job.get("accounting") or {}
                 state = accounting.get("state", "").upper()
                 if state not in ("COMPLETED", "COMPLETING", "SUCCEEDED"):
-                    problem("job_status", f"GPU canary job not in terminal state: {state!r}")
+                    problem("job_status", f"Canary job not in terminal state: {state!r}")
                 exit_code = accounting.get("exit_code")
                 if exit_code is not None and exit_code != 0:
-                    problem("job_status", f"GPU canary job non-zero exit code: {exit_code}")
+                    problem("job_status", f"Canary job non-zero exit code: {exit_code}")
 
         # Materialize and verify runtime_lock
         runtime_lock = receipt_data.get("runtime_lock") or {}
@@ -481,22 +579,32 @@ def verify_site_receipt(
             problem("provenance", "CompShare receipt missing runtime_lock.path")
         else:
             try:
-                if (root / rl_rel).exists():
-                    rl_path = check_evidence_containment(root, rl_rel)
-                else:
-                    rl_path = check_evidence_containment(receipt_dir, rl_rel)
+                # Formal receipts resolve all materialized evidence from the
+                # trusted root.  The legacy receipt-dir branch is retained
+                # only for old non-formal callers and can never promote a
+                # runtime through TrustedRuntimeCatalog.
+                lock_root = root if strict_trusted_profile else receipt_dir
+                rl_path = check_evidence_containment(lock_root, rl_rel)
 
                 if not rl_path.is_file():
                     problem("runtime_lock", f"runtime_lock file missing: {rl_rel}")
                 elif rl_path.is_symlink():
                     problem("runtime_lock", f"runtime_lock file is a symlink: {rl_rel}")
                 else:
-                    have_lock_sha = f"sha256:{hashlib.sha256(rl_path.read_bytes()).hexdigest()}"
                     want_lock_sha = runtime_lock.get("digest")
-                    if want_lock_sha and have_lock_sha != want_lock_sha:
-                        problem("runtime_lock", f"runtime_lock digest mismatch: declared {want_lock_sha} != actual {have_lock_sha}")
                     try:
                         lock_doc = json.loads(rl_path.read_text(encoding="utf-8"))
+                        from dftworld_bench.hpc.runtime_resolution import canonical_lock_digest
+
+                        canonical_lock_sha = canonical_lock_digest(lock_doc)
+                        raw_lock_sha = f"sha256:{hashlib.sha256(rl_path.read_bytes()).hexdigest()}"
+                        lock_schema = str(lock_doc.get("schema") or lock_doc.get("schema_id") or "")
+                        expected_lock_sha = canonical_lock_sha if "compshare-runtime-lock/v2" in lock_schema else raw_lock_sha
+                        if want_lock_sha != expected_lock_sha:
+                            problem(
+                                "runtime_lock",
+                                f"runtime_lock digest mismatch: declared {want_lock_sha} != expected {expected_lock_sha}",
+                            )
                         art = lock_doc.get("artifact") or {}
                         doc_img = art.get("image_id") or lock_doc.get("image_id") or (lock_doc.get("runtime") or {}).get("image_id")
                         if doc_img != runtime_lock.get("image_id"):
@@ -754,6 +862,42 @@ def verify_and_derive_qualification(
     cpu_site = routes.get("cpu", "")
     gpu_site = routes.get("gpu", "")
 
+    # Site receipts are meaningful only against an operator-supplied registry.
+    # Do not search examples or the receipt directory for a profile: those
+    # locations are evidence, not trust anchors.
+    registry: Mapping[str, Any] = trusted_site_profiles or {}
+    if hasattr(registry, "as_mapping"):
+        registry = registry.as_mapping()  # type: ignore[assignment]
+    # Normalize explicit registry entries through HpcSiteProfile so a raw
+    # evidence mapping cannot become a trusted policy merely by its name.
+    normalized_registry: dict[str, Any] = {}
+    from dftworld_bench.hpc.site_profile import HpcSiteProfile
+
+    for registry_name, registry_profile in registry.items():
+        try:
+            if isinstance(registry_profile, HpcSiteProfile):
+                profile_obj = registry_profile
+            elif isinstance(registry_profile, Mapping):
+                profile_raw = dict(registry_profile)
+                profile_raw.pop("digest", None)
+                profile_obj = HpcSiteProfile.from_dict(profile_raw)
+            else:
+                raise TypeError(type(registry_profile).__name__)
+            if profile_obj.site_id != registry_name:
+                raise ValueError(
+                    f"registry key {registry_name!r} != site_id {profile_obj.site_id!r}"
+                )
+            normalized_registry[registry_name] = profile_obj
+        except Exception as exc:
+            errors.append(
+                f"Trusted SiteProfile {registry_name!r} is invalid: {exc}"
+            )
+    registry = normalized_registry
+    if not registry:
+        errors.append(
+            "Hybrid compute profile qualification requires an explicit trusted SiteProfile registry"
+        )
+
     # Mechanical verification of site receipts
     cpu_receipt_digest = site_receipts.get(cpu_site)
     cpu_qualified = bool(cpu_receipt_digest and SHA256_PATTERN.match(cpu_receipt_digest))
@@ -789,14 +933,14 @@ def verify_and_derive_qualification(
                 continue
             try:
                 raw_bytes = r_file.read_bytes()
-                computed_file_sha = f"sha256:{hashlib.sha256(raw_bytes).hexdigest()}"
                 r_data = json.loads(raw_bytes.decode("utf-8"))
                 r_canonical_sha = compute_receipt_digest(r_data)
 
-                # Verify recorded s_digest matches either recomputed canonical digest or raw file sha256
-                if s_digest and s_digest != r_canonical_sha and s_digest != computed_file_sha:
+                # A receipt reference is a canonical digest, never a digest of
+                # a mutable transport copy of the file.
+                if s_digest and s_digest != r_canonical_sha:
                     errors.append(
-                        f"Site receipt for {s_name} digest mismatch: recorded {s_digest} != computed {r_canonical_sha} (file sha {computed_file_sha})"
+                        f"Site receipt for {s_name} digest mismatch: recorded {s_digest} != computed {r_canonical_sha}"
                     )
                     if s_name == cpu_site:
                         cpu_qualified = False
@@ -808,22 +952,20 @@ def verify_and_derive_qualification(
                 if not (root / "dftworld_bench").is_dir():
                     root = Path(__file__).resolve().parents[2]
 
-                # R6: Load SiteProfile strictly from trusted registry / examples;
-                # NEVER load untrusted site profiles from site_receipt_dir!
-                site_profile = None
-                if trusted_site_profiles and s_name in trusted_site_profiles:
-                    site_profile = trusted_site_profiles[s_name]
-                else:
-                    repo_example = Path(__file__).resolve().parents[2] / "examples" / "hpc" / f"{s_name}-site-profile.json"
-                    if repo_example.is_file():
-                        try:
-                            site_profile = json.loads(repo_example.read_text(encoding="utf-8"))
-                        except Exception:
-                            pass
+                site_profile = registry.get(s_name)
+                trusted_profile_doc = _trusted_profile_document(site_profile)
+                if site_profile is None:
+                    errors.append(
+                        f"SiteProfile {s_name!r} is not present in the explicit trusted registry"
+                    )
+                    if s_name == cpu_site:
+                        cpu_qualified = False
+                    if s_name == gpu_site:
+                        gpu_qualified = False
+                    continue
 
-                if site_profile is not None and "site_profile_digest" in r_data:
-                    from dftworld_bench.experiments.qualification_receipt import canonical_digest
-                    exp_sp_sha = canonical_digest(site_profile)
+                if "site_profile_digest" in r_data:
+                    exp_sp_sha = _trusted_profile_digest(site_profile)
                     if not exp_sp_sha.startswith("sha256:"):
                         exp_sp_sha = f"sha256:{exp_sp_sha}"
                     rec_sp_sha = str(r_data.get("site_profile_digest") or "")
@@ -842,20 +984,20 @@ def verify_and_derive_qualification(
                 scheduler = None
                 required_probe_classes = None
                 if site_profile:
-                    scheduler = site_profile.get("scheduler")
-                    q_pol = site_profile.get("qualification_policy") or {}
+                    scheduler = trusted_profile_doc.get("scheduler") if trusted_profile_doc else None
+                    q_pol = (trusted_profile_doc or {}).get("qualification_policy") or {}
                     if "required_probe_classes" in q_pol:
                         required_probe_classes = set(q_pol["required_probe_classes"])
 
                 vr = verify_site_receipt(
                     r_data,
                     scheduler=scheduler,
-                    site_profile=site_profile,
+                    site_profile=trusted_profile_doc,
                     root=root,
                     receipt_dir=site_receipt_dir,
                     required_probe_classes=required_probe_classes,
                     trust_store=trust_store,
-                    trusted_site_profile=site_profile,
+                    trusted_site_profile=trusted_profile_doc,
                 )
                 vr_problems = vr.get("problems") or []
                 if vr_problems:
