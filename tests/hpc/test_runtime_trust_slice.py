@@ -40,7 +40,14 @@ def _profile() -> HpcSiteProfile:
                     "max_walltime_minutes": 60,
                 }
             },
-            "runtime_policy": {"requires_apptainer": False},
+            "runtime_policy": {
+                "requires_apptainer": False,
+                "budget_policy": {
+                    "max_budget_cny": 100.0,
+                    "max_instance_hours": 1.0,
+                    "max_instances": 1,
+                },
+            },
             "qualification_policy": {
                 "required_probe_classes": ["gpu"],
                 "signing_key_id": "site-key",

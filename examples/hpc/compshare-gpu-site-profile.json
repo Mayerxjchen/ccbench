@@ -29,7 +29,8 @@
     "zone": "zone-a",
     "budget_policy": {
       "max_budget_cny": 100.0,
-      "max_instance_hours": 10.0
+      "max_instance_hours": 10.0,
+      "max_instances": 1
     }
   },
   "qualification_policy": {

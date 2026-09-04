@@ -76,6 +76,7 @@ def _profile(site_id: str, probe_class: str) -> HpcSiteProfile:
                 "budget_policy": {
                     "max_budget_cny": 100.0,
                     "max_instance_hours": 1.0,
+                    "max_instances": 1,
                 },
             },
             "qualification_policy": {

@@ -115,7 +115,33 @@
         "default_gpu_vram_gb": { "type": "integer" },
         "region": { "type": "string" },
         "zone": { "type": "string" },
-        "budget_policy": { "type": "object" },
+        "budget_policy": {
+          "type": "object",
+          "required": [
+            "max_budget_cny",
+            "max_instance_hours",
+            "max_instances"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "max_budget_cny": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "max_instance_hours": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "max_instances": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "managed_account_scope_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
         "image_source": { "enum": ["platform", "custom", "community", "shared"] }
       }
     },
@@ -133,5 +159,27 @@
         "timeout_seconds": { "type": "integer", "minimum": 1 }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "scheduler": { "const": "compshare" } },
+        "required": ["scheduler"]
+      },
+      "then": {
+        "properties": {
+          "runtime_policy": {
+            "required": ["budget_policy"],
+            "properties": {
+              "budget_policy": {
+                "properties": {
+                  "max_instances": { "const": 1 }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

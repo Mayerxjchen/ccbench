@@ -506,6 +506,11 @@ def test_from_site_profile_images():
         },
         "runtime_policy": {
             "requires_apptainer": False,
+            "budget_policy": {
+                "max_budget_cny": 100.0,
+                "max_instance_hours": 1.0,
+                "max_instances": 1,
+            },
             "images": {
                 "deepmd": {
                     "image_id": "img-deepmd-v1",

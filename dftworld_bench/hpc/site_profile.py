@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -87,6 +88,90 @@ class ResolvedResource:
     def gres(self) -> str | None:
         """GRES flag value derived from max_gpus; None for zero-GPU queues."""
         return f"gpu:{self.max_gpus}" if self.max_gpus else None
+
+
+@dataclass(frozen=True)
+class CompShareBudgetPolicy:
+    """Normalized, read-only budget policy for a formal CompShare profile.
+
+    The raw ``runtime_policy`` mapping is deliberately not used by execution
+    code.  This value object is the only supported projection of the
+    CompShare budget contract, so a standby hint or an unknown field cannot
+    accidentally become an instance-create option.
+    """
+
+    max_budget_cny: float
+    max_instance_hours: float
+    max_instances: int
+    managed_account_scope_id: str | None = None
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "CompShareBudgetPolicy":
+        if not isinstance(value, Mapping):
+            raise SiteProfileError("runtime_policy.budget_policy must be a mapping")
+        expected = {
+            "max_budget_cny",
+            "max_instance_hours",
+            "max_instances",
+            "managed_account_scope_id",
+        }
+        unknown = sorted(set(value) - expected)
+        if unknown:
+            raise SiteProfileError(
+                "runtime_policy.budget_policy contains unsupported fields: "
+                + ", ".join(str(item) for item in unknown)
+            )
+        missing = sorted(
+            key
+            for key in ("max_budget_cny", "max_instance_hours", "max_instances")
+            if key not in value
+        )
+        if missing:
+            raise SiteProfileError(
+                "runtime_policy.budget_policy missing required fields: "
+                + ", ".join(missing)
+            )
+
+        max_budget_cny = value["max_budget_cny"]
+        max_instance_hours = value["max_instance_hours"]
+        max_instances = value["max_instances"]
+        if isinstance(max_budget_cny, bool) or not isinstance(max_budget_cny, (int, float)):
+            raise SiteProfileError("max_budget_cny must be a finite positive number")
+        if isinstance(max_instance_hours, bool) or not isinstance(max_instance_hours, (int, float)):
+            raise SiteProfileError("max_instance_hours must be a finite positive number")
+        if not math.isfinite(float(max_budget_cny)) or float(max_budget_cny) <= 0:
+            raise SiteProfileError("max_budget_cny must be a finite positive number")
+        if not math.isfinite(float(max_instance_hours)) or float(max_instance_hours) <= 0:
+            raise SiteProfileError("max_instance_hours must be a finite positive number")
+        if isinstance(max_instances, bool) or not isinstance(max_instances, int):
+            raise SiteProfileError("max_instances must be an integer equal to 1")
+        if max_instances != 1:
+            raise SiteProfileError(
+                "formal CompShare profiles must set max_instances=1"
+            )
+
+        scope = value.get("managed_account_scope_id")
+        if scope is not None and (not isinstance(scope, str) or not scope):
+            raise SiteProfileError(
+                "managed_account_scope_id must be a non-empty string when provided"
+            )
+        return cls(
+            max_budget_cny=float(max_budget_cny),
+            max_instance_hours=float(max_instance_hours),
+            max_instances=max_instances,
+            managed_account_scope_id=scope,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a detached JSON-compatible policy projection."""
+        result: dict[str, Any] = {
+            "max_budget_cny": self.max_budget_cny,
+            "max_instance_hours": self.max_instance_hours,
+            "max_instances": self.max_instances,
+        }
+        if self.managed_account_scope_id is not None:
+            result["managed_account_scope_id"] = self.managed_account_scope_id
+        return result
 
 
 def _canonical(value: Any) -> str:
@@ -275,6 +360,44 @@ class HpcSiteProfile:
         """Digest-bearing identity for records; no hostnames, no secrets."""
         return {"site_id": self.site_id, "scheduler": self.scheduler,
                 "digest": self.digest}
+
+    @property
+    def compshare_budget_policy(self) -> CompShareBudgetPolicy:
+        """Return the normalized CompShare budget policy.
+
+        A Slurm/process profile has no provider budget and fails closed when a
+        caller asks for this provider-specific projection.  The returned
+        dataclass is frozen and detached from the profile mapping, so execution
+        code cannot mutate policy or smuggle ``failover_standby`` into a create
+        request.
+        """
+        if self.scheduler != "compshare":
+            raise SiteProfileError(
+                f"site {self.site_id!r} uses scheduler {self.scheduler!r}; "
+                "a CompShare budget policy is not applicable"
+            )
+        raw = self.runtime_policy.get("budget_policy")
+        if raw is None:
+            raise SiteProfileError(
+                "formal CompShare profiles require runtime_policy.budget_policy"
+            )
+        return CompShareBudgetPolicy.from_mapping(raw)
+
+    @property
+    def budget_policy(self) -> CompShareBudgetPolicy | None:
+        """Provider-neutral optional view used by composition code.
+
+        Slurm remains compatible and returns ``None``; CompShare returns its
+        strict normalized policy.  This accessor intentionally never exposes a
+        mutable raw mapping.
+        """
+        if self.scheduler != "compshare":
+            return None
+        return self.compshare_budget_policy
+
+    def get_compshare_budget_policy(self) -> CompShareBudgetPolicy:
+        """Compatibility method form of :attr:`compshare_budget_policy`."""
+        return self.compshare_budget_policy
 
     def public_capabilities(self) -> dict[str, Any]:
         """Candidate-visible view: abstract classes + ceilings only."""
