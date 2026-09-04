@@ -179,22 +179,92 @@ class CompShareCli:
         *,
         status: str | None = None,
         all: bool = True,
+        page_token: str | None = None,
     ) -> list[dict[str, Any]]:
-        """List account instances via compshare instance list."""
+        """List account instances, consuming every provider page.
+
+        A zero-orphan decision must never treat a malformed envelope or an
+        unconsumed continuation token as an empty account.  The parser accepts
+        the official ``items``/``instances`` shapes and the common nested
+        ``data`` form, but rejects every other response.
+        """
         args = ["instance", "list"]
         if all:
             args.append("--all")
         if status:
             args.extend(["--status", status])
-        res = self._exec(args)
-        if isinstance(res, list):
-            return res
-        if isinstance(res, dict):
-            if "items" in res:
-                return res["items"]
-            if "data" in res and isinstance(res["data"], dict):
-                return res["data"].get("items", [])
-        return []
+        if page_token:
+            args.extend(["--page-token", page_token])
+
+        result: list[dict[str, Any]] = []
+        seen_tokens: set[str] = set()
+        while True:
+            res = self._exec(args)
+            items: Any
+            next_token: Any = None
+            if isinstance(res, list):
+                items = res
+            elif isinstance(res, dict):
+                if "items" in res:
+                    items = res["items"]
+                    next_token = (
+                        res.get("next_page_token")
+                        or res.get("next_token")
+                        or res.get("page_token")
+                    )
+                elif "instances" in res:
+                    items = res["instances"]
+                    next_token = (
+                        res.get("next_page_token")
+                        or res.get("next_token")
+                        or res.get("page_token")
+                    )
+                elif isinstance(res.get("data"), dict):
+                    nested = res["data"]
+                    if "items" in nested:
+                        items = nested["items"]
+                    elif "instances" in nested:
+                        items = nested["instances"]
+                    else:
+                        raise CompShareCliJsonError(
+                            "Malformed instance list data: expected items/instances"
+                        )
+                    next_token = (
+                        nested.get("next_page_token")
+                        or nested.get("next_token")
+                        or nested.get("page_token")
+                        or res.get("next_page_token")
+                        or res.get("next_token")
+                    )
+                else:
+                    raise CompShareCliJsonError(
+                        "Malformed instance list data: expected items/instances"
+                    )
+            else:
+                raise CompShareCliJsonError(
+                    f"Malformed instance list data: {type(res).__name__}"
+                )
+
+            if not isinstance(items, list) or any(
+                not isinstance(item, dict) for item in items
+            ):
+                raise CompShareCliJsonError(
+                    "Malformed instance list data: items must be a list of objects"
+                )
+            result.extend(items)
+            if next_token in (None, ""):
+                return result
+            if not isinstance(next_token, str) or next_token in seen_tokens:
+                raise CompShareCliJsonError(
+                    "Malformed instance list pagination: repeated/invalid page token"
+                )
+            seen_tokens.add(next_token)
+            args = ["instance", "list"]
+            if all:
+                args.append("--all")
+            if status:
+                args.extend(["--status", status])
+            args.extend(["--page-token", next_token])
 
     def instance_create(
         self,

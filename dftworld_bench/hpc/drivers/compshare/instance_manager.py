@@ -74,11 +74,36 @@ class RunInstanceRecord:
 
 @dataclass
 class RecoveryReport:
-    active_instances: list[str] = field(default_factory=list)
-    recovered_instances: list[str] = field(default_factory=list)
-    failed_instances: list[str] = field(default_factory=list)
-    dangling_cloud_instances: list[str] = field(default_factory=list)
+    # Canonical fields used by the production readiness gate.
+    recovered: list[str] = field(default_factory=list)
+    still_active: list[str] = field(default_factory=list)
+    query_failed: list[str] = field(default_factory=list)
+    delete_failed: list[str] = field(default_factory=list)
     clean: bool = True
+
+    # Compatibility projections for older evidence readers.  New code should
+    # use the four fields above so query failures cannot be mistaken for a
+    # successful recovery.
+    @property
+    def active_instances(self) -> list[str]:
+        return self.still_active
+
+    @property
+    def recovered_instances(self) -> list[str]:
+        return self.recovered
+
+    @property
+    def failed_instances(self) -> list[str]:
+        return sorted(set(self.query_failed + self.delete_failed))
+
+    @property
+    def dangling_cloud_instances(self) -> list[str]:
+        return self.still_active
+
+    def ok(self) -> bool:
+        return self.clean and not (
+            self.still_active or self.query_failed or self.delete_failed
+        )
 
 
 class RunScopedInstanceManager:
@@ -283,7 +308,9 @@ class RunScopedInstanceManager:
             # Immediate fail-safe: if instance was created but setup failed, delete it
             if created_id:
                 try:
-                    self.cli.instance_delete(created_id)
+                    self._delete_provider_instance(
+                        created_id, run_id=run_id, image_id=image_id
+                    )
                 except Exception as del_exc:
                     logger.error("Failed to delete failed instance %s: %s", created_id, del_exc)
                     orphan_rec = RunInstanceRecord(
@@ -318,43 +345,9 @@ class RunScopedInstanceManager:
 
         instance_id = record.instance_id
         try:
-            self.cli.instance_stop(instance_id)
-            if self.audit is not None:
-                self.audit.append(
-                    {
-                        "action": "INSTANCE_STOP_ACCEPTED",
-                        "kind": "INSTANCE_STOP_ACCEPTED",
-                        "run_id": run_id,
-                        "image_id": record.image_id,
-                        "instance_id": instance_id,
-                        "ts": time.time(),
-                    },
-                    durable=True,
-                )
-            self.cli.instance_delete(instance_id)
-            if self.audit is not None:
-                self.audit.append(
-                    {
-                        "action": "INSTANCE_DELETE_ACCEPTED",
-                        "kind": "INSTANCE_DELETE_ACCEPTED",
-                        "run_id": run_id,
-                        "image_id": record.image_id,
-                        "instance_id": instance_id,
-                        "ts": time.time(),
-                    },
-                    durable=True,
-                )
-                self.audit.append(
-                    {
-                        "action": "INSTANCE_DELETE_CONFIRMED",
-                        "kind": "INSTANCE_DELETE_CONFIRMED",
-                        "run_id": run_id,
-                        "image_id": record.image_id,
-                        "instance_id": instance_id,
-                        "ts": time.time(),
-                    },
-                    durable=True,
-                )
+            self._terminate_provider_instance(
+                instance_id, run_id=run_id, image_id=record.image_id
+            )
             record.terminated_at = time.time()
             record.active_operation_id = None
             self._persist_ledger(record)
@@ -365,13 +358,160 @@ class RunScopedInstanceManager:
                 f"Failed to terminate instance {instance_id} for run {run_id}: {exc}"
             ) from exc
 
+    def _terminate_provider_instance(
+        self, instance_id: str, *, run_id: str = "", image_id: str = ""
+    ) -> None:
+        """Stop, delete, and provider-confirm one instance.
+
+        Recovery and normal settlement intentionally share this function so a
+        delete ACK can never be interpreted differently by two call paths.
+        """
+        self.cli.instance_stop(instance_id)
+        self._audit_instance_event(
+            "INSTANCE_STOP_ACCEPTED",
+            run_id=run_id,
+            image_id=image_id,
+            instance_id=instance_id,
+        )
+        self._delete_provider_instance(
+            instance_id, run_id=run_id, image_id=image_id
+        )
+
+    def _delete_provider_instance(
+        self, instance_id: str, *, run_id: str = "", image_id: str = ""
+    ) -> None:
+        """Delete and read back one provider instance, with durable events."""
+        self.cli.instance_delete(instance_id)
+        self._audit_instance_event(
+            "INSTANCE_DELETE_ACCEPTED",
+            run_id=run_id,
+            image_id=image_id,
+            instance_id=instance_id,
+        )
+        if not self._confirm_deleted(instance_id):
+            raise CompShareOrphanError(
+                f"provider did not confirm deletion of instance {instance_id}"
+            )
+        self._audit_instance_event(
+            "INSTANCE_DELETE_CONFIRMED",
+            run_id=run_id,
+            image_id=image_id,
+            instance_id=instance_id,
+        )
+
+    def _audit_instance_event(
+        self, kind: str, *, run_id: str, image_id: str, instance_id: str
+    ) -> None:
+        if self.audit is None:
+            return
+        self.audit.append(
+            {
+                "action": kind,
+                "kind": kind,
+                "run_id": run_id,
+                "image_id": image_id,
+                "instance_id": instance_id,
+                "ts": time.time(),
+            },
+            durable=True,
+        )
+
+    def _confirm_deleted(self, instance_id: str) -> bool:
+        """Confirm deletion through provider readback, fail-closed.
+
+        Some providers return NOT_FOUND from ``show`` immediately after a
+        delete, while others return a terminal ``DELETED``/``TERMINATED``
+        record for a short retention window.  Both are safe only when the
+        response is definitive; every other status, malformed response, or
+        failed list query remains an orphan.
+        """
+        try:
+            info = self.cli.instance_show(instance_id)
+            if not isinstance(info, dict):
+                raise CompShareManagerError(
+                    f"provider show returned malformed object for {instance_id}"
+                )
+            status = str(info.get("status") or "").strip().lower()
+            if status in SAFE_DELETED_STATES:
+                return True
+            # An object still visible in any non-terminal state is not deleted.
+            return False
+        except CompShareCliError as exc:
+            if str(exc.code).upper() != "NOT_FOUND":
+                raise CompShareManagerError(
+                    f"provider show failed for {instance_id}: {exc}"
+                ) from exc
+            # NOT_FOUND is definitive only after the complete account list is
+            # queried and the exact ID is absent.  instance_list itself is
+            # strict about pagination and response shape.
+            items = self.cli.instance_list(all=True)
+            if not isinstance(items, list):
+                raise CompShareManagerError(
+                    f"provider instance list returned malformed result for {instance_id}"
+                )
+            for item in items:
+                if not isinstance(item, dict):
+                    raise CompShareManagerError(
+                        "provider instance list contained a non-object record"
+                    )
+                observed = extract_verified_instance_id(item)
+                if observed == instance_id:
+                    status = str(item.get("status") or "").strip().lower()
+                    if status in SAFE_DELETED_STATES:
+                        return True
+                    return False
+            return True
+
+    def zero_orphan_query(self, run_id: str | None = None) -> dict[str, Any]:
+        """Run a real account-wide zero-orphan query and return evidence.
+
+        The query always calls ``instance_list(all=True)`` exactly once.  A
+        run-specific query uses the exact current fixed-token marker; a global
+        query also recognizes legacy markers for cleanup.  Unknown status is
+        active by policy, and malformed records/query errors raise instead of
+        producing a false zero.
+        """
+        items = self.cli.instance_list(all=True)
+        if not isinstance(items, list):
+            raise CompShareManagerError("provider instance list result is not a list")
+        observed_ids: list[str] = []
+        active_ids: list[str] = []
+        for item in items:
+            if not isinstance(item, dict):
+                raise CompShareManagerError(
+                    "provider instance list contained a non-object record"
+                )
+            if not matches_ownership_marker(item, run_id):
+                continue
+            instance_id = extract_verified_instance_id(item)
+            if not instance_id:
+                raise CompShareManagerError(
+                    "owned provider record has no verified instance_id"
+                )
+            observed_ids.append(instance_id)
+            status = str(item.get("status") or "").strip().lower()
+            if instance_requires_cleanup(status):
+                active_ids.append(instance_id)
+        return {
+            "method": "instance_list(all=True)",
+            "query_complete": True,
+            "observed_ids": sorted(set(observed_ids)),
+            "active_ids": sorted(set(active_ids)),
+            "active_total": len(set(active_ids)),
+        }
+
+    def query_zero_orphans(self, run_id: str | None = None) -> list[str]:
+        """Return active owned IDs from a real account-wide query."""
+        return list(self.zero_orphan_query(run_id).get("active_ids") or [])
+
     def log_zero_orphan_query(
         self, run_id: str, *, image_id: str = "", instance_id: str = ""
-    ) -> None:
-        """Log ZERO_ORPHAN_QUERY event into GatewayAudit."""
+    ) -> dict[str, Any]:
+        """Query and log ZERO_ORPHAN_QUERY evidence into GatewayAudit."""
         rec = self._instances.get(run_id)
         eff_img = image_id or (rec.image_id if rec else "")
         eff_inst = instance_id or (rec.instance_id if rec else "")
+        evidence = self.zero_orphan_query(run_id)
         if self.audit is not None:
             self.audit.append(
                 {
@@ -380,10 +520,21 @@ class RunScopedInstanceManager:
                     "run_id": run_id,
                     "image_id": eff_img,
                     "instance_id": eff_inst,
+                    "method": evidence["method"],
+                    "query_complete": evidence["query_complete"],
+                    "observed_ids": evidence["observed_ids"],
+                    "active_ids": evidence["active_ids"],
+                    "active_total": evidence["active_total"],
                     "ts": time.time(),
                 },
                 durable=True,
             )
+        if evidence["active_total"]:
+            raise CompShareOrphanError(
+                f"Zero-Orphan Gate found active owned instances for {run_id}: "
+                f"{evidence['active_ids']}"
+            )
+        return evidence
 
     def reconcile_and_recover(self) -> RecoveryReport:
         """Explicit startup/watchdog reconciliation with provider cloud.
@@ -399,56 +550,141 @@ class RunScopedInstanceManager:
         4. Fails closed (clean=False) if any failed or dangling instances remain.
         """
         report = RecoveryReport()
-        # 1 & 2: Reconcile local ledger records
-        for run_id, rec in list(self._instances.items()):
-            if rec.terminated_at is None:
-                report.active_instances.append(rec.instance_id)
-                try:
-                    info = self.cli.instance_show(rec.instance_id)
-                    status = str(info.get("status") or "").lower()
-                    if not instance_requires_cleanup(status):
-                        rec.terminated_at = time.time()
-                        self._persist_ledger(rec)
-                    else:
-                        try:
-                            self.terminate_run(run_id)
-                            report.recovered_instances.append(rec.instance_id)
-                        except Exception:
-                            report.failed_instances.append(rec.instance_id)
-                except Exception:
-                    # Cloud query failed or instance not found, attempt termination
-                    try:
-                        self.terminate_run(run_id)
-                        report.recovered_instances.append(rec.instance_id)
-                    except Exception:
-                        report.failed_instances.append(rec.instance_id)
 
-        # 3: Cloud sweep for any dangling mlffbench instances
+        # 1 & 2: Reconcile local ledger records.  A failed readback is kept as
+        # a query failure even if a best-effort delete happens to succeed: the
+        # readiness decision must know that the provider response was
+        # undecidable.
+        for run_id, rec in list(self._instances.items()):
+            if rec.terminated_at is not None:
+                continue
+            report.still_active.append(rec.instance_id)
+            try:
+                info = self.cli.instance_show(rec.instance_id)
+                if not isinstance(info, dict):
+                    raise CompShareManagerError(
+                        f"provider show returned malformed object for {rec.instance_id}"
+                    )
+                status = str(info.get("status") or "").strip().lower()
+                if not status:
+                    raise CompShareManagerError(
+                        f"provider show omitted status for {rec.instance_id}"
+                    )
+                if not instance_requires_cleanup(status):
+                    rec.terminated_at = time.time()
+                    rec.active_operation_id = None
+                    self._persist_ledger(rec)
+                    continue
+                try:
+                    self.terminate_run(run_id)
+                    report.recovered.append(rec.instance_id)
+                    report.still_active.remove(rec.instance_id)
+                except Exception as exc:
+                    report.delete_failed.append(rec.instance_id)
+                    logger.warning(
+                        "Failed to recover ledger instance %s: %s", rec.instance_id, exc
+                    )
+            except CompShareCliError as exc:
+                if str(exc.code).upper() == "NOT_FOUND":
+                    # A NOT_FOUND show is safe only if the complete account
+                    # list also proves the ID absent.
+                    try:
+                        items = self.cli.instance_list(all=True)
+                        if not any(
+                            isinstance(item, dict)
+                            and extract_verified_instance_id(item) == rec.instance_id
+                            for item in items
+                        ):
+                            rec.terminated_at = time.time()
+                            rec.active_operation_id = None
+                            self._persist_ledger(rec)
+                            report.still_active.remove(rec.instance_id)
+                            continue
+                    except Exception as list_exc:
+                        report.query_failed.append(rec.instance_id)
+                        logger.warning(
+                            "Could not confirm missing instance %s: %s",
+                            rec.instance_id,
+                            list_exc,
+                        )
+                report.query_failed.append(rec.instance_id)
+                # Continue to cloud sweep; do not claim this record recovered.
+            except Exception as exc:
+                report.query_failed.append(rec.instance_id)
+                logger.warning(
+                    "Could not query ledger instance %s: %s", rec.instance_id, exc
+                )
+
+        # 3: Cloud sweep for dangling MLFFBench instances.  This is the same
+        # real all-account query used by the zero-orphan evidence path.
         try:
             cloud_instances = self.cli.instance_list(all=True)
+            if not isinstance(cloud_instances, list):
+                raise CompShareManagerError("provider instance list result is not a list")
             for item in cloud_instances:
+                if not isinstance(item, dict):
+                    raise CompShareManagerError(
+                        "provider instance list contained a non-object record"
+                    )
+                if not matches_ownership_marker(item):
+                    continue
                 inst_id = extract_verified_instance_id(item)
-                status = str(item.get("status") or "").lower()
-                if matches_ownership_marker(item) and instance_requires_cleanup(status):
-                    if inst_id not in report.failed_instances and inst_id not in report.recovered_instances:
-                        try:
-                            self.cli.instance_stop(inst_id)
-                            self.cli.instance_delete(inst_id)
-                            report.recovered_instances.append(inst_id)
-                        except Exception as exc:
-                            logger.critical("Failed to delete dangling cloud instance %s: %s", inst_id, exc)
-                            report.dangling_cloud_instances.append(inst_id)
+                if not inst_id:
+                    raise CompShareManagerError(
+                        "owned provider record has no verified instance_id"
+                    )
+                status = str(item.get("status") or "").strip().lower()
+                if not instance_requires_cleanup(status):
+                    continue
+                if inst_id in report.recovered:
+                    continue
+                report.still_active.append(inst_id)
+                try:
+                    self._terminate_provider_instance(
+                        inst_id,
+                        run_id="",
+                        image_id=str(item.get("image_id") or ""),
+                    )
+                    report.recovered.append(inst_id)
+                    while inst_id in report.still_active:
+                        report.still_active.remove(inst_id)
+                except Exception as exc:
+                    report.delete_failed.append(inst_id)
+                    logger.critical(
+                        "Failed to delete dangling cloud instance %s: %s", inst_id, exc
+                    )
         except Exception as exc:
             logger.warning("Could not list cloud instances during reconciliation: %s", exc)
-            report.clean = False
-            return report
+            report.query_failed.append("instance_list")
 
-        report.clean = (len(report.failed_instances) == 0 and len(report.dangling_cloud_instances) == 0)
+        # 4: A final independent list query is mandatory.  It prevents a
+        # successful delete ACK/readback from being mistaken for zero orphans
+        # when another owned record remained outside the local ledger.
+        try:
+            final = self.zero_orphan_query()
+            for inst_id in final.get("active_ids") or []:
+                if inst_id not in report.still_active:
+                    report.still_active.append(inst_id)
+            if final.get("active_total"):
+                report.still_active.extend(
+                    inst_id
+                    for inst_id in final.get("active_ids") or []
+                    if inst_id not in report.still_active
+                )
+        except Exception as exc:
+            report.query_failed.append("zero_orphan_query")
+            logger.warning("Final zero-orphan query failed: %s", exc)
+
+        report.still_active = sorted(set(report.still_active) - set(report.recovered))
+        report.recovered = sorted(set(report.recovered))
+        report.query_failed = sorted(set(report.query_failed))
+        report.delete_failed = sorted(set(report.delete_failed))
+        report.clean = report.ok()
         return report
 
     def recover_dangling_instances(self) -> list[str]:
         """Durable teardown recovery: terminate any active instances left from prior runs/crashes."""
-        return self.reconcile_and_recover().recovered_instances
+        return self.reconcile_and_recover().recovered
 
     def get_usage(self, run_id: str) -> dict[str, Any]:
         """Return usage, cost, and remaining budget for a run."""
