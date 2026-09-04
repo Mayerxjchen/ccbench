@@ -199,3 +199,101 @@ def test_closed_session_rejects_settlement(tmp_path):
     session.close()
     with pytest.raises(DispatcherClosedError):
         session.settle()
+
+
+def test_revoked_token_does_not_skip_teardown_on_close(tmp_path: Path):
+    """P2 invariant: revoking token before close must NOT skip trusted resource teardown."""
+    settle_calls = []
+
+    class SettleTrackingAdapter(ProcessTestAdapter):
+        def settle(self, run_id: str) -> bool:
+            settle_calls.append(run_id)
+            return True
+
+    site_root = tmp_path / "site"
+    site_root.mkdir(parents=True, exist_ok=True)
+    adapter = SettleTrackingAdapter(site_root)
+    from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
+
+    runtime = GatewayRuntime(audit=GatewayAudit(site_root / "audit.jsonl"))
+    dispatcher = HpcDispatcher(
+        runtime,
+        {
+            "adapter": "process_test",
+            "adapter_instance": adapter,
+            "root": str(site_root),
+        },
+    )
+    session = dispatcher.open_run("run-revoked", workspace=tmp_path / "ws")
+
+    # Manually revoke the token beforehand
+    session.gateway.revoke(session.token)
+
+    # Calling close must still trigger trusted teardown
+    session.close()
+    assert "run-revoked" in settle_calls
+    assert session.gateway.settlement_state("run-revoked") == "SETTLED"
+
+
+def test_open_run_same_run_replacement_teardown(tmp_path: Path):
+    """P2 invariant: replacing an active run session must teardown the prior session."""
+    settle_calls = []
+
+    class SettleTrackingAdapter(ProcessTestAdapter):
+        def settle(self, run_id: str) -> bool:
+            settle_calls.append(run_id)
+            return True
+
+    site_root = tmp_path / "site"
+    site_root.mkdir(parents=True, exist_ok=True)
+    adapter = SettleTrackingAdapter(site_root)
+    from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
+
+    runtime = GatewayRuntime(audit=GatewayAudit(site_root / "audit.jsonl"))
+    dispatcher = HpcDispatcher(
+        runtime,
+        {
+            "adapter": "process_test",
+            "adapter_instance": adapter,
+            "root": str(site_root),
+        },
+    )
+    s1 = dispatcher.open_run("run-dup", workspace=tmp_path / "ws1")
+    assert len(settle_calls) == 0
+
+    # Opening same run again must trigger trusted teardown on prior lease
+    s2 = dispatcher.open_run("run-dup", workspace=tmp_path / "ws2")
+    assert "run-dup" in settle_calls
+    s2.close()
+
+
+def test_teardown_failure_sets_teardown_failed_and_records_orphan(tmp_path: Path):
+    """P2 invariant: settlement failure sets TEARDOWN_FAILED and records to orphan ledger."""
+    class FailingAdapter(ProcessTestAdapter):
+        def settle(self, run_id: str) -> bool:
+            return False
+
+    site_root = tmp_path / "site"
+    site_root.mkdir(parents=True, exist_ok=True)
+    adapter = FailingAdapter(site_root)
+    from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
+
+    runtime = GatewayRuntime(audit=GatewayAudit(site_root / "audit.jsonl"))
+    dispatcher = HpcDispatcher(
+        runtime,
+        {
+            "adapter": "process_test",
+            "adapter_instance": adapter,
+            "root": str(site_root),
+        },
+    )
+    ws = tmp_path / "ws"
+    session = dispatcher.open_run("run-fail-td", workspace=ws)
+
+    with pytest.raises(SettlementError, match="Cloud resource teardown failed"):
+        session.close()
+
+    assert session.gateway.settlement_state("run-fail-td") == "TEARDOWN_FAILED"
+    orphan_file = ws / "orphan-ledger.jsonl"
+    assert orphan_file.is_file()
+    assert "run-fail-td" in orphan_file.read_text()

@@ -22,12 +22,17 @@ a thin layer elsewhere.
 from __future__ import annotations
 
 import hashlib
+import json
+import logging
+import os
 import re
 import secrets
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
 
 from dftworld_bench.hpc.adapters.base import TERMINAL_STATES, HpcAdapter
 from dftworld_bench.hpc.audit import GatewayAudit
@@ -45,16 +50,39 @@ ALL_OPS = ("capabilities", "submit", "status", "logs", "fetch", "cancel", "usage
 _OPERATION_ID_RE = re.compile(r"^[A-Za-z0-9._/:-]+$")
 
 
+class GatewayErrorCode:
+    """Structured error codes for GatewayError."""
+    TOKEN_REVOKED = "TOKEN_REVOKED"
+    TOKEN_EXPIRED = "TOKEN_EXPIRED"
+    TOKEN_RUN_MISMATCH = "TOKEN_RUN_MISMATCH"
+    ADAPTER_SETTLEMENT_FAILED = "ADAPTER_SETTLEMENT_FAILED"
+    AUTH_FAILURE = "AUTH_FAILURE"
+    AUTHORIZATION_DENIED = "AUTHORIZATION_DENIED"
+    CONTAINMENT_VIOLATION = "CONTAINMENT_VIOLATION"
+    OTHER = "OTHER"
+
+
 class GatewayError(Exception):
     """A capability was denied at the trust boundary.
 
     ``status`` carries the HTTP status the common binding should reply with:
     401 for authentication failures, 403 for authorization/containment denials.
+
+    ``error_code`` is a structured code for programmatic classification:
+    - TOKEN_REVOKED: token was explicitly revoked (safe to skip teardown)
+    - TOKEN_EXPIRED: token TTL expired (teardown still needed via trusted path)
+    - TOKEN_RUN_MISMATCH: token/run_id mismatch
+    - ADAPTER_SETTLEMENT_FAILED: adapter settle() returned failure
+    - AUTH_FAILURE: generic authentication failure
+    - AUTHORIZATION_DENIED: operation outside token scope
+    - CONTAINMENT_VIOLATION: path/symlink escape
+    - OTHER: unclassified
     """
 
-    def __init__(self, message: str, *, status: int = 403) -> None:
+    def __init__(self, message: str, *, status: int = 403, error_code: str = GatewayErrorCode.OTHER) -> None:
         super().__init__(message)
         self.status = status
+        self.error_code = error_code
 
 
 def contained(root: Path, candidate: Path) -> Path:
@@ -103,7 +131,7 @@ class Gateway:
     ) -> None:
         self._adapter = adapter
         self._quota = quota
-        self._runtime_resolver = runtime_resolver
+        self._runtime_resolver = runtime_resolver or getattr(adapter, "runtime_resolver", None)
         self._now = now or time.time
         self._tokens: dict[str, Capability] = {}
         self._jobs: dict[str, dict[str, str]] = {}  # run_id -> key -> job_id
@@ -112,6 +140,7 @@ class Gateway:
         self._op_attempts: dict[str, dict[str, dict[int, str]]] = {}
         # Runs whose settlement has begun: no further submissions accepted.
         self._settled: set[str] = set()
+        self._settlement_states: dict[str, str] = {}  # run_id -> ACTIVE | SETTLING | SETTLED | SETTLEMENT_FAILED
         self._ledger: dict[str, dict[str, int]] = {}  # run_id -> resource sums
         self._audit = audit
         self._workspace_root = Path(workspace_root) if workspace_root is not None else None
@@ -143,19 +172,27 @@ class Gateway:
         self._tokens.pop(token, None)
         self._audit_append({"kind": "token_revoked", "token_digest": _digest(token)})
 
-    def authorize(self, token: str, run_id: str, operation: str) -> Capability:
+    def authorize(
+        self,
+        token: str,
+        run_id: str,
+        operation: str,
+        *,
+        allow_expired: bool = False,
+    ) -> Capability:
         capability = self._tokens.get(token)
         if capability is None:
-            raise GatewayError("unknown or revoked token", status=401)
+            raise GatewayError("unknown or revoked token", status=401, error_code=GatewayErrorCode.TOKEN_REVOKED)
         if capability.run_id != run_id:
             raise GatewayError(
                 f"token/run mismatch: token for {capability.run_id!r} used for {run_id!r}",
                 status=401,
+                error_code=GatewayErrorCode.TOKEN_RUN_MISMATCH,
             )
-        if self._now() > capability.expires_at:
-            raise GatewayError(f"token expired at {capability.expires_at:.0f}", status=401)
+        if not allow_expired and self._now() > capability.expires_at:
+            raise GatewayError(f"token expired at {capability.expires_at:.0f}", status=401, error_code=GatewayErrorCode.TOKEN_EXPIRED)
         if operation not in capability.operations:
-            raise GatewayError(f"operation {operation!r} outside token scope")
+            raise GatewayError(f"operation {operation!r} outside token scope", error_code=GatewayErrorCode.AUTHORIZATION_DENIED)
         return capability
 
     # -- the seven operations (all run-scoped) ----------------------------
@@ -166,7 +203,7 @@ class Gateway:
         if self._runtime_resolver is not None:
             # Runtime capabilities are what Agents may name; concrete SIF
             # identities stay server-side (Architecture Freeze §3).
-            out["runtime_capabilities"] = self._runtime_resolver.capabilities()
+            out["runtime_capabilities"] = self._runtime_resolver.qualified_capabilities()
         return out
 
     def submit(
@@ -181,10 +218,13 @@ class Gateway:
         self.authorize(token, run_id, "submit")
         if not _OPERATION_ID_RE.match(operation_id):
             raise GatewayError(f"unsafe operation_id: {operation_id!r}")
-        if run_id in self._settled:
+        state = self._settlement_states.get(run_id, "ACTIVE")
+        if state != "ACTIVE" or run_id in self._settled:
             raise GatewayError(
-                f"run {run_id!r} is settled; no further submissions are accepted"
+                f"run {run_id!r} is settled or settling (state {state}); no further submissions are accepted"
             )
+        # Cleanse any client-forged _resolved_runtime
+        spec = {k: v for k, v in spec.items() if k != "_resolved_runtime"}
         if attempt is not None:
             return self._submit_v2(token, run_id, spec, operation_id=operation_id, attempt=attempt)
         spec, resolved = self._resolve_runtime(spec, run_id)
@@ -214,7 +254,10 @@ class Gateway:
         if existing is not None:
             return self._submit_result(existing, duplicate=True, resolved=resolved)
         self._check_quota(run_id, spec["resources"])
-        result = self._adapter.submit(spec, run_id=run_id, operation_id=operation_id)
+        spec_for_adapter = dict(spec)
+        if resolved is not None:
+            spec_for_adapter["_resolved_runtime"] = resolved
+        result = self._adapter.submit(spec_for_adapter, run_id=run_id, operation_id=operation_id)
         job_id = result["job_id"]
         self._remember(run_id, key, job_id)
         self._charge(run_id, spec["resources"])
@@ -245,6 +288,8 @@ class Gateway:
         """
         if self._audit is None:
             raise GatewayError("v2 submit requires a durable audit trail")
+        # Cleanse any client-forged _resolved_runtime
+        spec = {k: v for k, v in spec.items() if k != "_resolved_runtime"}
         spec, resolved = self._resolve_runtime(spec, run_id)
         self._validate_inputs(spec)
         try:
@@ -331,8 +376,11 @@ class Gateway:
             },
             durable=True,
         )
+        spec_for_adapter = dict(spec)
+        if resolved is not None:
+            spec_for_adapter["_resolved_runtime"] = resolved
         result = self._adapter.submit(
-            spec, run_id=run_id, operation_id=operation_id, marker=marker
+            spec_for_adapter, run_id=run_id, operation_id=operation_id, marker=marker
         )
         job_id = result["job_id"]
         attempts[attempt] = job_id
@@ -509,14 +557,105 @@ class Gateway:
         return entries
 
     def freeze(self, token: str, run_id: str) -> None:
-        """Begin settlement: reject further submissions for this run."""
-        self.authorize(token, run_id, "usage")
-        if run_id in self._settled:
+        """Begin settlement: reject further submissions for this run.
+
+        This only freezes submissions — it does NOT tear down cloud resources.
+        Call ``teardown_resources()`` after all jobs have been queried, cancelled,
+        and evidence fetched.
+        """
+        self.authorize(token, run_id, "usage", allow_expired=True)
+        self.trusted_freeze(run_id)
+
+    def trusted_freeze(self, run_id: str) -> None:
+        """Trusted administrative/watchdog freeze without requiring a client token."""
+        current_state = self._settlement_states.get(run_id, "ACTIVE")
+        if current_state in ("SETTLED", "SETTLING"):
             return
+
+        self._settlement_states[run_id] = "SETTLING"
         self._settled.add(run_id)
         if self._audit is not None:
             self._audit.append(
                 {"kind": "SETTLEMENT_BEGIN", "run_id": run_id}, durable=True
+            )
+
+    def settlement_state(self, run_id: str) -> str:
+        """Return current settlement state: ACTIVE, SETTLING, SETTLED, or TEARDOWN_FAILED."""
+        return self._settlement_states.get(run_id, "ACTIVE")
+
+    def teardown_resources(self, token: str, run_id: str) -> None:
+        """Tear down cloud resources (stop/delete instances) for a run.
+
+        Must be called AFTER all jobs have been queried, cancelled, and evidence
+        fetched.  Called by the dispatcher during settlement, not by freeze().
+        Allows retry when previous attempt resulted in SETTLEMENT_FAILED / TEARDOWN_FAILED.
+        Supports expired-token teardown per Gate A1 requirements.
+        """
+        self.authorize(token, run_id, "usage", allow_expired=True)
+        self._perform_teardown(run_id)
+
+    def trusted_teardown(self, run_id: str) -> None:
+        """Trusted administrative/watchdog teardown without requiring a client token."""
+        self._perform_teardown(run_id)
+
+    def _record_orphan_ledger(self, run_id: str, reason: str) -> None:
+        orphan_path = (self._workspace_root / "orphan-ledger.jsonl") if self._workspace_root else Path("runs/compshare-orphans.jsonl")
+        try:
+            orphan_path.parent.mkdir(parents=True, exist_ok=True)
+            entry = {
+                "run_id": run_id,
+                "reason": reason,
+                "timestamp": time.time(),
+            }
+            with open(orphan_path, "a", encoding="utf-8") as f:
+                import fcntl
+
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.write(json.dumps(entry) + "\n")
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        except Exception as exc:
+            logger.critical("Failed to write gateway orphan ledger: %s", exc)
+
+    def _perform_teardown(self, run_id: str) -> None:
+        current_state = self._settlement_states.get(run_id, "ACTIVE")
+        if current_state == "SETTLED":
+            return
+        if current_state not in ("SETTLING", "SETTLEMENT_FAILED", "TEARDOWN_FAILED"):
+            # Ensure submissions are frozen before resource teardown
+            self._settlement_states[run_id] = "SETTLING"
+            self._settled.add(run_id)
+
+        if hasattr(self._adapter, "settle"):
+            try:
+                res = self._adapter.settle(run_id)
+                if res is False:
+                    self._settlement_states[run_id] = "TEARDOWN_FAILED"
+                    self._record_orphan_ledger(run_id, "Adapter settlement reported failure")
+                    raise GatewayError(
+                        f"Adapter settlement reported failure for run {run_id}; "
+                        "cloud instances may remain active/billing",
+                        error_code=GatewayErrorCode.ADAPTER_SETTLEMENT_FAILED,
+                    )
+            except GatewayError:
+                self._settlement_states[run_id] = "TEARDOWN_FAILED"
+                self._record_orphan_ledger(run_id, "Gateway error during teardown")
+                raise
+            except Exception as exc:
+                self._settlement_states[run_id] = "TEARDOWN_FAILED"
+                self._record_orphan_ledger(run_id, f"Adapter settlement error: {exc}")
+                raise GatewayError(
+                    f"Adapter settlement error for run {run_id}: {exc}",
+                    error_code=GatewayErrorCode.ADAPTER_SETTLEMENT_FAILED,
+                ) from exc
+
+        self._settlement_states[run_id] = "SETTLED"
+        if self._audit is not None:
+            self._audit.append(
+                {"kind": "SETTLEMENT_COMPLETE", "run_id": run_id}, durable=True
             )
 
     def status(self, token: str, run_id: str, job_id: str) -> dict[str, Any]:
@@ -579,8 +718,22 @@ class Gateway:
                     "site with one or submit a digest-pinned declaration"
                 )
             return spec, None
+        site_profile = None
+        provider = None
+        if hasattr(self._adapter, "router") and self._adapter.router is not None:
+            compute_class = spec.get("compute_class", "cpu")
+            try:
+                route = self._adapter.router.route(compute_class)
+                site_profile = route.site_profile
+                provider = route.site_profile.scheduler
+            except Exception as exc:
+                logger.warning("Router resolution in gateway: %s", exc)
         try:
-            resolved = self._runtime_resolver.resolve(decl)
+            resolved = self._runtime_resolver.resolve(
+                decl,
+                site_profile=site_profile,
+                provider=provider,
+            )
         except RuntimeResolutionError as exc:
             raise GatewayError(f"runtime resolution failed: {exc}") from exc
         if resolved.declaration != decl:

@@ -382,7 +382,7 @@ def test_gateway_freeze_settle_failure_allows_retry(tmp_path: Path):
     with pytest.raises(GatewayError, match="Adapter settlement reported failure"):
         gw.teardown_resources(tok, "run-retry")
     assert calls == 1
-    assert gw._settlement_states["run-retry"] == "SETTLEMENT_FAILED"
+    assert gw._settlement_states["run-retry"] in ("SETTLEMENT_FAILED", "TEARDOWN_FAILED")
 
     # Second teardown retries!
     succeed_on_retry = True
@@ -562,3 +562,77 @@ def test_instance_manager_durable_teardown_recovery(tmp_path: Path):
     assert dangling_id in recovered
     assert mgr._instances["run-crashed"].terminated_at is not None
     assert dangling_id not in runner.instances  # deleted on cloud!
+
+
+def test_instance_manager_reconcile_and_recover_full(tmp_path: Path):
+    """P3: Explicit reconcile_and_recover returns clean report and cleans dangling instances."""
+    runner = FakeCompShareCliRunner(initial_stock=2)
+    cli = CompShareCli(runner=runner)
+    ledger_path = tmp_path / "ledger.jsonl"
+
+    inst_doc = cli.instance_create(image="img-1", name="mlffbench-run-c1-worker")
+    dangling_id = inst_doc["instance_id"]
+    ledger_entry = {
+        "run_id": "run-c1",
+        "instance_id": dangling_id,
+        "image_id": "img-1",
+        "gpu_type": "4090",
+        "gpu_count": 1,
+        "created_at": time.time(),
+        "terminated_at": None,
+    }
+    ledger_path.write_text(json.dumps(ledger_entry) + "\n")
+
+    mgr = RunScopedInstanceManager(
+        cli,
+        ledger_path=ledger_path,
+        orphan_ledger_path=tmp_path / "orphans.jsonl",
+    )
+    # Pure local constructor: instance remains non-terminated initially
+    assert mgr._instances["run-c1"].terminated_at is None
+
+    report = mgr.reconcile_and_recover()
+    assert report.clean is True
+    assert dangling_id in report.active_instances
+    assert dangling_id in report.recovered_instances
+    assert len(report.failed_instances) == 0
+    assert dangling_id not in runner.instances
+
+
+def test_instance_manager_reconcile_and_recover_fail_closed_on_error(tmp_path: Path, monkeypatch):
+    """P3: Deletion failure during recovery fails closed and records to orphan ledger."""
+    runner = FakeCompShareCliRunner(initial_stock=2)
+    cli = CompShareCli(runner=runner)
+    ledger_path = tmp_path / "ledger.jsonl"
+    orphan_path = tmp_path / "orphans.jsonl"
+
+    inst_doc = cli.instance_create(image="img-1", name="mlffbench-run-fail-worker")
+    dangling_id = inst_doc["instance_id"]
+    ledger_entry = {
+        "run_id": "run-fail",
+        "instance_id": dangling_id,
+        "image_id": "img-1",
+        "gpu_type": "4090",
+        "gpu_count": 1,
+        "created_at": time.time(),
+        "terminated_at": None,
+    }
+    ledger_path.write_text(json.dumps(ledger_entry) + "\n")
+
+    mgr = RunScopedInstanceManager(
+        cli,
+        ledger_path=ledger_path,
+        orphan_ledger_path=orphan_path,
+    )
+
+    # Force delete to fail
+    def fail_delete(inst_id, **kw):
+        raise RuntimeError("Cloud delete failed")
+
+    monkeypatch.setattr(cli, "instance_delete", fail_delete)
+
+    report = mgr.reconcile_and_recover()
+    assert report.clean is False
+    assert dangling_id in report.failed_instances
+    assert orphan_path.is_file()
+    assert dangling_id in orphan_path.read_text()

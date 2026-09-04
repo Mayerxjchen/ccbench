@@ -25,6 +25,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from dftworld_bench.hpc.gateway import GatewayError, GatewayErrorCode
 from dftworld_bench.hpc.gateway_runtime import GatewayLease, GatewayRuntime
 
 
@@ -299,16 +300,25 @@ class DispatcherSession:
     def settle(self, *, cancel_pending: bool = True) -> SettlementReport:
         """Idempotent settlement over exact ledger job IDs.
 
-        Freezes submissions, queries every owned attempt, optionally cancels
-        non-terminal ones by their exact scheduler IDs, and produces one
-        immutable report. A repeat call returns the same report.
+        Settlement proceeds in two phases to avoid querying jobs on a deleted
+        cloud instance:
+
+        1. Freeze submissions (reject new submits, but keep instance alive).
+        2. Query every owned attempt, cancel non-terminal ones, fetch evidence.
+        3. Tear down cloud resources (stop/delete instance).
+        4. Produce one immutable report.
+
+        A repeat call returns the same report.
         """
         self._require_open()
         if self._settlement is not None:
             return self._settlement
         gateway = self._lease.gateway
+
+        # Phase 1: freeze submissions only — instance stays alive for queries
         gateway.freeze(self._lease.token, self._lease.run_id)
 
+        # Phase 2: query all jobs, cancel pending, collect states
         records: list[AttemptRecord] = []
         cancelled: list[str] = []
         for entry in gateway.attempts(self._lease.token, self._lease.run_id):
@@ -336,6 +346,10 @@ class DispatcherSession:
                     state=state,
                 )
             )
+
+        # Phase 3: tear down cloud resources now that all jobs are resolved
+        gateway.teardown_resources(self._lease.token, self._lease.run_id)
+
         usage = gateway.usage(self._lease.token, self._lease.run_id)
         report = SettlementReport(
             run_id=self._lease.run_id,
@@ -352,8 +366,48 @@ class DispatcherSession:
         return report
 
     def close(self) -> None:
-        """Revoke the run token and tear down per-run networks; idempotent."""
-        self._lease.close()
+        """Revoke the run token, ensure cloud settlement, and tear down networks; idempotent.
+
+        Execution sequence:
+        1. gateway.trusted_freeze(run_id)
+        2. gateway.trusted_teardown(run_id)
+        3. Confirm settlement state is SETTLED
+        4. lease.close() (revoke token)
+        5. Close per-run network
+
+        Regardless of whether the client token is active, expired, or revoked,
+        trusted teardown is always executed to ensure zero orphaned billing instances.
+        """
+        if self._lease.closed and self._settlement is not None:
+            return
+
+        gateway = self._lease.gateway
+        run_id = self._lease.run_id
+        teardown_error: Exception | None = None
+
+        if self._settlement is None:
+            try:
+                gateway.trusted_freeze(run_id)
+                gateway.trusted_teardown(run_id)
+                state = gateway.settlement_state(run_id)
+                if state != "SETTLED":
+                    raise SettlementError(
+                        f"Settlement state for {run_id!r} is {state!r}, expected 'SETTLED'"
+                    )
+            except Exception as exc:
+                teardown_error = exc
+
+        try:
+            self._lease.close()
+        except Exception as lease_exc:
+            if teardown_error is None:
+                teardown_error = lease_exc
+
+        if teardown_error is not None:
+            raise SettlementError(
+                f"Cloud resource teardown failed for run {run_id!r}; "
+                f"resources may still be active/billing: {teardown_error}"
+            ) from teardown_error
 
     def _require_open(self) -> None:
         if self._lease.closed:

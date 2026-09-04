@@ -43,6 +43,9 @@ def build_adapter(adapter_config: dict[str, Any]):
     """
     kind = adapter_config["adapter"]
     if kind == "process_test":
+        instance = adapter_config.get("adapter_instance")
+        if instance is not None:
+            return instance
         return ProcessTestAdapter(
             Path(adapter_config["root"]),
             timeout_sec=float(adapter_config.get("timeout_sec", 30.0)),
@@ -54,6 +57,17 @@ def build_adapter(adapter_config: dict[str, Any]):
                 "slurm adapter requires an 'adapter_instance' (site config "
                 "and transport are trusted-harness responsibilities)"
             )
+        return instance
+    if kind == "compshare":
+        instance = adapter_config.get("adapter_instance")
+        if instance is None:
+            from dftworld_bench.hpc.drivers.compshare import CompShareCli, CompShareDriver
+            return CompShareDriver(CompShareCli())
+        return instance
+    if kind == "routed":
+        instance = adapter_config.get("adapter_instance")
+        if instance is None:
+            raise GatewayRuntimeError("routed adapter requires an 'adapter_instance'")
         return instance
     raise GatewayRuntimeError(f"unknown adapter {kind!r}")
 
@@ -79,6 +93,10 @@ def build_driver(adapter_config: dict[str, Any]):
                 "transport are trusted-harness responsibilities)"
             )
         return SlurmDriver(instance)
+    if kind == "compshare":
+        return build_adapter(adapter_config)
+    if kind == "routed":
+        return build_adapter(adapter_config)
     raise GatewayRuntimeError(f"unknown adapter {kind!r}")
 
 
@@ -145,6 +163,20 @@ class GatewayRuntime:
         )
         previous = self._leases.pop(run_id, None)
         if previous is not None and not previous.closed:
-            previous.close()  # replace, never leak an old lease's token
+            try:
+                previous.gateway.trusted_freeze(previous.run_id)
+                previous.gateway.trusted_teardown(previous.run_id)
+            finally:
+                previous.close()  # replace, never leak an old lease's token
         self._leases[run_id] = lease
         return lease
+
+    def trusted_freeze(self, run_id: str) -> None:
+        lease = self._leases.get(run_id)
+        if lease is not None:
+            lease.gateway.trusted_freeze(run_id)
+
+    def trusted_teardown(self, run_id: str) -> None:
+        lease = self._leases.get(run_id)
+        if lease is not None:
+            lease.gateway.trusted_teardown(run_id)
