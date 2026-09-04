@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/compshare-site-qualification-receipt.schema.json",
+  "title": "CompShareSiteQualificationReceipt",
+  "description": "Layer 1: Standalone qualification receipt strictly verifying real CompShare GPU site lifecycle and cryptographic lineage.",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "kind",
+    "run_id",
+    "site_profile_id",
+    "site_profile_digest",
+    "source_commit",
+    "code_identity",
+    "runtime_lock",
+    "evidence",
+    "audit_log",
+    "audit_tail_digest",
+    "digest",
+    "signature"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_id": { "type": "string" },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "compshare-site-qualification/v1",
+        "compshare-gpu-site-qualification/v1",
+        "compshare-gpu-site-qualification"
+      ]
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "site_profile_id": { "type": "string", "minLength": 1 },
+    "site_profile_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "source_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$"
+    },
+    "code_identity": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      }
+    },
+    "runtime_lock": {
+      "type": "object",
+      "required": ["path", "digest", "image_id"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "image_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "evidence_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role", "path", "sha256"],
+        "additionalProperties": false,
+        "properties": {
+          "role": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "instance_lifecycle",
+        "jobs",
+        "fetch",
+        "settlement",
+        "orphan_check",
+        "credential_isolation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "credential_isolation": {
+          "type": "object",
+          "required": ["verified"],
+          "additionalProperties": false,
+          "properties": {
+            "verified": { "type": "boolean" }
+          }
+        },
+        "instance_lifecycle": {
+          "type": "object",
+          "required": [
+            "instance_id",
+            "image_id",
+            "stop_confirmed",
+            "delete_confirmed"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "instance_id": { "type": "string", "minLength": 1 },
+            "image_id": { "type": "string", "minLength": 1 },
+            "stop_confirmed": { "type": "boolean" },
+            "delete_confirmed": { "type": "boolean" }
+          }
+        },
+        "jobs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["probe_class", "job_id", "image_id", "accounting"],
+            "additionalProperties": false,
+            "properties": {
+              "probe_class": { "enum": ["cpu", "gpu"] },
+              "job_id": { "type": "string", "minLength": 1 },
+              "image_id": { "type": "string", "minLength": 1 },
+              "accounting": {
+                "type": "object",
+                "required": ["state", "exit_code"],
+                "additionalProperties": false,
+                "properties": {
+                  "state": { "type": "string", "minLength": 1 },
+                  "exit_code": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "fetch": {
+          "type": "object",
+          "required": ["artifacts"],
+          "additionalProperties": false,
+          "properties": {
+            "artifacts": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["path", "sha256", "size_bytes"],
+                "additionalProperties": false,
+                "properties": {
+                  "path": { "type": "string", "minLength": 1 },
+                  "name": { "type": "string" },
+                  "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+                  "size_bytes": { "type": "integer", "minimum": 0 }
+                }
+              }
+            }
+          }
+        },
+        "settlement": {
+          "type": "object",
+          "required": ["report_path", "digest", "terminated"],
+          "additionalProperties": false,
+          "properties": {
+            "report_path": { "type": "string", "minLength": 1 },
+            "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+            "terminated": { "type": "boolean" }
+          }
+        },
+        "orphan_check": {
+          "type": "object",
+          "required": ["method", "active_total"],
+          "additionalProperties": false,
+          "properties": {
+            "method": { "type": "string", "minLength": 1 },
+            "active_total": { "type": "integer", "minimum": 0, "maximum": 0 }
+          }
+        }
+      }
+    },
+    "audit_log": { "type": "string", "minLength": 1 },
+    "audit_tail_digest": {
+      "type": "string",
+      "pattern": "^(sha256:)?[0-9a-f]{64}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "signature": {
+      "type": "object",
+      "required": ["algorithm", "signature_hex"],
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": { "const": "ed25519" },
+        "key_id": { "type": "string", "minLength": 1 },
+        "public_key": { "type": "string", "minLength": 1 },
+        "signature_hex": { "type": "string", "pattern": "^[0-9a-f]{128}$" }
+      }
+    }
+  }
+}

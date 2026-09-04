@@ -154,7 +154,7 @@ def build_hybrid_stack(
         if gpu_target:
             site_profiles[gpu_target] = gpu_site
 
-    compshare_driver = CompShareDriver(cli, site_profile=gpu_site)
+    compshare_driver = CompShareDriver(cli, site_profile=gpu_site, audit=audit)
     report = compshare_driver.manager.reconcile_and_recover()
     if not report.clean:
         raise RuntimeError(

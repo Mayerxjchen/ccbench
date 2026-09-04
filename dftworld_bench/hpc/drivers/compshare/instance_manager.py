@@ -28,6 +28,13 @@ from dftworld_bench.hpc.drivers.compshare.cli import (
     CompShareCliCapacityError,
     CompShareCliError,
 )
+from dftworld_bench.hpc.drivers.compshare.policy import (
+    SAFE_DELETED_STATES,
+    extract_verified_instance_id,
+    instance_requires_cleanup,
+    make_ownership_marker,
+    matches_ownership_marker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +97,7 @@ class RunScopedInstanceManager:
         default_memory: str = "64GiB",
         default_disk: str = "100GiB",
         default_image_source: str = "platform",
+        audit: Any | None = None,
     ) -> None:
         self.cli = cli
         self.budget = budget or BudgetConfig()
@@ -101,6 +109,7 @@ class RunScopedInstanceManager:
         self.default_disk = default_disk
         self.ledger_path = ledger_path or Path("runs/compshare-ledger.jsonl")
         self.orphan_ledger_path = orphan_ledger_path or Path("runs/compshare-orphans.jsonl")
+        self.audit = audit
         self._instances: dict[str, RunInstanceRecord] = {}
         self._load_ledger()
 
@@ -178,8 +187,19 @@ class RunScopedInstanceManager:
 
         # Create new instance for run via CLI with auto-cleanup guard
         created_id: str | None = None
-        instance_name = f"mlffbench-{run_id}-worker"
-        instance_remark = f"mlffbench:{run_id}:worker"
+        instance_name, instance_remark = make_ownership_marker(run_id)
+        if self.audit is not None:
+            self.audit.append(
+                {
+                    "action": "INSTANCE_CREATE_INTENT",
+                    "kind": "INSTANCE_CREATE_INTENT",
+                    "run_id": run_id,
+                    "image_id": image_id,
+                    "instance_id": "",
+                    "ts": time.time(),
+                },
+                durable=True,
+            )
         try:
             # 1. First validate via dry-run
             self.cli.instance_create(
@@ -218,8 +238,34 @@ class RunScopedInstanceManager:
             if not created_id:
                 raise CompShareManagerError(f"instance create returned no instance_id: {inst_info}")
 
+            if self.audit is not None:
+                self.audit.append(
+                    {
+                        "action": "INSTANCE_CREATE_ACCEPTED",
+                        "kind": "INSTANCE_CREATE_ACCEPTED",
+                        "run_id": run_id,
+                        "image_id": image_id,
+                        "instance_id": created_id,
+                        "ts": time.time(),
+                    },
+                    durable=True,
+                )
+
             # Wait for instance to become RUNNING
             self.cli.wait_instance_ready(created_id)
+
+            if self.audit is not None:
+                self.audit.append(
+                    {
+                        "action": "INSTANCE_READY",
+                        "kind": "INSTANCE_READY",
+                        "run_id": run_id,
+                        "image_id": image_id,
+                        "instance_id": created_id,
+                        "ts": time.time(),
+                    },
+                    durable=True,
+                )
 
             record = RunInstanceRecord(
                 run_id=run_id,
@@ -273,7 +319,42 @@ class RunScopedInstanceManager:
         instance_id = record.instance_id
         try:
             self.cli.instance_stop(instance_id)
+            if self.audit is not None:
+                self.audit.append(
+                    {
+                        "action": "INSTANCE_STOP_ACCEPTED",
+                        "kind": "INSTANCE_STOP_ACCEPTED",
+                        "run_id": run_id,
+                        "image_id": record.image_id,
+                        "instance_id": instance_id,
+                        "ts": time.time(),
+                    },
+                    durable=True,
+                )
             self.cli.instance_delete(instance_id)
+            if self.audit is not None:
+                self.audit.append(
+                    {
+                        "action": "INSTANCE_DELETE_ACCEPTED",
+                        "kind": "INSTANCE_DELETE_ACCEPTED",
+                        "run_id": run_id,
+                        "image_id": record.image_id,
+                        "instance_id": instance_id,
+                        "ts": time.time(),
+                    },
+                    durable=True,
+                )
+                self.audit.append(
+                    {
+                        "action": "INSTANCE_DELETE_CONFIRMED",
+                        "kind": "INSTANCE_DELETE_CONFIRMED",
+                        "run_id": run_id,
+                        "image_id": record.image_id,
+                        "instance_id": instance_id,
+                        "ts": time.time(),
+                    },
+                    durable=True,
+                )
             record.terminated_at = time.time()
             record.active_operation_id = None
             self._persist_ledger(record)
@@ -283,6 +364,26 @@ class RunScopedInstanceManager:
             raise CompShareOrphanError(
                 f"Failed to terminate instance {instance_id} for run {run_id}: {exc}"
             ) from exc
+
+    def log_zero_orphan_query(
+        self, run_id: str, *, image_id: str = "", instance_id: str = ""
+    ) -> None:
+        """Log ZERO_ORPHAN_QUERY event into GatewayAudit."""
+        rec = self._instances.get(run_id)
+        eff_img = image_id or (rec.image_id if rec else "")
+        eff_inst = instance_id or (rec.instance_id if rec else "")
+        if self.audit is not None:
+            self.audit.append(
+                {
+                    "action": "ZERO_ORPHAN_QUERY",
+                    "kind": "ZERO_ORPHAN_QUERY",
+                    "run_id": run_id,
+                    "image_id": eff_img,
+                    "instance_id": eff_inst,
+                    "ts": time.time(),
+                },
+                durable=True,
+            )
 
     def reconcile_and_recover(self) -> RecoveryReport:
         """Explicit startup/watchdog reconciliation with provider cloud.
@@ -305,7 +406,7 @@ class RunScopedInstanceManager:
                 try:
                     info = self.cli.instance_show(rec.instance_id)
                     status = str(info.get("status") or "").lower()
-                    if status in ("deleted", "terminated"):
+                    if not instance_requires_cleanup(status):
                         rec.terminated_at = time.time()
                         self._persist_ledger(rec)
                     else:
@@ -326,11 +427,9 @@ class RunScopedInstanceManager:
         try:
             cloud_instances = self.cli.instance_list(all=True)
             for item in cloud_instances:
-                inst_id = item.get("instance_id") or item.get("id") or ""
-                name = str(item.get("name") or "")
-                remark = str(item.get("remark") or "")
+                inst_id = extract_verified_instance_id(item)
                 status = str(item.get("status") or "").lower()
-                if (name.startswith("mlffbench-") or remark.startswith("mlffbench:")) and status not in ("deleted", "terminated"):
+                if matches_ownership_marker(item) and instance_requires_cleanup(status):
                     if inst_id not in report.failed_instances and inst_id not in report.recovered_instances:
                         try:
                             self.cli.instance_stop(inst_id)
