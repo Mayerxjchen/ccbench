@@ -11,7 +11,8 @@
     "compute_profile_digest",
     "routes",
     "site_receipts",
-    "cloud_recycling_evidence"
+    "cloud_recycling_evidence",
+    "digest"
   ],
   "additionalProperties": false,
   "properties": {
@@ -27,7 +28,7 @@
     },
     "compute_profile_digest": {
       "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
+      "pattern": "^(sha256:)?[0-9a-f]{64}$"
     },
     "routes": {
       "type": "object",
@@ -69,6 +70,26 @@
         "settlement_terminated": { "type": "boolean" },
         "active_instances_count": { "type": "integer", "minimum": 0 },
         "orphan_instances_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "evidence_root": {
+      "type": "string"
+    },
+    "evidence_files": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "audit_log": {
+      "type": "string"
+    },
+    "signature": {
+      "type": "object",
+      "required": ["algorithm", "public_key", "signature_hex"],
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": { "const": "ed25519" },
+        "public_key": { "type": "string", "minLength": 1 },
+        "signature_hex": { "type": "string", "pattern": "^[0-9a-f]{128}$" }
       }
     },
     "digest": {

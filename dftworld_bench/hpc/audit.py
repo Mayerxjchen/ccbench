@@ -44,11 +44,18 @@ class GatewayAudit:
         entry["digest"] = _digest(_canonical(entry))
         self._entries.append(entry)
         if self._path is not None:
+            import fcntl
+
+            self._path.parent.mkdir(parents=True, exist_ok=True)
             with self._path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(entry, sort_keys=True) + "\n")
-                if durable:
-                    fh.flush()
-                    os.fsync(fh.fileno())
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+                try:
+                    fh.write(json.dumps(entry, sort_keys=True) + "\n")
+                    if durable:
+                        fh.flush()
+                        os.fsync(fh.fileno())
+                finally:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
         self._prev = entry["digest"]
         return entry["digest"]
 
