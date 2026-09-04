@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "site_id": "ikkem-cpu",
+  "scheduler": "slurm",
+  "connection": {
+    "credential_profile_id": "ikkem-ssh",
+    "target_binding": "login.ikkem.edu.cn:22",
+    "remote_user": "ikkem-user",
+    "remote_root_policy": "/public/home/{remote_user}/dftworld2-runs/{run_id}"
+  },
+  "account": "ikkem-project",
+  "queues": {
+    "cpu": {
+      "partition": "cpu",
+      "qos": "normal",
+      "max_cpus": 64,
+      "max_memory_gb": 128,
+      "max_gpus": 0,
+      "max_walltime_minutes": 480
+    }
+  },
+  "runtime_policy": {
+    "requires_apptainer": true,
+    "apptainer_bin": "apptainer",
+    "runtime_store": "/public/home/shared/containers",
+    "gres_template": "--gres=gpu:{gpus}"
+  },
+  "qualification_policy": {
+    "required_probe_classes": ["cpu"]
+  }
+}

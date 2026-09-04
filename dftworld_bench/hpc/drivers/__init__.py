@@ -7,6 +7,7 @@ from dftworld_bench.hpc.drivers.base import (
 )
 from dftworld_bench.hpc.drivers.compshare import CompShareDriver
 from dftworld_bench.hpc.drivers.process import ProcessDriver
+from dftworld_bench.hpc.drivers.routed import RoutedDriver
 from dftworld_bench.hpc.drivers.slurm import SlurmDriver
 
 __all__ = [
@@ -14,6 +15,7 @@ __all__ = [
     "DriverSelectionError",
     "HpcDriver",
     "ProcessDriver",
+    "RoutedDriver",
     "SlurmDriver",
     "resolve_driver",
 ]

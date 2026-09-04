@@ -334,6 +334,7 @@ def verify_receipt(
     root: Path,
     receipt_dir: Path,
     profile_path: Path | None = None,
+    required_probe_classes: set[str] | None = None,
 ) -> dict[str, Any]:
     """Derive the qualification status purely from the bound evidence.
 
@@ -535,14 +536,17 @@ def verify_receipt(
             "no canary jobs recorded"
         )
 
-    # Canary coverage: the qualification must prove BOTH routes — a cpu-class
-    # job on the native cpu queue and a gpu-class job under gres.
+    # Canary coverage: the qualification must prove the required routes.
+    # Default is both CPU and GPU; CPU-only sites can pass required_probe_classes={"cpu"}.
+    if required_probe_classes is None:
+        required_probe_classes = {"cpu", "gpu"}
     canary_gates.setdefault("canary_coverage", [])
     classes_seen = {job.get("probe_class") for job in jobs}
-    if not {"cpu", "gpu"} <= classes_seen:
+    missing_classes = required_probe_classes - classes_seen
+    if missing_classes:
         canary_gates["canary_coverage"].append(
-            "canary set must include both probe classes; got "
-            f"{sorted(c for c in classes_seen if c)}"
+            f"canary set must include probe classes {sorted(required_probe_classes)}; "
+            f"got {sorted(c for c in classes_seen if c)}, missing {sorted(missing_classes)}"
         )
 
     # P4 pass condition "no orphan job" at the envelope level: the canary

@@ -15,6 +15,10 @@ class DriverSelectionError(Exception):
     """A driver kind was requested that the run mode forbids."""
 
 
+class HpcDriverError(Exception):
+    """Execution error within an HpcDriver backend."""
+
+
 @runtime_checkable
 class HpcDriver(Protocol):
     """The nine methods every execution backend must expose."""

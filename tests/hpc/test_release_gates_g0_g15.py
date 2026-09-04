@@ -11,7 +11,7 @@ from unittest.mock import patch
 import jsonschema
 
 
-def _mock_verify_receipt_ok(receipt, *, scheduler, root, receipt_dir):
+def _mock_verify_receipt_ok(receipt, *, scheduler=None, root, receipt_dir, **kwargs):
     """Mock verify_site_receipt that returns a successful derivation."""
     return {
         "receipt_dir": str(receipt_dir),

@@ -135,21 +135,22 @@ def check_evidence_containment(evidence_root: Path, file_path: str | Path) -> Pa
 def verify_site_receipt(
     receipt_data: dict[str, Any],
     *,
-    scheduler: str,
+    scheduler: str | None = None,
+    site_profile: dict[str, Any] | None = None,
     root: Path,
     receipt_dir: Path,
+    required_probe_classes: set[str] | None = None,
 ) -> dict[str, Any]:
     """Scheduler-aware site receipt verification.
 
     For Slurm sites (``scheduler == "slurm"``), delegates to the full
     ``qualification_receipt.verify_receipt`` which checks SIF runtime locks,
-    SiteProfile rebuild from ``cluster_profile.toml``, and both CPU/GPU canaries.
+    SiteProfile rebuild from ``cluster_profile.toml``, and required canaries.
 
-    For CompShare sites (``scheduler == "compshare"``), performs a lighter
-    verification that checks:
+    For CompShare sites (``scheduler == "compshare"``), performs verification that checks:
     - Schema and content-addressed digest
     - source_commit and code_identity provenance
-    - CompShare-specific evidence (instance lifecycle, settlement)
+    - CompShare-specific evidence (instance lifecycle, settlement, audit log lineage)
     - No SIF/Apptainer requirements
 
     Returns the same structure as ``verify_receipt``: ``{"problems": {...}, "derived": {...}}``.
@@ -160,6 +161,16 @@ def verify_site_receipt(
         sha256_file,
         source_commit,
     )
+
+    if scheduler is None:
+        if site_profile and site_profile.get("scheduler"):
+            scheduler = site_profile["scheduler"]
+        elif receipt_data.get("scheduler"):
+            scheduler = receipt_data["scheduler"]
+        elif (receipt_data.get("evidence") or {}).get("instance_lifecycle"):
+            scheduler = "compshare"
+        else:
+            scheduler = "slurm"
 
     problems: dict[str, list[str]] = {}
 
@@ -202,17 +213,23 @@ def verify_site_receipt(
 
     if scheduler == "slurm":
         # Full Slurm verification: SIF lock, SiteProfile rebuild, required canaries
-        # CPU-only sites only need dispatcher.cpu; hybrid sites need both.
         from dftworld_bench.experiments.qualification_receipt import verify_receipt
 
-        # Determine required probe classes from receipt evidence
-        evidence_jobs = evidence.get("jobs") or []
-        probe_classes_seen = {j.get("probe_class") for j in evidence_jobs}
-        # If receipt only has CPU jobs, require only CPU; otherwise require both
-        if probe_classes_seen == {"cpu"}:
-            required_probe_classes = {"cpu"}
-        else:
-            required_probe_classes = {"cpu", "gpu"}
+        # Determine required probe classes from site_profile or receipt evidence
+        if required_probe_classes is None:
+            if site_profile:
+                q_pol = site_profile.get("qualification_policy") or {}
+                if "required_probe_classes" in q_pol:
+                    required_probe_classes = set(q_pol["required_probe_classes"])
+                elif "gpu" not in (site_profile.get("queues") or {}):
+                    required_probe_classes = {"cpu"}
+            if required_probe_classes is None:
+                evidence_jobs = evidence.get("jobs") or []
+                probe_classes_seen = {j.get("probe_class") for j in evidence_jobs}
+                if probe_classes_seen == {"cpu"}:
+                    required_probe_classes = {"cpu"}
+                else:
+                    required_probe_classes = {"cpu", "gpu"}
 
         vr = verify_receipt(
             receipt_data,
@@ -516,19 +533,36 @@ def verify_and_derive_qualification(
                     # Fallback: try repo root
                     root = Path(__file__).resolve().parents[2]
 
-                # Determine scheduler from site name convention
-                if s_name == cpu_site:
-                    scheduler = "slurm"
-                elif s_name == gpu_site:
-                    scheduler = "compshare"
-                else:
-                    scheduler = "slurm"  # default
+                # Load SiteProfile if available to determine scheduler and qualification_policy
+                site_profile = None
+                candidate_profile_paths = [
+                    site_receipt_dir / f"{s_name}-site-profile.json",
+                    site_receipt_dir / f"{s_name}.site-profile.json",
+                    Path(__file__).resolve().parents[2] / "examples" / "hpc" / f"{s_name}-site-profile.json",
+                ]
+                for cp in candidate_profile_paths:
+                    if cp.is_file():
+                        try:
+                            site_profile = json.loads(cp.read_text(encoding="utf-8"))
+                            break
+                        except Exception:
+                            pass
+
+                scheduler = None
+                required_probe_classes = None
+                if site_profile:
+                    scheduler = site_profile.get("scheduler")
+                    q_pol = site_profile.get("qualification_policy") or {}
+                    if "required_probe_classes" in q_pol:
+                        required_probe_classes = set(q_pol["required_probe_classes"])
 
                 vr = verify_site_receipt(
                     r_data,
                     scheduler=scheduler,
+                    site_profile=site_profile,
                     root=root,
                     receipt_dir=site_receipt_dir,
+                    required_probe_classes=required_probe_classes,
                 )
                 vr_problems = vr.get("problems") or []
                 if vr_problems:

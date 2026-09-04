@@ -109,7 +109,27 @@
         "apptainer_bin": { "type": "string", "minLength": 1 },
         "runtime_lock_dir": { "type": "string", "minLength": 1 },
         "gres_template": { "type": "string", "minLength": 1 },
-        "images": { "type": "object" }
+        "images": { "type": "object" },
+        "provider": { "type": "string" },
+        "default_gpu_type": { "type": "string" },
+        "default_gpu_vram_gb": { "type": "integer" },
+        "region": { "type": "string" },
+        "zone": { "type": "string" },
+        "budget_policy": { "type": "object" },
+        "image_source": { "enum": ["platform", "custom", "community", "shared"] }
+      }
+    },
+    "qualification_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required_probe_classes": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["cpu", "gpu"] },
+          "uniqueItems": true
+        },
+        "minimum_gpu_count": { "type": "integer", "minimum": 0 },
+        "timeout_seconds": { "type": "integer", "minimum": 1 }
       }
     }
   }

@@ -18,7 +18,7 @@ from dftworld_bench.experiments.compute_profile_qualification import (
 from dftworld_bench.hpc.compute_profile import ComputeProfile
 
 
-def _mock_verify_receipt_ok(receipt, *, scheduler, root, receipt_dir):
+def _mock_verify_receipt_ok(receipt, *, scheduler=None, root, receipt_dir, **kwargs):
     """Mock verify_site_receipt that returns a successful derivation."""
     return {
         "receipt_dir": str(receipt_dir),
@@ -36,7 +36,7 @@ def _mock_verify_receipt_ok(receipt, *, scheduler, root, receipt_dir):
     }
 
 
-def _mock_verify_receipt_fail(receipt, *, scheduler, root, receipt_dir):
+def _mock_verify_receipt_fail(receipt, *, scheduler=None, root, receipt_dir, **kwargs):
     """Mock verify_site_receipt that returns a failed derivation."""
     return {
         "receipt_dir": str(receipt_dir),
@@ -964,4 +964,107 @@ class TestP4Ed25519AndEvidenceIntegrity:
         result = verify_site_receipt(receipt, scheduler="compshare", root=tmp_path, receipt_dir=tmp_path)
         assert any("Artifact path escapes receipt dir" in p for p in result["problems"])
         assert result["derived"]["qualification_status"] == "INVALID"
+
+
+class TestP5P6OwnershipSafeStatesAndPolicy:
+    """P5 & P6: Ownership marker, safe states (deleted/terminated only), and SiteProfile policy."""
+
+    def test_ownership_marker_injected_on_create(self, tmp_path: Path):
+        from dftworld_bench.hpc.drivers.compshare import CompShareCli, FakeCompShareCliRunner
+        from dftworld_bench.hpc.drivers.compshare.instance_manager import RunScopedInstanceManager
+
+        runner = FakeCompShareCliRunner()
+        cli = CompShareCli(runner=runner)
+        mgr = RunScopedInstanceManager(
+            cli,
+            ledger_path=tmp_path / "ledger.jsonl",
+            orphan_ledger_path=tmp_path / "orphans.jsonl",
+        )
+
+        run_id = "run-p5-test"
+        inst_id = mgr.get_or_create_instance(run_id, "img-gpu-001", operation_id="op-1")
+        assert inst_id is not None
+        assert inst_id in runner.instances
+        record = runner.instances[inst_id]
+        assert record["name"] == f"mlffbench-{run_id}-worker"
+        assert record["remark"] == f"mlffbench:{run_id}:worker"
+
+    def test_stopped_instance_is_unsafe_and_terminated(self, tmp_path: Path):
+        """Instances in STOPPED status are not in safe final state and must be recovered."""
+        from dftworld_bench.hpc.drivers.compshare import CompShareCli, FakeCompShareCliRunner
+        from dftworld_bench.hpc.drivers.compshare.instance_manager import RunScopedInstanceManager
+
+        runner = FakeCompShareCliRunner()
+        cli = CompShareCli(runner=runner)
+        # Pre-seed a stopped instance with marker
+        runner.instances["inst-stopped"] = {
+            "id": "inst-stopped",
+            "name": "mlffbench-run-legacy-worker",
+            "remark": "mlffbench:run-legacy:worker",
+            "status": "Stopped",
+        }
+
+        mgr = RunScopedInstanceManager(
+            cli,
+            ledger_path=tmp_path / "ledger.jsonl",
+            orphan_ledger_path=tmp_path / "orphans.jsonl",
+        )
+        report = mgr.reconcile_and_recover()
+        assert "inst-stopped" in report.recovered_instances
+        assert report.clean is True
+        # Verify it was deleted
+        assert "inst-stopped" not in runner.instances
+
+    def test_cloud_list_error_fails_closed(self, tmp_path: Path):
+        """If cloud instance listing throws error, reconcile_and_recover must fail closed."""
+        from dftworld_bench.hpc.drivers.compshare.cli import CompShareCli
+        from dftworld_bench.hpc.drivers.compshare.instance_manager import RunScopedInstanceManager
+
+        class ErrorCli(CompShareCli):
+            def instance_list(self, **kwargs):
+                raise RuntimeError("CompShare cloud timeout / credential error")
+
+        cli = ErrorCli()
+        mgr = RunScopedInstanceManager(
+            cli,
+            ledger_path=tmp_path / "ledger.jsonl",
+            orphan_ledger_path=tmp_path / "orphans.jsonl",
+        )
+        report = mgr.reconcile_and_recover()
+        assert report.clean is False
+
+    def test_site_profile_driven_qualification_policy(self, tmp_path: Path):
+        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
+
+        # Dummy receipt with only cpu probe
+        receipt = {
+            "kind": "hpc-site-qualification/v1",
+            "digest": "",
+            "source_commit": "a" * 40,
+            "code_identity": {},
+            "evidence": {
+                "jobs": [{"probe_class": "cpu", "state": "COMPLETED", "exit_code": 0}],
+            },
+        }
+        from dftworld_bench.experiments.qualification_receipt import canonical_digest
+        receipt["digest"] = canonical_digest({k: v for k, v in receipt.items() if k != "digest"})
+
+        # SiteProfile policy requires only cpu -> should not complain about missing gpu canary
+        site_profile_cpu_only = {
+            "site_id": "custom-cpu",
+            "scheduler": "slurm",
+            "qualification_policy": {"required_probe_classes": ["cpu"]},
+        }
+
+        with patch("dftworld_bench.experiments.qualification_receipt.verify_receipt") as mock_vr:
+            mock_vr.return_value = {"problems": [], "derived": {"qualification_status": "PASS"}}
+            verify_site_receipt(
+                receipt,
+                site_profile=site_profile_cpu_only,
+                root=tmp_path,
+                receipt_dir=tmp_path,
+            )
+            # Assert verify_receipt was called with required_probe_classes={"cpu"}
+            called_kwargs = mock_vr.call_args.kwargs
+            assert called_kwargs.get("required_probe_classes") == {"cpu"}
 

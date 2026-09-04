@@ -1,15 +1,25 @@
 """Thin subprocess wrapper around the official `compshare` CLI.
 
-Architecture:
-    CompShareDriver
-         ↓ subprocess
-    compshare ... --json
-
-Invariants:
-- All CLI interactions communicate via JSON output (--json flag).
-- Non-zero return codes, non-JSON output, and connection timeouts fail closed.
-- Subprocess execution is abstracted through an injectable runner for deterministic testing.
-- Sensitive credentials or tokens are never logged or exposed.
+Official CLI Protocol Reference:
+- GitHub: compshare-cn/compshare-cli/skills/compshare-cli/SKILL.md
+- All automation commands use the global `--json` flag before the command group:
+  `compshare --json <command> <subcommand> ...`
+- Output format is always the standard envelope:
+  Success: {"ok": true, "schema_version": "1", "data": {...}}
+  Failure: {"ok": false, "schema_version": "1", "error": {"code": "...", "message": "..."}}
+- Key commands:
+  - `compshare --version`
+  - `compshare --json doctor`
+  - `compshare --json instance search --region ... --zone ... --gpu ... [--image ...] --available`
+  - `compshare --json instance create ... --yes --timeout ...`
+  - `compshare --json instance show <instance_id>`
+  - `compshare --json instance job submit <instance_id> [--workdir ...] -- <command...>`
+  - `compshare --json instance job show <instance_id> <job_id>`
+  - `compshare --json instance job logs <instance_id> <job_id>`
+  - `compshare --json instance job cancel <instance_id> <job_id>`
+  - `compshare --json instance cp <src> <dest>`
+  - `compshare --json instance stop <instance_id> --yes`
+  - `compshare --json instance delete <instance_id> --yes`
 """
 
 from __future__ import annotations
@@ -25,9 +35,21 @@ from typing import Any, Callable, Mapping, Sequence
 
 logger = logging.getLogger(__name__)
 
+PINNED_COMPSHARE_CLI_VERSION = "0.4.1"
+
 
 class CompShareCliError(Exception):
     """General error executing compshare CLI."""
+
+    def __init__(
+        self,
+        message: str,
+        code: str = "",
+        raw_response: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.raw_response = raw_response or {}
 
 
 class CompShareCliNotFoundError(CompShareCliError):
@@ -35,7 +57,7 @@ class CompShareCliNotFoundError(CompShareCliError):
 
 
 class CompShareCliJsonError(CompShareCliError):
-    """The CLI returned invalid or unparseable JSON."""
+    """The CLI returned invalid or unparseable JSON envelope."""
 
 
 class CompShareCliCapacityError(CompShareCliError):
@@ -73,7 +95,7 @@ def default_subprocess_runner(
 
 
 class CompShareCli:
-    """Thin wrapper for `compshare ... --json` commands."""
+    """Thin wrapper for official `compshare --json ...` commands."""
 
     def __init__(
         self,
@@ -86,21 +108,35 @@ class CompShareCli:
         self._runner = runner or default_subprocess_runner
         self._env = dict(env) if env is not None else None
 
-    def _exec(self, subargs: Sequence[str], *, expect_json: bool = True) -> Any:
-        argv = [self.cli_bin] + list(subargs)
+    def _exec(self, subargs: Sequence[str]) -> Any:
+        """Execute command with global `--json` flag and unwrap response envelope."""
+        argv = [self.cli_bin, "--json"] + list(subargs)
         res = self._runner(argv, self._env)
-        if res.returncode != 0:
+        if res.returncode != 0 and not res.stdout.strip().startswith("{"):
             raise CompShareCliError(
                 f"compshare CLI error (exit {res.returncode}): {res.stderr.strip() or res.stdout.strip()}"
             )
-        if not expect_json:
-            return res.stdout
         try:
-            return json.loads(res.stdout)
+            envelope = json.loads(res.stdout)
         except json.JSONDecodeError as exc:
             raise CompShareCliJsonError(
-                f"Invalid JSON from compshare CLI: {res.stdout[:200]!r}"
+                f"Invalid JSON envelope from compshare CLI: {res.stdout[:200]!r}"
             ) from exc
+
+        if not isinstance(envelope, dict):
+            raise CompShareCliJsonError(
+                f"Expected JSON envelope object, got {type(envelope).__name__}"
+            )
+
+        if not envelope.get("ok", False):
+            err = envelope.get("error") or {}
+            code = err.get("code", "UNKNOWN_ERROR")
+            msg = err.get("message", f"compshare error: {err}")
+            if any(k in code.upper() for k in ("CAPACITY", "STOCK", "INSUFFICIENT")):
+                raise CompShareCliCapacityError(msg, code=code, raw_response=envelope)
+            raise CompShareCliError(f"[{code}] {msg}", code=code, raw_response=envelope)
+
+        return envelope.get("data", {})
 
     def version(self) -> str:
         """Check and record compshare-cli version."""
@@ -109,53 +145,122 @@ class CompShareCli:
             raise CompShareCliError(f"Failed to check compshare version: {res.stderr}")
         return res.stdout.strip()
 
-    def check_auth(self) -> dict[str, Any]:
-        """Verify authentication status."""
-        return self._exec(["auth", "status", "--json"])
+    def doctor(self) -> dict[str, Any]:
+        """Verify CLI configuration and credential connectivity."""
+        return self._exec(["doctor"])
 
-    def check_stock(self, gpu_type: str = "rtx4090", count: int = 1) -> bool:
-        """Query real-time stock and pricing."""
-        stocks = self._exec(["stock", "list", "--json"])
-        if isinstance(stocks, list):
-            for item in stocks:
-                if item.get("gpu_type", "").lower() == gpu_type.lower():
-                    available = int(item.get("available_count", 0))
-                    return available >= count
-        elif isinstance(stocks, dict):
-            available = int(stocks.get(gpu_type, {}).get("available_count", 0))
-            return available >= count
-        return False
-
-    def create_instance(
+    def instance_search(
         self,
         *,
-        name: str,
-        image_id: str,
-        gpu_type: str = "rtx4090",
+        region: str = "cn-sh2",
+        zone: str = "cn-sh2-02",
+        gpu: str = "4090",
+        image: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Search available specifications and real inventory."""
+        args = ["instance", "search", "--region", region, "--zone", zone, "--gpu", gpu, "--available"]
+        if image:
+            args.extend(["--image", image])
+        data = self._exec(args)
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            if "items" in data:
+                return data["items"]
+            if "instances" in data:
+                return data["instances"]
+            if "data" in data and isinstance(data["data"], dict):
+                return data["data"].get("items") or data["data"].get("instances") or []
+            return []
+        return []
+
+    def instance_list(
+        self,
+        *,
+        status: str | None = None,
+        all: bool = True,
+    ) -> list[dict[str, Any]]:
+        """List account instances via compshare instance list."""
+        args = ["instance", "list"]
+        if all:
+            args.append("--all")
+        if status:
+            args.extend(["--status", status])
+        res = self._exec(args)
+        if isinstance(res, list):
+            return res
+        if isinstance(res, dict):
+            if "items" in res:
+                return res["items"]
+            if "data" in res and isinstance(res["data"], dict):
+                return res["data"].get("items", [])
+        return []
+
+    def instance_create(
+        self,
+        *,
+        image: str,
+        name: str | None = None,
+        remark: str | None = None,
+        region: str = "cn-sh2",
+        zone: str = "cn-sh2-02",
+        gpu: str = "4090",
         count: int = 1,
-        auto_shutdown_minutes: int = 120,
+        cpu: int = 16,
+        memory: str = "64GiB",
+        disk: str = "100GiB",
+        charge: str = "Postpay",
+        max_price: float = 20.0,
+        timeout: int = 900,
+        dry_run: bool = False,
+        image_source: str = "platform",
     ) -> dict[str, Any]:
-        """Create a single GPU instance with auto-shutdown guard."""
+        """Create a single GPU instance with explicit limits and ownership marker."""
         cmd = [
             "instance",
             "create",
-            "--name",
-            name,
-            "--image",
-            image_id,
+            "--region",
+            region,
+            "--zone",
+            zone,
             "--gpu",
-            gpu_type,
+            gpu,
             "--count",
             str(count),
-            "--auto-shutdown",
-            str(auto_shutdown_minutes),
-            "--json",
+            "--cpu",
+            str(cpu),
+            "--memory",
+            memory,
+            "--image",
+            image,
+            "--image-source",
+            image_source,
+            "--disk",
+            disk,
+            "--charge",
+            charge,
+            "--max-count",
+            "1",
+            "--max-price",
+            str(max_price),
+            "--yes",
+            "--timeout",
+            str(timeout),
         ]
+        if name:
+            cmd.extend(["--name", name])
+        if remark:
+            cmd.extend(["--remark", remark])
+        if dry_run:
+            cmd.append("--dry-run")
         return self._exec(cmd)
 
-    def get_instance(self, instance_id: str) -> dict[str, Any]:
-        """Query instance status."""
-        return self._exec(["instance", "get", instance_id, "--json"])
+    def instance_show(self, instance_id: str) -> dict[str, Any]:
+        """Query instance status and metadata."""
+        data = self._exec(["instance", "show", instance_id])
+        if "instance" in data:
+            return data["instance"]
+        return data
 
     def wait_instance_ready(
         self,
@@ -164,85 +269,89 @@ class CompShareCli:
         timeout_sec: float = 300.0,
         poll_interval_sec: float = 1.0,
     ) -> dict[str, Any]:
-        """Poll until instance is RUNNING or fail closed."""
+        """Poll until instance status is Running or fail closed."""
         deadline = time.time() + timeout_sec
         while time.time() < deadline:
-            info = self.get_instance(instance_id)
+            info = self.instance_show(instance_id)
             status = str(info.get("status", "")).upper()
             if status == "RUNNING":
                 return info
-            if status in ("ERROR", "FAILED", "TERMINATED"):
+            if status in ("ERROR", "FAILED", "TERMINATED", "DELETED", "STOPPED"):
                 raise CompShareCliError(
-                    f"Instance {instance_id} entered failed state: {status}"
+                    f"Instance {instance_id} entered non-running state: {status}"
                 )
             time.sleep(poll_interval_sec)
         raise CompShareCliError(f"Instance {instance_id} timed out waiting for RUNNING")
 
-    def run_task(
+    def instance_job_submit(
         self,
         instance_id: str,
         command: Sequence[str],
         *,
+        cwd: str = "",
         workdir: str = "",
         environment: Mapping[str, str] | None = None,
-    ) -> str:
-        """Submit a remote task using the CLI remote task runner."""
-        cmd = ["task", "run", "--instance", instance_id]
-        if workdir:
-            cmd.extend(["--workdir", workdir])
+    ) -> dict[str, Any]:
+        """Submit a remote job on the instance using official --cwd."""
+        cmd = ["instance", "job", "submit", instance_id]
+        target_dir = cwd or workdir
+        if target_dir:
+            cmd.extend(["--cwd", target_dir])
         if environment:
             for k, v in sorted(environment.items()):
                 cmd.extend(["--env", f"{k}={v}"])
-        cmd.append("--json")
         cmd.append("--")
         cmd.extend(command)
-        out = self._exec(cmd)
-        task_id = out.get("task_id") or out.get("execution_id")
-        if not task_id:
-            raise CompShareCliError(f"Task submission returned no task_id: {out}")
-        return str(task_id)
+        return self._exec(cmd)
 
-    def get_task_status(self, task_id: str) -> dict[str, Any]:
-        """Query remote task execution status."""
-        return self._exec(["task", "status", task_id, "--json"])
+    def instance_job_show(self, instance_id: str, job_id: str) -> dict[str, Any]:
+        """Query remote job status."""
+        data = self._exec(["instance", "job", "show", instance_id, job_id])
+        if "job" in data:
+            return data["job"]
+        return data
 
-    def get_task_logs(self, task_id: str) -> str:
-        """Retrieve stdout/stderr logs for a task."""
-        res = self._exec(["task", "logs", task_id, "--json"])
-        if isinstance(res, dict):
-            return res.get("logs", "")
-        return str(res)
+    def instance_job_logs(self, instance_id: str, job_id: str) -> str:
+        """Retrieve logs for a remote job."""
+        data = self._exec(["instance", "job", "logs", instance_id, job_id])
+        if isinstance(data, dict):
+            return str(data.get("logs", ""))
+        return str(data)
 
-    def upload_file(self, instance_id: str, local_path: str, remote_path: str) -> None:
-        """Upload a file to the remote instance workspace."""
-        self._exec(
-            ["file", "upload", "--instance", instance_id, local_path, remote_path, "--json"]
-        )
+    def instance_job_cancel(
+        self, instance_id: str, job_id: str, *, yes: bool = True
+    ) -> dict[str, Any]:
+        """Cancel a remote job on the instance with explicit confirmation bypass."""
+        cmd = ["instance", "job", "cancel", instance_id, job_id]
+        if yes:
+            cmd.append("--yes")
+        return self._exec(cmd)
 
-    def download_file(self, instance_id: str, remote_path: str, local_path: str) -> None:
-        """Download a file from the remote instance workspace."""
-        self._exec(
-            ["file", "download", "--instance", instance_id, remote_path, local_path, "--json"]
-        )
+    def instance_cp(self, instance_id: str, src: str, dest: str) -> dict[str, Any]:
+        """Copy files to or from the remote instance.
 
-    def stop_instance(self, instance_id: str) -> bool:
-        """Stop an instance."""
-        res = self._exec(["instance", "stop", instance_id, "--json"])
-        return bool(res.get("success", True))
+        Usage:
+          Upload: instance_cp(instance_id, local_path, f":{remote_path}")
+          Download: instance_cp(instance_id, f":{remote_path}", local_path)
+        """
+        return self._exec(["instance", "cp", instance_id, src, dest])
 
-    def terminate_instance(self, instance_id: str) -> bool:
-        """Permanently delete and release an instance."""
-        res = self._exec(["instance", "delete", instance_id, "--force", "--json"])
-        return bool(res.get("success", True))
+    def instance_stop(self, instance_id: str, *, timeout: int = 60) -> dict[str, Any]:
+        """Stop an instance with explicit timeout."""
+        return self._exec(["instance", "stop", instance_id, "--yes", "--timeout", str(timeout)])
+
+    def instance_delete(self, instance_id: str, *, timeout: int = 60) -> dict[str, Any]:
+        """Permanently delete and release an instance with explicit timeout."""
+        return self._exec(["instance", "delete", instance_id, "--yes", "--timeout", str(timeout)])
 
 
 class FakeCompShareCliRunner:
-    """Mock runner simulating `compshare ... --json` CLI subprocess execution."""
+    """Mock runner simulating official `compshare --json ...` CLI subprocess execution."""
 
     def __init__(self, *, initial_stock: int = 4) -> None:
         self.stock = initial_stock
         self.instances: dict[str, dict[str, Any]] = {}
-        self.tasks: dict[str, dict[str, Any]] = {}
+        self.jobs: dict[str, dict[str, Any]] = {}
         self.files: dict[str, dict[str, bytes]] = {}  # instance_id -> {remote_path: bytes}
         self._seq = 0
 
@@ -250,108 +359,205 @@ class FakeCompShareCliRunner:
         self, argv: Sequence[str], env: Mapping[str, str] | None = None
     ) -> CliResult:
         if len(argv) < 2:
-            return CliResult(0, "compshare-cli 1.4.2\n", "")
-
-        cmd = argv[1]
-        subcmd = argv[2] if len(argv) > 2 else ""
+            return CliResult(0, f"compshare-cli {PINNED_COMPSHARE_CLI_VERSION}\n", "")
 
         if "--version" in argv:
-            return CliResult(0, "compshare-cli 1.4.2\n", "")
+            return CliResult(0, f"compshare-cli {PINNED_COMPSHARE_CLI_VERSION}\n", "")
 
-        if cmd == "auth" and subcmd == "status":
-            return CliResult(0, json.dumps({"authenticated": True, "account": "maintainer"}), "")
+        # Official CLI requires global --json
+        if argv[1] != "--json":
+            return CliResult(
+                1,
+                "",
+                json.dumps({
+                    "ok": False,
+                    "schema_version": "1",
+                    "error": {"code": "INVALID_ARGUMENT", "message": "Expected global --json option"},
+                }),
+            )
 
-        if cmd == "stock" and subcmd == "list":
-            data = [{"gpu_type": "rtx4090", "available_count": self.stock, "hourly_rate_usd": 1.80}]
-            return CliResult(0, json.dumps(data), "")
+        cmd = argv[2]
+        subcmd = argv[3] if len(argv) > 3 else ""
 
-        if cmd == "instance" and subcmd == "create":
-            if self.stock < 1:
-                return CliResult(1, "", "CapacityExhausted: No RTX 4090 instances available")
-            self._seq += 1
-            inst_id = f"inst-{self._seq:04d}"
-            name = argv[argv.index("--name") + 1] if "--name" in argv else f"inst-{self._seq}"
-            image = argv[argv.index("--image") + 1] if "--image" in argv else "img-default"
-            gpu = argv[argv.index("--gpu") + 1] if "--gpu" in argv else "rtx4090"
-            rec = {
-                "instance_id": inst_id,
-                "name": name,
-                "image_id": image,
-                "gpu_type": gpu,
-                "gpu_count": 1,
-                "status": "RUNNING",
-            }
-            self.instances[inst_id] = rec
-            self.files[inst_id] = {}
-            self.stock -= 1
-            return CliResult(0, json.dumps(rec), "")
+        def ok_response(data: Any) -> CliResult:
+            payload = {"ok": True, "schema_version": "1", "data": data}
+            return CliResult(0, json.dumps(payload), "")
 
-        if cmd == "instance" and subcmd == "get":
-            inst_id = argv[3]
-            inst = self.instances.get(inst_id)
-            if not inst:
-                return CliResult(1, "", f"NotFound: Instance {inst_id} does not exist")
-            return CliResult(0, json.dumps(inst), "")
+        def error_response(code: str, message: str, status: int = 1) -> CliResult:
+            payload = {"ok": False, "schema_version": "1", "error": {"code": code, "message": message}}
+            return CliResult(status, json.dumps(payload), message)
 
-        if cmd == "instance" and subcmd == "stop":
-            inst_id = argv[3]
-            if inst_id in self.instances:
-                self.instances[inst_id]["status"] = "STOPPED"
-            return CliResult(0, json.dumps({"success": True, "status": "STOPPED"}), "")
+        if cmd == "doctor":
+            return ok_response({
+                "profile": "default",
+                "auth_ok": True,
+                "api_endpoint": "https://api.compshare.cn/v1",
+                "account_id": "acc-mock-001",
+            })
 
-        if cmd == "instance" and subcmd == "delete":
-            inst_id = argv[3]
-            if inst_id in self.instances:
-                self.instances[inst_id]["status"] = "TERMINATED"
-                self.stock += 1
-            return CliResult(0, json.dumps({"success": True, "status": "TERMINATED"}), "")
+        if cmd == "instance":
+            if subcmd == "search":
+                if self.stock <= 0:
+                    return ok_response({"instances": []})
+                return ok_response({
+                    "instances": [{
+                        "gpu": "4090",
+                        "available_count": self.stock,
+                        "price_per_hour": 1.88,
+                        "region": "cn-sh2",
+                        "zone": "cn-sh2-02",
+                    }]
+                })
 
-        if cmd == "task" and subcmd == "run":
-            inst_id = argv[argv.index("--instance") + 1]
-            idx_dash = argv.index("--") if "--" in argv else len(argv)
-            command = argv[idx_dash + 1 :]
-            self._seq += 1
-            task_id = f"task-{self._seq:04d}"
-            self.tasks[task_id] = {
-                "task_id": task_id,
-                "instance_id": inst_id,
-                "command": list(command),
-                "status": "COMPLETED",
-                "exit_code": 0,
-                "logs": f"Executed: {command}\nSuccess.\n",
-            }
-            return CliResult(0, json.dumps({"task_id": task_id, "status": "QUEUED"}), "")
+            if subcmd == "list":
+                status_filter = None
+                if "--status" in argv:
+                    idx = argv.index("--status")
+                    if idx + 1 < len(argv):
+                        status_filter = argv[idx + 1].lower()
+                items = []
+                for inst in self.instances.values():
+                    if status_filter and inst.get("status", "").lower() != status_filter:
+                        continue
+                    items.append(inst)
+                return ok_response({"items": items})
 
-        if cmd == "task" and subcmd == "status":
-            task_id = argv[3]
-            task = self.tasks.get(task_id, {"status": "COMPLETED", "exit_code": 0})
-            return CliResult(0, json.dumps(task), "")
+            if subcmd == "create":
+                if self.stock <= 0:
+                    return error_response("OUT_OF_CAPACITY", "No available RTX 4090 GPU in target zone")
+                if "--dry-run" in argv:
+                    return ok_response({"dry_run": True, "capacity_available": True})
+                self._seq += 1
+                inst_id = f"inst-{self._seq:04d}"
+                self.stock -= 1
+                inst_name = ""
+                if "--name" in argv:
+                    idx = argv.index("--name")
+                    if idx + 1 < len(argv):
+                        inst_name = argv[idx + 1]
+                inst_remark = ""
+                if "--remark" in argv:
+                    idx = argv.index("--remark")
+                    if idx + 1 < len(argv):
+                        inst_remark = argv[idx + 1]
 
-        if cmd == "task" and subcmd == "logs":
-            task_id = argv[3]
-            task = self.tasks.get(task_id, {})
-            logs = task.get("logs", "Completed.\n")
-            return CliResult(0, json.dumps({"logs": logs}), "")
+                record = {
+                    "id": inst_id,
+                    "instance_id": inst_id,
+                    "name": inst_name,
+                    "remark": inst_remark,
+                    "status": "Running",
+                    "gpu": "4090",
+                    "count": 1,
+                    "created_at": time.time(),
+                }
+                self.instances[inst_id] = record
+                self.files[inst_id] = {}
+                return ok_response({
+                    "instance_id": inst_id,
+                    "name": inst_name,
+                    "remark": inst_remark,
+                    "status": "Running",
+                    "request_id": f"req-{self._seq:04d}",
+                })
 
-        if cmd == "file" and subcmd == "upload":
-            idx = argv.index("--instance")
-            inst_id = argv[idx + 1]
-            local_p = argv[idx + 2]
-            remote_p = argv[idx + 3]
-            if os.path.exists(local_p):
-                with open(local_p, "rb") as f:
-                    self.files.setdefault(inst_id, {})[remote_p] = f.read()
-            return CliResult(0, json.dumps({"success": True}), "")
+            if subcmd == "show":
+                inst_id = argv[4] if len(argv) > 4 else ""
+                inst = self.instances.get(inst_id)
+                if not inst:
+                    return error_response("NOT_FOUND", f"Instance {inst_id} not found")
+                return ok_response({"instance": dict(inst)})
 
-        if cmd == "file" and subcmd == "download":
-            idx = argv.index("--instance")
-            inst_id = argv[idx + 1]
-            remote_p = argv[idx + 2]
-            local_p = argv[idx + 3]
-            data = self.files.get(inst_id, {}).get(remote_p, b"dummy output\n")
-            os.makedirs(os.path.dirname(os.path.abspath(local_p)), exist_ok=True)
-            with open(local_p, "wb") as f:
-                f.write(data)
-            return CliResult(0, json.dumps({"success": True}), "")
+            if subcmd == "stop":
+                inst_id = argv[4] if len(argv) > 4 else ""
+                inst = self.instances.get(inst_id)
+                if not inst:
+                    return error_response("NOT_FOUND", f"Instance {inst_id} not found")
+                inst["status"] = "Stopped"
+                return ok_response({"instance_id": inst_id, "status": "Stopped"})
 
-        return CliResult(1, "", f"Unknown command: {argv}")
+            if subcmd == "delete":
+                inst_id = argv[4] if len(argv) > 4 else ""
+                if inst_id in self.instances:
+                    self.instances[inst_id]["status"] = "Terminated"
+                    del self.instances[inst_id]
+                    self.stock += 1
+                    return ok_response({"instance_id": inst_id, "deleted": True})
+                return error_response("NOT_FOUND", f"Instance {inst_id} not found")
+
+            if subcmd == "cp":
+                if len(argv) >= 7:
+                    inst_id = argv[4]
+                    src = argv[5]
+                    dest = argv[6]
+                else:
+                    src = argv[4] if len(argv) > 4 else ""
+                    dest = argv[5] if len(argv) > 5 else ""
+                    inst_id = ""
+
+                # upload: local -> :remote (or inst_id:remote)
+                if dest.startswith(":") or (":" in dest and not dest.startswith("/")):
+                    remote_p = dest.lstrip(":")
+                    if ":" in remote_p:
+                        inst_id, remote_p = remote_p.split(":", 1)
+                    inst_files = self.files.setdefault(inst_id, {})
+                    if os.path.isfile(src):
+                        with open(src, "rb") as fh:
+                            inst_files[remote_p] = fh.read()
+                    return ok_response({"copied": True, "bytes": len(inst_files.get(remote_p, b""))})
+
+                # download: :remote -> local (or inst_id:remote -> local)
+                if src.startswith(":") or (":" in src and not src.startswith("/")):
+                    remote_p = src.lstrip(":")
+                    if ":" in remote_p:
+                        inst_id, remote_p = remote_p.split(":", 1)
+                    inst_files = self.files.get(inst_id, {})
+                    content = inst_files.get(remote_p, b"mock output content\n")
+                    os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
+                    with open(dest, "wb") as fh:
+                        fh.write(content)
+                    return ok_response({"copied": True, "bytes": len(content)})
+                return ok_response({"copied": True})
+
+            if subcmd == "job":
+                job_action = argv[4] if len(argv) > 4 else ""
+                inst_id = argv[5] if len(argv) > 5 else ""
+                if job_action == "submit":
+                    self._seq += 1
+                    job_id = f"job-{self._seq:04d}"
+                    cmd_idx = argv.index("--") if "--" in argv else -1
+                    command = list(argv[cmd_idx + 1:]) if cmd_idx != -1 else []
+                    record = {
+                        "job_id": job_id,
+                        "instance_id": inst_id,
+                        "command": command,
+                        "status": "COMPLETED",
+                        "exit_code": 0,
+                        "logs": f"Executed: {' '.join(command)}\nCompleted successfully.\n",
+                    }
+                    self.jobs[job_id] = record
+                    return ok_response({"job_id": job_id, "status": "QUEUED"})
+
+                if job_action == "show":
+                    job_id = argv[6] if len(argv) > 6 else ""
+                    job = self.jobs.get(job_id)
+                    if not job:
+                        return error_response("NOT_FOUND", f"Job {job_id} not found")
+                    return ok_response({"job": dict(job)})
+
+                if job_action == "logs":
+                    job_id = argv[6] if len(argv) > 6 else ""
+                    job = self.jobs.get(job_id)
+                    if not job:
+                        return error_response("NOT_FOUND", f"Job {job_id} not found")
+                    return ok_response({"logs": job.get("logs", "")})
+
+                if job_action == "cancel":
+                    job_id = argv[6] if len(argv) > 6 else ""
+                    job = self.jobs.get(job_id)
+                    if not job:
+                        return error_response("NOT_FOUND", f"Job {job_id} not found")
+                    job["status"] = "CANCELLED"
+                    return ok_response({"job_id": job_id, "status": "CANCELLED"})
+
+        return error_response("UNKNOWN_COMMAND", f"Unrecognized CLI command: {argv}")

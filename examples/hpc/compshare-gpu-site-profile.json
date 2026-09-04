@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "site_id": "compshare-gpu",
+  "scheduler": "compshare",
+  "connection": {
+    "credential_profile_id": "compshare-cli",
+    "target_binding": "api.compshare.cn",
+    "remote_user": "compshare",
+    "remote_root_policy": "/workspace/{run_id}"
+  },
+  "account": "compshare-default",
+  "queues": {
+    "gpu": {
+      "partition": "rtx4090",
+      "qos": "default",
+      "max_cpus": 16,
+      "max_memory_gb": 64,
+      "max_gpus": 1,
+      "max_walltime_minutes": 120
+    }
+  },
+  "runtime_policy": {
+    "requires_apptainer": false,
+    "provider": "compshare",
+    "default_gpu_type": "rtx4090",
+    "default_gpu_vram_gb": 24,
+    "image_source": "custom",
+    "region": "cn-north",
+    "zone": "zone-a",
+    "budget_policy": {
+      "max_budget_cny": 100.0,
+      "max_instance_hours": 10.0
+    }
+  },
+  "qualification_policy": {
+    "required_probe_classes": ["gpu"]
+  }
+}
