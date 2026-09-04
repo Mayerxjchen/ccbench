@@ -47,6 +47,10 @@ class RuntimeResolutionError(Exception):
     """A runtime declaration could not be resolved against locked infra truth."""
 
 
+class UnqualifiedRuntimeError(RuntimeResolutionError):
+    """Raised when an unbuilt, unverified, or non-QUALIFIED runtime is requested."""
+
+
 def split_runtime(decl: str) -> tuple[str, str | None]:
     """Return ``(name, digest_or_None)`` for a runtime declaration.
 
@@ -95,6 +99,7 @@ class RuntimeLockEntry:
     provider: str = "slurm"
     site_profile_id: str = ""
     runtime_profile_id: str = ""
+    qualification_verified: bool = False
 
     def __post_init__(self) -> None:
         if self.artifact_kind == "sif":
@@ -128,23 +133,22 @@ class RuntimeLockEntry:
         lock_digest = f"sha256:{hashlib.sha256(canon_lock.encode('utf-8')).hexdigest()}"
 
         # Schema v2: dispatcher-compshare-runtime-lock/v2
-        if doc.get("schema") == "dispatcher-compshare-runtime-lock/v2":
+        if doc.get("schema") == "dispatcher-compshare-runtime-lock/v2" or "dispatcher-compshare-runtime-lock/v2" in str(doc.get("schema_id") or ""):
             artifact = doc.get("artifact") or {}
             provenance = doc.get("provenance") or {}
             qual = doc.get("qualification") or {}
             raw_image_id = artifact.get("image_id")
             image_id = str(raw_image_id) if raw_image_id is not None else ""
-            qual_status = str(qual.get("status") or "NOT_RUN").upper()
             receipt_path = qual.get("receipt_path")
             receipt_digest = qual.get("receipt_digest")
 
             if not image_id or is_placeholder_artifact(image_id):
                 status = RuntimeStatus.UNBUILT
                 image_id = ""
-            elif qual_status != "PASS" or not receipt_path or not receipt_digest:
-                status = RuntimeStatus.BUILT_NOT_QUALIFIED
             else:
-                status = RuntimeStatus.QUALIFIED
+                # Per Architecture Freeze R4: lock docs can never self-assert QUALIFIED.
+                # Only TrustedRuntimeCatalog can verify qualification receipt and promote to QUALIFIED.
+                status = RuntimeStatus.BUILT_NOT_QUALIFIED
 
             return cls(
                 capability=capability,
@@ -160,6 +164,7 @@ class RuntimeLockEntry:
                 software_versions=dict(provenance.get("software_versions") or {}),
                 provider=str(doc.get("provider") or "compshare"),
                 runtime_profile_id=runtime_profile_id,
+                qualification_verified=False,
             )
 
         runtime = doc.get("runtime")
@@ -457,7 +462,7 @@ class RuntimeResolver:
             )
 
         if entry.status != RuntimeStatus.QUALIFIED:
-            raise RuntimeResolutionError(
+            raise UnqualifiedRuntimeError(
                 f"runtime {name!r} ({entry.source}) is {entry.status}; only QUALIFIED runtimes can be resolved"
             )
 

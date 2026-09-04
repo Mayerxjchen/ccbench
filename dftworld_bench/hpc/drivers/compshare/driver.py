@@ -70,8 +70,10 @@ class CompShareDriver(HpcDriver):
         workspace_root: str = "/tmp/mlffbench/compshare_jobs",
         manager: RunScopedInstanceManager | None = None,
         site_profile: Any | None = None,
+        audit: Any | None = None,
     ) -> None:
         self.cli = cli
+        self.audit = audit
         self.workspace_root = Path(workspace_root)
         self.workspace_root.mkdir(parents=True, exist_ok=True)
         if manager is None:
@@ -109,7 +111,10 @@ class CompShareDriver(HpcDriver):
                 default_memory=default_memory,
                 default_disk=default_disk,
                 default_image_source=default_image_source,
+                audit=audit,
             )
+        elif audit is not None and getattr(manager, "audit", None) is None:
+            manager.audit = audit
         self.manager = manager
         # Store default GPU type from site profile for submissions
         self._default_gpu_type = "4090"
@@ -461,5 +466,8 @@ class CompShareDriver(HpcDriver):
             # If no run_id specified, terminate all active runs
             for rid in list(self.manager._instances.keys()):
                 self.manager.terminate_run(rid)
+                self.manager.log_zero_orphan_query(rid)
             return True
-        return self.manager.terminate_run(run_id)
+        res = self.manager.terminate_run(run_id)
+        self.manager.log_zero_orphan_query(run_id)
+        return res
