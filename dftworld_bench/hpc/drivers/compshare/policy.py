@@ -27,12 +27,11 @@ def instance_requires_cleanup(status: str | None) -> bool:
     return status.strip().lower() not in SAFE_DELETED_STATES
 
 
-_OWNER_TOKEN_RE = re.compile(r"^[0-9a-f]{16}$")
 _NEW_NAME_RE = re.compile(r"^mlffbench-[0-9a-f]{16}$")
 _NEW_REMARK_RE = re.compile(r"^mlffbench:run:[0-9a-f]{16}$")
 # Legacy forms are retained solely so a global recovery sweep can find and
 # clean resources created before the fixed-token contract was deployed.
-_LEGACY_NAME_RE = re.compile(r"^mlffbench-[A-Za-z0-9_-]{1,32}(?:-worker)?$")
+_LEGACY_NAME_RE = re.compile(r"^mlffbench-[A-Za-z0-9_-]{1,32}-worker$")
 _LEGACY_REMARK_RE = re.compile(r"^mlffbench:[A-Za-z0-9_-]{1,32}:worker$")
 
 
