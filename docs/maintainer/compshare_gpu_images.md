@@ -1,6 +1,8 @@
-# CompShare Maintainer GPU Image Specification (P4)
+# CompShare Maintainer GPU Image Specification (offline scope freeze)
 
-This document specifies the frozen, one-time GPU images prepared for the maintainer hybrid evaluation infrastructure (`maintainer-hybrid-v1`).
+This document specifies the offline scope for the one-time GPU images planned
+for the maintainer evaluation infrastructure. It does not assert that a cloud
+image has been built or qualified.
 
 Per architecture rules:
 - These images are **reusable, immutable assets** maintained by the benchmark team.
@@ -9,14 +11,16 @@ Per architecture rules:
 
 ---
 
-## 1. DeepMD GPU Image (`mlff-deepmd-gpu-v1`)
+## 1. Image A: MatClaw/DeepMD GPU image (`runtime.matclaw-gpu`)
 
-- **Image ID**: `img-deepmd-gpu-v1`
+- **Image ID**: not assigned (Gate B has not run)
 - **Lock File**: [`reference/runtime/deepmd-runtime.lock.json`](file:///Users/xjchen/bench/mlffbench/reference/runtime/deepmd-runtime.lock.json)
 - **Base Image**: `compshare/pytorch:2.1.2-cuda12.1-cudnn8-devel-ubuntu22.04`
 - **CUDA Version**: 12.1
 - **Driver Compatibility**: >= 525.60.13
-- **Primary Capabilities**: `deepmd`, `lammps`
+- **Primary Capability**: `runtime.matclaw-gpu`
+- **Qualification scope**: cases **031, 032, and 033 only**
+- **Explicit exclusions**: case 034 and case 042
 
 ### Installed Packages & Versions
 | Software | Version | Purpose |
@@ -35,14 +39,16 @@ python -c "import deepmd; print('DeepMD version:', deepmd.__version__); import t
 
 ---
 
-## 2. JAX / DP-MP GPU Image (`mlff-jax-gpu-v1`)
+## 2. Deferred image: JAX / DP-MP (`runtime.jax`)
 
-- **Image ID**: `img-jax-gpu-v1`
+- **Image ID**: not assigned (deferred until a separate qualification)
 - **Lock File**: [`reference/runtime/jax-runtime.lock.json`](file:///Users/xjchen/bench/mlffbench/reference/runtime/jax-runtime.lock.json)
 - **Base Image**: `compshare/cuda:12.2-devel-ubuntu22.04`
 - **CUDA Version**: 12.2
 - **Driver Compatibility**: >= 525.60.13
-- **Primary Capabilities**: `jax`, `deepmd-jax`
+- **Primary Capability**: `runtime.jax`
+- **Qualification scope**: case 042 only, in a later phase
+- **Status**: explicitly out of the Image A scope
 
 ### Installed Packages & Versions
 | Software | Version | Purpose |
@@ -65,10 +71,11 @@ python -c "import jax; print('JAX version:', jax.__version__, 'Devices:', jax.de
 
 ---
 
-## 3. Maintainer CLI Preparation Workflow
+## 3. Gate B/C workflow (when separately authorized)
 
 To build and register a new version:
-1. Start an interactive GPU instance from the base image:
+1. Start an interactive GPU instance from the base image only after the
+   offline gates and an explicit operator authorization:
    ```bash
    compshare instance create --name image-builder --image compshare/cuda:12.2-devel-ubuntu22.04 --gpu rtx4090 --auto-shutdown 60
    ```
@@ -78,7 +85,9 @@ To build and register a new version:
    ```bash
    compshare image create --instance <instance_id> --name mlff-jax-gpu-v1 --description "MLFFBench JAX GPU v1"
    ```
-5. Retrieve the assigned `image_id` and update the lock file in `reference/runtime/`.
+5. Retrieve the assigned `image_id` and update the construction evidence and
+   lock only through the reviewed maintainer workflow. A provider image ID is
+   not a qualification receipt.
 6. Terminate the builder instance:
    ```bash
    compshare instance delete <instance_id> --force
@@ -86,7 +95,19 @@ To build and register a new version:
 
 ---
 
-## 4. Maintainer Credential & Profile Configuration
+## 4. Failover and RunLock policy
+
+The standby region/zone is not an execution fallback. An operator must settle
+the old run, choose an already-qualified standby profile, and start a new run
+with a new RunLock. The active RunLock never changes image, region, zone, GPU
+type, or site profile while a run is in progress. Automatic drift or
+cross-region retry is prohibited.
+
+Case 034 remains excluded from Image A until its operation-level GPU route is
+implemented and separately qualified. Case 042 remains on the deferred JAX
+track.
+
+## 5. Maintainer Credential & Profile Configuration
 
 CompShare CLI configuration is stored on the trusted host at `~/.config/compshare/config.json` (not in `~/.compshare/`).
 The official CLI configuration entry point is `compshare config`:
@@ -111,4 +132,3 @@ Key security principles:
 - Official configuration is persistent in `~/.config/compshare/config.json`.
 - CompShare uses `PublicKey` and `PrivateKey` authentication (not a single `--api-key`). Never pass private keys via CLI flags (`--api-key` / `--private-key`) to prevent leakage into shell history and `/proc`.
 - Candidates and container sandboxes **never** receive access to `~/.config/compshare/config.json`, the `compshare` CLI, or any cloud keys.
-

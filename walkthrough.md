@@ -1,24 +1,45 @@
-# Gate A1 架构冻结与契约闭环验收总结 (Walkthrough)
+# Gate A1 架构冻结与 Gate B/C 离线准备 Walkthrough
 
 ## 状态判定
 ```text
-Gate A1 = PASS (加固全部完成，8 项负面契约探针全面通过)
-Gate A2–F = BLOCKED (未配置任何真实 CompShare 凭证，未创建真实云实例，未构建远程镜像)
+Gate A1 = PASS (既有代码门禁与负向契约已通过)
+Gate A2 = READ-ONLY EVIDENCE (只读证据已封存；不等于创建权限)
+Gate B/C = BLOCKED (本轮未创建云实例、未构建远程镜像、未执行实机 qualification)
+Gate D–F = BLOCKED
 ```
 
 根据维护者原则，本阶段恪守“**修完 Gate A1，再接触真实 CompShare**”，在保留 `ComputeProfile → ComputeRouter → RoutedDriver` 路由架构、CLI-first 驱动与两阶段结算的前提下，完成了全部深度加固与安全契约闭环。
 
 ---
 
-## 一、完成的 5 个原子提交 (Atomic Commits)
+## 一、既有 A1 基线与本轮离线提交 (Atomic Commits)
 
 | 序号 | 提交哈希 | 对应阶段 | 核心改动说明 |
 | :--- | :--- | :--- | :--- |
-| **Commit 1** | `099a1b4` | **P1** | 引入 `RuntimeStatus` 状态机与 `qualified_capabilities()` 过滤，真实锁文件置为 `UNBUILT` (`image_id: null`)，未构建运行时不可解析、不可提交；消除伪 SHA-256 镜像标识。 |
+| **A1 baseline** | `099a1b4` | **P1** | 引入 `RuntimeStatus` 状态机与 `qualified_capabilities()` 过滤，真实锁文件置为 `UNBUILT` (`image_id: null`)，未构建运行时不可解析、不可提交；消除伪 SHA-256 镜像标识。 |
 | **Commit 2** | `5f9f605` | **P2, P3** | 实现与 Client Token 解耦的 `trusted_freeze` 与 `trusted_teardown`；两阶段结算状态机（`ACTIVE -> SETTLING -> TEARDOWN_FAILED / SETTLED`）；实例销毁失败记入 `orphan-ledger.jsonl`；启动期 `reconcile_and_recover()` 悬挂实例对账与 fail-closed 守护。 |
 | **Commit 3** | `64a9202` | **P4** | 升级 Receipt Schema（添加 `evidence_root`、`evidence_files`、`audit_log`、`signature`）；`GatewayAudit` 添加 `flock + fsync`；实现 Ed25519 签名与校验、证据文件路径遏制（防 `..`/绝对路径越界）与哈希链完整性验证。 |
 | **Commit 4** | `f84e248` | **P5, P6** | CompShare 实例强注入 `mlffbench-{run_id}-worker` 确定性归属标记；安全终态严格限定为 `DELETED`/`TERMINATED`（`STOPPED` 强制判定为未终止）；云端查询失败 fail-closed；SiteProfile 驱动 `qualification_policy` 与调度器，消除基于名称猜测调度器的黑魔法。 |
-| **Commit 5** | `HEAD` | **P7, P8** | 新增 `test_gate_a1_negative_contracts.py` 全面覆盖 8 个负面契约；将 G16 架构冻结负面契约纳入 `test_release_gates_g0_g15.py`；更新 SKILL 与用户文档；验证全仓测试与工作树洁净。 |
+| **A1 baseline** | `HEAD` | **P7, P8** | 新增 `test_gate_a1_negative_contracts.py` 全面覆盖既有负面契约；更新 SKILL 与用户文档。具体提交哈希以仓库历史为准。 |
+
+本轮提交 1 冻结 Image A 的范围；提交 2 收紧 CompShare budget policy；提交 3
+增加纯离线 instance-create plan。三项都只修改仓库内容，不修改仓库外的
+production profile。
+
+### Image matrix decision
+
+| Case | Runtime | First Image A | Current decision |
+| --- | --- | --- | --- |
+| 031 | `runtime.matclaw-gpu` | yes | in scope |
+| 032 | `runtime.matclaw-gpu` | yes | in scope |
+| 033 | `runtime.matclaw-gpu` | yes | in scope |
+| 034 | `runtime.cp2k`/`runtime.ai2kit` (current CPU path) | no | excluded; no Image A GPU claim |
+| 042 | `runtime.jax` | no | excluded; deferred JAX image |
+
+Image A is a target qualification scope, not proof of a built image. Its
+`image_id` and qualification receipt remain absent until Gate B/C actually run.
+The RunLock is immutable during a run; standby selection requires operator
+settlement and a new lock.
 
 ---
 
@@ -82,6 +103,6 @@ Gate A2–F = BLOCKED (未配置任何真实 CompShare 凭证，未创建真实�
 
 当前 Gate A1 架构冻结与契约已完全加固并达到 PASS 状态。后续阶段按规定保持 **BLOCKED**：
 - **Gate A2**：在受管机密存储中配置真实 CompShare 凭据（`COMPSHARE_PUBLIC_KEY`、`COMPSHARE_PRIVATE_KEY`）；
-- **Gate B**：构建并注册远程 Docker 镜像（`deepmd`、`jax`），回填生成的正式云平台 `image_id`；
-- **Gate C**：执行实机最小 Canary 作业并生成带签名的正式收据；
+- **Gate B**：仅构建并注册 Image A（031–033）；JAX image 另行安排；
+- **Gate C**：仅对 Image A 执行 fresh-instance 最小 Canary 并生成带签名的正式收据；
 - **Gate D–F**：启动 034 / 042 案例的真实验证与结算。

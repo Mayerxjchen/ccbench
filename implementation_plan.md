@@ -1,11 +1,21 @@
-# Gate A1 架构加固与契约闭环实施计划 (Implementation Plan)
+# Gate A1 架构加固与 Gate B/C 离线准备实施计划 (Implementation Plan)
 
 ## 状态总览
 按照“**修完 Gate A1，再接触真实 CompShare**”原则，本计划在保留现有 `ComputeProfile → ComputeRouter → RoutedDriver` 路由架构、CLI-first 驱动与两阶段结算（Settlement）的基础上，针对 Gate A1 进行深度加固与契约闭环。
 
 ```text
 Gate A1: BLOCKED (加固整改中，直至 P1–P7 全部通过)
-Gate A2–F: BLOCKED (禁止配置凭据、禁止创建云实例、禁止构建远程镜像)
+Gate A2: 已完成只读预检证据，但不是云资源授权
+Gate B/C: BLOCKED (本轮只做仓库内离线准备；禁止云命令、创建实例、构建远程镜像)
+Gate D–F: BLOCKED
+
+本轮追加的 scope freeze 见
+[`ADR-2026-09-04-COMPSHARE-IMAGE-A-SCOPE.md`](docs/architecture/ADR-2026-09-04-COMPSHARE-IMAGE-A-SCOPE.md)。
+首轮 CompShare Image A 只覆盖 031–033 的 `runtime.matclaw-gpu`；034 和
+042 明确排除。此前文档中把 034 GPU 列入 Image A 的表述已撤回。
+
+Failover 只能由 operator 在结束并结算旧 run 后，人工选择已经
+qualification 的备用 profile 并启动新 run；活动 RunLock 不得漂移。
 ```
 
 最终目标：
