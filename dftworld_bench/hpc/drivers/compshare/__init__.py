@@ -20,6 +20,13 @@ from dftworld_bench.hpc.drivers.compshare.instance_manager import (
     CompShareOrphanError,
     RunScopedInstanceManager,
 )
+from dftworld_bench.hpc.drivers.compshare.policy import (
+    SAFE_DELETED_STATES,
+    extract_verified_instance_id,
+    instance_requires_cleanup,
+    make_ownership_marker,
+    matches_ownership_marker,
+)
 
 __all__ = [
     "CliResult",
@@ -36,4 +43,9 @@ __all__ = [
     "CompShareManagerError",
     "CompShareOrphanError",
     "RunScopedInstanceManager",
+    "SAFE_DELETED_STATES",
+    "instance_requires_cleanup",
+    "make_ownership_marker",
+    "matches_ownership_marker",
+    "extract_verified_instance_id",
 ]
