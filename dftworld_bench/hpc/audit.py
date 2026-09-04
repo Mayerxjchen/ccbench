@@ -97,7 +97,11 @@ class GatewayAudit:
         the previous entry's digest."""
         broken: list[str] = []
         prev: str | None = None
+        expected_seq = 1
         for entry in self._entries:
+            if entry.get("seq") != expected_seq:
+                broken.append(entry.get("digest", "<missing>"))
+            expected_seq += 1
             if _digest(_canonical(entry)) != entry.get("digest"):
                 broken.append(entry.get("digest", "<missing>"))
             if entry.get("prev") != prev:

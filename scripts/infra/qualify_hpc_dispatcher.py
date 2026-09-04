@@ -599,6 +599,12 @@ def _run_dispatcher_job(
             records_sink.append(record)
             raise QualifyError(f"job {name} ended {state}: {stdout[-500:]}")
 
+        # The Gateway fetch is the durable lifecycle operation.  The direct
+        # transport fetch below only copies the same bytes into the receipt's
+        # evidence directory; it is never allowed to stand in for the
+        # Candidate-facing fetch authorization/event.
+        session.fetch(job_id)
+
         # Structured probes must agree with the raw BENCH_PROBE lines.
         parsed = parse_probe_stdout(stdout)
         missing = [
@@ -1877,6 +1883,11 @@ def _resume_gpu(
             record_dump.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n")
             raise QualifyError(f"GPU job ended {state}: {stdout[-500:]}")
         record["probe_results"] = _probe_assertions(stdout, "gpu")
+
+        # Record the real Gateway fetch before copying the evidence bytes into
+        # the receipt directory.  This keeps resume on the same lifecycle
+        # protocol as a fresh canary.
+        session.fetch("job-0001")
 
         # Real protocol settlement over the reconstructed lineage: appends
         # SETTLEMENT_BEGIN (and, at close, token_revoked) to the SAME chain.

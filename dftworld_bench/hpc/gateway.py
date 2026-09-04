@@ -139,6 +139,11 @@ class Gateway:
         self._tokens: dict[str, Capability] = {}
         self._jobs: dict[str, dict[str, str]] = {}  # run_id -> key -> job_id
         self._run_jobs: dict[str, set[str]] = {}  # run_id -> {job_id}
+        # Scheduler lineage carried by lifecycle events.  This is deliberately
+        # separate from the idempotency table: a restart can reconstruct the
+        # event identity from the durable audit even when the in-memory tables
+        # are empty.
+        self._job_metadata: dict[str, dict[str, Any]] = {}
         # v2 ownership lineage: run_id -> operation_id -> attempt -> scheduler job
         self._op_attempts: dict[str, dict[str, dict[int, str]]] = {}
         # Runs whose settlement has begun: no further submissions accepted.
@@ -251,6 +256,9 @@ class Gateway:
                 "kind": "submit", "run_id": run_id, "job_id": prior,
                 "operation_id": operation_id, "duplicate": True,
             })
+            self._remember_job_metadata(
+                run_id, operation_id, 1, prior, spec=spec, resolved=resolved
+            )
             return self._submit_result(prior, duplicate=True, resolved=resolved)
         key = spec["idempotency_key"]
         existing = self._jobs.get(run_id, {}).get(key)
@@ -263,6 +271,9 @@ class Gateway:
         result = self._adapter.submit(spec_for_adapter, run_id=run_id, operation_id=operation_id)
         job_id = result["job_id"]
         self._remember(run_id, key, job_id)
+        self._remember_job_metadata(
+            run_id, operation_id, 1, job_id, spec=spec, resolved=resolved
+        )
         self._charge(run_id, spec["resources"])
         self._audit_append({
             "kind": "submit", "run_id": run_id, "job_id": job_id,
@@ -303,7 +314,24 @@ class Gateway:
         attempts = self._op_attempts.setdefault(run_id, {}).setdefault(operation_id, {})
         known = attempts.get(attempt)
         if known is not None:
+            self._remember_job_metadata(
+                run_id, operation_id, attempt, known, spec=spec, resolved=resolved
+            )
             return self._submit_result(known, duplicate=True, resolved=resolved)
+
+        # A fresh gateway may have lost its in-memory lineage while the
+        # durable accepted event survived.  Adopt that exact identity before
+        # considering a new marker or asking the adapter to submit.
+        accepted = self._accepted_submission(run_id, operation_id, attempt)
+        if accepted is not None:
+            accepted_job, accepted_marker = accepted
+            attempts[attempt] = accepted_job
+            self._remember(run_id, spec["idempotency_key"], accepted_job)
+            self._remember_job_metadata(
+                run_id, operation_id, attempt, accepted_job,
+                spec=spec, resolved=resolved, marker=accepted_marker,
+            )
+            return self._submit_result(accepted_job, duplicate=True, resolved=resolved)
 
         # Monotonic, gap-free lineage: every lower attempt exists and is
         # scheduler-terminal before the next one may be created. A predecessor
@@ -318,7 +346,7 @@ class Gateway:
                 )
             if lower_job is None:
                 continue  # voided predecessor counts as satisfied
-            state = self._adapter.status(lower_job)["state"]
+            state = self._call_job_adapter("status", run_id, lower_job)["state"]
             if state not in TERMINAL_STATES:
                 raise GatewayError(
                     f"attempt {lower} of {operation_id!r} is not terminal yet "
@@ -335,7 +363,7 @@ class Gateway:
         if unresolved:
             marker = unresolved[0]
             try:
-                found = getattr(self._adapter, "find_by_marker", lambda m: None)(marker)
+                found = self._find_by_marker(run_id, marker)
             except Exception as exc:
                 raise GatewayError(
                     f"ambiguous scheduler matches for intent marker "
@@ -349,6 +377,15 @@ class Gateway:
                 )
             attempts[attempt] = found
             self._remember(run_id, spec["idempotency_key"], found)
+            self._remember_job_metadata(
+                run_id,
+                operation_id,
+                attempt,
+                found,
+                spec=spec,
+                resolved=resolved,
+                marker=marker,
+            )
             self._audit.append(
                 {
                     "kind": "SUBMIT_ACCEPTED",
@@ -357,6 +394,9 @@ class Gateway:
                     "attempt": attempt,
                     "marker": marker,
                     "job_id": found,
+                    "image_id": _image_identity(spec, resolved),
+                    "runtime_decl": spec.get("runtime", ""),
+                    "instance_id": self._adapter_instance_id(found),
                     "adopted": True,
                 },
                 durable=True,
@@ -376,6 +416,8 @@ class Gateway:
                 "attempt": attempt,
                 "idempotency_key": spec["idempotency_key"],
                 "marker": marker,
+                "image_id": _image_identity(spec, resolved),
+                "runtime_decl": spec.get("runtime", ""),
             },
             durable=True,
         )
@@ -388,6 +430,15 @@ class Gateway:
         job_id = result["job_id"]
         attempts[attempt] = job_id
         self._remember(run_id, spec["idempotency_key"], job_id)
+        self._remember_job_metadata(
+            run_id,
+            operation_id,
+            attempt,
+            job_id,
+            spec=spec,
+            resolved=resolved,
+            marker=marker,
+        )
         self._charge(run_id, spec["resources"])
         self._audit.append(
             {
@@ -397,6 +448,9 @@ class Gateway:
                 "attempt": attempt,
                 "marker": marker,
                 "job_id": job_id,
+                "image_id": _image_identity(spec, resolved),
+                "runtime_decl": spec.get("runtime", ""),
+                "instance_id": self._adapter_instance_id(job_id),
                 "adopted": False,
             },
             durable=True,
@@ -431,7 +485,7 @@ class Gateway:
             )
         marker = unresolved[0]
         try:
-            found = getattr(self._adapter, "find_by_marker", lambda m: None)(marker)
+            found = self._find_by_marker(run_id, marker)
         except Exception as exc:
             raise GatewayError(
                 f"ambiguous scheduler matches while resolving attempt "
@@ -440,6 +494,16 @@ class Gateway:
         if found is not None:
             attempts[attempt] = found
             self._remember(run_id, f"adopted:{marker}", found)
+            intent = self._intent_event(run_id, operation_id, attempt, marker) or {}
+            self._remember_job_metadata(
+                run_id,
+                operation_id,
+                attempt,
+                found,
+                spec={"runtime": intent.get("runtime_decl", ""),
+                      "image_id": intent.get("image_id", "")},
+                marker=marker,
+            )
             self._audit.append(
                 {
                     "kind": "SUBMIT_ACCEPTED",
@@ -448,6 +512,9 @@ class Gateway:
                     "attempt": attempt,
                     "marker": marker,
                     "job_id": found,
+                    "image_id": intent.get("image_id", ""),
+                    "runtime_decl": intent.get("runtime_decl", ""),
+                    "instance_id": self._adapter_instance_id(found),
                     "adopted": True,
                 },
                 durable=True,
@@ -475,7 +542,7 @@ class Gateway:
         for entry in self._audit.entries():
             event = entry.get("event", {})
             kind = event.get("kind")
-            if kind not in ("SUBMIT_INTENT", "SUBMIT_ACCEPTED"):
+            if kind not in ("SUBMIT_INTENT", "SUBMIT_ACCEPTED", "SUBMIT_VOIDED"):
                 continue
             key = (
                 event.get("run_id"),
@@ -522,10 +589,15 @@ class Gateway:
         attempts = self._op_attempts.get(run_id, {}).get(operation_id, {})
         if not attempts:
             raise GatewayError(f"unknown operation {operation_id!r} in run {run_id!r}")
-        states = {
-            str(number): self._adapter.status(job_id)["state"]
-            for number, job_id in sorted(attempts.items())
-        }
+        states = {}
+        for number, job_id in sorted(attempts.items()):
+            observed = self._observe_status(
+                run_id,
+                job_id,
+                operation_id=operation_id,
+                attempt=number,
+            )
+            states[str(number)] = observed["state"]
         latest = max(attempts)
         chosen = latest if attempt is None else attempt
         if chosen not in attempts:
@@ -575,10 +647,18 @@ class Gateway:
         if current_state in ("SETTLED", "SETTLING"):
             return
 
+        # The audit is the restart-safe source of truth.  Do not append a
+        # second begin marker when a watchdog or a new Gateway instance
+        # repeats the same freeze request.
+        if self._has_event("SETTLEMENT_COMPLETE", {"run_id": run_id}):
+            self._settlement_states[run_id] = "SETTLED"
+            self._settled.add(run_id)
+            return
+
         self._settlement_states[run_id] = "SETTLING"
         self._settled.add(run_id)
-        if self._audit is not None:
-            self._audit.append(
+        if not self._has_event("SETTLEMENT_BEGIN", {"run_id": run_id}):
+            self._audit_append(
                 {"kind": "SETTLEMENT_BEGIN", "run_id": run_id}, durable=True
             )
 
@@ -627,6 +707,10 @@ class Gateway:
         current_state = self._settlement_states.get(run_id, "ACTIVE")
         if current_state == "SETTLED":
             return
+        if self._has_event("SETTLEMENT_COMPLETE", {"run_id": run_id}):
+            self._settlement_states[run_id] = "SETTLED"
+            self._settled.add(run_id)
+            return
         if current_state not in ("SETTLING", "SETTLEMENT_FAILED", "TEARDOWN_FAILED"):
             # Ensure submissions are frozen before resource teardown
             self._settlement_states[run_id] = "SETTLING"
@@ -656,15 +740,14 @@ class Gateway:
                 ) from exc
 
         self._settlement_states[run_id] = "SETTLED"
-        if self._audit is not None:
-            self._audit.append(
-                {"kind": "SETTLEMENT_COMPLETE", "run_id": run_id}, durable=True
-            )
+        self._audit_append(
+            {"kind": "SETTLEMENT_COMPLETE", "run_id": run_id}, durable=True
+        )
 
     def status(self, token: str, run_id: str, job_id: str) -> dict[str, Any]:
         self.authorize(token, run_id, "status")
         self._own(run_id, job_id)
-        return self._adapter.status(job_id)
+        return self._observe_status(run_id, job_id)
 
     def logs(self, token: str, run_id: str, job_id: str) -> dict[str, Any]:
         self.authorize(token, run_id, "logs")
@@ -675,18 +758,34 @@ class Gateway:
         self.authorize(token, run_id, "fetch")
         self._own(run_id, job_id)
         try:
-            return self._adapter.fetch(job_id)
+            result = self._call_job_adapter("fetch", run_id, job_id)
         except Exception as exc:
             raise GatewayError(str(exc)) from exc
+        if result.get("state") in TERMINAL_STATES:
+            self._emit_job_terminal(run_id, job_id, result)
+        self._emit_artifact_fetched(run_id, job_id, result)
+        return result
 
     def cancel(self, token: str, run_id: str, job_id: str) -> dict[str, Any]:
         self.authorize(token, run_id, "cancel")
         self._own(run_id, job_id)
         try:
-            result = self._adapter.cancel(job_id)
+            result = self._call_job_adapter("cancel", run_id, job_id)
         except Exception as exc:
             raise GatewayError(str(exc)) from exc
+        try:
+            observed = self._call_job_adapter("status", run_id, job_id)
+        except Exception as exc:
+            raise GatewayError(
+                f"cancel acknowledgement could not be verified for {job_id!r}: {exc}"
+            ) from exc
+        if observed.get("state") not in TERMINAL_STATES:
+            raise GatewayError(
+                f"cancel acknowledgement for {job_id!r} is non-terminal: "
+                f"{observed.get('state')!r}"
+            )
         self._audit_append({"kind": "cancel", "run_id": run_id, "job_id": job_id})
+        self._emit_job_terminal(run_id, job_id, observed)
         return result
 
     def usage(self, token: str, run_id: str) -> dict[str, Any]:
@@ -767,12 +866,277 @@ class Gateway:
         return out
 
     def _own(self, run_id: str, job_id: str) -> None:
+        self._hydrate_job_metadata(run_id, job_id)
         if job_id not in self._run_jobs.get(run_id, set()):
             raise GatewayError(f"job {job_id!r} is not part of run {run_id!r}")
 
     def _remember(self, run_id: str, key: str, job_id: str) -> None:
         self._jobs.setdefault(run_id, {})[key] = job_id
         self._run_jobs.setdefault(run_id, set()).add(job_id)
+
+    def _remember_job_metadata(
+        self,
+        run_id: str,
+        operation_id: str,
+        attempt: int,
+        job_id: str,
+        *,
+        spec: dict[str, Any] | None = None,
+        resolved: Any | None = None,
+        marker: str | None = None,
+    ) -> None:
+        """Bind a scheduler job to its exact run/operation/attempt lineage."""
+        current = self._job_metadata.get(job_id, {})
+        runtime = spec.get("runtime", "") if isinstance(spec, dict) else ""
+        image_id = _image_identity(spec or {}, resolved)
+        if not image_id:
+            image_id = str(current.get("image_id") or "")
+        instance_id = self._adapter_instance_id(job_id) or str(
+            current.get("instance_id") or ""
+        )
+        self._job_metadata[job_id] = {
+            **current,
+            "run_id": run_id,
+            "operation_id": operation_id,
+            "attempt": attempt,
+            "marker": marker or current.get("marker", ""),
+            "runtime_decl": runtime or current.get("runtime_decl", ""),
+            "image_id": image_id,
+            "instance_id": instance_id,
+        }
+
+    def _accepted_submission(
+        self, run_id: str, operation_id: str, attempt: int
+    ) -> tuple[str, str] | None:
+        """Return one durable accepted job for a lineage, or fail closed."""
+        matches: list[tuple[str, str]] = []
+        if self._audit is None:
+            return None
+        for entry in self._audit.entries():
+            event = entry.get("event") or {}
+            if (
+                event.get("kind") == "SUBMIT_ACCEPTED"
+                and event.get("run_id") == run_id
+                and event.get("operation_id") == operation_id
+                and event.get("attempt") == attempt
+                and isinstance(event.get("job_id"), str)
+                and isinstance(event.get("marker"), str)
+            ):
+                matches.append((event["job_id"], event["marker"]))
+        if not matches:
+            return None
+        if len(set(matches)) != 1:
+            raise GatewayError(
+                f"conflicting durable SUBMIT_ACCEPTED lineage for "
+                f"({run_id!r}, {operation_id!r}, attempt {attempt})"
+            )
+        return matches[0]
+
+    def _intent_event(
+        self, run_id: str, operation_id: str, attempt: int, marker: str
+    ) -> dict[str, Any] | None:
+        if self._audit is None:
+            return None
+        for entry in self._audit.entries():
+            event = entry.get("event") or {}
+            if (
+                event.get("kind") == "SUBMIT_INTENT"
+                and event.get("run_id") == run_id
+                and event.get("operation_id") == operation_id
+                and event.get("attempt") == attempt
+                and event.get("marker") == marker
+            ):
+                return event
+        return None
+
+    def _has_event(self, kind: str, identity: dict[str, Any]) -> bool:
+        if self._audit is None:
+            return False
+        for entry in self._audit.entries():
+            event = entry.get("event") or {}
+            if event.get("kind") != kind:
+                continue
+            if all(event.get(key) == value for key, value in identity.items()):
+                return True
+        return False
+
+    def _event_for(self, kind: str, identity: dict[str, Any]) -> dict[str, Any] | None:
+        if self._audit is None:
+            return None
+        for entry in self._audit.entries():
+            event = entry.get("event") or {}
+            if event.get("kind") != kind:
+                continue
+            if all(event.get(key) == value for key, value in identity.items()):
+                return event
+        return None
+
+    def _job_event_fields(self, run_id: str, job_id: str) -> dict[str, Any]:
+        self._hydrate_job_metadata(run_id, job_id)
+        metadata = self._job_metadata.get(job_id, {})
+        return {
+            "run_id": run_id,
+            "operation_id": metadata.get("operation_id", ""),
+            "attempt": metadata.get("attempt", 1),
+            "job_id": job_id,
+            "marker": metadata.get("marker", ""),
+            "image_id": metadata.get("image_id", ""),
+            "instance_id": metadata.get("instance_id", ""),
+            "runtime_decl": metadata.get("runtime_decl", ""),
+        }
+
+    def _hydrate_job_metadata(self, run_id: str, job_id: str) -> None:
+        """Rebuild event lineage from an accepted audit entry after restart."""
+        if job_id in self._job_metadata or self._audit is None:
+            return
+        for entry in self._audit.entries():
+            event = entry.get("event") or {}
+            if (
+                event.get("kind") == "SUBMIT_ACCEPTED"
+                and event.get("run_id") == run_id
+                and event.get("job_id") == job_id
+            ):
+                self._job_metadata[job_id] = {
+                    "run_id": run_id,
+                    "operation_id": event.get("operation_id", ""),
+                    "attempt": event.get("attempt", 1),
+                    "marker": event.get("marker", ""),
+                    "runtime_decl": event.get("runtime_decl", ""),
+                    "image_id": event.get("image_id", ""),
+                    "instance_id": event.get("instance_id", ""),
+                }
+                return
+
+    def _find_by_marker(self, run_id: str, marker: str) -> str | None:
+        finder = getattr(self._adapter, "find_by_marker", None)
+        if finder is None:
+            return None
+        try:
+            return finder(marker)
+        except TypeError:
+            return finder(run_id, marker)
+
+    def _call_job_adapter(
+        self, method_name: str, run_id: str, job_id: str
+    ) -> dict[str, Any]:
+        """Call adapters supporting either v1 ``(job_id)`` or site-driver
+        ``(run_id, job_id)`` signatures without changing the public Gateway.
+        """
+        method = getattr(self._adapter, method_name)
+        try:
+            return method(job_id)
+        except TypeError as first:
+            try:
+                return method(run_id, job_id)
+            except TypeError:
+                raise first
+
+    def _adapter_instance_id(self, job_id: str) -> str:
+        jobs = getattr(self._adapter, "_jobs", None)
+        if not isinstance(jobs, dict):
+            return ""
+        record = jobs.get(job_id)
+        if record is None:
+            return ""
+        if isinstance(record, dict):
+            value = record.get("instance_id")
+        else:
+            value = getattr(record, "instance_id", "")
+        return value if isinstance(value, str) else ""
+
+    def _observe_status(
+        self,
+        run_id: str,
+        job_id: str,
+        *,
+        operation_id: str | None = None,
+        attempt: int | None = None,
+    ) -> dict[str, Any]:
+        if operation_id is not None and attempt is not None:
+            self._remember_job_metadata(
+                run_id, operation_id, attempt, job_id, marker=None
+            )
+        try:
+            result = self._call_job_adapter("status", run_id, job_id)
+        except Exception as exc:
+            raise GatewayError(str(exc)) from exc
+        if result.get("state") in TERMINAL_STATES:
+            self._emit_job_terminal(run_id, job_id, result)
+        return result
+
+    def _emit_job_terminal(
+        self, run_id: str, job_id: str, result: dict[str, Any]
+    ) -> None:
+        state = result.get("state")
+        if state not in TERMINAL_STATES:
+            return
+        fields = self._job_event_fields(run_id, job_id)
+        identity = {
+            key: fields[key]
+            for key in ("run_id", "operation_id", "attempt", "job_id")
+        }
+        existing = self._event_for("JOB_TERMINAL", identity)
+        exit_code = result.get("exit_code")
+        if existing is not None and "exit_code" not in result:
+            exit_code = existing.get("exit_code")
+        event = {
+            "kind": "JOB_TERMINAL",
+            **fields,
+            "state": state,
+            "exit_code": exit_code,
+        }
+        if existing is not None:
+            if any(existing.get(key) != event.get(key) for key in ("state", "exit_code")):
+                raise GatewayError(
+                    f"conflicting JOB_TERMINAL event for job {job_id!r}"
+                )
+            return
+        self._audit_append(event, durable=True)
+
+    def _emit_artifact_fetched(
+        self, run_id: str, job_id: str, result: dict[str, Any]
+    ) -> None:
+        records: list[dict[str, Any]] = []
+        outputs = result.get("outputs")
+        if isinstance(outputs, dict):
+            for name, content in sorted(outputs.items(), key=lambda pair: str(pair[0])):
+                if isinstance(content, str):
+                    raw = content.encode("utf-8")
+                elif isinstance(content, (bytes, bytearray)):
+                    raw = bytes(content)
+                else:
+                    raw = json.dumps(content, sort_keys=True, separators=(",", ":")).encode()
+                records.append({
+                    "path": str(name),
+                    "sha256": hashlib.sha256(raw).hexdigest(),
+                    "size_bytes": len(raw),
+                })
+        else:
+            files = result.get("files")
+            if isinstance(files, list) and all(isinstance(name, str) for name in files):
+                records = [{"path": name} for name in sorted(files)]
+        manifest_digest = _digest(
+            json.dumps(records, sort_keys=True, separators=(",", ":"))
+        )
+        event = {
+            "kind": "ARTIFACT_FETCHED",
+            **self._job_event_fields(run_id, job_id),
+            "artifact_digest": "sha256:" + manifest_digest,
+            "artifact_count": len(records),
+            "artifacts": records,
+        }
+        identity = {
+            key: event[key]
+            for key in ("run_id", "operation_id", "attempt", "job_id")
+        }
+        existing = self._event_for("ARTIFACT_FETCHED", identity)
+        if existing is not None:
+            if existing.get("artifact_digest") != event["artifact_digest"]:
+                raise GatewayError(
+                    f"conflicting ARTIFACT_FETCHED event for job {job_id!r}"
+                )
+            return
+        self._audit_append(event, durable=True)
 
     def _validate_inputs(self, spec: dict[str, Any]) -> None:
         """Bound inputs stay inside the run workspace (or are plain relative
@@ -797,9 +1161,9 @@ class Gateway:
                 continue
             raise GatewayError(f"malformed input binding: {raw!r}")
 
-    def _audit_append(self, event: dict[str, Any]) -> None:
+    def _audit_append(self, event: dict[str, Any], *, durable: bool = False) -> None:
         if self._audit is not None:
-            self._audit.append(event)
+            self._audit.append(event, durable=durable)
 
     def _check_quota(self, run_id: str, resources: dict[str, int]) -> None:
         if not self._quota:
@@ -822,6 +1186,28 @@ class Gateway:
 
 def _digest(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _image_identity(spec: dict[str, Any], resolved: Any | None) -> str:
+    """Return the concrete image identity bound to a lifecycle event.
+
+    Runtime capability names are not enough for qualification evidence.  When
+    the trusted resolver has materialized a concrete image, prefer that
+    identity; digest-pinned legacy declarations remain a compatibility form.
+    """
+    if isinstance(spec, dict):
+        explicit = spec.get("image_id") or spec.get("image")
+        if isinstance(explicit, str) and explicit:
+            return explicit
+    if resolved is not None:
+        for attr in ("image_id", "artifact_path_or_id"):
+            value = getattr(resolved, attr, "")
+            if isinstance(value, str) and value:
+                return value
+    runtime = spec.get("runtime", "") if isinstance(spec, dict) else ""
+    if isinstance(runtime, str) and runtime:
+        return runtime.split("@", 1)[0]
+    return ""
 
 
 def _reject_unsafe_relative(raw: str, kind: str) -> None:
