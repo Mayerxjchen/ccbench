@@ -212,10 +212,14 @@ class TrustedRuntimeCatalog:
                             "not equal the receipt canonical digest"
                         )
 
-                    root = self._root_path()
-                    expected_lock_rel = path.resolve().relative_to(
-                        root.resolve(strict=True)
-                    ).as_posix()
+                    try:
+                        expected_lock_rel = path.resolve().relative_to(
+                            self.repo_root.resolve(strict=True)
+                        ).as_posix()
+                    except ValueError:
+                        expected_lock_rel = path.resolve().relative_to(
+                            self._root_path().resolve(strict=True)
+                        ).as_posix()
                     receipt_lock = raw_data.get("runtime_lock")
                     if not isinstance(receipt_lock, Mapping):
                         raise ValueError("receipt runtime_lock binding is missing")

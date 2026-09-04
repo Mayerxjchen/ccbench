@@ -1,0 +1,33 @@
+{
+  "schema": "dispatcher-compshare-runtime-lock/v2",
+  "capability": "deepmd",
+  "image_name": "mlff-deepmd-gpu-v1",
+  "note": "Frozen DeePMD-kit GPU runtime for maintainer evaluation on CompShare. Based on official PyTorch 2.1.2 CUDA 12.1 image with DeepMD-kit 2.2.11 and LAMMPS. Reusable custom image asset.",
+  "provider": "compshare",
+  "artifact": {
+    "kind": "compshare_image",
+    "image_id": "compshareImage-1uw6sd44931i",
+    "image_source": "custom"
+  },
+  "provenance": {
+    "base_image": "compshare/pytorch:2.1.2-cuda12.1-cudnn8-devel-ubuntu22.04",
+    "cuda_version": "12.1",
+    "software_versions": {
+      "deepmd-kit": "2.2.11",
+      "tensorflow": "2.16.2",
+      "lammps": "2023.8",
+      "python": "3.10.12",
+      "cuda": "12.1"
+    }
+  },
+  "qualification": {
+    "status": "BUILT_NOT_QUALIFIED",
+    "receipt_path": "deepmd/receipt.json",
+    "receipt_digest": "sha256:1d800f07a71f8d381ab449a251d115f7945b29306ff61ec8bd8ae89e033a66c6",
+    "site_profile_id": "compshare-gpu-production"
+  },
+  "env": {
+    "CUDA_VISIBLE_DEVICES": "0",
+    "TF_FORCE_GPU_ALLOW_GROWTH": "true"
+  }
+}
