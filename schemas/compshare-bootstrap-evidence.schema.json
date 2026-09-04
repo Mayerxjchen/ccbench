@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/compshare-bootstrap-evidence.schema.json",
+  "title": "CompShare Gate A2 bootstrap evidence",
+  "description": "Strict, read-only evidence envelope for the pinned CompShare CLI. The credential_profile_id is an index only; provider credentials and arbitrary stdout/stderr are never manifest fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_id",
+    "schema_version",
+    "credential_profile_id",
+    "captured_at",
+    "source_commit",
+    "cli",
+    "probes",
+    "environment",
+    "capture_tool",
+    "evidence_files",
+    "manifest_digest"
+  ],
+  "properties": {
+    "kind": {
+      "const": "compshare-bootstrap-evidence/v1"
+    },
+    "schema_id": {
+      "const": "https://mlip-bench.example/schemas/compshare-bootstrap-evidence.schema.json"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "credential_profile_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:+@-]{0,127}$",
+      "description": "Opaque operator-side credential index. It is never a credential value and never appears in probe argv."
+    },
+    "captured_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,64}$"
+    },
+    "cli": {
+      "$ref": "#/$defs/cli"
+    },
+    "probes": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "$ref": "#/$defs/probe"
+      },
+      "contains": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "const": "version"
+          }
+        }
+      },
+      "description": "At least version and doctor are required. The allowlisted instance_list/price/search probes preserve the fuller A2 inventory while keeping each command shape explicit."
+    },
+    "environment": {
+      "$ref": "#/$defs/environment"
+    },
+    "capture_tool": {
+      "$ref": "#/$defs/captureTool"
+    },
+    "evidence_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/evidenceFile"
+      }
+    },
+    "manifest_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 over canonical JSON of the manifest body with manifest_digest omitted."
+    }
+  },
+  "$defs": {
+    "cli": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "executable_path", "executable_sha256"],
+      "properties": {
+        "version": {
+          "const": "0.4.1"
+        },
+        "executable_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "executable_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "arch", "python", "locale", "timezone"],
+      "properties": {
+        "os": { "type": "string", "minLength": 1 },
+        "arch": { "type": "string", "minLength": 1 },
+        "python": { "type": "string", "minLength": 1 },
+        "locale": { "type": "string", "minLength": 1 },
+        "timezone": { "type": "string", "minLength": 1 }
+      }
+    },
+    "captureTool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "evidenceFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "size_bytes", "sha256", "role"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "role": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$"
+        }
+      }
+    },
+    "safeValue": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "boolean" },
+        { "type": "integer" },
+        { "type": "number" },
+        { "type": "string", "maxLength": 4096 },
+        {
+          "type": "array",
+          "maxItems": 1024,
+          "items": { "$ref": "#/$defs/safeValue" }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^(?!stdout$)(?!stderr$)(?!secret$)(?!password$)(?!token$)(?!credential$)(?!private[_-]?key$)(?!api[_-]?key$).+"
+          },
+          "additionalProperties": { "$ref": "#/$defs/safeValue" }
+        }
+      ]
+    },
+    "probeSummary": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^(?!stdout$)(?!stderr$)(?!secret$)(?!password$)(?!token$)(?!credential$)(?!private[_-]?key$)(?!api[_-]?key$).+"
+      },
+      "additionalProperties": { "$ref": "#/$defs/safeValue" }
+    },
+    "doctorSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": { "$ref": "#/$defs/safeValue" },
+        "auth_ok": { "$ref": "#/$defs/safeValue" },
+        "api_endpoint": { "$ref": "#/$defs/safeValue" },
+        "account_id": { "$ref": "#/$defs/safeValue" }
+      }
+    },
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "argv",
+        "captured_at",
+        "started_at",
+        "finished_at",
+        "exit_code",
+        "summary",
+        "evidence_path"
+      ],
+      "properties": {
+        "name": {
+          "enum": [
+            "version",
+            "doctor",
+            "instance_list",
+            "zones",
+            "families",
+            "price_4090",
+            "price_5090",
+            "search_sh2",
+            "search_wlcb"
+          ]
+        },
+        "argv": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!.*(?:secret|private[_-]?key|api[_-]?key|password|token\\s*=|credential\\s*=)).*$"
+          }
+        },
+        "captured_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "exit_code": {
+          "type": "integer"
+        },
+        "summary": {
+          "$ref": "#/$defs/probeSummary"
+        },
+        "evidence_path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+        },
+        "stdout_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "stderr_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "name": { "const": "doctor" } },
+            "required": ["name"]
+          },
+          "then": {
+            "properties": { "summary": { "$ref": "#/$defs/doctorSummary" } }
+          }
+        }
+      ]
+    }
+  }
+}
