@@ -100,24 +100,20 @@ def _valid_receipt(site_receipts: dict[str, str] | None = None) -> dict[str, Any
 
 
 def test_missing_site_receipts_dir_fails_closed():
-    """Hybrid profile qualification must fail when --site-receipts-dir is omitted."""
+    """Legacy receipts stay readable but cannot enter the formal gate."""
     receipt = _valid_receipt()
     verdict = verify_and_derive_qualification(receipt)
     assert verdict.passed is False
-    assert any("requires a valid --site-receipts-dir" in err for err in verdict.errors)
+    assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
 @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
-def test_valid_compute_profile_qualification_passes(tmp_path: Path):
+def test_legacy_compute_profile_qualification_is_not_eligible(tmp_path: Path):
     receipts_dir, hashes = _setup_disk_receipts(tmp_path)
     receipt = _valid_receipt(site_receipts=hashes)
     verdict = verify_and_derive_qualification(receipt, site_receipts_dir=receipts_dir)
-    assert verdict.passed is True
-    assert verdict.routes_valid is True
-    assert verdict.cpu_site_qualified is True
-    assert verdict.gpu_site_qualified is True
-    assert verdict.cloud_recycling_passed is True
-    assert verdict.errors == []
+    assert verdict.passed is False
+    assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
 @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
@@ -130,7 +126,7 @@ def test_active_instances_remaining_fails_zero_orphan_gate(tmp_path: Path):
     verdict = verify_and_derive_qualification(receipt, site_receipts_dir=receipts_dir)
     assert verdict.passed is False
     assert verdict.cloud_recycling_passed is False
-    assert any("Zero-Orphan Gate failed" in err for err in verdict.errors)
+    assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
 @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
@@ -143,7 +139,7 @@ def test_orphan_instance_fails_gate(tmp_path: Path):
     verdict = verify_and_derive_qualification(receipt, site_receipts_dir=receipts_dir)
     assert verdict.passed is False
     assert verdict.cloud_recycling_passed is False
-    assert any("orphan instances recorded" in err for err in verdict.errors)
+    assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
 @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
@@ -156,7 +152,7 @@ def test_unsettled_termination_fails_gate(tmp_path: Path):
     verdict = verify_and_derive_qualification(receipt, site_receipts_dir=receipts_dir)
     assert verdict.passed is False
     assert verdict.cloud_recycling_passed is False
-    assert any("settlement termination" in err.lower() for err in verdict.errors)
+    assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
 @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
@@ -169,7 +165,7 @@ def test_live_active_instances_checker_catches_running_cloud_instance(tmp_path: 
     )
     assert verdict.passed is False
     assert verdict.cloud_recycling_passed is False
-    assert any("live cloud query detected active instances" in err for err in verdict.errors)
+    assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
 def test_tampered_digest_fails_closed(tmp_path: Path):
@@ -190,7 +186,7 @@ def test_unqualified_site_fails_closed(tmp_path: Path):
     verdict = verify_and_derive_qualification(receipt, site_receipts_dir=receipts_dir)
     assert verdict.passed is False
     assert verdict.gpu_site_qualified is False
-    assert any("compshare-gpu" in err for err in verdict.errors)
+    assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
 @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
@@ -204,7 +200,7 @@ def test_false_evidence_fails_qualification(tmp_path: Path):
         verdict = verify_and_derive_qualification(receipt, site_receipts_dir=receipts_dir)
         assert verdict.passed is False
         assert verdict.cloud_recycling_passed is False
-        assert any("Evidence failure" in err for err in verdict.errors)
+        assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
 def test_missing_digest_raises():
@@ -228,7 +224,7 @@ def test_expected_profile_mismatch_fails_closed(tmp_path: Path):
 
 
 @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
-def test_on_disk_site_receipt_verification(tmp_path: Path):
+def test_legacy_on_disk_site_receipt_is_not_eligible(tmp_path: Path):
     prof = ComputeProfile.from_dict({
         "schema_version": 1,
         "profile_id": "maintainer-hybrid-v1",
@@ -244,9 +240,8 @@ def test_on_disk_site_receipt_verification(tmp_path: Path):
     verdict = verify_and_derive_qualification(
         receipt, expected_profile=prof, site_receipts_dir=receipts_dir
     )
-    assert verdict.passed is True
-    assert verdict.cpu_site_qualified is True
-    assert verdict.gpu_site_qualified is True
+    assert verdict.passed is False
+    assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
     # Negative test: tampered receipt on disk fails
     (receipts_dir / "compshare-gpu.receipt.json").write_text('{"verdict": "FAIL"}')
@@ -264,7 +259,7 @@ def test_self_authored_receipt_fails_full_verification(tmp_path: Path):
     receipt = _valid_receipt(site_receipts=hashes)
     verdict = verify_and_derive_qualification(receipt, site_receipts_dir=receipts_dir)
     assert verdict.passed is False
-    assert any("failed full verification" in err for err in verdict.errors)
+    assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
 # ---------------------------------------------------------------------------
@@ -590,8 +585,8 @@ class TestZeroOrphanFaultMatrix:
     """Matrix tests for Zero-Orphan cloud recycling gate (Gate A1)."""
 
     @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
-    def test_matrix_clean_slate_passes(self, tmp_path: Path):
-        """Case A: 0 active cloud instances, 0 orphan ledger entries -> PASS."""
+    def test_matrix_legacy_receipt_is_not_eligible(self, tmp_path: Path):
+        """A clean legacy bundle still cannot become a formal attestation."""
         receipts_dir, hashes = _setup_disk_receipts(tmp_path)
         receipt = _valid_receipt(site_receipts=hashes)
         verdict = verify_and_derive_qualification(
@@ -599,8 +594,8 @@ class TestZeroOrphanFaultMatrix:
             site_receipts_dir=receipts_dir,
             active_instances_checker=lambda: [],
         )
-        assert verdict.passed is True
-        assert verdict.cloud_recycling_passed is True
+        assert verdict.passed is False
+        assert verdict.status == "LEGACY_NOT_ELIGIBLE"
         assert verdict.active_instances_count == 0
         assert verdict.orphan_instances_count == 0
 
@@ -616,7 +611,7 @@ class TestZeroOrphanFaultMatrix:
         )
         assert verdict.passed is False
         assert verdict.cloud_recycling_passed is False
-        assert any("live cloud query detected active instances" in err for err in verdict.errors)
+        assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
     @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
     def test_matrix_orphan_count_in_receipt_fails(self, tmp_path: Path):
@@ -632,7 +627,7 @@ class TestZeroOrphanFaultMatrix:
         )
         assert verdict.passed is False
         assert verdict.cloud_recycling_passed is False
-        assert any("orphan instances recorded" in err for err in verdict.errors)
+        assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
     @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
     def test_matrix_live_checker_error_fails_closed(self, tmp_path: Path):
@@ -650,7 +645,7 @@ class TestZeroOrphanFaultMatrix:
         )
         assert verdict.passed is False
         assert verdict.cloud_recycling_passed is False
-        assert any("error querying live cloud instances" in err for err in verdict.errors)
+        assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
     def test_matrix_ownership_marker_isolation(self):
         """Case E: Instances without mlffbench ownership marker are ignored by Zero-Orphan filter."""
@@ -724,6 +719,7 @@ class TestCompShareReceiptAuditLineage:
         )
         from dftworld_bench.experiments.qualification_receipt import canonical_digest, sha256_file
         from dftworld_bench.hpc.audit import GatewayAudit
+        from dftworld_bench.hpc.site_profile import HpcSiteProfile
         from dftworld_bench.hpc.trust_store import QualificationTrustStore, TrustKey
 
         code_file = tmp_path / "mod.py"
@@ -739,7 +735,8 @@ class TestCompShareReceiptAuditLineage:
             "qualification": {"status": "BUILT_NOT_QUALIFIED"},
         }
         lock_file.write_text(json.dumps(lock_doc), encoding="utf-8")
-        lock_sha = f"sha256:{hashlib.sha256(lock_file.read_bytes()).hexdigest()}"
+        from dftworld_bench.hpc.runtime_resolution import canonical_lock_digest
+        lock_sha = canonical_lock_digest(lock_doc)
 
         art_dir = tmp_path / "outputs"
         art_dir.mkdir(parents=True, exist_ok=True)
@@ -770,9 +767,12 @@ class TestCompShareReceiptAuditLineage:
                 audit_tail = GatewayAudit(audit_path).tail_digest()
 
         prof_file = Path(__file__).resolve().parents[2] / "examples" / "hpc" / "compshare-gpu-site-profile.json"
-        sp_digest = canonical_digest(json.loads(prof_file.read_text(encoding="utf-8")))
-        if not sp_digest.startswith("sha256:"):
-            sp_digest = f"sha256:{sp_digest}"
+        profile_doc = json.loads(prof_file.read_text(encoding="utf-8"))
+        trusted_profile = HpcSiteProfile.from_dict(profile_doc)
+        self.trusted_site_profile = trusted_profile
+        # The trusted profile digest is computed from the normalized immutable
+        # SiteProfile, including qualification policy and defaulted fields.
+        sp_digest = trusted_profile.digest
 
         evidence = {
             "instance_lifecycle": {
@@ -860,8 +860,8 @@ class TestCompShareReceiptAuditLineage:
             "INSTANCE_CREATE_INTENT",
             "INSTANCE_CREATE_ACCEPTED",
             "INSTANCE_READY",
-            "JOB_SUBMIT_INTENT",
-            "JOB_SUBMIT_ACCEPTED",
+            "SUBMIT_INTENT",
+            "SUBMIT_ACCEPTED",
             "JOB_TERMINAL",
             "ARTIFACT_FETCHED",
             "SETTLEMENT_BEGIN",
@@ -879,7 +879,14 @@ class TestCompShareReceiptAuditLineage:
             })
 
         receipt = self._make_compshare_receipt(tmp_path, audit_path=audit_path, run_id=run_id, inst_id=inst_id, img_id=img_id)
-        result = verify_site_receipt(receipt, scheduler="compshare", root=tmp_path, receipt_dir=tmp_path, trust_store=self.trust_store)
+        result = verify_site_receipt(
+            receipt,
+            scheduler="compshare",
+            root=tmp_path,
+            receipt_dir=tmp_path,
+            trust_store=self.trust_store,
+            trusted_site_profile=self.trusted_site_profile,
+        )
 
         assert result["problems"] == []
         assert result["derived"]["qualification_status"] == "PASS"
@@ -922,7 +929,7 @@ class TestCompShareReceiptAuditLineage:
 class TestP4Ed25519AndEvidenceIntegrity:
     """P4: Ed25519 signing, evidence containment, and audit log verification."""
 
-    def test_ed25519_sign_and_verify_valid(self, tmp_path: Path):
+    def test_ed25519_legacy_signature_is_readable_but_not_eligible(self, tmp_path: Path):
         from dftworld_bench.experiments.compute_profile_qualification import (
             build_compute_profile_qualification_receipt,
             generate_ed25519_key_pair,
@@ -962,8 +969,8 @@ class TestP4Ed25519AndEvidenceIntegrity:
 
         with patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok):
             verdict = verify_and_derive_qualification(doc, site_receipts_dir=receipts_dir, trust_store=store)
-            assert verdict.passed is True
-            assert verdict.errors == []
+            assert verdict.passed is False
+            assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
     def test_ed25519_tampered_receipt_fails(self, tmp_path: Path):
         from dftworld_bench.experiments.compute_profile_qualification import (
@@ -995,9 +1002,9 @@ class TestP4Ed25519AndEvidenceIntegrity:
         with patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok):
             verdict = verify_and_derive_qualification(doc, site_receipts_dir=receipts_dir)
             assert verdict.passed is False
-            assert any("signature verification failed" in err for err in verdict.errors)
+            assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
-    def test_evidence_root_containment_violation_fails(self, tmp_path: Path):
+    def test_legacy_evidence_bundle_is_not_eligible(self, tmp_path: Path):
         from dftworld_bench.experiments.compute_profile_qualification import (
             build_compute_profile_qualification_receipt,
             verify_and_derive_qualification,
@@ -1024,7 +1031,7 @@ class TestP4Ed25519AndEvidenceIntegrity:
         with patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok):
             verdict = verify_and_derive_qualification(doc, site_receipts_dir=receipts_dir)
             assert verdict.passed is False
-            assert any("Evidence file containment error" in err for err in verdict.errors)
+            assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
     def test_compshare_receipt_image_id_mismatch_fails(self, tmp_path: Path):
         from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
@@ -1088,6 +1095,7 @@ class TestP5P6OwnershipSafeStatesAndPolicy:
 
     def test_ownership_marker_injected_on_create(self, tmp_path: Path):
         from dftworld_bench.hpc.drivers.compshare import CompShareCli, FakeCompShareCliRunner
+        from dftworld_bench.hpc.drivers.compshare import make_ownership_marker
         from dftworld_bench.hpc.drivers.compshare.instance_manager import RunScopedInstanceManager
 
         runner = FakeCompShareCliRunner()
@@ -1103,8 +1111,9 @@ class TestP5P6OwnershipSafeStatesAndPolicy:
         assert inst_id is not None
         assert inst_id in runner.instances
         record = runner.instances[inst_id]
-        assert record["name"] == f"mlffbench-{run_id}-worker"
-        assert record["remark"] == f"mlffbench:{run_id}:worker"
+        expected_name, expected_remark = make_ownership_marker(run_id)
+        assert record["name"] == expected_name
+        assert record["remark"] == expected_remark
 
     def test_stopped_instance_is_unsafe_and_terminated(self, tmp_path: Path):
         """Instances in STOPPED status are not in safe final state and must be recovered."""
@@ -1184,4 +1193,3 @@ class TestP5P6OwnershipSafeStatesAndPolicy:
             # Assert verify_receipt was called with required_probe_classes={"cpu"}
             called_kwargs = mock_vr.call_args.kwargs
             assert called_kwargs.get("required_probe_classes") == {"cpu"}
-

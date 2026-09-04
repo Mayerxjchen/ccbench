@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -26,6 +27,23 @@ _SCHEMA_PATH = (
     _REPO_ROOT
     / "schemas"
     / "compute-profile-qualification-receipt.schema.json"
+)
+_SCHEMA_V2_PATH = (
+    _REPO_ROOT
+    / "schemas"
+    / "compute-profile-qualification-receipt.v2.schema.json"
+)
+
+# Layer-1 site receipts and Layer-2 ComputeProfile receipts deliberately use
+# different trust anchors.  The checked-in trust store keeps this key
+# UNCONFIGURED; an operator must inject/configure the real public key before a
+# v2 ComputeProfile receipt can become eligible.
+COMPUTE_PROFILE_SIGNING_KEY_ID = "compute-profile-v2"
+COMPUTE_PROFILE_SIGNING_PURPOSE = "compute-profile-qualification"
+COMPUTE_PROFILE_V2_KIND = "hpc-compute-profile-qualification/v2"
+COMPUTE_PROFILE_V2_SCHEMA_ID = (
+    "https://mlip-bench.example/schemas/"
+    "compute-profile-qualification-receipt.v2.schema.json"
 )
 
 SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -55,6 +73,10 @@ class ComputeProfileQualificationVerdict:
     active_instances_count: int
     orphan_instances_count: int
     errors: list[str] = field(default_factory=list)
+    # ``LEGACY_NOT_ELIGIBLE`` is intentionally distinct from ``INVALID``:
+    # v1 material remains readable for migration/audit tooling, but it is
+    # never an attestation that may promote a ComputeProfile.
+    status: str = "INVALID"
 
 
 def compute_receipt_digest(doc: dict[str, Any]) -> str:
@@ -78,27 +100,40 @@ def sign_receipt(
     private_key_hex: str,
     *,
     key_id: str = "compshare-site-v1",
+    purpose: str | None = None,
 ) -> dict[str, Any]:
-    """Sign receipt dict with Ed25519 private key; returns the signature dict."""
+    """Sign receipt dict with Ed25519 private key; returns the signature dict.
+
+    ``purpose`` is a domain-separation value.  When present it is included in
+    the signed canonical bytes as well as in the returned signature metadata,
+    so changing the metadata cannot move a signature between trust domains.
+    """
     from cryptography.hazmat.primitives.asymmetric import ed25519
 
     body = {k: v for k, v in doc.items() if k != "signature"}
+    if purpose is not None:
+        body["__signature_purpose__"] = purpose
     canon = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
     priv = ed25519.Ed25519PrivateKey.from_private_bytes(bytes.fromhex(private_key_hex))
     sig = priv.sign(canon)
     pub_hex = priv.public_key().public_bytes_raw().hex()
-    return {
+    signature = {
         "algorithm": "ed25519",
         "key_id": key_id,
         "public_key": pub_hex,
         "signature_hex": sig.hex(),
     }
+    if purpose is not None:
+        signature["purpose"] = purpose
+    return signature
 
 
 def verify_ed25519_signature_bytes(
     document: dict[str, Any] | bytes,
     public_key_hex: str,
     signature_hex: str | None = None,
+    *,
+    signed_purpose: str | None = None,
 ) -> bool:
     """Low-level Ed25519 raw signature verification over canonical document bytes."""
     from cryptography.hazmat.primitives.asymmetric import ed25519
@@ -107,6 +142,8 @@ def verify_ed25519_signature_bytes(
         canon = document
     else:
         body = {k: v for k, v in document.items() if k != "signature"}
+        if signed_purpose is not None:
+            body["__signature_purpose__"] = signed_purpose
         canon = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
         if signature_hex is None:
             sig = document.get("signature") or {}
@@ -138,6 +175,7 @@ def verify_receipt_signature(
     expected_public_key_hex: str | None = None,
     *,
     expected_key_id: str | None = None,
+    expected_purpose: str | None = None,
     trust_store: Any = None,
     detailed: bool = False,
 ) -> bool | SignatureVerificationResult:
@@ -156,6 +194,18 @@ def verify_receipt_signature(
     if sig.get("algorithm") != "ed25519":
         res = SignatureVerificationResult(
             valid=False, status="MALFORMED", error=f"Unsupported algorithm: {sig.get('algorithm')!r}"
+        )
+        return res if detailed else False
+
+    if expected_purpose is not None and sig.get("purpose") != expected_purpose:
+        res = SignatureVerificationResult(
+            valid=False,
+            status="PURPOSE_MISMATCH",
+            error=(
+                f"Signature purpose mismatch: receipt claims {sig.get('purpose')!r}, "
+                f"expected {expected_purpose!r}"
+            ),
+            key_id=str(sig.get("key_id") or ""),
         )
         return res if detailed else False
 
@@ -215,7 +265,18 @@ def verify_receipt_signature(
             return res if detailed else False
 
         try:
-            trusted_pub_hex = trust_store.resolve_public_key_hex(target_key_id)
+            try:
+                trusted_pub_hex = trust_store.resolve_public_key_hex(
+                    target_key_id, expected_purpose=expected_purpose
+                )
+            except TypeError:
+                # Test/in-process trust stores written before purpose binding
+                # may expose the old one-argument method.  A formal v2 path
+                # never relies on this compatibility branch: it first checks
+                # that the configured store carries the required purpose.
+                if expected_purpose is not None:
+                    raise
+                trusted_pub_hex = trust_store.resolve_public_key_hex(target_key_id)
         except Exception as exc:
             status = "UNCONFIGURED_KEY" if "UNCONFIGURED" in str(exc) else "KEY_NOT_FOUND"
             res = SignatureVerificationResult(
@@ -246,7 +307,14 @@ def verify_receipt_signature(
         )
         return res if detailed else False
 
-    if not verify_ed25519_signature_bytes(doc, trusted_pub_hex, sig_hex):
+    # For formal purpose-bound signatures, use the caller's expected purpose;
+    # direct callers may omit it, in which case the receipt metadata supplies
+    # the domain to verify.  Legacy signatures have no purpose and retain the
+    # original canonicalization.
+    signed_purpose = expected_purpose or sig.get("purpose") or None
+    if not verify_ed25519_signature_bytes(
+        doc, trusted_pub_hex, sig_hex, signed_purpose=signed_purpose
+    ):
         res = SignatureVerificationResult(
             valid=False, status="INVALID_SIGNATURE", error="Ed25519 signature verification failed", key_id=target_key_id
         )
@@ -261,6 +329,7 @@ def verify_receipt_signature_detailed(
     *,
     expected_public_key_hex: str | None = None,
     expected_key_id: str | None = None,
+    expected_purpose: str | None = None,
     trust_store: Any = None,
 ) -> SignatureVerificationResult:
     """Convenience wrapper returning SignatureVerificationResult."""
@@ -268,6 +337,7 @@ def verify_receipt_signature_detailed(
         doc,
         expected_public_key_hex=expected_public_key_hex,
         expected_key_id=expected_key_id,
+        expected_purpose=expected_purpose,
         trust_store=trust_store,
         detailed=True,
     )
@@ -278,8 +348,10 @@ def verify_receipt_signature_detailed(
 def check_evidence_containment(evidence_root: Path, file_path: str | Path) -> Path:
     """Validate that file_path is relative, non-symlink, and strictly contained in evidence_root."""
     p = Path(file_path)
-    if p.is_absolute() or ".." in p.parts:
+    if p.is_absolute():
         raise ValueError(f"Absolute evidence path forbidden: {file_path}")
+    if ".." in p.parts:
+        raise ValueError(f"Evidence path escapes evidence root: {file_path}")
     resolved = (evidence_root / p).resolve()
     real_root = evidence_root.resolve()
     if real_root not in resolved.parents and resolved != real_root:
@@ -290,6 +362,189 @@ def check_evidence_containment(evidence_root: Path, file_path: str | Path) -> Pa
         if curr.is_symlink():
             raise ValueError(f"Symlink forbidden in evidence path: {file_path}")
     return resolved
+
+
+def make_evidence_file_record(
+    evidence_root: Path | str,
+    file_path: Path | str,
+    *,
+    role: str,
+) -> dict[str, Any]:
+    """Build a v2 evidence-file binding from an already materialized file.
+
+    This helper is intentionally strict and has no copy/fallback behavior: the
+    caller must first materialize the evidence below ``evidence_root``.  The
+    returned path is root-relative and the digest/size are measured from the
+    bytes on disk that the verifier will later re-read.
+    """
+    root = Path(evidence_root)
+    path = check_evidence_containment(root, file_path)
+    try:
+        mode = path.stat().st_mode
+    except OSError as exc:
+        raise ValueError(f"evidence file is not readable: {file_path}") from exc
+    if path.is_symlink() or not stat.S_ISREG(mode):
+        raise ValueError(f"evidence file must be a regular non-symlink file: {file_path}")
+    rel = Path(file_path)
+    data = path.read_bytes()
+    return {
+        "path": rel.as_posix(),
+        "sha256": f"sha256:{hashlib.sha256(data).hexdigest()}",
+        "size": len(data),
+        "role": role,
+    }
+
+
+def _resolve_evidence_root(
+    evidence_root: str,
+    *,
+    receipt_dir: Path | None,
+    fallback_root: Path | None,
+) -> Path:
+    """Resolve the v2 root against the receipt's trusted materialization dir."""
+    root = Path(evidence_root)
+    if not root.is_absolute():
+        root = (receipt_dir or fallback_root or Path.cwd()) / root
+    try:
+        root_lstat = root.lstat()
+    except OSError as exc:
+        raise ValueError(f"evidence_root is missing: {root}") from exc
+    if root.is_symlink() or not stat.S_ISDIR(root_lstat.st_mode):
+        raise ValueError(f"evidence_root must be a real directory: {root}")
+    resolved_root = root.resolve()
+    # A receipt may name an absolute materialization directory, but when the
+    # caller supplies the trusted receipt directory it must still be inside
+    # that directory.  Otherwise an attacker could point a valid-looking
+    # evidence bundle at an unrelated filesystem tree.
+    trusted_base = receipt_dir or fallback_root
+    if trusted_base is not None:
+        resolved_base = Path(trusted_base).resolve()
+        if resolved_root != resolved_base and resolved_base not in resolved_root.parents:
+            raise ValueError(
+                f"evidence_root escapes trusted receipt directory: {resolved_root}"
+            )
+    return resolved_root
+
+
+def _verify_materialized_evidence_files(
+    receipt_doc: Mapping[str, Any],
+    *,
+    receipt_dir: Path | None,
+    fallback_root: Path | None,
+) -> tuple[Path | None, list[str], Path | None]:
+    """Verify every structured v2 evidence binding and the audit tail.
+
+    Returns ``(root, errors, audit_path)``.  All failures are reported rather
+    than silently omitted so a formal verifier can return a failed verdict
+    while retaining a useful audit trail for operators.
+    """
+    errors: list[str] = []
+    evidence_root_value = receipt_doc.get("evidence_root")
+    if not isinstance(evidence_root_value, str) or not evidence_root_value:
+        return None, ["v2 receipt is missing evidence_root"], None
+    try:
+        root = _resolve_evidence_root(
+            evidence_root_value,
+            receipt_dir=receipt_dir,
+            fallback_root=fallback_root,
+        )
+    except ValueError as exc:
+        return None, [f"evidence_root verification failed: {exc}"], None
+
+    records = receipt_doc.get("evidence_files")
+    if not isinstance(records, list) or not records:
+        return root, ["v2 receipt requires non-empty evidence_files"], None
+
+    seen: set[str] = set()
+    audit_path: Path | None = None
+    audit_rel = receipt_doc.get("audit_log")
+    for index, record in enumerate(records):
+        prefix = f"evidence_files[{index}]"
+        if not isinstance(record, Mapping):
+            errors.append(f"{prefix} must be a structured object")
+            continue
+        rel_value = record.get("path")
+        digest = record.get("sha256")
+        size = record.get("size")
+        role = record.get("role")
+        if not isinstance(rel_value, str) or not rel_value:
+            errors.append(f"{prefix}.path must be a non-empty relative path")
+            continue
+        rel = Path(rel_value)
+        if rel.as_posix() in seen:
+            errors.append(f"{prefix}.path is duplicated: {rel_value!r}")
+        seen.add(rel.as_posix())
+        if not isinstance(digest, str) or not SHA256_PATTERN.match(digest):
+            errors.append(f"{prefix}.sha256 is not a sha256 digest")
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            errors.append(f"{prefix}.size must be a non-negative integer")
+        if not isinstance(role, str) or not role:
+            errors.append(f"{prefix}.role must be non-empty")
+        try:
+            path = check_evidence_containment(root, rel)
+        except (ValueError, OSError) as exc:
+            errors.append(f"{prefix} path containment failure: {exc}")
+            continue
+        try:
+            mode = path.lstat().st_mode
+        except OSError as exc:
+            errors.append(f"{prefix} cannot be read: {exc}")
+            continue
+        if path.is_symlink() or not stat.S_ISREG(mode):
+            errors.append(f"{prefix} must be a regular non-symlink file: {rel_value!r}")
+            continue
+        try:
+            data = path.read_bytes()
+        except OSError as exc:
+            errors.append(f"{prefix} cannot be read: {exc}")
+            continue
+        actual_digest = f"sha256:{hashlib.sha256(data).hexdigest()}"
+        if isinstance(digest, str) and digest != actual_digest:
+            errors.append(
+                f"{prefix} sha256 mismatch: declared {digest} != actual {actual_digest}"
+            )
+        if isinstance(size, int) and not isinstance(size, bool) and size != len(data):
+            errors.append(
+                f"{prefix} size mismatch: declared {size} != actual {len(data)}"
+            )
+        if isinstance(audit_rel, str) and rel.as_posix() == Path(audit_rel).as_posix():
+            audit_path = path
+            if role != "audit_log":
+                errors.append(
+                    f"{prefix}.role must be 'audit_log' for the audit_log binding"
+                )
+
+    if not isinstance(audit_rel, str) or not audit_rel:
+        errors.append("v2 receipt is missing audit_log")
+    elif audit_path is None:
+        errors.append("audit_log must name one structured evidence_files entry")
+    else:
+        declared_tail = receipt_doc.get("audit_tail_digest")
+        if not isinstance(declared_tail, str) or not re.fullmatch(
+            r"(?:sha256:)?[0-9a-f]{64}", declared_tail
+        ):
+            errors.append("audit_tail_digest is malformed")
+        try:
+            from dftworld_bench.hpc.audit import GatewayAudit
+
+            ledger = GatewayAudit(audit_path)
+            broken = ledger.verify()
+            if broken:
+                errors.append(f"audit log hash chain broken at {broken}")
+            actual_tail = ledger.tail_digest()
+            expected_tail = (
+                declared_tail.removeprefix("sha256:")
+                if isinstance(declared_tail, str)
+                else ""
+            )
+            if not actual_tail or actual_tail != expected_tail:
+                errors.append(
+                    "audit_tail_digest mismatch: "
+                    f"declared {declared_tail!r} != actual {actual_tail!r}"
+                )
+        except Exception as exc:
+            errors.append(f"audit log verification failed: {exc}")
+    return root, errors, audit_path
 
 
 def _trusted_profile_document(profile: Any) -> dict[str, Any] | None:
@@ -801,6 +1056,7 @@ def verify_and_derive_qualification(
     require_live_check: bool = False,
     trust_store: Any | None = None,
     trusted_site_profiles: Mapping[str, Any] | None = None,
+    receipt_dir: Path | None = None,
 ) -> ComputeProfileQualificationVerdict:
     """Verify schema, content digest, positive evidence, and derive Layer 2 qualification verdict.
 
@@ -814,7 +1070,10 @@ def verify_and_derive_qualification(
     - Missing, non-matching digest, or non-PASS site qualification receipts.
     - SiteProfile digest mismatch against trusted registry / configuration.
     """
-    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    kind = receipt_doc.get("kind")
+    is_v2 = kind == COMPUTE_PROFILE_V2_KIND
+    schema_path = _SCHEMA_V2_PATH if is_v2 else _SCHEMA_PATH
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
     try:
         jsonschema.validate(instance=receipt_doc, schema=schema)
     except jsonschema.ValidationError as exc:
@@ -832,28 +1091,67 @@ def verify_and_derive_qualification(
             f"Receipt digest mismatch: claimed {claimed_digest} != computed {expected_digest}"
         )
 
-    errors: list[str] = []
-    pid = receipt_doc["compute_profile_id"]
-    routes = receipt_doc["routes"]
-    site_receipts = receipt_doc.get("site_receipts", {})
-
-    # Strict binding to expected ComputeProfile if supplied
+    # Bind the receipt to an explicitly supplied ComputeProfile before the
+    # legacy read-only return as well.  This keeps migration diagnostics useful
+    # without granting v1 any eligibility authority.
     if expected_profile is not None:
+        pid = receipt_doc.get("compute_profile_id")
         if pid != expected_profile.profile_id:
             raise ComputeProfileQualificationError(
                 f"Receipt compute profile ID mismatch: receipt has {pid!r}, expected {expected_profile.profile_id!r}"
             )
         exp_digest = getattr(expected_profile, "digest", "")
-        rcpt_prof_digest = receipt_doc.get("compute_profile_digest", "").replace("sha256:", "")
-        exp_prof_digest = exp_digest.replace("sha256:", "")
+        rcpt_prof_digest = str(receipt_doc.get("compute_profile_digest", "")).replace("sha256:", "")
+        exp_prof_digest = str(exp_digest).replace("sha256:", "")
         if rcpt_prof_digest != exp_prof_digest:
             raise ComputeProfileQualificationError(
                 f"Receipt compute profile digest mismatch: receipt has {rcpt_prof_digest!r}, expected {exp_prof_digest!r}"
             )
-        if routes != getattr(expected_profile, "routes", {}):
+        if receipt_doc.get("routes") != getattr(expected_profile, "routes", {}):
             raise ComputeProfileQualificationError(
-                f"Receipt routes {routes} do not match expected profile routes {getattr(expected_profile, 'routes', {})}"
+                f"Receipt routes {receipt_doc.get('routes')} do not match expected profile routes {getattr(expected_profile, 'routes', {})}"
             )
+
+    # v1 remains readable for migration and incident review, but is never an
+    # eligibility attestation.  Do this before any policy/evidence resolution
+    # so a legacy receipt cannot gain authority from a newly supplied trust
+    # store or SiteProfile registry.
+    if not is_v2:
+        legacy_errors = [
+            "LEGACY_NOT_ELIGIBLE: compute-profile qualification receipt v1 is read-only; "
+            "materialize and sign a v2 receipt before qualification"
+        ]
+        legacy_evidence = receipt_doc.get("cloud_recycling_evidence") or {}
+        return ComputeProfileQualificationVerdict(
+            passed=False,
+            compute_profile_id=str(receipt_doc.get("compute_profile_id") or ""),
+            routes_valid=False,
+            cpu_site_qualified=False,
+            gpu_site_qualified=False,
+            cloud_recycling_passed=False,
+            active_instances_count=int(legacy_evidence.get("active_instances_count") or 0),
+            orphan_instances_count=int(legacy_evidence.get("orphan_instances_count") or 0),
+            errors=legacy_errors,
+            status="LEGACY_NOT_ELIGIBLE",
+        )
+
+    errors: list[str] = []
+    pid = receipt_doc["compute_profile_id"]
+    routes = receipt_doc["routes"]
+    site_receipts = receipt_doc.get("site_receipts", {})
+
+    # A formal Layer-2 receipt cannot discover trust anchors from repository
+    # defaults, examples, or the receipt itself.  Keep these checks explicit
+    # even when later verification would fail for another reason, so callers
+    # receive a stable reason rather than an accidental default-store result.
+    if trust_store is None:
+        errors.append(
+            "formal v2 ComputeProfile qualification requires an explicit trust_store"
+        )
+    if trusted_site_profiles is None:
+        errors.append(
+            "formal v2 ComputeProfile qualification requires an explicit trusted SiteProfile registry"
+        )
 
     routes_valid = "cpu" in routes and "gpu" in routes
     if not routes_valid:
@@ -1080,51 +1378,41 @@ def verify_and_derive_qualification(
             recycling_passed = False
             errors.append(f"Zero-Orphan Gate failed: error querying live cloud instances: {exc}")
 
-    # Ed25519 signature verification if present
-    if "signature" in receipt_doc:
-        sig_ok = verify_receipt_signature(
+    # Layer-2 v2 signature verification is mandatory and must resolve an
+    # independently configured compute-profile key with the dedicated purpose.
+    # Never let verify_receipt_signature load its legacy default store here.
+    if trust_store is None:
+        sig_res = SignatureVerificationResult(
+            valid=False,
+            status="TRUST_STORE_REQUIRED",
+            error="no explicit trust store was supplied",
+            key_id=COMPUTE_PROFILE_SIGNING_KEY_ID,
+        )
+    else:
+        sig_res = verify_receipt_signature_detailed(
             receipt_doc,
+            expected_key_id=COMPUTE_PROFILE_SIGNING_KEY_ID,
+            expected_purpose=COMPUTE_PROFILE_SIGNING_PURPOSE,
             trust_store=trust_store,
         )
-        if not sig_ok:
-            recycling_passed = False
-            errors.append("ComputeProfile receipt signature verification failed")
+    if not sig_res.valid:
+        recycling_passed = False
+        errors.append(
+            "ComputeProfile v2 receipt signature verification failed: "
+            f"{sig_res.status} ({sig_res.error})"
+        )
 
-    # Evidence root containment check
-    ev_root_str = receipt_doc.get("evidence_root")
-    if ev_root_str:
-        ev_root = Path(ev_root_str)
-        for ef in receipt_doc.get("evidence_files", []):
-            try:
-                check_evidence_containment(ev_root, ef)
-            except ValueError as exc:
-                recycling_passed = False
-                errors.append(f"Evidence file containment error: {exc}")
-
-    # Audit log verification if present at compute profile level
-    audit_log_str = receipt_doc.get("audit_log")
-    if audit_log_str:
-        try:
-            if ev_root_str:
-                audit_p = check_evidence_containment(Path(ev_root_str), audit_log_str)
-            else:
-                audit_p = Path(audit_log_str)
-            if not audit_p.is_file():
-                recycling_passed = False
-                errors.append(f"Audit log file not found: {audit_p}")
-            else:
-                from dftworld_bench.hpc.audit import GatewayAudit
-                audit = GatewayAudit(audit_p)
-                broken = audit.verify()
-                if broken:
-                    recycling_passed = False
-                    errors.append(f"GatewayAudit hash chain broken at {broken}")
-        except ValueError as exc:
-            recycling_passed = False
-            errors.append(f"Audit log containment error: {exc}")
-        except Exception as exc:
-            recycling_passed = False
-            errors.append(f"Audit log verification error: {exc}")
+    # Every v2 evidence record is a materialized, structured binding.  This
+    # single verifier covers path containment, symlink/type checks, byte hash,
+    # exact size, audit chain and audit_tail_digest.
+    _evidence_root, evidence_errors, _audit_path = _verify_materialized_evidence_files(
+        receipt_doc,
+        receipt_dir=receipt_dir,
+        fallback_root=site_receipts_dir,
+    )
+    if evidence_errors:
+        recycling_passed = False
+        errors.extend(evidence_errors)
 
     overall_pass = (
         routes_valid
@@ -1144,7 +1432,120 @@ def verify_and_derive_qualification(
         active_instances_count=active_count,
         orphan_instances_count=orphan_count,
         errors=errors,
+        status="PASS" if overall_pass else "INVALID",
     )
+
+
+def sign_compute_profile_receipt(
+    doc: dict[str, Any],
+    private_key_hex: str,
+    *,
+    key_id: str = COMPUTE_PROFILE_SIGNING_KEY_ID,
+) -> dict[str, Any]:
+    """Sign a Layer-2 receipt with the dedicated compute-profile purpose."""
+    if not private_key_hex:
+        raise ComputeProfileQualificationError(
+            "v2 ComputeProfile receipts require a private signing key"
+        )
+    if key_id != COMPUTE_PROFILE_SIGNING_KEY_ID:
+        raise ComputeProfileQualificationError(
+            "v2 ComputeProfile receipts require the dedicated compute-profile signing key"
+        )
+    return sign_receipt(
+        doc,
+        private_key_hex,
+        key_id=key_id,
+        purpose=COMPUTE_PROFILE_SIGNING_PURPOSE,
+    )
+
+
+def build_compute_profile_qualification_receipt_v2(
+    *,
+    compute_profile_id: str,
+    compute_profile_digest: str,
+    routes: dict[str, str],
+    site_receipts: dict[str, str],
+    cloud_recycling_evidence: dict[str, Any],
+    evidence_root: str,
+    evidence_files: list[Mapping[str, Any]],
+    audit_log: str,
+    audit_tail_digest: str,
+    private_key_hex: str,
+    key_id: str = COMPUTE_PROFILE_SIGNING_KEY_ID,
+) -> dict[str, Any]:
+    """Build a formal v2 ComputeProfile receipt.
+
+    The formal builder has no optional evidence/signature arguments.  It
+    accepts only structured evidence records because a string path without a
+    measured digest and size is not an auditable attestation.
+    """
+    if not evidence_root or not audit_log or not audit_tail_digest:
+        raise ComputeProfileQualificationError(
+            "v2 receipt requires evidence_root, audit_log, and audit_tail_digest"
+        )
+    if not evidence_files:
+        raise ComputeProfileQualificationError(
+            "v2 receipt requires non-empty structured evidence_files"
+        )
+    if not private_key_hex:
+        raise ComputeProfileQualificationError(
+            "v2 receipt requires private_key_hex for its mandatory signature"
+        )
+    records = [dict(record) for record in evidence_files]
+    for index, record in enumerate(records):
+        required = {"path", "sha256", "size", "role"}
+        missing = sorted(required - set(record))
+        if missing:
+            raise ComputeProfileQualificationError(
+                f"evidence_files[{index}] missing required fields: {missing}"
+            )
+        if set(record) != required:
+            extra = sorted(set(record) - required)
+            raise ComputeProfileQualificationError(
+                f"evidence_files[{index}] has unsupported fields: {extra}"
+            )
+        if not isinstance(record["path"], str) or not record["path"]:
+            raise ComputeProfileQualificationError(
+                f"evidence_files[{index}].path must be non-empty"
+            )
+        if not isinstance(record["size"], int) or isinstance(record["size"], bool) or record["size"] < 0:
+            raise ComputeProfileQualificationError(
+                f"evidence_files[{index}].size must be a non-negative integer"
+            )
+        if not isinstance(record["role"], str) or not record["role"]:
+            raise ComputeProfileQualificationError(
+                f"evidence_files[{index}].role must be non-empty"
+            )
+        if not isinstance(record["sha256"], str) or not SHA256_PATTERN.match(record["sha256"]):
+            raise ComputeProfileQualificationError(
+                f"evidence_files[{index}].sha256 must be a sha256 digest"
+            )
+
+    doc: dict[str, Any] = {
+        "kind": COMPUTE_PROFILE_V2_KIND,
+        "schema_id": COMPUTE_PROFILE_V2_SCHEMA_ID,
+        "compute_profile_id": compute_profile_id,
+        "compute_profile_digest": compute_profile_digest,
+        "routes": dict(routes),
+        "site_receipts": dict(site_receipts),
+        "cloud_recycling_evidence": dict(cloud_recycling_evidence),
+        "evidence_root": evidence_root,
+        "evidence_files": records,
+        "audit_log": audit_log,
+        "audit_tail_digest": audit_tail_digest,
+    }
+    doc["digest"] = compute_receipt_digest(doc)
+    doc["signature"] = sign_compute_profile_receipt(
+        doc, private_key_hex, key_id=key_id
+    )
+    try:
+        schema = json.loads(_SCHEMA_V2_PATH.read_text(encoding="utf-8"))
+        jsonschema.validate(instance=doc, schema=schema)
+    except jsonschema.ValidationError as exc:
+        raise ComputeProfileQualificationError(
+            f"built v2 receipt failed schema validation: {exc.message}"
+        ) from exc
+    return doc
 
 
 def build_compute_profile_qualification_receipt(
@@ -1155,11 +1556,58 @@ def build_compute_profile_qualification_receipt(
     site_receipts: dict[str, str],
     cloud_recycling_evidence: dict[str, Any],
     evidence_root: str | None = None,
-    evidence_files: list[str] | None = None,
+    evidence_files: list[Any] | None = None,
     audit_log: str | None = None,
+    audit_tail_digest: str | None = None,
     private_key_hex: str | None = None,
+    key_id: str = COMPUTE_PROFILE_SIGNING_KEY_ID,
 ) -> dict[str, Any]:
-    """Helper to construct a fully sealed qualification receipt with computed digest and optional signature."""
+    """Compatibility façade for receipt construction.
+
+    Supplying the complete evidence/signature set dispatches to the strict v2
+    builder.  The argument-minimal form is retained solely to let migration
+    tooling write/read v1 material; such output is always rejected as
+    ``LEGACY_NOT_ELIGIBLE`` by :func:`verify_and_derive_qualification`.
+    New callers should use :func:`build_compute_profile_qualification_receipt_v2`
+    so missing formal arguments fail immediately.
+    """
+    formal_values = (evidence_root, evidence_files, audit_log, audit_tail_digest, private_key_hex)
+    if all(value is not None for value in formal_values):
+        return build_compute_profile_qualification_receipt_v2(
+            compute_profile_id=compute_profile_id,
+            compute_profile_digest=compute_profile_digest,
+            routes=routes,
+            site_receipts=site_receipts,
+            cloud_recycling_evidence=cloud_recycling_evidence,
+            evidence_root=str(evidence_root),
+            evidence_files=list(evidence_files or []),
+            audit_log=str(audit_log),
+            audit_tail_digest=str(audit_tail_digest),
+            private_key_hex=str(private_key_hex),
+            key_id=key_id,
+        )
+    # Partial structured-v2 arguments are almost certainly a caller mistake.
+    # Preserve only the historical v1 signing shape and string-list migration
+    # shape; neither can be used for a PASS verdict.
+    if any(value is not None for value in formal_values) and not (
+        (
+            evidence_files is None
+            and evidence_root is None
+            and audit_log is None
+            and audit_tail_digest is None
+            and private_key_hex is not None
+        )
+        or (
+            evidence_files is not None
+            and all(isinstance(item, str) for item in evidence_files)
+            and audit_tail_digest is None
+        )
+    ):
+        raise ComputeProfileQualificationError(
+            "formal v2 receipt arguments are all required: evidence_root, "
+            "evidence_files, audit_log, audit_tail_digest, private_key_hex"
+        )
+
     doc: dict[str, Any] = {
         "kind": "hpc-compute-profile-qualification/v1",
         "schema_id": "https://mlip-bench.example/schemas/compute-profile-qualification-receipt.schema.json",
@@ -1177,10 +1625,8 @@ def build_compute_profile_qualification_receipt(
         doc["audit_log"] = audit_log
 
     doc["digest"] = compute_receipt_digest(doc)
-
     if private_key_hex is not None:
-        doc["signature"] = sign_receipt(doc, private_key_hex)
-
+        doc["signature"] = sign_receipt(doc, private_key_hex, key_id="compshare-site-v1")
     return doc
 
 

@@ -24,6 +24,7 @@ from dftworld_bench.hpc.drivers.compshare import (
     CompShareOrphanError,
     FakeCompShareCliRunner,
     RunScopedInstanceManager,
+    make_ownership_marker,
 )
 
 
@@ -524,8 +525,9 @@ def test_instance_manager_injects_mlffbench_ownership_marker(tmp_path: Path):
     )
     inst_id = mgr.get_or_create_instance("run-marker-1", "img-1", operation_id="op-1")
     rec = runner.instances[inst_id]
-    assert rec["name"] == "mlffbench-run-marker-1-worker"
-    assert rec["remark"] == "mlffbench:run-marker-1:worker"
+    expected_name, expected_remark = make_ownership_marker("run-marker-1")
+    assert rec["name"] == expected_name
+    assert rec["remark"] == expected_remark
 
 
 def test_instance_manager_durable_teardown_recovery(tmp_path: Path):
@@ -593,7 +595,7 @@ def test_instance_manager_reconcile_and_recover_full(tmp_path: Path):
 
     report = mgr.reconcile_and_recover()
     assert report.clean is True
-    assert dangling_id in report.active_instances
+    assert report.still_active == []
     assert dangling_id in report.recovered_instances
     assert len(report.failed_instances) == 0
     assert dangling_id not in runner.instances

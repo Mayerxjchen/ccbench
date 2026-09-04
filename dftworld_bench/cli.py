@@ -20,6 +20,7 @@ import argparse
 import json
 import shutil
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -173,12 +174,16 @@ def _compute_qualify(
     profile_path: Path,
     receipt_path: Path | None = None,
     site_receipts_dir: Path | None = None,
+    trust_store_path: Path | None = None,
+    site_profile_registry_path: Path | None = None,
 ) -> int:
     import json
     from dftworld_bench.experiments.compute_profile_qualification import (
         verify_and_derive_qualification,
     )
     from dftworld_bench.hpc.compute_profile import ComputeProfile
+    from dftworld_bench.hpc.site_profile import HpcSiteProfile
+    from dftworld_bench.hpc.trust_store import QualificationTrustStore
 
     profile_path = profile_path.expanduser().resolve()
     if not profile_path.is_file():
@@ -203,6 +208,68 @@ def _compute_qualify(
         raise CliError(
             "hybrid compute profile qualification requires --site-receipts-dir pointing to verified site receipts"
         )
+
+    if trust_store_path is None:
+        raise CliError(
+            "formal compute qualification requires --trust-store pointing to "
+            "an operator-configured qualification trust store"
+        )
+    trust_store_path = trust_store_path.expanduser().resolve()
+    try:
+        trust_store = QualificationTrustStore.from_file(trust_store_path)
+    except Exception as exc:
+        raise CliError(f"failed to load qualification trust store: {exc}") from exc
+
+    if site_profile_registry_path is None:
+        raise CliError(
+            "formal compute qualification requires --site-profile-registry "
+            "with trusted SiteProfile policy documents"
+        )
+
+    def _profile_documents(path: Path) -> list[dict[str, Any]]:
+        """Load only operator-supplied registry documents; never examples."""
+        candidates = sorted(path.glob("*.json")) + sorted(path.glob("*.toml")) if path.is_dir() else [path]
+        documents: list[dict[str, Any]] = []
+        for candidate in candidates:
+            if not candidate.is_file():
+                continue
+            try:
+                raw = (
+                    tomllib.loads(candidate.read_text(encoding="utf-8"))
+                    if candidate.suffix.lower() == ".toml"
+                    else json.loads(candidate.read_text(encoding="utf-8"))
+                )
+            except Exception as exc:
+                raise CliError(f"failed to parse SiteProfile registry {candidate}: {exc}") from exc
+            if not isinstance(raw, dict):
+                raise CliError(f"SiteProfile registry {candidate} must contain an object")
+            sites = raw.get("sites")
+            if isinstance(sites, dict):
+                for site_id, value in sites.items():
+                    if isinstance(value, dict):
+                        documents.append({"site_id": site_id, **value})
+            elif isinstance(raw.get("site_id"), str):
+                documents.append(raw)
+            else:
+                raise CliError(
+                    f"SiteProfile registry {candidate} must be a SiteProfile or [sites.*] mapping"
+                )
+        return documents
+
+    registry_path = site_profile_registry_path.expanduser().resolve()
+    if not registry_path.exists():
+        raise CliError(f"trusted SiteProfile registry not found: {registry_path}")
+    trusted_site_profiles: dict[str, HpcSiteProfile] = {}
+    for raw_profile in _profile_documents(registry_path):
+        try:
+            profile = HpcSiteProfile.from_dict(raw_profile)
+        except Exception as exc:
+            raise CliError(f"invalid trusted SiteProfile in {registry_path}: {exc}") from exc
+        if profile.site_id in trusted_site_profiles:
+            raise CliError(f"duplicate trusted SiteProfile id: {profile.site_id}")
+        trusted_site_profiles[profile.site_id] = profile
+    if not trusted_site_profiles:
+        raise CliError(f"trusted SiteProfile registry is empty: {registry_path}")
 
     # Zero-orphan live verification query helper via official account instances list
     def live_cloud_instances_checker() -> list[str]:
@@ -231,6 +298,9 @@ def _compute_qualify(
         site_receipts_dir=site_receipts_dir,
         active_instances_checker=live_cloud_instances_checker if prof.routes.get("gpu") else None,
         require_live_check=bool(prof.routes.get("gpu")),
+        trust_store=trust_store,
+        trusted_site_profiles=trusted_site_profiles,
+        receipt_dir=receipt_path.parent,
     )
     if verdict.passed:
         print(
@@ -323,6 +393,20 @@ def build_parser() -> argparse.ArgumentParser:
     comp_qual.add_argument("--profile", type=Path, required=True)
     comp_qual.add_argument("--receipt", type=Path, default=None)
     comp_qual.add_argument("--site-receipts-dir", type=Path, default=None)
+    comp_qual.add_argument(
+        "--trust-store",
+        type=Path,
+        default=None,
+        help="explicit operator-configured qualification trust store (required)",
+    )
+    comp_qual.add_argument(
+        "--site-profile-registry",
+        "--trusted-site-profile-registry",
+        dest="site_profile_registry",
+        type=Path,
+        default=None,
+        help="explicit trusted SiteProfile JSON/TOML file or directory (required)",
+    )
 
     return parser
 
@@ -353,7 +437,13 @@ def main(argv: list[str] | None = None) -> int:
                 return _compute_validate(args.profile)
             if comp_command == "qualify":
                 args = build_parser().parse_args(argv)
-                return _compute_qualify(args.profile, args.receipt, args.site_receipts_dir)
+                return _compute_qualify(
+                    args.profile,
+                    args.receipt,
+                    args.site_receipts_dir,
+                    args.trust_store,
+                    args.site_profile_registry,
+                )
             build_parser().error("compute needs a subcommand: configure | validate | qualify")
         if command == "run":
             return _run(argv[1:])

@@ -12,3 +12,13 @@ algorithm = "ed25519"
 public_key_hex = ""
 status = "UNCONFIGURED"
 purpose = "compshare-site-qualification"
+
+# Independent Layer-2 ComputeProfile signing anchor.  Deliberately
+# UNCONFIGURED in the repository: an operator must inject the maintainer's
+# public key through trusted deployment configuration before v2 qualification
+# can pass.
+[keys.compute-profile-v2]
+algorithm = "ed25519"
+public_key_hex = ""
+status = "UNCONFIGURED"
+purpose = "compute-profile-qualification"

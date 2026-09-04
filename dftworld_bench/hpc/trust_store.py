@@ -76,7 +76,9 @@ class QualificationTrustStore:
     def get_key(self, key_id: str) -> TrustKey | None:
         return self._keys.get(key_id)
 
-    def resolve_public_key_hex(self, key_id: str) -> str:
+    def resolve_public_key_hex(
+        self, key_id: str, *, expected_purpose: str | None = None
+    ) -> str:
         """Resolve an active Ed25519 public key hex or raise TrustStoreError.
 
         Returns:
@@ -99,6 +101,11 @@ class QualificationTrustStore:
         if key.algorithm != "ed25519":
             raise TrustStoreError(
                 f"Unsupported signing algorithm for key {key_id!r}: {key.algorithm!r}"
+            )
+        if expected_purpose is not None and key.purpose != expected_purpose:
+            raise TrustStoreError(
+                f"Signing key {key_id!r} has purpose {key.purpose!r}; "
+                f"expected {expected_purpose!r}"
             )
         return key.public_key_hex
 

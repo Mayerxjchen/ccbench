@@ -141,7 +141,9 @@ def test_compute_qualify_cli(tmp_path, capsys, monkeypatch):
     assert code_no_dir == 2
     assert "requires --site-receipts-dir" in capsys.readouterr().err
 
-    # 3. Provide receipt and valid on-disk site receipts
+    # 3. Even with materialized site receipts, formal qualification requires
+    # explicit operator trust anchors; the CLI must not fall back to examples
+    # or the repository trust store.
     import hashlib
     site_dir = tmp_path / "site_receipts"
     site_dir.mkdir(parents=True, exist_ok=True)
@@ -203,8 +205,8 @@ def test_compute_qualify_cli(tmp_path, capsys, monkeypatch):
         "--receipt", str(rcpt_file),
         "--site-receipts-dir", str(site_dir),
     ])
-    assert code == 0
-    assert "QUALIFIED" in capsys.readouterr().err
+    assert code == 2
+    assert "--trust-store" in capsys.readouterr().err
 
 
 def test_run_translates_compute_flag(monkeypatch):

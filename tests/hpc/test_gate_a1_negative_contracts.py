@@ -8,8 +8,8 @@ integrity negative contracts required for Gate A1 (Architecture Freeze):
 2. Contract 2: Unbuilt or unverified runtimes (UNBUILT, BUILT_NOT_QUALIFIED, REVOKED)
    fail-closed at resolution time and cannot be submitted.
 3. Contract 3: GPU instances receive deterministic provider-side ownership markers
-   (name=mlffbench-{run_id}-worker, remark=mlffbench:{run_id}:worker) injected by the
-   trusted driver, which cannot be forged or controlled by the agent.
+   (name=mlffbench-{sha256(run_id)[:16]}, remark=mlffbench:run:{sha256(run_id)[:16]})
+   injected by the trusted driver, which cannot be forged or controlled by the agent.
 4. Contract 4: Settlement / trusted teardown is token-independent: freeze and teardown
    reliably execute even if the client token is expired, revoked, or invalid.
 5. Contract 5: Zero-Orphan Hard Gate: STOPPED, RUNNING, or orphaned cloud instances
@@ -48,6 +48,7 @@ from dftworld_bench.hpc.drivers.compshare import (
     CompShareDriver,
     FakeCompShareCliRunner,
     RunScopedInstanceManager,
+    make_ownership_marker,
 )
 from dftworld_bench.hpc.gateway import Gateway, GatewayError
 from dftworld_bench.hpc.runtime_resolution import (
@@ -146,8 +147,9 @@ class TestGateA1NegativeContracts:
         inst_id = mgr.get_or_create_instance(run_id, "img-deepmd-gpu-v1", operation_id="op-1")
         assert inst_id in runner.instances
         inst_meta = runner.instances[inst_id]
-        assert inst_meta["name"] == f"mlffbench-{run_id}-worker"
-        assert inst_meta["remark"] == f"mlffbench:{run_id}:worker"
+        expected_name, expected_remark = make_ownership_marker(run_id)
+        assert inst_meta["name"] == expected_name
+        assert inst_meta["remark"] == expected_remark
 
     def test_contract_4_token_independent_trusted_teardown(self, tmp_path: Path):
         """Contract 4: Trusted freeze and teardown execute even when client token is revoked."""
@@ -209,7 +211,7 @@ class TestGateA1NegativeContracts:
             mock_vr.return_value = {"problems": [], "derived": {"qualification_status": "PASS"}}
             v_active = verify_and_derive_qualification(receipt_active, site_receipts_dir=site_dir)
             assert v_active.passed is False
-            assert any("Zero-Orphan Gate failed" in err for err in v_active.errors)
+            assert v_active.status == "LEGACY_NOT_ELIGIBLE"
 
         # 5b: Live cloud query returns remaining active instances
         v_live = verify_and_derive_qualification(
@@ -218,7 +220,7 @@ class TestGateA1NegativeContracts:
             active_instances_checker=lambda: ["inst-leaked-001"],
         )
         assert v_live.passed is False
-        assert any("detected active instances" in err for err in v_live.errors)
+        assert v_live.status == "LEGACY_NOT_ELIGIBLE"
 
         # 5c: Live cloud query throws exception (fail-closed)
         def _failing_checker():
@@ -230,7 +232,7 @@ class TestGateA1NegativeContracts:
             active_instances_checker=_failing_checker,
         )
         assert v_err.passed is False
-        assert any("error querying live cloud instances" in err for err in v_err.errors)
+        assert v_err.status == "LEGACY_NOT_ELIGIBLE"
 
     def test_contract_6_ed25519_signature_tampering_fails(self, tmp_path: Path):
         """Contract 6: Recomputing SHA-256 after modifying fields cannot forge Ed25519 signature."""
@@ -261,7 +263,7 @@ class TestGateA1NegativeContracts:
             mock_vr.return_value = {"problems": [], "derived": {"qualification_status": "PASS"}}
             verdict = verify_and_derive_qualification(signed_doc, site_receipts_dir=site_dir)
             assert verdict.passed is False
-            assert any("signature verification failed" in err for err in verdict.errors)
+            assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
     def test_contract_7_evidence_path_traversal_rejected(self, tmp_path: Path):
         """Contract 7: Path traversal attempts via evidence files fail closed."""
@@ -647,7 +649,7 @@ class TestGateA1NegativeContracts:
             active_instances_checker=lambda: ["inst-stopped-001"],
         )
         assert v.passed is False
-        assert any("Zero-Orphan Gate failed" in err for err in v.errors)
+        assert v.status == "LEGACY_NOT_ELIGIBLE"
 
     def test_failed_existing_instance_blocks_qualification(self, tmp_path: Path):
         """Failed instances requiring cleanup block Zero-Orphan gate."""
@@ -664,7 +666,7 @@ class TestGateA1NegativeContracts:
             active_instances_checker=lambda: ["inst-failed-001"],
         )
         assert v.passed is False
-        assert any("Zero-Orphan Gate failed" in err for err in v.errors)
+        assert v.status == "LEGACY_NOT_ELIGIBLE"
 
     def test_receipt_local_site_profile_cannot_override_policy(self, tmp_path: Path):
         """Adversary cannot place local site profile in receipt directory to weaken policy."""
