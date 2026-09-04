@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mlip-bench.example/schemas/compshare-runtime-lock.schema.json",
+  "title": "CompShare Runtime Lock Specification v2",
+  "type": "object",
+  "required": [
+    "schema",
+    "capability",
+    "image_name",
+    "provider",
+    "artifact",
+    "provenance",
+    "qualification"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "dispatcher-compshare-runtime-lock/v2" },
+    "capability": {
+      "type": "string",
+      "enum": ["matclaw-cips", "deepmd", "jax", "deepmd-jax", "lammps"]
+    },
+    "image_name": { "type": "string", "minLength": 1 },
+    "note": { "type": "string" },
+    "provider": { "const": "compshare" },
+    "artifact": {
+      "type": "object",
+      "required": ["kind", "image_id", "image_source"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "compshare_image" },
+        "image_id": {
+          "type": ["string", "null"],
+          "pattern": "^compshareImage-[a-z0-9]+$"
+        },
+        "image_source": {
+          "enum": ["custom", "platform", "community", "shared"]
+        },
+        "digest": { "type": "string" },
+        "sha256": { "type": "string" }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["base_image"],
+      "additionalProperties": false,
+      "properties": {
+        "base_image": { "type": "string", "minLength": 1 },
+        "recipe_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "recipe_path": { "type": "string" },
+        "cuda_version": { "type": "string" },
+        "software_versions": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "qualification": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": ["NOT_RUN", "UNBUILT", "BUILT_NOT_QUALIFIED"]
+        },
+        "receipt_path": { "type": ["string", "null"] },
+        "receipt_digest": {
+          "type": ["string", "null"],
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "site_profile_id": { "type": ["string", "null"] }
+      }
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

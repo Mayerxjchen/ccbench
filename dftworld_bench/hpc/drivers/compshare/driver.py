@@ -36,7 +36,7 @@ from dftworld_bench.hpc.runtime_resolution import is_placeholder_artifact, split
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_GPU_RUNTIMES = frozenset({"deepmd", "jax", "deepmd-jax", "lammps"})
+SUPPORTED_GPU_RUNTIMES = frozenset({"deepmd", "jax", "deepmd-jax", "lammps", "matclaw-cips"})
 
 
 class CompShareDriverError(HpcDriverError):
