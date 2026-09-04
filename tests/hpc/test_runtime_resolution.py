@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import dataclasses
 from pathlib import Path
 
 import pytest
@@ -68,6 +69,34 @@ def _resolver(tmp_path: Path) -> RuntimeResolver:
     return RuntimeResolver.from_lock_dir(_lock_dir(tmp_path))
 
 
+def _attested_resolver(tmp_path: Path) -> RuntimeResolver:
+    """Build an explicitly trusted test fixture from already-attested entries.
+
+    The production path uses TrustedRuntimeCatalog to perform this promotion.
+    Unit tests below that exercise only declaration mapping inject the result
+    of that boundary explicitly; no bare lock parser is allowed to promote an
+    entry by itself.
+    """
+    parsed = _resolver(tmp_path)
+    entries = []
+    seen_sources: set[str] = set()
+    for entry in parsed._by_name.values():
+        if entry.source in seen_sources:
+            continue
+        seen_sources.add(entry.source)
+        if entry.status == RuntimeStatus.UNBUILT:
+            continue
+        entries.append(
+            dataclasses.replace(
+                entry,
+                status=RuntimeStatus.QUALIFIED,
+                qualification_verified=True,
+                qualification_receipt_digest="sha256:" + "1" * 64,
+            )
+        )
+    return RuntimeResolver(entries, trusted=True)
+
+
 def _spec(runtime: str, key: str = "idem-1") -> dict:
     return {
         "schema_version": 1,
@@ -102,23 +131,18 @@ def test_split_runtime_rejects_malformed(decl):
 # ---------------------------------------------------------------------------
 
 def test_capability_resolves_to_locked_runtime(tmp_path):
-    resolver = _resolver(tmp_path)
+    resolver = _attested_resolver(tmp_path)
     resolved = resolver.resolve("cp2k")
     assert resolved.capability == "cp2k"
     assert resolved.sif_path == "/site/runtimes/cp2k-2025.2.sif"
     assert resolved.sif_sha256 == CP2K_SHA
     assert resolved.qualification == "runtime.cp2k"
     assert resolved.declaration == f"cp2k@sha256:{CP2K_SHA}"
-    canon = json.dumps(
-        {"capability": "cp2k", "image_name": "dftworld-cp2k",
-         "sif_path": "/site/runtimes/cp2k-2025.2.sif", "sif_sha256": CP2K_SHA},
-        sort_keys=True, separators=(",", ":"))
-    assert resolved.runtime_profile_digest == hashlib.sha256(
-        canon.encode("utf-8")).hexdigest()
+    assert resolved.runtime_profile_digest == resolver.get("cp2k").profile_digest()
 
 
 def test_image_name_alias_resolves_to_canonical_capability(tmp_path):
-    resolver = _resolver(tmp_path)
+    resolver = _attested_resolver(tmp_path)
     resolved = resolver.resolve("dftworld-cp2k")
     assert resolved.capability == "cp2k"  # evidence normalizes to the capability
 
@@ -136,7 +160,7 @@ def test_uncaptured_digest_fails_closed(tmp_path):
 
 
 def test_compat_digest_assertion_checked(tmp_path):
-    resolver = _resolver(tmp_path)
+    resolver = _attested_resolver(tmp_path)
     ok = resolver.resolve(f"cp2k@sha256:{CP2K_SHA}")
     assert ok.sif_sha256 == CP2K_SHA
     with pytest.raises(RuntimeResolutionError, match="does not match"):
@@ -151,16 +175,16 @@ def test_unknown_name_fails_closed_in_phase_10(tmp_path):
 
 
 def test_qualification_mapping_ai2kit(tmp_path):
-    assert _resolver(tmp_path).resolve("ai2kit").qualification == "runtime.ai2kit"
+    assert _attested_resolver(tmp_path).resolve("ai2kit").qualification == "runtime.ai2kit"
 
 
 def test_capabilities_listing(tmp_path):
-    assert _resolver(tmp_path).qualified_capabilities() == [
+    assert _attested_resolver(tmp_path).qualified_capabilities() == [
         "ai2kit", "cp2k"]
 
 
 def test_runtime_store_only_finalized(tmp_path):
-    store = _resolver(tmp_path).runtime_store()
+    store = _attested_resolver(tmp_path).runtime_store()
     assert store == {
         CP2K_SHA: "/site/runtimes/cp2k-2025.2.sif",
         AI2KIT_SHA: "/site/runtimes/ai2kit.sif",
@@ -201,7 +225,7 @@ def _gateway(adapter, resolver=None, audit=None):
 
 
 def test_gateway_resolves_capability_before_adapter(tmp_path):
-    resolver = _resolver(tmp_path)
+    resolver = _attested_resolver(tmp_path)
     adapter = ProcessTestAdapter(tmp_path / "jobs")
     seen: list[dict] = []
     real_submit = adapter.submit
@@ -226,7 +250,7 @@ def test_gateway_audit_records_resolution(tmp_path):
     from dftworld_bench.hpc.audit import GatewayAudit
 
     audit = GatewayAudit(tmp_path / "audit.jsonl")
-    gw = _gateway(ProcessTestAdapter(tmp_path / "jobs"), _resolver(tmp_path), audit)
+    gw = _gateway(ProcessTestAdapter(tmp_path / "jobs"), _attested_resolver(tmp_path), audit)
     token = gw.issue("run-1", ("submit",))
     gw.submit(token, "run-1", _spec("ai2kit"), operation_id="op-1")
     kinds = [e["event"]["kind"] for e in audit.entries()]
@@ -241,7 +265,7 @@ def test_gateway_v2_resolves_on_attempt_path(tmp_path):
     from dftworld_bench.hpc.audit import GatewayAudit
 
     audit = GatewayAudit(tmp_path / "audit.jsonl")
-    gw = _gateway(ProcessTestAdapter(tmp_path / "jobs"), _resolver(tmp_path), audit)
+    gw = _gateway(ProcessTestAdapter(tmp_path / "jobs"), _attested_resolver(tmp_path), audit)
     token = gw.issue("run-1", ("submit",))
     result = gw.submit(token, "run-1", _spec("cp2k"),
                        operation_id="op-1", attempt=1)
@@ -279,7 +303,7 @@ def test_compat_digest_unchanged_without_resolver(tmp_path):
 
 
 def test_capabilities_advertise_runtime_names(tmp_path):
-    gw = _gateway(ProcessTestAdapter(tmp_path / "jobs"), _resolver(tmp_path))
+    gw = _gateway(ProcessTestAdapter(tmp_path / "jobs"), _attested_resolver(tmp_path))
     token = gw.issue("run-1", ("capabilities",))
     out = gw.capabilities(token, "run-1")
     assert out["runtime_capabilities"] == ["ai2kit", "cp2k"]
@@ -412,15 +436,22 @@ def test_compshare_image_lock_resolution(tmp_path: Path):
         resolver.resolve("deepmd")
 
     # Once verified, it resolves properly
-    import dataclasses
-    entry = dataclasses.replace(entry, status=RuntimeStatus.QUALIFIED, qualification_verified=True)
-    resolver._by_name["deepmd"] = entry
-    resolved = resolver.resolve("deepmd")
+    entry = dataclasses.replace(
+        entry,
+        status=RuntimeStatus.QUALIFIED,
+        qualification_verified=True,
+        qualification_receipt_digest="sha256:" + "1" * 64,
+    )
+    trusted_resolver = RuntimeResolver([entry], trusted=True)
+    resolved = trusted_resolver.resolve("deepmd")
     assert resolved.capability == "deepmd"
     assert resolved.artifact_kind == "compshare_image"
     assert resolved.image_id == "img-deepmd-gpu-v1"
     assert resolved.artifact_path_or_id == "img-deepmd-gpu-v1"
-    assert resolved.digest == "sha256:" + img_sha
+    # CompShare ImageId is a provider identity, not a pseudo SHA digest.  A
+    # separate artifact digest may be bound by a formal lock, but it is not
+    # invented from the receipt digest when absent.
+    assert resolved.digest == ""
     assert resolved.sif_path == ""
     assert resolved.provider == "compshare"
     assert resolved.software_versions["deepmd"] == "2.2.11"
@@ -488,12 +519,12 @@ def test_from_site_profile_images():
 
     site = HpcSiteProfile.from_dict(site_dict)
     resolver = RuntimeResolver.from_site_profile(site)
-    assert "deepmd" in resolver.capabilities()
-    resolved = resolver.resolve("deepmd", site_profile=site)
-    assert resolved.artifact_kind == "compshare_image"
-    assert resolved.image_id == "img-deepmd-v1"
-    assert resolved.site_profile_id == "compshare-gpu-v1"
-    assert resolved.provider == "compshare"
+    # A SiteProfile's image mapping is policy/configuration, not a signed
+    # qualification receipt.  It remains readable but cannot advertise or
+    # resolve a runtime on its own.
+    assert resolver.capabilities() == []
+    with pytest.raises(RuntimeResolutionError, match="BUILT_NOT_QUALIFIED"):
+        resolver.resolve("deepmd", site_profile=site)
 
 
 def test_render_runtime_wrapper_with_resolved_runtime():

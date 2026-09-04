@@ -137,7 +137,9 @@ def test_transient_status_failure_surfaces_then_recovers(tmp_path):
     gateway, token = _slurm_gateway(tmp_path, transport)
     submitted = gateway.submit(token, "run-f", _spec("k1"), operation_id="op", attempt=1)
     transport._fail_next_status = True
-    with pytest.raises(ConnectionError, match="transient"):
+    # Gateway normalizes adapter/transport failures at the trust boundary;
+    # callers retry the operation after receiving a GatewayError.
+    with pytest.raises(GatewayError, match="transient"):
         gateway.status(token, "run-f", submitted["job_id"])
     assert gateway.status(token, "run-f", submitted["job_id"])["state"] in (
         "RUNNING", "CANCELLED",

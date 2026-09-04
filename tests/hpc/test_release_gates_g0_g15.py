@@ -210,7 +210,11 @@ def test_g10_two_layer_qualification(tmp_path: Path):
     }
     receipt["digest"] = compute_receipt_digest(receipt)
     verdict = verify_and_derive_qualification(receipt, site_receipts_dir=site_dir)
-    assert verdict.passed is True
+    # v1 remains readable for migration diagnostics, but C9 deliberately
+    # removed its eligibility authority.  A signed/materialized v2 receipt is
+    # required before either route can qualify.
+    assert verdict.passed is False
+    assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
 @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)

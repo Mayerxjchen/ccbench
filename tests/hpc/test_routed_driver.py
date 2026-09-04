@@ -112,15 +112,24 @@ def _make_routed_environment(tmp_path: Path):
     }
     (locks_dir / "deepmd-runtime.lock.json").write_text(json.dumps(deepmd_lock))
 
-    resolver = RuntimeResolver.from_lock_dir(locks_dir)
-    deepmd_ent = resolver._by_name.get("deepmd")
-    if deepmd_ent is not None:
-        import dataclasses
-        resolver._by_name["deepmd"] = dataclasses.replace(
-            deepmd_ent,
+    parsed_resolver = RuntimeResolver.from_lock_dir(locks_dir)
+    # This unit test isolates routing with the result of a trusted catalog
+    # promotion.  The bare lock parser above remains untrusted and is tested
+    # separately for fail-closed behavior.
+    entries = []
+    seen_sources: set[str] = set()
+    import dataclasses
+    for entry in parsed_resolver._by_name.values():
+        if entry.source in seen_sources:
+            continue
+        seen_sources.add(entry.source)
+        entries.append(dataclasses.replace(
+            entry,
             status=RuntimeStatus.QUALIFIED,
             qualification_verified=True,
-        )
+            qualification_receipt_digest="sha256:" + "1" * 64,
+        ))
+    resolver = RuntimeResolver(entries, trusted=True)
 
     # Both sites mapped in drivers by scheduler ("slurm" in site_profile maps to cpu_driver for test,
     # or we can register "slurm" -> cpu_driver, "compshare" -> gpu_driver)
