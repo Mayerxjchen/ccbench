@@ -1,7 +1,9 @@
 .venv
 .pagent/
 jobs/
+runs/
 .DS_Store
+.vscode/
 .env
 __pycache__/
 *.pyc
@@ -33,3 +35,6 @@ H2O-RESTART.wfn*
 # v1/v2/v3 trees are committed audit archives (tracking overrides these
 # patterns); the rules keep NEW untracked experiment debris out of status.
 /experiments/case-builder-luna-v*/
+# v3's frozen 908 confirmation tree + audit notes are committed evidence
+# (cherry-picked from the feature branch); negate the blanket rule for them.
+!/experiments/case-builder-luna-v3/

@@ -1,14 +1,15 @@
 {
   "benchmark_id": "034-ai2kit-water64-end-to-end-potential",
-  "benchmark_valid": true,
-  "status": "VALIDATED",
-  "state": "benchmark_valid",
+  "benchmark_valid": false,
+  "status": "NOT VALIDATED",
+  "state": "constructed",
   "updated": "2026-09-03",
   "routes": {
     "cpu": "cp2k",
     "gpu": "deepmd"
   },
-  "reasons": [],
-  "note": "Case 034 migrated to dual CPU/GPU route architecture (CP2K AIMD on CPU, DeePMD training on GPU) and validated under unified bench-hpc execution protocol.",
+  "reasons": [
+    "Pending real cluster qualification and end-to-end smoke verification"
+  ],
   "authoritative_source": "VALIDATION.json"
 }

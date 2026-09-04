@@ -84,3 +84,31 @@ To build and register a new version:
    compshare instance delete <instance_id> --force
    ```
 
+---
+
+## 4. Maintainer Credential & Profile Configuration
+
+CompShare CLI configuration is stored on the trusted host at `~/.config/compshare/config.json` (not in `~/.compshare/`).
+The official CLI configuration entry point is `compshare config`:
+
+```bash
+compshare config --name default
+```
+Run interactively to enter `PublicKey`, `PrivateKey`, and endpoint without exposing sensitive credentials in shell history or process tables.
+
+Alternatively, configure the maintainer environment using environment variables:
+```bash
+export COMPSHARE_PUBLIC_KEY="<YOUR_PUBLIC_KEY>"
+export COMPSHARE_PRIVATE_KEY="<YOUR_PRIVATE_KEY>"
+```
+
+Verification:
+```bash
+compshare --json doctor
+```
+
+Key security principles:
+- Official configuration is persistent in `~/.config/compshare/config.json`.
+- CompShare uses `PublicKey` and `PrivateKey` authentication (not a single `--api-key`). Never pass private keys via CLI flags (`--api-key` / `--private-key`) to prevent leakage into shell history and `/proc`.
+- Candidates and container sandboxes **never** receive access to `~/.config/compshare/config.json`, the `compshare` CLI, or any cloud keys.
+

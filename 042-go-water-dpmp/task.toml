@@ -21,7 +21,7 @@ contract_version = "hpc-execution/v1"
 required_capabilities = ["batch_jobs", "gpu", "artifact_fetch"]
 
 [hpc.qualification]
-requires = ["dispatcher.cpu", "dispatcher.gpu", "runtime.cp2k"]
+requires = ["dispatcher.cpu", "dispatcher.gpu", "runtime.cp2k", "runtime.jax"]
 
 [hpc.scientific_capabilities]
 required = ["cp2k", "deepmd-jax"]

@@ -78,10 +78,14 @@ Copy [`examples/hpc/generic-slurm-compute-profile.json`](file:///Users/xjchen/be
 }
 ```
 
-### Step 3: Run Site Qualification
+### Step 3: Run Qualification
 Before evaluating candidate agents, verify your Slurm site setup:
 ```bash
-python -m dftworld_bench.hpc.qualify --profile config/hpc-site-profile.json
+# Verify site configuration and cluster connectivity
+mlffbench site qualify --profile ~/cluster_profile.toml
+
+# Qualify the compute profile (Layer 2 verification)
+mlffbench compute qualify --profile ~/compute_profile.json
 ```
 When qualification passes, a signed qualification receipt is generated.
 

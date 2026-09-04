@@ -514,24 +514,35 @@ def docker_image_digest(image: str) -> str:
     return digest
 
 
-def _load_site_profile() -> "HpcSiteProfile | None":
-    """Load the private site profile from the canonical cluster config.
+def _load_site_profile(profile_path: Path | None = None) -> "HpcSiteProfile | None":
+    """Load the private site profile from the canonical cluster config or explicit path.
 
     Returns ``None`` when the config file does not exist (local/test
     environments).  The profile is loaded once per process and cached.
     """
+    import json
     import tomllib
 
     from dftworld_bench.hpc.site_profile import HpcSiteProfile
 
-    config_path = Path("scripts/hpc/cluster_profile.toml")
+    config_path = profile_path or Path("scripts/hpc/cluster_profile.toml")
     if not config_path.is_file():
         return None
-    config = tomllib.loads(config_path.read_text(encoding="utf-8"))
-    return HpcSiteProfile.from_cluster_config(config)
+    raw_text = config_path.read_text(encoding="utf-8")
+    if config_path.suffix == ".json":
+        return HpcSiteProfile.from_dict(json.loads(raw_text))
+    return HpcSiteProfile.from_cluster_config(tomllib.loads(raw_text))
 
 
-def _executor_deps(task, *, site_profile=None) -> dict:
+def _executor_deps(
+    task,
+    *,
+    site_profile=None,
+    site_profile_path: Path | None = None,
+    cluster_profile_path: Path | None = None,
+    gpu_site_profile_path: Path | None = None,
+    compute_profile_path: Path | None = None,
+) -> dict:
     """Composition-root dependencies (trusted eval only).
 
     The HPC runtime stack — GatewayRuntime, credentials, adapter instance —
@@ -539,27 +550,42 @@ def _executor_deps(task, *, site_profile=None) -> dict:
     coordinator receive an ``HpcDispatcher`` and never see the classes behind
     it.
 
-    For ``hpc_controller`` execution, a :class:`HpcSiteProfile` is
-    **mandatory** — an empty adapter config is a fail-closed error, not a
-    valid fallback.  Qualification, Formal and RunRecord all bind the same
-    profile digest.
+    When ``compute_profile_path`` is specified, builds a heterogeneous hybrid
+    stack routing CPU to Slurm and GPU to CompShare.
     """
     if task.execution_class != "hpc_controller":
         return {}
     from dftworld_bench.hpc.dispatcher import HpcDispatcher
     from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
+    from dftworld_bench.hpc.production import build_hybrid_stack, build_slurm_stack
 
-    if site_profile is None:
-        raise RuntimeError(
-            "hpc_controller requires a SiteProfile; "
-            "load one via _load_site_profile() and pass it to _executor_deps"
+    effective_cluster = cluster_profile_path or site_profile_path or Path("scripts/hpc/cluster_profile.toml")
+
+    if compute_profile_path is not None and Path(compute_profile_path).is_file():
+        stack = build_hybrid_stack(
+            compute_profile_path=Path(compute_profile_path),
+            cluster_profile_path=effective_cluster if effective_cluster.is_file() else None,
+            gpu_site_profile_path=gpu_site_profile_path,
+            case_id=f"eval-{task.name}",
+            audit_path=Path("jobs/hpc-audit.jsonl"),
         )
-    # Adapter instances are born in the trusted production composition point
-    # (dftworld_bench.hpc.production); eval only binds them into a dispatcher.
-    from dftworld_bench.hpc.production import build_slurm_stack
+        dispatcher = HpcDispatcher(
+            GatewayRuntime(audit=stack["audit"]),
+            stack["run_adapter_config"],
+        )
+        return {
+            "dispatcher": dispatcher,
+            "run_adapter_config": stack["run_adapter_config"],
+            "compute_profile": stack["compute_profile"],
+        }
 
+    if not effective_cluster.is_file():
+        raise RuntimeError(
+            "hpc_controller Slurm execution requires a private cluster TOML; "
+            "provide --cluster-profile <path.toml>"
+        )
     stack = build_slurm_stack(
-        cluster_profile_path=Path("scripts/hpc/cluster_profile.toml"),
+        cluster_profile_path=effective_cluster,
         case_id=f"eval-{task.name}",
         audit_path=Path("jobs/hpc-audit.jsonl"),
     )
@@ -895,6 +921,30 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--max-turns", type=int, default=None)
     parser.add_argument("--run-config", type=Path, default=DEFAULT_RUN_CONFIG)
+    parser.add_argument(
+        "--compute-profile",
+        type=Path,
+        default=None,
+        help="计算路由配置文件路径 (如 examples/hpc/maintainer-hybrid-v1.json)",
+    )
+    parser.add_argument(
+        "--cluster-profile",
+        type=Path,
+        default=None,
+        help="私有 Slurm 集群配置文件路径 (TOML, 包含 SSH 传输凭证)",
+    )
+    parser.add_argument(
+        "--gpu-site-profile",
+        type=Path,
+        default=None,
+        help="私有 CompShare GPU 站点配置文件路径 (JSON)",
+    )
+    parser.add_argument(
+        "--site-profile",
+        type=Path,
+        default=None,
+        help="私有集群/站点配置文件路径 (TOML 或 JSON，将自动映射至对应 route)",
+    )
     parser.add_argument("--uncounted-smoke", action="store_true")
     parser.add_argument("--jobs-dir", type=Path, default=DEFAULT_JOBS)
     parser.add_argument(
@@ -1081,8 +1131,21 @@ async def amain(argv: list[str] | None = None) -> int:
         # feeds the verifier/profile layer, but the container backend must not
         # pass ``--gpus device=0`` for controller cases (Apple M4 has no NVIDIA
         # runtime and would fail at start).
+        cluster_prof = args.cluster_profile
+        gpu_prof = args.gpu_site_profile
+        if args.site_profile:
+            if str(args.site_profile).endswith(".json"):
+                gpu_prof = gpu_prof or args.site_profile
+            else:
+                cluster_prof = cluster_prof or args.site_profile
+
         executor_deps = _executor_deps(
-            task, site_profile=_load_site_profile()
+            task,
+            site_profile=_load_site_profile(cluster_prof) if cluster_prof else _load_site_profile(),
+            site_profile_path=cluster_prof,
+            cluster_profile_path=cluster_prof,
+            gpu_site_profile_path=gpu_prof,
+            compute_profile_path=args.compute_profile,
         )
         run_adapter_config = executor_deps.pop("run_adapter_config", None)
         executor = resolve(task.execution_class, **executor_deps)

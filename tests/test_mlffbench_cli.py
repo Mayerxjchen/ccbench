@@ -116,3 +116,132 @@ def test_compute_configure_refuses_inside_repo(capsys):
     code = cli.main(["compute", "configure", "--out", str(inside)])
     assert code == 2
     assert "OUTSIDE the repository" in capsys.readouterr().err
+
+
+def test_compute_qualify_cli(tmp_path, capsys, monkeypatch):
+    import json
+    from dftworld_bench.experiments.compute_profile_qualification import (
+        build_compute_profile_qualification_receipt,
+    )
+    from dftworld_bench.hpc.compute_profile import ComputeProfile
+
+    out = tmp_path / "hybrid.json"
+    cli.main(["compute", "configure", "--template", "maintainer-hybrid", "--out", str(out)])
+    capsys.readouterr()
+
+    # 1. Fail closed if no receipt is provided
+    code_no_rcpt = cli.main(["compute", "qualify", "--profile", str(out)])
+    assert code_no_rcpt == 2
+    assert "requires an official receipt" in capsys.readouterr().err
+
+    # 2. Fail closed if --site-receipts-dir is missing for hybrid profile
+    rcpt_file = tmp_path / "receipt.json"
+    rcpt_file.write_text(json.dumps({"compute_profile_id": "mock"}))
+    code_no_dir = cli.main(["compute", "qualify", "--profile", str(out), "--receipt", str(rcpt_file)])
+    assert code_no_dir == 2
+    assert "requires --site-receipts-dir" in capsys.readouterr().err
+
+    # 3. Provide receipt and valid on-disk site receipts
+    import hashlib
+    site_dir = tmp_path / "site_receipts"
+    site_dir.mkdir(parents=True, exist_ok=True)
+    cpu_bytes = json.dumps({"site_id": "ikkem-cpu", "verdict": "PASS"}, sort_keys=True).encode("utf-8")
+    gpu_bytes = json.dumps({"site_id": "compshare-gpu", "verdict": "PASS"}, sort_keys=True).encode("utf-8")
+    (site_dir / "ikkem-cpu.receipt.json").write_bytes(cpu_bytes)
+    (site_dir / "compshare-gpu.receipt.json").write_bytes(gpu_bytes)
+    cpu_sha = f"sha256:{hashlib.sha256(cpu_bytes).hexdigest()}"
+    gpu_sha = f"sha256:{hashlib.sha256(gpu_bytes).hexdigest()}"
+
+    prof = ComputeProfile.from_file(out)
+    receipt_doc = build_compute_profile_qualification_receipt(
+        compute_profile_id=prof.profile_id,
+        compute_profile_digest=prof.digest,
+        routes=prof.routes,
+        site_receipts={
+            prof.routes.get("cpu", "cpu"): cpu_sha,
+            prof.routes.get("gpu", "gpu"): gpu_sha,
+        },
+        cloud_recycling_evidence={
+            "stock_checked": True,
+            "instance_id": "inst-qual-probe",
+            "image_id": "img-deepmd-gpu-v1",
+            "gpu_type": "rtx4090",
+            "gpu_vram_gb": 24,
+            "task_executed": True,
+            "fetch_verified": True,
+            "credentials_isolated": True,
+            "settlement_terminated": True,
+            "active_instances_count": 0,
+            "orphan_instances_count": 0,
+        },
+    )
+    rcpt_file.write_text(json.dumps(receipt_doc, indent=2))
+
+    # Mock live cloud instance_list to return 0 active instances
+    from dftworld_bench.hpc.drivers.compshare.cli import CompShareCli
+    monkeypatch.setattr(CompShareCli, "instance_list", lambda self, **kw: [])
+
+    # Mock verify_site_receipt to return successful derivation
+    def _mock_verify_site_receipt(receipt, *, scheduler=None, root, receipt_dir, **kwargs):
+        return {
+            "receipt_dir": str(receipt_dir),
+            "digest_ok": True,
+            "problems": {},
+            "derived": {
+                "qualification_status": "PASS",
+                "formal_qualified": True,
+                "capabilities": {"dispatcher.cpu": "PASS", "dispatcher.gpu": "PASS"},
+                "gates": {},
+            },
+        }
+    from dftworld_bench.experiments import compute_profile_qualification
+    monkeypatch.setattr(compute_profile_qualification, "verify_site_receipt", _mock_verify_site_receipt)
+
+    code = cli.main([
+        "compute", "qualify",
+        "--profile", str(out),
+        "--receipt", str(rcpt_file),
+        "--site-receipts-dir", str(site_dir),
+    ])
+    assert code == 0
+    assert "QUALIFIED" in capsys.readouterr().err
+
+
+def test_run_translates_compute_flag(monkeypatch):
+    import eval as eval_mod
+
+    seen: list[list[str]] = []
+
+    def fake_main():
+        import sys
+        seen.append(list(sys.argv))
+
+    monkeypatch.setattr(eval_mod, "main", fake_main)
+    code = cli.main(["run", "034-ai2kit-water64-end-to-end-potential", "--compute", "my-profile.json"])
+    assert code == 0
+    assert seen[0] == [
+        "mlffbench run",
+        "034-ai2kit-water64-end-to-end-potential",
+        "--compute-profile",
+        "my-profile.json",
+    ]
+
+
+def test_run_translates_site_flag(monkeypatch):
+    import eval as eval_mod
+
+    seen: list[list[str]] = []
+
+    def fake_main():
+        import sys
+        seen.append(list(sys.argv))
+
+    monkeypatch.setattr(eval_mod, "main", fake_main)
+    code = cli.main(["run", "034-ai2kit-water64-end-to-end-potential", "--site", "my-site.json"])
+    assert code == 0
+    assert seen[0] == [
+        "mlffbench run",
+        "034-ai2kit-water64-end-to-end-potential",
+        "--site-profile",
+        "my-site.json",
+    ]

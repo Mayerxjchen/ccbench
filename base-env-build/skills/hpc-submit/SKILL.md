@@ -33,9 +33,9 @@ Configuration comes from the environment (`BENCH_HPC_GATEWAY_URL`, `BENCH_HPC_RU
 
 1. **Read capabilities first.** Size resources within the advertised ceilings; asking beyond them is rejected at the gateway.
 2. **Run the engine's local scientific preflight** (structure gates, input sanity) before writing any job descriptor. Never submit from structure-generation code.
-3. **Write the job descriptor** (YAML): digest-pinned runtime image, pure argv command, typed resources, content-addressed inputs (each input lists its path, sha256, size), relative output globs. See `examples/execution-request.yaml`. Absolute paths, `..`, shell strings, and scheduler flags are rejected by construction.
+3. **Write the job descriptor** (YAML): declare `compute_class` (`cpu` or `gpu`) to route to the appropriate execution backend, name the approved runtime capability token (e.g. `cp2k`, `deepmd`, `jax`), provide a pure argv command, typed resources, content-addressed inputs (each input lists its path, sha256, size), and relative output paths. Concrete image digests and site names stay server-side. Absolute paths, `..`, shell strings, and scheduler flags are rejected by construction.
 4. **Submit with a stable identity.** `OPERATION_ID` names the logical step (e.g. `scf-round-01`); `ATTEMPT` starts at 1.
-5. **Monitor with status/logs**, not assumptions. Queue wait is external — polling does not consume anything of yours.
+5. **Monitor with status/logs**, not assumptions. Active execution walltime and GPU seconds count against your run budget. Check `bench-hpc usage` periodically to monitor consumption.
 6. **Diagnose before retrying.** A terminal scheduler state is not a verdict: run the engine parser on fetched outputs to decide success.
 7. **New attempts are explicit increments.** After a genuinely diagnosed failure (OOM, timeout, convergence), resubmit the same `OPERATION_ID` with `ATTEMPT+1` and change exactly one thing. Attempts never skip numbers, never run concurrently, and never repeat — the gateway enforces this.
 8. **Fetch explicitly, then parse.** Only fetched files enter the submission. `fetch` refuses undeclared paths and never follows suspicious links.

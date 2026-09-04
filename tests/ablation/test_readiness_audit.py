@@ -102,7 +102,10 @@ def test_033_readiness_audit_derives_valid_structure() -> None:
     assert isinstance(r["pilot_eligible"], bool)
 
 
-def test_034_is_benchmark_valid() -> None:
-    """034 reached benchmark_valid under unified bench-hpc dual route architecture."""
+def test_034_is_not_yet_benchmark_valid() -> None:
+    """034 is still in construction; fail-closed derive refuses it.  When it
+    reaches benchmark_valid, this assertion moves to the report, not the test
+    invariant."""
     reports = _audit_all()
-    assert reports["034"]["benchmark_valid"] is True
+    assert reports["034"]["benchmark_valid"] is False
+    assert reports["034"]["pilot_eligible"] is False

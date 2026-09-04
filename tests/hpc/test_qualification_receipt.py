@@ -1878,7 +1878,7 @@ class TestTamperedReceiptsFailClosed:
         result = _verify(golden_root, _reseal(receipt))
         assert result["consistent"] is False
         joined = " | ".join(_problems(result))
-        assert "must include both probe classes" in joined
+        assert "must include probe classes" in joined
         assert result["derived"]["qualification_status"] == "INVALID"
 
     def test_cpu_job_claiming_gpu_probe_fields_rejected(
