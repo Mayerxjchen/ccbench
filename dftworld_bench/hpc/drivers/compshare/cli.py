@@ -11,7 +11,8 @@ Official CLI Protocol Reference:
   - `compshare --version`
   - `compshare --json doctor`
   - `compshare --json instance search --region ... --zone ... --gpu ... [--image ...] --available`
-  - `compshare --json instance create ... --yes --timeout ...`
+- `compshare --json instance create ... --yes --timeout ...`
+  `--dry-run` is an online provider validation request, not an offline plan.
   - `compshare --json instance show <instance_id>`
   - `compshare --json instance job submit <instance_id> [--workdir ...] -- <command...>`
   - `compshare --json instance job show <instance_id> <job_id>`
@@ -19,7 +20,12 @@ Official CLI Protocol Reference:
   - `compshare --json instance job cancel <instance_id> <job_id>`
   - `compshare --json instance cp <src> <dest>`
   - `compshare --json instance stop <instance_id> --yes`
-  - `compshare --json instance delete <instance_id> --yes`
+- `compshare --json instance delete <instance_id> --yes`
+
+Managed create commands are generated from a frozen ``InstanceCreateSpec``
+with a canonical MLFFBench ownership marker.  The offline
+``build_instance_create_plan`` helper never invokes this CLI or reads its
+credential environment.
 """
 
 from __future__ import annotations
@@ -32,6 +38,11 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Sequence
+
+from dftworld_bench.hpc.drivers.compshare.policy import (
+    is_canonical_ownership_marker,
+)
+from dftworld_bench.hpc.runtime_resolution import is_placeholder_artifact
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +83,230 @@ class CliResult:
 
 
 CommandRunner = Callable[[Sequence[str], Mapping[str, str] | None], CliResult]
+
+
+@dataclass(frozen=True)
+class InstanceCreateSpec:
+    """Frozen, provider-neutral inputs for one managed instance create.
+
+    This object contains no credential or runner.  Constructing it performs
+    only local validation; use :func:`build_instance_create_plan` to obtain a
+    deterministic command without contacting CompShare.  A formal managed
+    create always carries the pair of canonical ownership markers.
+    """
+
+    image: str = ""
+    name: str | None = None
+    remark: str | None = None
+    region: str = "cn-sh2"
+    zone: str = "cn-sh2-02"
+    gpu: str = "4090"
+    count: int = 1
+    cpu: int = 16
+    memory: str = "64GiB"
+    disk: str = "100GiB"
+    charge: str = "Postpay"
+    max_price: float = 20.0
+    timeout: int = 900
+    provider_dry_run: bool = False
+    image_source: str = "platform"
+    # Compatibility aliases accepted only as local input normalization.  They
+    # are never emitted as separate provider arguments.
+    image_id: str | None = None
+    gpu_type: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.image and self.image_id:
+            object.__setattr__(self, "image", self.image_id)
+        elif self.image_id is not None and self.image_id != self.image:
+            raise CompShareCliError("image and image_id disagree")
+        if self.gpu_type is not None:
+            if self.gpu != "4090" and self.gpu_type != self.gpu:
+                raise CompShareCliError("gpu and gpu_type disagree")
+            object.__setattr__(self, "gpu", self.gpu_type)
+        if not isinstance(self.image, str) or not self.image.strip():
+            raise CompShareCliError("instance create requires a non-empty image")
+        if is_placeholder_artifact(self.image):
+            raise CompShareCliError(
+                f"placeholder or unassigned image is not executable: {self.image!r}"
+            )
+        if isinstance(self.count, bool) or not isinstance(self.count, int) or self.count != 1:
+            raise CompShareCliError(
+                f"managed CompShare instance create requires count=1, got {self.count!r}"
+            )
+        if not is_canonical_ownership_marker(self.name, self.remark):
+            raise CompShareCliError(
+                "managed CompShare instance create requires the canonical "
+                "name/remark ownership marker pair"
+            )
+        if not isinstance(self.provider_dry_run, bool):
+            raise CompShareCliError("provider_dry_run must be boolean")
+        for field_name in ("region", "zone", "gpu", "memory", "disk", "charge", "image_source"):
+            value = getattr(self, field_name)
+            if not isinstance(value, str) or not value:
+                raise CompShareCliError(f"instance create {field_name} must be non-empty")
+        if (
+            isinstance(self.cpu, bool)
+            or not isinstance(self.cpu, int)
+            or isinstance(self.timeout, bool)
+            or not isinstance(self.timeout, int)
+            or not isinstance(self.max_price, (int, float))
+            or isinstance(self.max_price, bool)
+            or self.cpu < 1
+            or self.timeout < 1
+            or self.max_price <= 0
+        ):
+            raise CompShareCliError(
+                "instance create cpu, timeout, and max_price must be positive"
+            )
+
+        # Keep accidental credentials out of a command plan even if a caller
+        # tries to smuggle them into a free-form field.
+        for field_name in (
+            "image",
+            "name",
+            "remark",
+            "region",
+            "zone",
+            "gpu",
+            "memory",
+            "disk",
+            "charge",
+            "image_source",
+        ):
+            value = getattr(self, field_name)
+            if isinstance(value, str) and _looks_like_secret(value):
+                raise CompShareCliError(
+                    f"instance create field {field_name} appears to contain secret material"
+                )
+
+
+@dataclass(frozen=True)
+class CommandPlan:
+    """Deterministic command plan; creating one never invokes a runner."""
+
+    argv: tuple[str, ...]
+    network_required: bool = True
+    mutates_provider: bool = True
+
+    @property
+    def requires_network(self) -> bool:
+        """Alias used by offline callers to make the network boundary explicit."""
+        return self.network_required
+
+    @property
+    def provider_dry_run(self) -> bool:
+        return not self.mutates_provider
+
+    @property
+    def command(self) -> tuple[str, ...]:
+        """Compatibility alias for callers that call argv a command."""
+        return self.argv
+
+    def to_argv(self) -> tuple[str, ...]:
+        return self.argv
+
+
+def _looks_like_secret(value: str) -> bool:
+    lowered = value.lower()
+    return any(
+        hint in lowered
+        for hint in (
+            "private_key",
+            "private-key",
+            "api_key",
+            "api-key",
+            "-----begin",
+            "bearer ",
+            "secret=",
+            "token=",
+        )
+    )
+
+
+def build_instance_create_command(
+    spec: InstanceCreateSpec | Mapping[str, Any]
+) -> tuple[str, ...]:
+    """Build only the ``instance create`` subcommand from a frozen spec.
+
+    The function is pure: no subprocess, filesystem, environment, or
+    credential access occurs.  The provider's ``--dry-run`` is intentionally
+    called ``provider_dry_run`` in the spec because it still requires a network
+    request and must not be confused with this offline planning operation.
+    """
+    if not isinstance(spec, InstanceCreateSpec):
+        if not isinstance(spec, Mapping):
+            raise TypeError("spec must be an InstanceCreateSpec or mapping")
+        spec = InstanceCreateSpec(**dict(spec))
+    cmd: list[str] = [
+        "instance",
+        "create",
+        "--region",
+        spec.region,
+        "--zone",
+        spec.zone,
+        "--gpu",
+        spec.gpu,
+        "--count",
+        str(spec.count),
+        "--cpu",
+        str(spec.cpu),
+        "--memory",
+        spec.memory,
+        "--image",
+        spec.image,
+        "--image-source",
+        spec.image_source,
+        "--disk",
+        spec.disk,
+        "--charge",
+        spec.charge,
+        "--max-count",
+        "1",
+        "--max-price",
+        str(spec.max_price),
+        "--yes",
+        "--timeout",
+        str(spec.timeout),
+    ]
+    if spec.name is not None:
+        cmd.extend(("--name", spec.name))
+    if spec.remark is not None:
+        cmd.extend(("--remark", spec.remark))
+    if spec.provider_dry_run:
+        cmd.append("--dry-run")
+    return tuple(cmd)
+
+
+def build_instance_create_argv(
+    spec: InstanceCreateSpec | Mapping[str, Any], *, cli_bin: str = "compshare"
+) -> tuple[str, ...]:
+    """Build the complete executable argv, with no shell interpolation."""
+    if not isinstance(cli_bin, str) or not cli_bin:
+        raise ValueError("cli_bin must be non-empty")
+    return (cli_bin, "--json", *build_instance_create_command(spec))
+
+
+def build_instance_create_plan(
+    spec: InstanceCreateSpec | Mapping[str, Any], *, cli_bin: str = "compshare"
+) -> CommandPlan:
+    """Return an offline command plan for one managed instance create."""
+    if not isinstance(spec, InstanceCreateSpec):
+        if not isinstance(spec, Mapping):
+            raise TypeError("spec must be an InstanceCreateSpec or mapping")
+        spec = InstanceCreateSpec(**dict(spec))
+    argv = build_instance_create_argv(spec, cli_bin=cli_bin)
+    return CommandPlan(
+        argv=argv,
+        # Both provider create and provider dry-run cross the network.  This
+        # distinction is why this plan API is separate from ``instance_create``.
+        network_required=True,
+        mutates_provider=not spec.provider_dry_run,
+    )
+
+
+# Explicit name for code that treats planning as a first-class operation.
+plan_instance_create = build_instance_create_plan
 
 
 def default_subprocess_runner(
@@ -282,48 +517,58 @@ class CompShareCli:
         charge: str = "Postpay",
         max_price: float = 20.0,
         timeout: int = 900,
-        dry_run: bool = False,
+        provider_dry_run: bool = False,
         image_source: str = "platform",
+        dry_run: bool | None = None,
     ) -> dict[str, Any]:
-        """Create a single GPU instance with explicit limits and ownership marker."""
-        cmd = [
-            "instance",
-            "create",
-            "--region",
-            region,
-            "--zone",
-            zone,
-            "--gpu",
-            gpu,
-            "--count",
-            str(count),
-            "--cpu",
-            str(cpu),
-            "--memory",
-            memory,
-            "--image",
-            image,
-            "--image-source",
-            image_source,
-            "--disk",
-            disk,
-            "--charge",
-            charge,
-            "--max-count",
-            "1",
-            "--max-price",
-            str(max_price),
-            "--yes",
-            "--timeout",
-            str(timeout),
-        ]
-        if name:
-            cmd.extend(["--name", name])
-        if remark:
-            cmd.extend(["--remark", remark])
-        if dry_run:
-            cmd.append("--dry-run")
-        return self._exec(cmd)
+        """Create one managed GPU instance through the online provider API.
+
+        ``provider_dry_run`` is an online provider validation request; it still
+        invokes the runner and may read credentials through the configured
+        environment.  The old ``dry_run`` spelling remains a compatibility
+        alias.  Use :meth:`plan_instance_create` for a pure offline plan.
+        """
+        if dry_run is not None:
+            if provider_dry_run != False and bool(dry_run) != provider_dry_run:
+                raise CompShareCliError(
+                    "provider_dry_run and legacy dry_run disagree"
+                )
+            provider_dry_run = bool(dry_run)
+        spec = InstanceCreateSpec(
+            image=image,
+            name=name,
+            remark=remark,
+            region=region,
+            zone=zone,
+            gpu=gpu,
+            count=count,
+            cpu=cpu,
+            memory=memory,
+            disk=disk,
+            charge=charge,
+            max_price=max_price,
+            timeout=timeout,
+            provider_dry_run=provider_dry_run,
+            image_source=image_source,
+        )
+        return self._exec(build_instance_create_command(spec))
+
+    def plan_instance_create(
+        self, spec: InstanceCreateSpec | Mapping[str, Any], *, cli_bin: str | None = None
+    ) -> CommandPlan:
+        """Build an offline create plan without invoking the runner.
+
+        The plan is deliberately independent of this client's environment and
+        credentials.  Supplying a mapping is supported for ergonomic callers,
+        but it is normalized through the same frozen spec validation.
+        """
+        if not isinstance(spec, InstanceCreateSpec):
+            if not isinstance(spec, Mapping):
+                raise TypeError("spec must be an InstanceCreateSpec or mapping")
+            spec = InstanceCreateSpec(**dict(spec))
+        return build_instance_create_plan(
+            spec, cli_bin=cli_bin or self.cli_bin
+        )
 
     def instance_show(self, instance_id: str) -> dict[str, Any]:
         """Query instance status and metadata."""

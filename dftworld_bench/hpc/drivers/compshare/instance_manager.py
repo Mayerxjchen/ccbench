@@ -1,7 +1,7 @@
 """Run-scoped instance manager for CompShare GPU resources using CompShareCli.
 
 Core Invariants:
-1. Max 1 GPU instance per Run.
+1. Max 1 GPU instance per managed account scope and Run.
 2. Max 1 GPU per instance.
 3. Max 1 concurrent GPU operation per Run.
 4. Consecutive GPU operations within the same Run reuse the active instance.
@@ -18,8 +18,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import time
 from dataclasses import dataclass, field
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +37,7 @@ from dftworld_bench.hpc.drivers.compshare.policy import (
     make_ownership_marker,
     matches_ownership_marker,
 )
+from dftworld_bench.hpc.runtime_resolution import is_placeholder_artifact
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +60,21 @@ class BudgetConfig:
     max_instance_minutes: int = 120
     max_cost_cny: float = 150.0
     hourly_rate_cny: float = 14.0
+    # Formal CompShare runs are account/run scoped to exactly one instance.
+    # Keep this explicit so the SiteProfile policy cannot disappear at the
+    # provider boundary.
+    max_instances: int = 1
+    managed_account_scope_id: str | None = None
+
+    @property
+    def max_instance_hours(self) -> float:
+        """Normalized SiteProfile spelling for the existing hour limit."""
+        return self.max_gpu_hours
+
+    @property
+    def max_budget_cny(self) -> float:
+        """Normalized SiteProfile spelling for the existing cost limit."""
+        return self.max_cost_cny
 
 
 @dataclass
@@ -135,7 +153,17 @@ class RunScopedInstanceManager:
         self.ledger_path = ledger_path or Path("runs/compshare-ledger.jsonl")
         self.orphan_ledger_path = orphan_ledger_path or Path("runs/compshare-orphans.jsonl")
         self.audit = audit
+        if self.budget.max_instances != 1:
+            raise CompShareManagerError(
+                "RunScopedInstanceManager requires budget max_instances=1"
+            )
         self._instances: dict[str, RunInstanceRecord] = {}
+        self._creation_thread_lock = threading.Lock()
+        # Adjacent to the durable ledger so independent processes share the
+        # same account-wide create critical section.
+        self._creation_lock_path = self.ledger_path.with_name(
+            self.ledger_path.name + ".create.lock"
+        )
         self._load_ledger()
 
     def _load_ledger(self) -> None:
@@ -180,6 +208,10 @@ class RunScopedInstanceManager:
             raise CompShareManagerError(
                 f"Each instance must have exactly 1 GPU, requested {gpu_count}"
             )
+        if is_placeholder_artifact(image_id):
+            raise CompShareManagerError(
+                f"placeholder or unassigned CompShare image is not executable: {image_id!r}"
+            )
 
         # Check existing instance for this run
         record = self._instances.get(run_id)
@@ -198,7 +230,119 @@ class RunScopedInstanceManager:
             self._persist_ledger(record)
             return record.instance_id
 
-        # Check pre-creation stock & capacity via official CLI
+        # A new instance requires an account-wide preflight and a serialized
+        # provider transaction.  Existing instances are handled above and do
+        # not need a create lock.
+        # Build the exact command spec before any provider call.  This also
+        # validates the canonical ownership marker and keeps provider details
+        # out of the caller's mutable execution request.
+        self.plan_instance_create(
+            run_id,
+            image_id,
+            gpu_type=gpu_type,
+            count=gpu_count,
+        )
+        with self._creation_lock():
+            managed_active = self._active_managed_instances()
+            if managed_active:
+                raise CompShareManagerError(
+                    "CompShare max_instances=1 guard found active managed "
+                    f"instance(s): {managed_active}"
+                )
+            return self._create_instance_unlocked(
+                run_id,
+                image_id,
+                operation_id=operation_id,
+                gpu_type=gpu_type,
+            )
+
+    @contextmanager
+    def _creation_lock(self):
+        """Serialize managed-account create transactions across threads/processes."""
+        self._creation_thread_lock.acquire()
+        handle = None
+        try:
+            self._creation_lock_path.parent.mkdir(parents=True, exist_ok=True)
+            handle = open(self._creation_lock_path, "a+", encoding="utf-8")
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            if handle is not None:
+                handle.close()
+            self._creation_thread_lock.release()
+
+    def _active_managed_instances(self) -> list[str]:
+        """Return provider-visible active managed IDs; malformed data fails closed."""
+        items = self.cli.instance_list(all=True)
+        if not isinstance(items, list):
+            raise CompShareManagerError(
+                "provider instance list result is not a list during create preflight"
+            )
+        active: list[str] = []
+        for item in items:
+            if not isinstance(item, dict):
+                raise CompShareManagerError(
+                    "provider instance list contained a non-object during create preflight"
+                )
+            if not matches_ownership_marker(item):
+                continue
+            instance_id = extract_verified_instance_id(item)
+            if not instance_id:
+                raise CompShareManagerError(
+                    "managed provider record has no verified instance_id during create preflight"
+                )
+            status = str(item.get("status") or "").strip().lower()
+            if instance_requires_cleanup(status):
+                active.append(instance_id)
+        return sorted(set(active))
+
+    def plan_instance_create(
+        self,
+        run_id: str,
+        image_id: str,
+        *,
+        gpu_type: str = "4090",
+        count: int = 1,
+        provider_dry_run: bool = False,
+    ):
+        """Build a pure provider command plan without calling CLI or reading credentials."""
+        from dftworld_bench.hpc.drivers.compshare.cli import (
+            InstanceCreateSpec,
+            build_instance_create_plan,
+        )
+
+        name, remark = make_ownership_marker(run_id)
+        spec = InstanceCreateSpec(
+            image=image_id,
+            name=name,
+            remark=remark,
+            region=self.region,
+            zone=self.zone,
+            gpu=gpu_type,
+            count=count,
+            cpu=self.default_cpus,
+            memory=self.default_memory,
+            disk=self.default_disk,
+            provider_dry_run=provider_dry_run,
+            image_source=self.default_image_source,
+        )
+        return build_instance_create_plan(spec)
+
+    def _create_instance_unlocked(
+        self,
+        run_id: str,
+        image_id: str,
+        *,
+        operation_id: str,
+        gpu_type: str,
+    ) -> str:
+        """Run the provider calls after ``_creation_lock`` has been acquired."""
+        # Check pre-creation stock & capacity via official CLI.
         available = self.cli.instance_search(
             region=self.region,
             zone=self.zone,
@@ -210,7 +354,7 @@ class RunScopedInstanceManager:
                 f"CompShare has no available stock for GPU {gpu_type} with image {image_id}"
             )
 
-        # Create new instance for run via CLI with auto-cleanup guard
+        # Create new instance for run via CLI with auto-cleanup guard.
         created_id: str | None = None
         instance_name, instance_remark = make_ownership_marker(run_id)
         if self.audit is not None:
@@ -226,7 +370,8 @@ class RunScopedInstanceManager:
                 durable=True,
             )
         try:
-            # 1. First validate via dry-run
+            # The provider dry-run is an online validation call; it is
+            # intentionally separate from the pure offline plan API.
             self.cli.instance_create(
                 image=image_id,
                 name=instance_name,
@@ -239,11 +384,11 @@ class RunScopedInstanceManager:
                 disk=self.default_disk,
                 count=1,
                 timeout=900,
-                dry_run=True,
+                provider_dry_run=True,
                 image_source=self.default_image_source,
             )
 
-            # 2. Real create
+            # Real create.
             inst_info = self.cli.instance_create(
                 image=image_id,
                 name=instance_name,
@@ -256,7 +401,7 @@ class RunScopedInstanceManager:
                 disk=self.default_disk,
                 count=1,
                 timeout=900,
-                dry_run=False,
+                provider_dry_run=False,
                 image_source=self.default_image_source,
             )
             created_id = inst_info.get("instance_id") or inst_info.get("id")
@@ -276,7 +421,7 @@ class RunScopedInstanceManager:
                     durable=True,
                 )
 
-            # Wait for instance to become RUNNING
+            # Wait for instance to become RUNNING.
             self.cli.wait_instance_ready(created_id)
 
             if self.audit is not None:
@@ -305,7 +450,7 @@ class RunScopedInstanceManager:
             self._persist_ledger(record)
             return created_id
         except Exception as exc:
-            # Immediate fail-safe: if instance was created but setup failed, delete it
+            # Immediate fail-safe: if instance was created but setup failed, delete it.
             if created_id:
                 try:
                     self._delete_provider_instance(

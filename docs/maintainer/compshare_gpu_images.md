@@ -107,7 +107,20 @@ Case 034 remains excluded from Image A until its operation-level GPU route is
 implemented and separately qualified. Case 042 remains on the deferred JAX
 track.
 
-## 5. Maintainer Credential & Profile Configuration
+## 5. Offline create planning versus provider dry-run
+
+The trusted manager exposes a pure `InstanceCreateSpec`/
+`build_instance_create_plan` path for review and tests. Constructing that plan
+does not invoke a runner, read credentials, or contact CompShare. It always
+contains the exact argv and the canonical `mlffbench-<sha256-token>` /
+`mlffbench:run:<sha256-token>` ownership pair.
+
+`provider_dry_run=True` (and the legacy `dry_run=True` alias) is different: it
+calls the provider API, may read the configured credential environment, and
+therefore requires network access. It validates provider capacity but is not an
+offline check and does not authorize a real create.
+
+## 6. Maintainer Credential & Profile Configuration
 
 CompShare CLI configuration is stored on the trusted host at `~/.config/compshare/config.json` (not in `~/.compshare/`).
 The official CLI configuration entry point is `compshare config`:

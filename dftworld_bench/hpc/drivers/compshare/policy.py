@@ -43,6 +43,23 @@ def make_ownership_marker(run_id: str) -> tuple[str, str]:
     return f"mlffbench-{token}", f"mlffbench:run:{token}"
 
 
+def is_canonical_ownership_marker(name: str | None, remark: str | None) -> bool:
+    """Return whether both fields use the current fixed-token marker pair.
+
+    Matching one field is sufficient for a read-only recovery sweep (legacy
+    providers may drop one metadata field), but creation must carry the pair
+    exactly so ownership is unambiguous and stable across retries.
+    """
+    return bool(
+        isinstance(name, str)
+        and isinstance(remark, str)
+        and _NEW_NAME_RE.fullmatch(name)
+        and _NEW_REMARK_RE.fullmatch(remark)
+        and remark.removeprefix("mlffbench:run:")
+        == name.removeprefix("mlffbench-")
+    )
+
+
 def matches_ownership_marker(
     instance: Mapping[str, Any],
     run_id: str | None = None,

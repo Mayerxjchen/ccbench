@@ -1,6 +1,7 @@
 """CompShare execution driver for maintainer GPU evaluation."""
 
 from dftworld_bench.hpc.drivers.compshare.cli import (
+    CommandPlan,
     CliResult,
     CompShareCli,
     CompShareCliCapacityError,
@@ -8,6 +9,11 @@ from dftworld_bench.hpc.drivers.compshare.cli import (
     CompShareCliJsonError,
     CompShareCliNotFoundError,
     FakeCompShareCliRunner,
+    InstanceCreateSpec,
+    build_instance_create_argv,
+    build_instance_create_command,
+    build_instance_create_plan,
+    plan_instance_create,
 )
 from dftworld_bench.hpc.drivers.compshare.driver import (
     CompShareDriver,
@@ -26,16 +32,24 @@ from dftworld_bench.hpc.drivers.compshare.policy import (
     instance_requires_cleanup,
     make_ownership_marker,
     matches_ownership_marker,
+    is_canonical_ownership_marker,
 )
+from dftworld_bench.hpc.site_profile import CompShareBudgetPolicy
 
 __all__ = [
     "CliResult",
+    "CommandPlan",
     "CompShareCli",
     "CompShareCliCapacityError",
     "CompShareCliError",
     "CompShareCliJsonError",
     "CompShareCliNotFoundError",
     "FakeCompShareCliRunner",
+    "InstanceCreateSpec",
+    "build_instance_create_argv",
+    "build_instance_create_command",
+    "build_instance_create_plan",
+    "plan_instance_create",
     "CompShareDriver",
     "CompShareDriverError",
     "BudgetConfig",
@@ -48,4 +62,6 @@ __all__ = [
     "make_ownership_marker",
     "matches_ownership_marker",
     "extract_verified_instance_id",
+    "is_canonical_ownership_marker",
+    "CompShareBudgetPolicy",
 ]

@@ -17,6 +17,7 @@ from dftworld_bench.hpc.drivers.compshare.cli import (
     CompShareCliJsonError,
     FakeCompShareCliRunner,
 )
+from dftworld_bench.hpc.drivers.compshare.policy import make_ownership_marker
 
 
 def test_cli_version_pinned():
@@ -80,7 +81,10 @@ def test_official_commands_end_to_end_lifecycle(tmp_path: Path):
     assert stocks[0]["available_count"] == 2
 
     # 3. Instance Create
-    create_res = cli.instance_create(image="img-deepmd-gpu-v1", gpu="4090")
+    name, remark = make_ownership_marker("cli-contract-run")
+    create_res = cli.instance_create(
+        image="img-deepmd-gpu-v1", gpu="4090", name=name, remark=remark
+    )
     inst_id = create_res["instance_id"]
     assert inst_id == "inst-0001"
 

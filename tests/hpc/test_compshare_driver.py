@@ -71,7 +71,10 @@ def test_cli_stock_and_instance_lifecycle():
     cli_empty = _cli(stock=0)
     assert cli_empty.instance_search(gpu="4090") == []
 
-    inst = cli.instance_create(image="img-deepmd-gpu-v1", gpu="4090")
+    name, remark = make_ownership_marker("cli-lifecycle-run")
+    inst = cli.instance_create(
+        image="img-deepmd-gpu-v1", gpu="4090", name=name, remark=remark
+    )
     inst_id = inst["instance_id"]
     assert inst["status"] == "Running"
 
@@ -439,7 +442,7 @@ def test_instance_create_executes_dry_run(tmp_path: Path, monkeypatch):
     orig_create = cli.instance_create
 
     def spy_create(**kw):
-        calls.append(kw.get("dry_run", False))
+        calls.append(kw.get("provider_dry_run", False))
         return orig_create(**kw)
 
     monkeypatch.setattr(cli, "instance_create", spy_create)
@@ -537,7 +540,8 @@ def test_instance_manager_durable_teardown_recovery(tmp_path: Path):
     ledger_path = tmp_path / "ledger.jsonl"
 
     # Simulate prior run that created an instance but crashed before settlement
-    inst_doc = cli.instance_create(image="img-1")
+    name, remark = make_ownership_marker("run-crashed")
+    inst_doc = cli.instance_create(image="img-1", name=name, remark=remark)
     dangling_id = inst_doc["instance_id"]
     ledger_entry = {
         "run_id": "run-crashed",
@@ -572,7 +576,8 @@ def test_instance_manager_reconcile_and_recover_full(tmp_path: Path):
     cli = CompShareCli(runner=runner)
     ledger_path = tmp_path / "ledger.jsonl"
 
-    inst_doc = cli.instance_create(image="img-1", name="mlffbench-run-c1-worker")
+    name, remark = make_ownership_marker("run-c1")
+    inst_doc = cli.instance_create(image="img-1", name=name, remark=remark)
     dangling_id = inst_doc["instance_id"]
     ledger_entry = {
         "run_id": "run-c1",
@@ -608,7 +613,8 @@ def test_instance_manager_reconcile_and_recover_fail_closed_on_error(tmp_path: P
     ledger_path = tmp_path / "ledger.jsonl"
     orphan_path = tmp_path / "orphans.jsonl"
 
-    inst_doc = cli.instance_create(image="img-1", name="mlffbench-run-fail-worker")
+    name, remark = make_ownership_marker("run-fail")
+    inst_doc = cli.instance_create(image="img-1", name=name, remark=remark)
     dangling_id = inst_doc["instance_id"]
     ledger_entry = {
         "run_id": "run-fail",

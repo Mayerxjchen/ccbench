@@ -93,12 +93,34 @@ class CompShareDriver(HpcDriver):
                 mem_gb = gpu_queue.get("max_memory_gb")
                 if mem_gb:
                     default_memory = f"{mem_gb}GiB"
-                bp = rp.get("budget_policy", {})
+                # Consume only the normalized immutable provider policy.  The
+                # raw mapping remains available for digest serialization, but
+                # execution never interprets arbitrary keys such as a
+                # failover standby hint.
+                bp = None
+                try:
+                    bp = site_profile.compshare_budget_policy
+                except AttributeError:
+                    # Compatibility with lightweight test doubles and legacy
+                    # profiles that predate the typed accessor.
+                    raw_bp = rp.get("budget_policy") or {}
+                    if raw_bp:
+                        bp = raw_bp
                 if bp and budget is None:
-                    budget = BudgetConfig(
-                        max_gpu_hours=bp.get("max_instance_hours", 4.0),
-                        max_cost_cny=bp.get("max_budget_cny", 150.0),
-                    )
+                    if hasattr(bp, "max_instance_hours"):
+                        budget = BudgetConfig(
+                            max_gpu_hours=bp.max_instance_hours,
+                            max_cost_cny=bp.max_budget_cny,
+                            max_instances=bp.max_instances,
+                            managed_account_scope_id=bp.managed_account_scope_id,
+                        )
+                    else:
+                        budget = BudgetConfig(
+                            max_gpu_hours=bp.get("max_instance_hours", 4.0),
+                            max_cost_cny=bp.get("max_budget_cny", 150.0),
+                            max_instances=bp.get("max_instances", 1),
+                            managed_account_scope_id=bp.get("managed_account_scope_id"),
+                        )
                 default_image_source = rp.get("image_source", "platform")
             manager = RunScopedInstanceManager(
                 cli,
