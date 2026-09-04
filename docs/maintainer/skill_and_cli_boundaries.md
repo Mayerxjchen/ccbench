@@ -13,11 +13,12 @@ This document formally establishes the boundaries between candidate agents, main
   - Available to the Candidate (PAgent).
   - Strictly **provider-neutral**.
   - Exposes only the 7 standard operations: `capabilities`, `submit`, `status`, `logs`, `fetch`, `cancel`, `usage`.
-  - Agent declares `compute_class: cpu | gpu` and `runtime: <capability>`.
-  - Agent is strictly forbidden from declaring or viewing sites, providers, partitions, or image IDs.
+  - Agent declares `compute_class: cpu | gpu` and abstract runtime capabilities (e.g. `cp2k`, `deepmd`, `jax`).
+  - Agent is strictly forbidden from declaring, inspecting, or assuming sites, providers, partitions, hostnames, or image IDs.
+  - Hidden case assets (e.g. `matclaw-cips`, `thresholds.json`) are strictly prohibited from candidate-visible skills.
 
-- **CompShare Skill**:
-  - Intended solely for **maintainers** and manual operations.
+- **CompShare Tooling & Maintainer Skills**:
+  - Intended solely for **maintainers** and offline manual operations.
   - Documents how maintainers inspect GPU inventory, check account quotas, build custom base images, and diagnose failed nodes.
   - **NEVER installed in candidate environments**.
   - **NEVER invoked by automated benchmark test runners**.
@@ -28,7 +29,7 @@ This document formally establishes the boundaries between candidate agents, main
 
 The Candidate evaluation sandbox:
 1. **Does not contain `compshare` CLI**: `compshare` binary is omitted from the evaluation container image.
-2. **Does not contain cloud credentials**: `COMPSHARE_API_KEY`, SSH keys, and cloud tokens live only in the trusted harness layer.
+2. **Does not contain cloud credentials**: `COMPSHARE_PUBLIC_KEY`, `COMPSHARE_PRIVATE_KEY`, SSH keys, and cloud tokens live exclusively on the trusted host machine outside the repo.
 3. **Restricted network**: Candidate has no direct network access to cloud provider endpoints.
 4. **Local control layer**: The candidate executes commands inside its sandbox and talks only to the local `/tmp/bench-hpc.sock` or `bench-hpc` CLI gateway.
 
@@ -47,6 +48,6 @@ mlffbench compute configure --out ~/my_compute_profile.json
 mlffbench compute validate --profile ~/my_compute_profile.json
 ```
 
-Maintainers use the hybrid profile with pre-built GPU images:
-- `mlff-deepmd-gpu-v1` (`img-deepmd-gpu-v1`)
-- `mlff-jax-gpu-v1` (`img-jax-gpu-v1`)
+Maintainers operate within strictly frozen and audited GPU recipes:
+- **Image A**: `mlff-matclaw-cips-gpu-v1` (Capabilities: `matclaw-cips`, `runtime.matclaw-gpu` for Cases 031-033)
+- **Deferred Image**: `mlff-jax-gpu-v1` (Capability: `runtime.jax` for Case 042)
