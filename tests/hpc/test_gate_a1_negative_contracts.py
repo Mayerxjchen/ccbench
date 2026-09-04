@@ -247,7 +247,7 @@ class TestGateA1NegativeContracts:
             private_key_hex=priv_hex,
         )
 
-        assert verify_receipt_signature(signed_doc) is True
+        assert verify_receipt_signature(signed_doc, expected_public_key_hex=pub_hex) is True
 
         # Tamper a critical field
         signed_doc["cloud_recycling_evidence"]["credentials_isolated"] = False
@@ -255,7 +255,7 @@ class TestGateA1NegativeContracts:
         signed_doc["digest"] = compute_receipt_digest(signed_doc)
 
         # Ed25519 signature verification fails
-        assert verify_receipt_signature(signed_doc) is False
+        assert verify_receipt_signature(signed_doc, expected_public_key_hex=pub_hex) is False
 
         with patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt") as mock_vr:
             mock_vr.return_value = {"problems": [], "derived": {"qualification_status": "PASS"}}
@@ -321,3 +321,390 @@ class TestGateA1NegativeContracts:
             )
             assert res["derived"]["qualification_status"] == "INVALID"
             assert any("canary_coverage" in p for p in res["problems"])
+
+    def _build_valid_compshare_fixture(
+        self,
+        tmp_path: Path,
+        *,
+        run_id: str = "run-a1-neg",
+        inst_id: str = "inst-a1-neg",
+        img_id: str = "img-deepmd-gpu-v1",
+    ) -> tuple[dict, QualificationTrustStore, Path]:
+        from dftworld_bench.experiments.compute_profile_qualification import (
+            build_compshare_site_qualification_receipt,
+            generate_ed25519_key_pair,
+        )
+        from dftworld_bench.experiments.qualification_receipt import canonical_digest, sha256_file
+        from dftworld_bench.hpc.trust_store import QualificationTrustStore, TrustKey
+
+        code_file = tmp_path / "mod.py"
+        code_file.write_text("# mod\n", encoding="utf-8")
+        code_sha = sha256_file(code_file)
+
+        lock_dir = tmp_path / "reference" / "runtime"
+        lock_dir.mkdir(parents=True, exist_ok=True)
+        lock_file = lock_dir / "deepmd-runtime.lock.json"
+        lock_doc = {
+            "schema_id": "https://mlip-bench.example/schemas/dispatcher-compshare-runtime-lock/v2",
+            "artifact": {"image_id": img_id},
+            "qualification": {"status": "BUILT_NOT_QUALIFIED"},
+        }
+        lock_file.write_text(json.dumps(lock_doc), encoding="utf-8")
+        lock_sha = f"sha256:{hashlib.sha256(lock_file.read_bytes()).hexdigest()}"
+
+        art_dir = tmp_path / "outputs"
+        art_dir.mkdir(parents=True, exist_ok=True)
+        art_file = art_dir / "output.tar.gz"
+        art_bytes = b"probe-output-data"
+        art_file.write_bytes(art_bytes)
+        art_sha = f"sha256:{hashlib.sha256(art_bytes).hexdigest()}"
+
+        rep_dir = tmp_path / "settlement"
+        rep_dir.mkdir(parents=True, exist_ok=True)
+        rep_file = rep_dir / "report.json"
+        rep_doc = {
+            "run_id": run_id,
+            "instance_id": inst_id,
+            "stop_confirmed": True,
+            "delete_confirmed": True,
+            "orphan_count": 0,
+        }
+        rep_bytes = json.dumps(rep_doc).encode("utf-8")
+        rep_file.write_bytes(rep_bytes)
+        rep_sha = f"sha256:{hashlib.sha256(rep_bytes).hexdigest()}"
+
+        audit_path = tmp_path / "audit.jsonl"
+        audit = GatewayAudit(audit_path)
+        for act in [
+            "INSTANCE_CREATE_INTENT",
+            "INSTANCE_CREATE_ACCEPTED",
+            "INSTANCE_READY",
+            "JOB_SUBMIT_INTENT",
+            "JOB_SUBMIT_ACCEPTED",
+            "JOB_TERMINAL",
+            "ARTIFACT_FETCHED",
+            "SETTLEMENT_BEGIN",
+            "INSTANCE_STOP_ACCEPTED",
+            "INSTANCE_DELETE_ACCEPTED",
+            "INSTANCE_DELETE_CONFIRMED",
+            "ZERO_ORPHAN_QUERY",
+            "SETTLEMENT_COMPLETE",
+        ]:
+            audit.append({
+                "action": act,
+                "run_id": run_id,
+                "instance_id": inst_id,
+                "image_id": img_id,
+            })
+        audit_tail = audit.tail_digest()
+
+        prof_file = Path(__file__).resolve().parents[2] / "examples" / "hpc" / "compshare-gpu-site-profile.json"
+        sp_digest = canonical_digest(json.loads(prof_file.read_text(encoding="utf-8")))
+        if not sp_digest.startswith("sha256:"):
+            sp_digest = f"sha256:{sp_digest}"
+
+        evidence = {
+            "instance_lifecycle": {
+                "instance_id": inst_id,
+                "image_id": img_id,
+                "stop_confirmed": True,
+                "delete_confirmed": True,
+            },
+            "jobs": [
+                {
+                    "job_id": "job-1",
+                    "probe_class": "gpu",
+                    "image_id": img_id,
+                    "accounting": {"state": "COMPLETED", "exit_code": 0},
+                }
+            ],
+            "credential_isolation": {"verified": True},
+            "fetch": {
+                "artifacts": [
+                    {
+                        "path": "outputs/output.tar.gz",
+                        "sha256": art_sha,
+                        "size_bytes": len(art_bytes),
+                    }
+                ]
+            },
+            "settlement": {
+                "terminated": True,
+                "report_path": "settlement/report.json",
+                "digest": rep_sha,
+            },
+            "orphan_check": {
+                "method": "instance_list",
+                "active_total": 0,
+            },
+        }
+
+        priv_hex, pub_hex = generate_ed25519_key_pair()
+        trust_store = QualificationTrustStore({
+            "compshare-site-v1": TrustKey(
+                key_id="compshare-site-v1",
+                algorithm="ed25519",
+                public_key_hex=pub_hex,
+                status="ACTIVE",
+            )
+        })
+
+        receipt = build_compshare_site_qualification_receipt(
+            run_id=run_id,
+            site_profile_id="compshare-gpu",
+            site_profile_digest=sp_digest,
+            source_commit="abcdef1234567890",
+            code_identity={"mod.py": code_sha},
+            runtime_lock={
+                "path": "reference/runtime/deepmd-runtime.lock.json",
+                "digest": lock_sha,
+                "image_id": img_id,
+            },
+            evidence=evidence,
+            audit_log="audit.jsonl",
+            audit_tail_digest=audit_tail,
+            private_key_hex=priv_hex,
+            key_id="compshare-site-v1",
+        )
+        return receipt, trust_store, tmp_path
+
+    def test_forged_lock_status_pass_cannot_resolve(self, tmp_path: Path):
+        """Forged PASS in lock file is ignored by parser and fails resolution."""
+        lock_file = tmp_path / "deepmd-runtime.lock.json"
+        lock_doc = {
+            "schema_id": "https://mlip-bench.example/schemas/dispatcher-compshare-runtime-lock/v2",
+            "runtime": "deepmd",
+            "artifact": {"image_id": "img-deepmd-fake"},
+            "qualification": {"status": "PASS", "receipt_path": "fake.json"},
+        }
+        lock_file.write_text(json.dumps(lock_doc), encoding="utf-8")
+        resolver = RuntimeResolver.from_lock_dir(tmp_path)
+        assert "deepmd" not in resolver.qualified_capabilities()
+        with pytest.raises(RuntimeResolutionError, match="BUILT_NOT_QUALIFIED"):
+            resolver.resolve("deepmd")
+
+    def test_missing_runtime_receipt_cannot_resolve(self, tmp_path: Path):
+        """Runtime pointing to nonexistent qualification receipt cannot be activated."""
+        from dftworld_bench.hpc.runtime_catalog import TrustedRuntimeCatalog
+
+        lock_file = tmp_path / "deepmd-runtime.lock.json"
+        lock_doc = {
+            "schema_id": "https://mlip-bench.example/schemas/dispatcher-compshare-runtime-lock/v2",
+            "runtime": "deepmd",
+            "artifact": {"image_id": "img-deepmd-fake"},
+            "qualification": {"status": "BUILT_NOT_QUALIFIED", "receipt_path": "missing_receipt.json"},
+        }
+        lock_file.write_text(json.dumps(lock_doc), encoding="utf-8")
+        catalog = TrustedRuntimeCatalog.load(lock_dir=tmp_path, qualification_root=tmp_path)
+        resolver = catalog.to_resolver()
+        assert "deepmd" not in resolver.qualified_capabilities()
+        with pytest.raises(RuntimeResolutionError):
+            resolver.resolve("deepmd")
+
+    def test_self_signed_receipt_rejected(self, tmp_path: Path):
+        """Self-signed receipt with arbitrary untrusted key cannot pass verification."""
+        receipt, _, root = self._build_valid_compshare_fixture(tmp_path)
+        from dftworld_bench.hpc.trust_store import QualificationTrustStore
+
+        empty_store = QualificationTrustStore()
+        res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=empty_store)
+        assert res["derived"]["qualification_status"] == "INVALID"
+        assert any("signature" in p for p in res["problems"])
+
+    def test_unsigned_receipt_rejected(self, tmp_path: Path):
+        """Receipt lacking mandatory signature is rejected."""
+        receipt, trust_store, root = self._build_valid_compshare_fixture(tmp_path)
+        receipt.pop("signature", None)
+        res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=trust_store)
+        assert res["derived"]["qualification_status"] == "INVALID"
+        assert any("signature" in p for p in res["problems"])
+
+    def test_untrusted_key_id_rejected(self, tmp_path: Path):
+        """Receipt referencing unknown key_id is rejected."""
+        receipt, trust_store, root = self._build_valid_compshare_fixture(tmp_path)
+        receipt["signature"]["key_id"] = "unknown-foreign-key"
+        res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=trust_store)
+        assert res["derived"]["qualification_status"] == "INVALID"
+        assert any("KEY_ID_MISMATCH" in p or "signature" in p for p in res["problems"])
+
+    def test_missing_runtime_lock_file_rejected(self, tmp_path: Path):
+        """Receipt referencing nonexistent runtime lock file fails verification."""
+        receipt, trust_store, root = self._build_valid_compshare_fixture(tmp_path)
+        receipt["runtime_lock"]["path"] = "reference/runtime/nonexistent.lock.json"
+        from dftworld_bench.experiments.qualification_receipt import canonical_digest
+        receipt["digest"] = canonical_digest({k: v for k, v in receipt.items() if k not in ("digest", "signature")})
+        res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=trust_store)
+        assert res["derived"]["qualification_status"] == "INVALID"
+        assert any("runtime_lock file missing" in p for p in res["problems"])
+
+    def test_runtime_lock_digest_mismatch_rejected(self, tmp_path: Path):
+        """Tampered runtime lock digest fails verification."""
+        receipt, trust_store, root = self._build_valid_compshare_fixture(tmp_path)
+        receipt["runtime_lock"]["digest"] = "sha256:" + "0" * 64
+        from dftworld_bench.experiments.qualification_receipt import canonical_digest
+        receipt["digest"] = canonical_digest({k: v for k, v in receipt.items() if k not in ("digest", "signature")})
+        res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=trust_store)
+        assert res["derived"]["qualification_status"] == "INVALID"
+        assert any("runtime_lock digest mismatch" in p for p in res["problems"])
+
+    def test_missing_artifact_file_rejected(self, tmp_path: Path):
+        """Nonexistent fetch artifact fails verification."""
+        receipt, trust_store, root = self._build_valid_compshare_fixture(tmp_path)
+        receipt["evidence"]["fetch"]["artifacts"][0]["path"] = "outputs/missing.tar.gz"
+        from dftworld_bench.experiments.qualification_receipt import canonical_digest
+        receipt["digest"] = canonical_digest({k: v for k, v in receipt.items() if k not in ("digest", "signature")})
+        res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=trust_store)
+        assert res["derived"]["qualification_status"] == "INVALID"
+        assert any("Artifact missing" in p for p in res["problems"])
+
+    def test_artifact_digest_mismatch_rejected(self, tmp_path: Path):
+        """Mismatched artifact sha256 fails verification."""
+        receipt, trust_store, root = self._build_valid_compshare_fixture(tmp_path)
+        receipt["evidence"]["fetch"]["artifacts"][0]["sha256"] = "sha256:" + "f" * 64
+        from dftworld_bench.experiments.qualification_receipt import canonical_digest
+        receipt["digest"] = canonical_digest({k: v for k, v in receipt.items() if k not in ("digest", "signature")})
+        res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=trust_store)
+        assert res["derived"]["qualification_status"] == "INVALID"
+        assert any("Artifact" in p and "digest mismatch" in p for p in res["problems"])
+
+    def test_audit_from_another_run_rejected(self, tmp_path: Path):
+        """Borrowing audit events from another run_id fails lifecycle check."""
+        receipt, trust_store, root = self._build_valid_compshare_fixture(tmp_path)
+        # Rewrite audit with another run_id
+        audit_path = root / "audit.jsonl"
+        lines = audit_path.read_text(encoding="utf-8").splitlines()
+        rewritten = []
+        for line in lines:
+            ent = json.loads(line)
+            ent["event"]["run_id"] = "foreign-run-999"
+            rewritten.append(json.dumps(ent))
+        audit_path.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
+
+        res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=trust_store)
+        assert res["derived"]["qualification_status"] == "INVALID"
+        assert any("missing required lifecycle event" in p for p in res["problems"])
+
+    def test_audit_instance_id_mismatch_rejected(self, tmp_path: Path):
+        """Audit events with conflicting instance_id fail verification."""
+        receipt, trust_store, root = self._build_valid_compshare_fixture(tmp_path)
+        audit_path = root / "audit.jsonl"
+        lines = audit_path.read_text(encoding="utf-8").splitlines()
+        rewritten = []
+        for line in lines:
+            ent = json.loads(line)
+            if ent["event"].get("instance_id"):
+                ent["event"]["instance_id"] = "inst-conflicting-id"
+            rewritten.append(json.dumps(ent))
+        audit_path.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
+
+        res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=trust_store)
+        assert res["derived"]["qualification_status"] == "INVALID"
+        assert any("expected inst-a1-neg" in p for p in res["problems"])
+
+    def test_audit_image_id_mismatch_rejected(self, tmp_path: Path):
+        """Audit events with conflicting image_id fail verification."""
+        receipt, trust_store, root = self._build_valid_compshare_fixture(tmp_path)
+        audit_path = root / "audit.jsonl"
+        lines = audit_path.read_text(encoding="utf-8").splitlines()
+        rewritten = []
+        for line in lines:
+            ent = json.loads(line)
+            if ent["event"].get("image_id"):
+                ent["event"]["image_id"] = "img-conflicting-id"
+            rewritten.append(json.dumps(ent))
+        audit_path.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
+
+        res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=trust_store)
+        assert res["derived"]["qualification_status"] == "INVALID"
+        assert any("expected img-deepmd-gpu-v1" in p for p in res["problems"])
+
+    def test_audit_event_order_rejected(self, tmp_path: Path):
+        """Out-of-order audit events fail state machine check."""
+        receipt, trust_store, root = self._build_valid_compshare_fixture(tmp_path)
+        audit_path = root / "audit.jsonl"
+        audit_path.unlink()
+        audit = GatewayAudit(audit_path)
+        # Put settlement complete before create intent
+        audit.append({"action": "SETTLEMENT_COMPLETE", "run_id": "run-a1-neg", "instance_id": "inst-a1-neg"})
+        audit.append({"action": "INSTANCE_CREATE_INTENT", "run_id": "run-a1-neg", "instance_id": "inst-a1-neg"})
+
+        res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=trust_store)
+        assert res["derived"]["qualification_status"] == "INVALID"
+        assert any("missing required lifecycle event" in p for p in res["problems"])
+
+    def test_stopped_instance_blocks_cli_qualification(self, tmp_path: Path):
+        """Stopped instances are not safe and mandatorily block Zero-Orphan gate."""
+        from dftworld_bench.hpc.drivers.compshare.policy import instance_requires_cleanup
+
+        assert instance_requires_cleanup("stopped") is True
+        assert instance_requires_cleanup("STOPPED") is True
+
+        site_dir, hashes = _setup_mock_receipts(tmp_path)
+        receipt = _valid_profile_receipt(hashes)
+        v = verify_and_derive_qualification(
+            receipt,
+            site_receipts_dir=site_dir,
+            active_instances_checker=lambda: ["inst-stopped-001"],
+        )
+        assert v.passed is False
+        assert any("Zero-Orphan Gate failed" in err for err in v.errors)
+
+    def test_failed_existing_instance_blocks_qualification(self, tmp_path: Path):
+        """Failed instances requiring cleanup block Zero-Orphan gate."""
+        from dftworld_bench.hpc.drivers.compshare.policy import instance_requires_cleanup
+
+        assert instance_requires_cleanup("failed") is True
+        assert instance_requires_cleanup("FAILED") is True
+
+        site_dir, hashes = _setup_mock_receipts(tmp_path)
+        receipt = _valid_profile_receipt(hashes)
+        v = verify_and_derive_qualification(
+            receipt,
+            site_receipts_dir=site_dir,
+            active_instances_checker=lambda: ["inst-failed-001"],
+        )
+        assert v.passed is False
+        assert any("Zero-Orphan Gate failed" in err for err in v.errors)
+
+    def test_receipt_local_site_profile_cannot_override_policy(self, tmp_path: Path):
+        """Adversary cannot place local site profile in receipt directory to weaken policy."""
+        site_dir, hashes = _setup_mock_receipts(tmp_path)
+        # Attempt to drop relaxed policy in site receipt dir
+        fake_profile = site_dir / "compshare-gpu-site-profile.json"
+        fake_profile.write_text(json.dumps({"scheduler": "slurm", "qualification_policy": {"required_probe_classes": []}}))
+
+        receipt = _valid_profile_receipt(hashes)
+        # Without mock, the real trusted site profile expects CompShare and requires strict checks
+        v = verify_and_derive_qualification(receipt, site_receipts_dir=site_dir)
+        # It must not adopt the fake profile
+        assert v.passed is False
+
+    def test_concurrent_audit_append_preserves_chain(self, tmp_path: Path):
+        """Concurrent threads appending under flock preserve continuous hash chain."""
+        import threading
+
+        audit_path = tmp_path / "concurrent_audit.jsonl"
+        audit = GatewayAudit(audit_path)
+
+        def worker(thread_idx: int):
+            for i in range(10):
+                audit.append({"worker": thread_idx, "seq": i, "timestamp": time.time()})
+
+        threads = [threading.Thread(target=worker, args=(t,)) for t in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(audit.entries()) == 50
+        assert audit.verify() == []
+
+    def test_special_character_run_id_generates_safe_marker(self, tmp_path: Path):
+        """Special or long characters in run_id map to bounded deterministic markers."""
+        from dftworld_bench.hpc.drivers.compshare.policy import make_ownership_marker, matches_ownership_marker
+
+        dangerous_id = "run/../../weird:run?foo=bar&baz=1#test"
+        name, remark = make_ownership_marker(dangerous_id)
+        assert "/" not in name and "?" not in name and "&" not in name
+        assert len(name) <= 32
+        assert matches_ownership_marker({"name": name, "remark": remark}, dangerous_id) is True

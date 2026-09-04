@@ -21,7 +21,11 @@ from dftworld_bench.hpc.drivers.compshare import (
 )
 from dftworld_bench.hpc.drivers.process import ProcessDriver
 from dftworld_bench.hpc.drivers.routed import RoutedDriver
-from dftworld_bench.hpc.runtime_resolution import ResolvedRuntime, RuntimeResolver
+from dftworld_bench.hpc.runtime_resolution import (
+    ResolvedRuntime,
+    RuntimeResolver,
+    RuntimeStatus,
+)
 from dftworld_bench.hpc.site_profile import HpcSiteProfile
 
 
@@ -109,6 +113,14 @@ def _make_routed_environment(tmp_path: Path):
     (locks_dir / "deepmd-runtime.lock.json").write_text(json.dumps(deepmd_lock))
 
     resolver = RuntimeResolver.from_lock_dir(locks_dir)
+    deepmd_ent = resolver._by_name.get("deepmd")
+    if deepmd_ent is not None:
+        import dataclasses
+        resolver._by_name["deepmd"] = dataclasses.replace(
+            deepmd_ent,
+            status=RuntimeStatus.QUALIFIED,
+            qualification_verified=True,
+        )
 
     # Both sites mapped in drivers by scheduler ("slurm" in site_profile maps to cpu_driver for test,
     # or we can register "slurm" -> cpu_driver, "compshare" -> gpu_driver)

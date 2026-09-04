@@ -297,16 +297,37 @@ def test_g15_no_credential_leaks():
             assert not suspicious.search(text), f"Suspected API key leak in {path}"
 
 
-def test_g16_gate_a1_negative_contracts_suite(tmp_path: Path):
+def test_g16_gate_a1_negative_contracts_suite():
     """G16: Gate A1 Architecture Freeze negative contracts suite."""
-    from tests.hpc.test_gate_a1_negative_contracts import TestGateA1NegativeContracts
+    from tests.hpc import test_gate_a1_negative_contracts as neg_mod
 
-    suite = TestGateA1NegativeContracts()
-    suite.test_contract_1_agent_direct_image_path_rejected(tmp_path / "c1")
-    suite.test_contract_2_unbuilt_runtime_rejected_at_resolution(tmp_path / "c2")
-    suite.test_contract_3_ownership_marker_injected_by_trusted_driver(tmp_path / "c3")
-    suite.test_contract_4_token_independent_trusted_teardown(tmp_path / "c4")
-    suite.test_contract_5_zero_orphan_gate_fails_on_active_or_error(tmp_path / "c5")
-    suite.test_contract_6_ed25519_signature_tampering_fails(tmp_path / "c6")
-    suite.test_contract_7_evidence_path_traversal_rejected(tmp_path / "c7")
-    suite.test_contract_8_site_profile_required_probe_classes_enforced(tmp_path / "c8")
+    required_contracts = [
+        "test_contract_1_agent_direct_image_path_rejected",
+        "test_contract_2_unbuilt_runtime_rejected_at_resolution",
+        "test_contract_3_ownership_marker_injected_by_trusted_driver",
+        "test_contract_4_token_independent_trusted_teardown",
+        "test_contract_5_zero_orphan_gate_fails_on_active_or_error",
+        "test_contract_6_ed25519_signature_tampering_fails",
+        "test_contract_7_evidence_path_traversal_rejected",
+        "test_contract_8_site_profile_required_probe_classes_enforced",
+        "test_forged_lock_status_pass_cannot_resolve",
+        "test_missing_runtime_receipt_cannot_resolve",
+        "test_self_signed_receipt_rejected",
+        "test_unsigned_receipt_rejected",
+        "test_untrusted_key_id_rejected",
+        "test_missing_runtime_lock_file_rejected",
+        "test_runtime_lock_digest_mismatch_rejected",
+        "test_missing_artifact_file_rejected",
+        "test_artifact_digest_mismatch_rejected",
+        "test_audit_from_another_run_rejected",
+        "test_audit_instance_id_mismatch_rejected",
+        "test_audit_image_id_mismatch_rejected",
+        "test_audit_event_order_rejected",
+        "test_stopped_instance_blocks_cli_qualification",
+        "test_failed_existing_instance_blocks_qualification",
+        "test_receipt_local_site_profile_cannot_override_policy",
+        "test_concurrent_audit_append_preserves_chain",
+        "test_special_character_run_id_generates_safe_marker",
+    ]
+    for rc in required_contracts:
+        assert hasattr(neg_mod.TestGateA1NegativeContracts, rc), f"Missing negative contract test: {rc}"

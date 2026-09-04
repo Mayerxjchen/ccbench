@@ -20,6 +20,7 @@ from dftworld_bench.hpc.gateway import Gateway, GatewayError
 from dftworld_bench.hpc.runtime_resolution import (
     RuntimeResolutionError,
     RuntimeResolver,
+    RuntimeStatus,
     split_runtime,
 )
 from scripts.ablation.transport.slurm_transport import JobState
@@ -398,6 +399,22 @@ def test_compshare_image_lock_resolution(tmp_path: Path):
         })
     )
     resolver = RuntimeResolver.from_lock_dir(locks)
+    entry = resolver._by_name["deepmd"]
+    assert entry.capability == "deepmd"
+    assert entry.artifact_kind == "compshare_image"
+    assert entry.artifact_path_or_id == "img-deepmd-gpu-v1"
+    assert entry.provider == "compshare"
+    assert entry.software_versions["deepmd"] == "2.2.11"
+    assert entry.status == RuntimeStatus.BUILT_NOT_QUALIFIED
+
+    # Per Gate A1 R4, unverified lock cannot resolve directly
+    with pytest.raises(RuntimeResolutionError, match="BUILT_NOT_QUALIFIED"):
+        resolver.resolve("deepmd")
+
+    # Once verified, it resolves properly
+    import dataclasses
+    entry = dataclasses.replace(entry, status=RuntimeStatus.QUALIFIED, qualification_verified=True)
+    resolver._by_name["deepmd"] = entry
     resolved = resolver.resolve("deepmd")
     assert resolved.capability == "deepmd"
     assert resolved.artifact_kind == "compshare_image"

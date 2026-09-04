@@ -707,59 +707,143 @@ class TestCpuOnlySlurmQualificationContract:
 class TestCompShareReceiptAuditLineage:
     """Test CompShare receipt verification with real GatewayAudit ledger."""
 
-    def _make_compshare_receipt(self, tmp_path: Path, *, audit_path: Path | None = None) -> dict[str, Any]:
+    def _make_compshare_receipt(
+        self,
+        tmp_path: Path,
+        *,
+        audit_path: Path | None = None,
+        run_id: str = "run-test-001",
+        inst_id: str = "inst-test-001",
+        img_id: str = "img-deepmd-gpu-v1",
+    ) -> dict[str, Any]:
+        import hashlib
+        import json
+        from dftworld_bench.experiments.compute_profile_qualification import (
+            build_compshare_site_qualification_receipt,
+            generate_ed25519_key_pair,
+        )
         from dftworld_bench.experiments.qualification_receipt import canonical_digest, sha256_file
+        from dftworld_bench.hpc.audit import GatewayAudit
+        from dftworld_bench.hpc.trust_store import QualificationTrustStore, TrustKey
 
         code_file = tmp_path / "mod.py"
         code_file.write_text("# module code\n", encoding="utf-8")
         code_sha = sha256_file(code_file)
 
-        receipt = {
-            "kind": "compshare-gpu-site-qualification",
-            "source_commit": "abcdef1234567890",
-            "code_identity": {"mod.py": code_sha},
-            "site_profile_digest": "sha256:" + "0" * 64,
-            "runtime_lock": {
-                "path": "reference/runtime/deepmd-runtime.lock.json",
-                "image_id": "img-deepmd-gpu-v1",
+        lock_dir = tmp_path / "reference" / "runtime"
+        lock_dir.mkdir(parents=True, exist_ok=True)
+        lock_file = lock_dir / "deepmd-runtime.lock.json"
+        lock_doc = {
+            "schema_id": "https://mlip-bench.example/schemas/dispatcher-compshare-runtime-lock/v2",
+            "artifact": {"image_id": img_id},
+            "qualification": {"status": "BUILT_NOT_QUALIFIED"},
+        }
+        lock_file.write_text(json.dumps(lock_doc), encoding="utf-8")
+        lock_sha = f"sha256:{hashlib.sha256(lock_file.read_bytes()).hexdigest()}"
+
+        art_dir = tmp_path / "outputs"
+        art_dir.mkdir(parents=True, exist_ok=True)
+        art_file = art_dir / "output.tar.gz"
+        art_content = b"test-artifact-data"
+        art_file.write_bytes(art_content)
+        art_sha = f"sha256:{hashlib.sha256(art_content).hexdigest()}"
+
+        rep_dir = tmp_path / "settlement"
+        rep_dir.mkdir(parents=True, exist_ok=True)
+        rep_file = rep_dir / "report.json"
+        rep_doc = {
+            "run_id": run_id,
+            "instance_id": inst_id,
+            "stop_confirmed": True,
+            "delete_confirmed": True,
+            "orphan_count": 0,
+        }
+        rep_bytes = json.dumps(rep_doc).encode("utf-8")
+        rep_file.write_bytes(rep_bytes)
+        rep_sha = f"sha256:{hashlib.sha256(rep_bytes).hexdigest()}"
+
+        audit_tail = "sha256:" + "0" * 64
+        audit_rel = "audit.jsonl"
+        if audit_path is not None:
+            audit_rel = str(audit_path.relative_to(tmp_path)) if audit_path.is_relative_to(tmp_path) else audit_path.name
+            if audit_path.is_file():
+                audit_tail = GatewayAudit(audit_path).tail_digest()
+
+        prof_file = Path(__file__).resolve().parents[2] / "examples" / "hpc" / "compshare-gpu-site-profile.json"
+        sp_digest = canonical_digest(json.loads(prof_file.read_text(encoding="utf-8")))
+        if not sp_digest.startswith("sha256:"):
+            sp_digest = f"sha256:{sp_digest}"
+
+        evidence = {
+            "instance_lifecycle": {
+                "instance_id": inst_id,
+                "image_id": img_id,
+                "stop_confirmed": True,
+                "delete_confirmed": True,
             },
-            "evidence": {
-                "jobs": [
+            "jobs": [
+                {
+                    "job_id": "job-1",
+                    "probe_class": "gpu",
+                    "image_id": img_id,
+                    "accounting": {
+                        "state": "COMPLETED",
+                        "exit_code": 0,
+                    },
+                }
+            ],
+            "credential_isolation": {
+                "verified": True,
+            },
+            "fetch": {
+                "artifacts": [
                     {
-                        "probe_class": "gpu",
-                        "accounting": {
-                            "state": "COMPLETED",
-                            "exit_code": 0,
-                        },
+                        "path": "outputs/output.tar.gz",
+                        "sha256": art_sha,
+                        "size_bytes": len(art_content),
                     }
-                ],
-                "settlement": {
-                    "terminated": True,
-                    "digest": "sha256:" + "1" * 64,
-                },
-                "instance_lifecycle": {
-                    "instance_id": "inst-test-001",
-                    "stop_confirmed": True,
-                    "delete_confirmed": True,
-                },
-                "credential_isolation": {
-                    "verified": True,
-                },
-                "fetch": {
-                    "artifacts": [
-                        {"name": "output.tar.gz", "sha256": "sha256:" + "2" * 64}
-                    ]
-                },
-                "orphan_check": {
-                    "method": "instance_list",
-                    "active_total": 0,
-                },
+                ]
+            },
+            "settlement": {
+                "terminated": True,
+                "report_path": "settlement/report.json",
+                "digest": rep_sha,
+            },
+            "orphan_check": {
+                "method": "instance_list",
+                "active_total": 0,
             },
         }
-        if audit_path is not None:
-            receipt["evidence"]["audit_log"] = str(audit_path.name)
 
-        receipt["digest"] = canonical_digest({k: v for k, v in receipt.items() if k != "digest"})
+        priv_hex, pub_hex = generate_ed25519_key_pair()
+        self.trust_store = QualificationTrustStore(
+            {
+                "compshare-site-v1": TrustKey(
+                    key_id="compshare-site-v1",
+                    algorithm="ed25519",
+                    public_key_hex=pub_hex,
+                    status="ACTIVE",
+                )
+            }
+        )
+
+        receipt = build_compshare_site_qualification_receipt(
+            run_id=run_id,
+            site_profile_id="compshare-gpu",
+            site_profile_digest=sp_digest,
+            source_commit="abcdef1234567890",
+            code_identity={"mod.py": code_sha},
+            runtime_lock={
+                "path": "reference/runtime/deepmd-runtime.lock.json",
+                "digest": lock_sha,
+                "image_id": img_id,
+            },
+            evidence=evidence,
+            audit_log=audit_rel,
+            audit_tail_digest=audit_tail,
+            private_key_hex=priv_hex,
+            key_id="compshare-site-v1",
+        )
         return receipt
 
     def test_compshare_receipt_with_sound_audit_log_passes(self, tmp_path: Path):
@@ -769,12 +853,33 @@ class TestCompShareReceiptAuditLineage:
 
         audit_path = tmp_path / "audit.jsonl"
         audit = GatewayAudit(audit_path)
-        audit.append({"action": "INSTANCE_CREATE", "instance_id": "inst-test-001"})
-        audit.append({"action": "JOB_SUBMIT", "job_id": "job-1"})
-        audit.append({"action": "INSTANCE_DELETE", "instance_id": "inst-test-001"})
+        run_id = "run-test-001"
+        inst_id = "inst-test-001"
+        img_id = "img-deepmd-gpu-v1"
+        for act in [
+            "INSTANCE_CREATE_INTENT",
+            "INSTANCE_CREATE_ACCEPTED",
+            "INSTANCE_READY",
+            "JOB_SUBMIT_INTENT",
+            "JOB_SUBMIT_ACCEPTED",
+            "JOB_TERMINAL",
+            "ARTIFACT_FETCHED",
+            "SETTLEMENT_BEGIN",
+            "INSTANCE_STOP_ACCEPTED",
+            "INSTANCE_DELETE_ACCEPTED",
+            "INSTANCE_DELETE_CONFIRMED",
+            "ZERO_ORPHAN_QUERY",
+            "SETTLEMENT_COMPLETE",
+        ]:
+            audit.append({
+                "action": act,
+                "run_id": run_id,
+                "instance_id": inst_id,
+                "image_id": img_id,
+            })
 
-        receipt = self._make_compshare_receipt(tmp_path, audit_path=audit_path)
-        result = verify_site_receipt(receipt, scheduler="compshare", root=tmp_path, receipt_dir=tmp_path)
+        receipt = self._make_compshare_receipt(tmp_path, audit_path=audit_path, run_id=run_id, inst_id=inst_id, img_id=img_id)
+        result = verify_site_receipt(receipt, scheduler="compshare", root=tmp_path, receipt_dir=tmp_path, trust_store=self.trust_store)
 
         assert result["problems"] == []
         assert result["derived"]["qualification_status"] == "PASS"
@@ -786,8 +891,8 @@ class TestCompShareReceiptAuditLineage:
 
         audit_path = tmp_path / "audit.jsonl"
         audit = GatewayAudit(audit_path)
-        audit.append({"action": "INSTANCE_CREATE", "instance_id": "inst-test-001"})
-        audit.append({"action": "JOB_SUBMIT", "job_id": "job-1"})
+        audit.append({"action": "INSTANCE_CREATE_INTENT", "run_id": "run-test-001"})
+        audit.append({"action": "JOB_SUBMIT_INTENT", "run_id": "run-test-001"})
 
         # Tamper the file content directly
         lines = audit_path.read_text(encoding="utf-8").splitlines()
@@ -797,7 +902,7 @@ class TestCompShareReceiptAuditLineage:
         audit_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
         receipt = self._make_compshare_receipt(tmp_path, audit_path=audit_path)
-        result = verify_site_receipt(receipt, scheduler="compshare", root=tmp_path, receipt_dir=tmp_path)
+        result = verify_site_receipt(receipt, scheduler="compshare", root=tmp_path, receipt_dir=tmp_path, trust_store=self.trust_store)
 
         assert any("GatewayAudit hash chain broken" in p for p in result["problems"])
         assert result["derived"]["qualification_status"] == "INVALID"
@@ -808,7 +913,7 @@ class TestCompShareReceiptAuditLineage:
 
         missing_path = tmp_path / "nonexistent_audit.jsonl"
         receipt = self._make_compshare_receipt(tmp_path, audit_path=missing_path)
-        result = verify_site_receipt(receipt, scheduler="compshare", root=tmp_path, receipt_dir=tmp_path)
+        result = verify_site_receipt(receipt, scheduler="compshare", root=tmp_path, receipt_dir=tmp_path, trust_store=self.trust_store)
 
         assert any("audit log missing" in p for p in result["problems"])
         assert result["derived"]["qualification_status"] == "INVALID"
@@ -843,8 +948,20 @@ class TestP4Ed25519AndEvidenceIntegrity:
         assert doc["signature"]["public_key"] == pub_hex
         assert verify_receipt_signature(doc, expected_public_key_hex=pub_hex) is True
 
+        from dftworld_bench.hpc.trust_store import QualificationTrustStore, TrustKey
+        store = QualificationTrustStore(
+            {
+                "compshare-site-v1": TrustKey(
+                    key_id="compshare-site-v1",
+                    algorithm="ed25519",
+                    public_key_hex=pub_hex,
+                    status="ACTIVE",
+                )
+            }
+        )
+
         with patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok):
-            verdict = verify_and_derive_qualification(doc, site_receipts_dir=receipts_dir)
+            verdict = verify_and_derive_qualification(doc, site_receipts_dir=receipts_dir, trust_store=store)
             assert verdict.passed is True
             assert verdict.errors == []
 
