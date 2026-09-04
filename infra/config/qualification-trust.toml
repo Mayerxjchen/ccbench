@@ -1,0 +1,14 @@
+# MLFFBench HPC Qualification Trust Store
+# Public keys authorized to certify site and compute profile qualifications.
+# Private keys MUST NEVER be committed to this repository or exposed to agents.
+
+schema_version = 1
+
+# Production signing key for CompShare site qualification (unconfigured in repository).
+# In production, maintainer configures this via local or injected trusted policy.
+# When unconfigured, qualification verifier returns NOT_CONFIGURED and fails closed.
+[keys.compshare-site-v1]
+algorithm = "ed25519"
+public_key_hex = ""
+status = "UNCONFIGURED"
+purpose = "compshare-site-qualification"

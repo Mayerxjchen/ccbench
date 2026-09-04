@@ -33,6 +33,7 @@
     }
   },
   "qualification_policy": {
-    "required_probe_classes": ["gpu"]
+    "required_probe_classes": ["gpu"],
+    "signing_key_id": "compshare-site-v1"
   }
 }
