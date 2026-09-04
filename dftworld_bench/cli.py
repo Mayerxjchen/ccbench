@@ -274,20 +274,39 @@ def _compute_qualify(
     # Zero-orphan live verification query helper via official account instances list
     def live_cloud_instances_checker() -> list[str]:
         from dftworld_bench.hpc.drivers.compshare.cli import CompShareCli, CompShareCliError
+        from dftworld_bench.hpc.drivers.compshare.policy import (
+            extract_verified_instance_id,
+            instance_requires_cleanup,
+            matches_ownership_marker,
+        )
 
         cli = CompShareCli()
         try:
             items = cli.instance_list(all=True)
-            active = []
+            if not isinstance(items, list):
+                raise RuntimeError("provider instance list result is not a list")
+            active: list[str] = []
             for item in items:
-                name = str(item.get("name") or "")
-                remark = str(item.get("remark") or "")
-                inst_id = str(item.get("instance_id") or item.get("id") or "")
-                # Filter strictly by trusted MLFFBench ownership marker
-                if name.startswith("mlffbench-") or remark.startswith("mlffbench:") or inst_id.startswith("mlffbench-"):
-                    status = str(item.get("status") or "").lower()
-                    if status not in ("terminated", "deleted", "stopped", "failed"):
-                        active.append(inst_id or name)
+                if not isinstance(item, dict):
+                    raise RuntimeError(
+                        "provider instance list contained a non-object record"
+                    )
+                # Keep CLI qualification on exactly the same ownership and
+                # cleanup policy as the trusted CompShare manager.  In
+                # particular, STOPPED/FAILED/unknown are not safe deletion
+                # states, and an owned record without an ID must fail closed.
+                if not matches_ownership_marker(item):
+                    continue
+                try:
+                    inst_id = extract_verified_instance_id(item)
+                except ValueError as exc:
+                    raise RuntimeError(str(exc)) from exc
+                if not inst_id:
+                    raise RuntimeError(
+                        "owned provider record has no verified instance_id"
+                    )
+                if instance_requires_cleanup(item.get("status")):
+                    active.append(inst_id)
             return active
         except CompShareCliError as exc:
             raise RuntimeError(f"Cannot verify live cloud zero-orphan status: {exc}") from exc
