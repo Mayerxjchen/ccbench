@@ -22,9 +22,11 @@ import errno
 import fcntl
 import hashlib
 import json
+import math
 import os
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -52,6 +54,15 @@ AccountScopeLockTimeoutError = AccountScopeLockTimeout
 
 class CompSharePolicyError(CompShareStateError):
     """Provider inventory or ownership policy cannot be proven safe."""
+
+
+@dataclass(frozen=True)
+class ManagedInstanceView:
+    """Validated provider projection used by all account-wide policy checks."""
+
+    instance_id: str
+    status: str
+    item: Mapping[str, Any]
 
 
 def _require_scope_string(name: str, value: str) -> str:
@@ -114,6 +125,23 @@ def account_scope_hash(
     return hashlib.sha256(encoded).hexdigest()
 
 
+def lineage_id_for(scope_hash: str, run_id: str, image_id: str) -> str:
+    """Return a deterministic identifier for one create request lineage."""
+
+    if not isinstance(scope_hash, str) or not scope_hash:
+        raise ValueError("scope_hash must be a non-empty string")
+    if not isinstance(run_id, str) or not run_id:
+        raise ValueError("run_id must be a non-empty string")
+    if not isinstance(image_id, str) or not image_id:
+        raise ValueError("image_id must be a non-empty string")
+    encoded = json.dumps(
+        {"scope_hash": scope_hash, "run_id": run_id, "image_id": image_id},
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return "lineage-" + hashlib.sha256(encoded).hexdigest()[:32]
+
+
 # Short aliases keep the public vocabulary flexible without introducing a
 # second implementation of the hash contract.
 stable_account_scope_hash = account_scope_hash
@@ -154,13 +182,13 @@ class AccountScopeLock:
         managed_account_scope_id: str | None = None,
         timeout_sec: float | None = 30.0,
     ) -> None:
+        if isinstance(state_root, (str, os.PathLike)) and not str(state_root).strip():
+            raise ValueError("state_root must be a non-empty path")
         root = Path(state_root)
-        if not str(root):
-            raise ValueError("state_root must be non-empty")
         if timeout_sec is not None:
             if isinstance(timeout_sec, bool) or not isinstance(
                 timeout_sec, (int, float)
-            ):
+            ) or not math.isfinite(float(timeout_sec)):
                 raise ValueError("timeout_sec must be a finite non-negative number")
             if timeout_sec < 0:
                 raise ValueError("timeout_sec must be a finite non-negative number")
@@ -209,7 +237,7 @@ class AccountScopeLock:
         if timeout is not None:
             if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
                 raise ValueError("timeout_sec must be a finite non-negative number")
-            if timeout < 0:
+            if not math.isfinite(float(timeout)) or timeout < 0:
                 raise ValueError("timeout_sec must be a finite non-negative number")
             timeout = float(timeout)
 
@@ -297,6 +325,161 @@ class AccountScopeLock:
 PersistentAccountScopeLock = AccountScopeLock
 
 
+STATE_SCHEMA_VERSION = 1
+"""Version for the append-only account-scope lifecycle journal."""
+
+CREATE_INTENT = "CREATE_INTENT"
+CREATE_UNCERTAIN = "CREATE_UNCERTAIN"
+PROVISIONING = "PROVISIONING"
+READY = "READY"
+TEARDOWN_INTENT = "TEARDOWN_INTENT"
+TEARDOWN_FAILED = "TEARDOWN_FAILED"
+TERMINATED = "TERMINATED"
+
+SAFE_LIFECYCLE_STATES = frozenset({TERMINATED})
+UNCERTAIN_LIFECYCLE_STATES = frozenset(
+    {CREATE_INTENT, CREATE_UNCERTAIN, TEARDOWN_INTENT, TEARDOWN_FAILED}
+)
+LIFECYCLE_STATES = frozenset(
+    {
+        CREATE_INTENT,
+        CREATE_UNCERTAIN,
+        PROVISIONING,
+        READY,
+        TEARDOWN_INTENT,
+        TEARDOWN_FAILED,
+        TERMINATED,
+    }
+)
+
+
+class CompShareStateStore:
+    """Durable append-only journal for one hashed account scope.
+
+    The store intentionally contains lineage metadata and provider IDs only;
+    credential values never enter the state path.  Every append is flushed and
+    fsynced while holding a file lock, and :meth:`latest` rejects malformed
+    records instead of returning a partial view that could authorize a second
+    create.
+    """
+
+    def __init__(self, state_root: str | os.PathLike[str], scope_hash: str) -> None:
+        if not isinstance(scope_hash, str) or not scope_hash:
+            raise ValueError("scope_hash must be a non-empty string")
+        if isinstance(state_root, (str, os.PathLike)) and not str(state_root).strip():
+            raise ValueError("state_root must be a non-empty path")
+        self.state_root = Path(state_root)
+        self.scope_hash = scope_hash
+        self.path = self.state_root / "scopes" / f"account-{scope_hash}.jsonl"
+
+    def append_event(self, event: Mapping[str, Any]) -> dict[str, Any]:
+        """Append one fsynced lifecycle event and return its detached copy."""
+
+        if not isinstance(event, Mapping):
+            raise CompShareStateError("state event must be a mapping")
+        status = event.get("status")
+        lineage_id = event.get("lineage_id")
+        run_id = event.get("run_id")
+        if not isinstance(status, str) or not status:
+            raise CompShareStateError("state event requires a non-empty status")
+        if status not in LIFECYCLE_STATES:
+            raise CompShareStateError(f"unknown CompShare lifecycle status: {status!r}")
+        if not isinstance(lineage_id, str) or not lineage_id:
+            raise CompShareStateError("state event requires a non-empty lineage_id")
+        if not isinstance(run_id, str) or not run_id:
+            raise CompShareStateError("state event requires a non-empty run_id")
+        record = dict(event)
+        record["schema_version"] = STATE_SCHEMA_VERSION
+        record.setdefault("ts", time.time())
+        try:
+            encoded = json.dumps(
+                record, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+            )
+        except (TypeError, ValueError) as exc:
+            raise CompShareStateError(f"state event is not JSON serializable: {exc}") from exc
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(self.path, "a", encoding="utf-8") as handle:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+                try:
+                    handle.write(encoded + "\n")
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                finally:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        except OSError as exc:
+            raise CompShareStateError(f"failed to append state journal {self.path}: {exc}") from exc
+        return json.loads(encoded)
+
+    # Friendly short spelling for lifecycle call sites.
+    append = append_event
+
+    def latest(self) -> dict[str, dict[str, Any]]:
+        """Load the latest event for every lineage, failing closed on corruption."""
+
+        if not self.path.is_file():
+            return {}
+        latest: dict[str, dict[str, Any]] = {}
+        try:
+            with open(self.path, "r", encoding="utf-8") as handle:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
+                try:
+                    for line_number, line in enumerate(handle, start=1):
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            record = json.loads(line)
+                        except json.JSONDecodeError as exc:
+                            raise CompShareStateError(
+                                f"state journal {self.path} line {line_number} is not JSON"
+                            ) from exc
+                        if not isinstance(record, dict):
+                            raise CompShareStateError(
+                                f"state journal {self.path} line {line_number} is not an object"
+                            )
+                        if record.get("schema_version") != STATE_SCHEMA_VERSION:
+                            raise CompShareStateError(
+                                f"state journal {self.path} line {line_number} has unsupported schema"
+                            )
+                        lineage_id = record.get("lineage_id")
+                        status = record.get("status")
+                        run_id = record.get("run_id")
+                        if not all(
+                            isinstance(value, str) and value
+                            for value in (lineage_id, status, run_id)
+                        ):
+                            raise CompShareStateError(
+                                f"state journal {self.path} line {line_number} is missing identity"
+                            )
+                        if status not in LIFECYCLE_STATES:
+                            raise CompShareStateError(
+                                f"state journal {self.path} line {line_number} "
+                                "has unknown lifecycle status"
+                            )
+                        latest[lineage_id] = record
+                finally:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        except CompShareStateError:
+            raise
+        except OSError as exc:
+            raise CompShareStateError(f"failed to read state journal {self.path}: {exc}") from exc
+        return latest
+
+    def latest_for_run(self, run_id: str) -> list[dict[str, Any]]:
+        """Return latest lifecycle records for one run in deterministic order."""
+
+        return sorted(
+            (
+                record
+                for record in self.latest().values()
+                if record.get("run_id") == run_id
+            ),
+            key=lambda record: str(record.get("lineage_id")),
+        )
+
+
 def _marker_like(instance: Mapping[str, Any]) -> bool:
     """Return whether an item claims an MLFFBench ownership namespace."""
 
@@ -318,6 +501,23 @@ def _validate_managed_item(item: Mapping[str, Any]) -> tuple[str, str] | None:
     if not matches_ownership_marker(item):
         raise CompSharePolicyError(
             "provider instance has a malformed or ambiguous MLFFBench ownership marker"
+        )
+
+    supplied_ids = {
+        key: item.get(key)
+        for key in ("instance_id", "id")
+        if item.get(key) is not None
+    }
+    if any(not isinstance(value, str) for value in supplied_ids.values()):
+        raise CompSharePolicyError("managed provider record has a malformed instance_id")
+    if (
+        isinstance(supplied_ids.get("instance_id"), str)
+        and isinstance(supplied_ids.get("id"), str)
+        and supplied_ids["instance_id"].strip()
+        != supplied_ids["id"].strip()
+    ):
+        raise CompSharePolicyError(
+            "managed provider record has conflicting instance_id and id fields"
         )
 
     # The current marker must be a complete pair.  Legacy markers remain
@@ -361,6 +561,7 @@ def assert_account_capacity(
     cli: Any,
     *,
     max_instances: int = 1,
+    inventory: list[ManagedInstanceView] | None = None,
 ) -> list[str]:
     """Fail closed unless the complete account inventory is below capacity.
 
@@ -381,6 +582,35 @@ def assert_account_capacity(
         raise CompSharePolicyError("max_instances must be a positive integer")
     if max_instances < 1:
         raise CompSharePolicyError("max_instances must be a positive integer")
+    managed = list_managed_instances(cli) if inventory is None else inventory
+    if not isinstance(managed, list) or any(
+        not isinstance(view, ManagedInstanceView) for view in managed
+    ):
+        raise CompSharePolicyError("managed inventory projection is malformed")
+    active = [
+        view.instance_id
+        for view in managed
+        if view.status not in SAFE_DELETED_STATES
+        and instance_requires_cleanup(view.status)
+    ]
+
+    active = sorted(set(active))
+    if len(active) >= max_instances:
+        raise CompSharePolicyError(
+            f"managed CompShare account capacity exhausted: active={active}, "
+            f"max_instances={max_instances}"
+        )
+    return active
+
+
+def list_managed_instances(cli: Any) -> list[ManagedInstanceView]:
+    """Return every validated managed record from the complete account list.
+
+    This is the shared inventory primitive for capacity, reconciliation, and
+    zero-orphan checks.  It makes one ``instance_list(all=True)`` call and
+    delegates pagination/response-envelope validation to the CLI wrapper.
+    """
+
     try:
         items = cli.instance_list(all=True)
     except Exception as exc:
@@ -392,7 +622,8 @@ def assert_account_capacity(
             "provider instance_list(all=True) returned a non-list"
         )
 
-    active: list[str] = []
+    managed: list[ManagedInstanceView] = []
+    seen_ids: set[str] = set()
     for item in items:
         if not isinstance(item, Mapping):
             raise CompSharePolicyError(
@@ -402,16 +633,19 @@ def assert_account_capacity(
         if normalized is None:
             continue
         instance_id, status = normalized
-        if status not in SAFE_DELETED_STATES and instance_requires_cleanup(status):
-            active.append(instance_id)
-
-    active = sorted(set(active))
-    if len(active) >= max_instances:
-        raise CompSharePolicyError(
-            f"managed CompShare account capacity exhausted: active={active}, "
-            f"max_instances={max_instances}"
+        if instance_id in seen_ids:
+            raise CompSharePolicyError(
+                f"provider instance_list(all=True) repeated instance_id {instance_id!r}"
+            )
+        seen_ids.add(instance_id)
+        managed.append(
+            ManagedInstanceView(
+                instance_id=instance_id,
+                status=status,
+                item=dict(item),
+            )
         )
-    return active
+    return managed
 
 
 __all__ = [
@@ -419,11 +653,26 @@ __all__ = [
     "AccountScopeLockTimeout",
     "AccountScopeLockTimeoutError",
     "CompSharePolicyError",
+    "ManagedInstanceView",
+    "CompShareStateStore",
     "CompShareStateError",
+    "CREATE_INTENT",
+    "CREATE_UNCERTAIN",
+    "PROVISIONING",
+    "READY",
+    "SAFE_LIFECYCLE_STATES",
+    "STATE_SCHEMA_VERSION",
+    "TEARDOWN_FAILED",
+    "TEARDOWN_INTENT",
+    "TERMINATED",
+    "UNCERTAIN_LIFECYCLE_STATES",
+    "LIFECYCLE_STATES",
     "PersistentAccountScopeLock",
     "account_scope_digest",
     "account_scope_hash",
     "account_scope_material",
     "assert_account_capacity",
+    "lineage_id_for",
+    "list_managed_instances",
     "stable_account_scope_hash",
 ]

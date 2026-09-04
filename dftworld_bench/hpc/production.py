@@ -137,13 +137,16 @@ def build_hybrid_stack(
     trust_store: Any | None = None,
     repo_root: Path | str | None = None,
     compshare_workspace_root: Path | str | None = None,
+    compshare_state_root: Path | str | None = None,
 ) -> dict[str, Any]:
     """Compose heterogeneous hybrid stack routing CPU to Slurm and GPU to CompShare.
 
-    ``repo_root`` and ``compshare_workspace_root`` are explicit composition
-    inputs for offline qualification/replay and isolated test workspaces.  A
-    caller cannot use them to bypass the Catalog: the returned RoutedDriver is
-    still given only ``runtime_catalog.to_resolver()``.
+    ``compshare_state_root`` is the explicit durable account-lock/ledger root
+    for formal CompShare runs.  ``compshare_workspace_root`` remains an
+    explicit offline qualification/replay workspace; when a fake CLI is
+    injected it may serve as the state root for those isolated tests.  A
+    caller cannot use either path to bypass the Catalog: the returned
+    RoutedDriver is still given only ``runtime_catalog.to_resolver()``.
     """
     import json
     from dftworld_bench.hpc.compute_profile import ComputeProfile, ComputeRouter
@@ -193,6 +196,17 @@ def build_hybrid_stack(
         if gpu_target:
             site_profiles[gpu_target] = gpu_site
 
+    profile_state_root = (
+        gpu_site.compshare_state_root if gpu_site is not None else None
+    )
+    resolved_state_root = (
+        compshare_state_root
+        if compshare_state_root is not None
+        else profile_state_root
+    )
+    if resolved_state_root is None and compshare_cli is not None:
+        resolved_state_root = compshare_workspace_root
+
     compshare_driver = CompShareDriver(
         cli,
         site_profile=gpu_site,
@@ -202,6 +216,8 @@ def build_hybrid_stack(
             if compshare_workspace_root is not None
             else "/tmp/mlffbench/compshare_jobs"
         ),
+        state_root=resolved_state_root,
+        production=True,
     )
     report = compshare_driver.manager.reconcile_and_recover()
     if not report.clean:

@@ -399,6 +399,19 @@ class HpcSiteProfile:
         """Compatibility method form of :attr:`compshare_budget_policy`."""
         return self.compshare_budget_policy
 
+    @property
+    def compshare_state_root(self) -> str | None:
+        """Return the explicit persistent CompShare state root, if configured.
+
+        The value is read-only and remains part of ``runtime_policy`` (and
+        therefore the profile digest); composition code must still reject a
+        formal production profile that omits it.
+        """
+        if self.scheduler != "compshare":
+            return None
+        value = self.runtime_policy.get("compshare_state_root")
+        return value if isinstance(value, str) and value else None
+
     def public_capabilities(self) -> dict[str, Any]:
         """Candidate-visible view: abstract classes + ceilings only."""
         classes: dict[str, Any] = {}

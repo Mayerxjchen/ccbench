@@ -115,6 +115,11 @@
         "default_gpu_vram_gb": { "type": "integer" },
         "region": { "type": "string" },
         "zone": { "type": "string" },
+        "compshare_state_root": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Explicit persistent root for the account-scoped CompShare state and lock ledger."
+        },
         "budget_policy": {
           "type": "object",
           "required": [

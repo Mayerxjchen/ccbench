@@ -63,7 +63,15 @@ def build_adapter(adapter_config: dict[str, Any]):
         instance = adapter_config.get("adapter_instance")
         if instance is None:
             from dftworld_bench.hpc.drivers.compshare import CompShareCli, CompShareDriver
-            return CompShareDriver(CompShareCli())
+            return CompShareDriver(
+                CompShareCli(),
+                workspace_root=str(
+                    adapter_config.get(
+                        "workspace_root", "/tmp/mlffbench/compshare_jobs"
+                    )
+                ),
+                state_root=adapter_config.get("compshare_state_root"),
+            )
         return instance
     if kind == "routed":
         instance = adapter_config.get("adapter_instance")

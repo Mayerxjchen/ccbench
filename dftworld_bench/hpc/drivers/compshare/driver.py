@@ -68,6 +68,8 @@ class CompShareDriver(HpcDriver):
         *,
         budget: BudgetConfig | None = None,
         workspace_root: str = "/tmp/mlffbench/compshare_jobs",
+        state_root: str | Path | None = None,
+        production: bool | None = None,
         manager: RunScopedInstanceManager | None = None,
         site_profile: Any | None = None,
         audit: Any | None = None,
@@ -84,8 +86,23 @@ class CompShareDriver(HpcDriver):
             default_memory = "64GiB"
             default_disk = "100GiB"
             default_image_source = "platform"
+            profile_state_root: str | Path | None = None
+            target_binding: str | None = None
+            account: str | None = None
+            provider = "compshare"
             if site_profile is not None:
                 rp = getattr(site_profile, "runtime_policy", {}) or {}
+                profile_state_root = getattr(
+                    site_profile, "compshare_state_root", None
+                ) or rp.get("compshare_state_root")
+                connection = getattr(site_profile, "connection", {}) or {}
+                target_binding = connection.get("target_binding") or getattr(
+                    site_profile, "target_binding", None
+                )
+                account = getattr(site_profile, "account", None) or getattr(
+                    site_profile, "account_id", None
+                )
+                provider = rp.get("provider", provider)
                 region = rp.get("region", region)
                 zone = rp.get("zone", zone)
                 gpu_queue = (getattr(site_profile, "queues", {}) or {}).get("gpu", {})
@@ -122,11 +139,31 @@ class CompShareDriver(HpcDriver):
                             managed_account_scope_id=bp.get("managed_account_scope_id"),
                         )
                 default_image_source = rp.get("image_source", "platform")
+            production_mode = (site_profile is not None) if production is None else production
+            if profile_state_root is not None and state_root is not None:
+                if Path(profile_state_root) != Path(state_root):
+                    raise CompShareDriverError(
+                        "explicit compshare_state_root disagrees with the trusted SiteProfile"
+                    )
+            resolved_state_root = state_root or profile_state_root
+            if production_mode and resolved_state_root is None:
+                raise CompShareDriverError(
+                    "production CompShare driver requires an explicit persistent "
+                    "compshare_state_root"
+                )
+            if resolved_state_root is None:
+                resolved_state_root = self.workspace_root
+            ledger_root = Path(resolved_state_root)
             manager = RunScopedInstanceManager(
                 cli,
                 budget=budget,
-                ledger_path=self.workspace_root / "compshare-instance-ledger.jsonl",
-                orphan_ledger_path=self.workspace_root / "orphan-ledger.jsonl",
+                state_root=ledger_root,
+                ledger_path=ledger_root / "compshare-instance-ledger.jsonl",
+                orphan_ledger_path=ledger_root / "orphan-ledger.jsonl",
+                provider=provider,
+                target_binding=target_binding,
+                account=account,
+                production=bool(production_mode),
                 region=region,
                 zone=zone,
                 default_cpus=default_cpus,

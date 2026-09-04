@@ -27,6 +27,7 @@
     "image_source": "custom",
     "region": "cn-north",
     "zone": "zone-a",
+    "compshare_state_root": "/var/lib/mlffbench/compshare",
     "budget_policy": {
       "max_budget_cny": 100.0,
       "max_instance_hours": 10.0,
