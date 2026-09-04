@@ -115,8 +115,16 @@ def build_hybrid_stack(
     runtime_lock_dir: Path | str = "reference/runtime",
     qualification_root: Path | str | None = None,
     trust_store: Any | None = None,
+    repo_root: Path | str | None = None,
+    compshare_workspace_root: Path | str | None = None,
 ) -> dict[str, Any]:
-    """Compose heterogeneous hybrid stack routing CPU to Slurm and GPU to CompShare."""
+    """Compose heterogeneous hybrid stack routing CPU to Slurm and GPU to CompShare.
+
+    ``repo_root`` and ``compshare_workspace_root`` are explicit composition
+    inputs for offline qualification/replay and isolated test workspaces.  A
+    caller cannot use them to bypass the Catalog: the returned RoutedDriver is
+    still given only ``runtime_catalog.to_resolver()``.
+    """
     import json
     from dftworld_bench.hpc.compute_profile import ComputeProfile, ComputeRouter
     from dftworld_bench.hpc.drivers.compshare import CompShareCli, CompShareDriver
@@ -163,7 +171,16 @@ def build_hybrid_stack(
         if gpu_target:
             site_profiles[gpu_target] = gpu_site
 
-    compshare_driver = CompShareDriver(cli, site_profile=gpu_site, audit=audit)
+    compshare_driver = CompShareDriver(
+        cli,
+        site_profile=gpu_site,
+        audit=audit,
+        workspace_root=(
+            str(compshare_workspace_root)
+            if compshare_workspace_root is not None
+            else "/tmp/mlffbench/compshare_jobs"
+        ),
+    )
     report = compshare_driver.manager.reconcile_and_recover()
     if not report.clean:
         raise RuntimeError(
@@ -186,6 +203,7 @@ def build_hybrid_stack(
         trusted_site_profiles={
             profile.site_id: profile for profile in site_profiles.values()
         },
+        repo_root=repo_root,
     )
 
     routed = RoutedDriver(

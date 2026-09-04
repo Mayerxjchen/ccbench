@@ -74,7 +74,9 @@ class JobSpec:
     outputs: tuple[str, ...] = ()
     source: Path | None = None
 
-    RUNTIME_RE = re.compile(r"^[a-z0-9][a-z0-9./_-]*@sha256:[0-9a-f]{64}$")
+    RUNTIME_RE = re.compile(
+        r"^[a-z0-9][a-z0-9./_-]*@(?:sha256:[0-9a-f]{64}|img-[a-z0-9._-]+)$"
+    )
 
     @classmethod
     def load(
@@ -122,7 +124,8 @@ class JobSpec:
             raise JobError(f"job violates hpc-job.schema.json at {where}: {first.message}")
         if not cls.RUNTIME_RE.match(payload["runtime"]):
             raise JobError(
-                "runtime must be pinned to a digest: image@sha256:<64 hex>, got "
+                "runtime must be pinned to a digest or sealed provider identity: "
+                "image@sha256:<64 hex> or image@img-<id>, got "
                 f"{payload['runtime']!r}"
             )
         res = payload["resources"]

@@ -23,6 +23,10 @@
       "minLength": 1,
       "description": "Optional v2 bridge: logical operation identity supplied by the v2 submit envelope. Ignored by v1 readers."
     },
+    "compute_class": {
+      "enum": ["cpu", "gpu"],
+      "description": "Optional v2 bridge for routed public adapters. When present, the trusted ComputeProfile maps this explicit class to a SiteProfile; routed adapters still reject a missing class."
+    },
     "attempt": {
       "type": "integer",
       "minimum": 1,
@@ -35,8 +39,8 @@
     },
     "runtime": {
       "type": "string",
-      "pattern": "^[a-z0-9][a-z0-9./_-]*@sha256:[0-9a-f]{64}$",
-      "description": "Image reference pinned to a content digest. Tag-only references are rejected."
+      "pattern": "^[a-z0-9][a-z0-9./_-]*@(?:sha256:[0-9a-f]{64}|img-[a-z0-9._-]+)$",
+      "description": "Image reference pinned to a content digest, or to a sealed CompShare ImageId produced by the trusted runtime Catalog. Tag-only references are rejected."
     },
     "command": {
       "type": "array",

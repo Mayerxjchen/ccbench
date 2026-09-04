@@ -280,6 +280,34 @@ class RoutedDriver(HpcDriver):
                 continue
         raise HpcDriverError(f"Job {job_id} not owned by any active driver in RoutedDriver")
 
+    def _adapter_instance_id(self, job_id: str) -> str:
+        """Expose the concrete provider instance for Gateway lineage events.
+
+        The Gateway owns the durable lifecycle ledger, while RoutedDriver owns
+        the per-job backend map.  Forwarding this read-only identity keeps
+        SUBMIT/JOB/ARTIFACT events bound to the same CompShare instance after
+        route selection without allowing a caller to choose that instance.
+        """
+        driver = self._job_to_driver.get(job_id)
+        candidates = [driver] if driver is not None else list(self.drivers.values())
+        for candidate in candidates:
+            resolver = getattr(candidate, "_adapter_instance_id", None)
+            if callable(resolver):
+                value = resolver(job_id)
+                if isinstance(value, str) and value:
+                    return value
+            jobs = getattr(candidate, "_jobs", None)
+            if not isinstance(jobs, dict):
+                continue
+            record = jobs.get(job_id)
+            if isinstance(record, dict):
+                value = record.get("instance_id")
+            else:
+                value = getattr(record, "instance_id", "") if record else ""
+            if isinstance(value, str) and value:
+                return value
+        return ""
+
     def usage(self) -> dict[str, Any]:
         """Aggregate usage across all registered drivers."""
         combined: dict[str, Any] = {}

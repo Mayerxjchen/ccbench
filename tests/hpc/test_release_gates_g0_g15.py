@@ -301,37 +301,16 @@ def test_g15_no_credential_leaks():
             assert not suspicious.search(text), f"Suspected API key leak in {path}"
 
 
-def test_g16_gate_a1_negative_contracts_suite():
-    """G16: Gate A1 Architecture Freeze negative contracts suite."""
-    from tests.hpc import test_gate_a1_negative_contracts as neg_mod
+def test_g16_public_lifecycle_and_qualification(tmp_path: Path):
+    """G16: exercise real public lifecycle and formal qualification behavior.
 
-    required_contracts = [
-        "test_contract_1_agent_direct_image_path_rejected",
-        "test_contract_2_unbuilt_runtime_rejected_at_resolution",
-        "test_contract_3_ownership_marker_injected_by_trusted_driver",
-        "test_contract_4_token_independent_trusted_teardown",
-        "test_contract_5_zero_orphan_gate_fails_on_active_or_error",
-        "test_contract_6_ed25519_signature_tampering_fails",
-        "test_contract_7_evidence_path_traversal_rejected",
-        "test_contract_8_site_profile_required_probe_classes_enforced",
-        "test_forged_lock_status_pass_cannot_resolve",
-        "test_missing_runtime_receipt_cannot_resolve",
-        "test_self_signed_receipt_rejected",
-        "test_unsigned_receipt_rejected",
-        "test_untrusted_key_id_rejected",
-        "test_missing_runtime_lock_file_rejected",
-        "test_runtime_lock_digest_mismatch_rejected",
-        "test_missing_artifact_file_rejected",
-        "test_artifact_digest_mismatch_rejected",
-        "test_audit_from_another_run_rejected",
-        "test_audit_instance_id_mismatch_rejected",
-        "test_audit_image_id_mismatch_rejected",
-        "test_audit_event_order_rejected",
-        "test_stopped_instance_blocks_cli_qualification",
-        "test_failed_existing_instance_blocks_qualification",
-        "test_receipt_local_site_profile_cannot_override_policy",
-        "test_concurrent_audit_append_preserves_chain",
-        "test_special_character_run_id_generates_safe_marker",
-    ]
-    for rc in required_contracts:
-        assert hasattr(neg_mod.TestGateA1NegativeContracts, rc), f"Missing negative contract test: {rc}"
+    This gate intentionally executes the public composition root with the
+    official CLI-shaped FakeCompShare provider.  It is a behavior gate, not a
+    source/name-presence scan: provider readbacks create the site receipts,
+    Gateway emits the lifecycle ledger, and the unpatched v2 verifier derives
+    the final result.
+    """
+    from tests.hpc.test_c10_public_integration import run_public_c10_lifecycle
+
+    result = run_public_c10_lifecycle(tmp_path)
+    assert result["verdict"].passed is True

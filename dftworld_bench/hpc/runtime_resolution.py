@@ -592,11 +592,16 @@ class RuntimeResolver:
                     "CompShare ImageId on this site (placeholder/unqualified rejected)"
                 )
             # CompShare image IDs are provider identities, not SHA-256 SIF
-            # digests.  A legacy ``name@...`` suffix is accepted only when a
-            # lock explicitly carries the same artifact digest; a receipt
-            # digest is never compared to an Agent declaration.
+            # digests.  A resolved declaration uses ``name@<image_id>`` so a
+            # downstream routed driver can re-check the Catalog result.  That
+            # exact provider identity is accepted as a sealed assertion; a
+            # different suffix is accepted only when the lock explicitly
+            # carries the same artifact digest.  A receipt digest is never
+            # compared to an Agent declaration.
             artifact_digest = entry.digest
-            if digest is not None and (not artifact_digest or digest != artifact_digest):
+            if digest is not None and digest != entry.artifact_path_or_id and (
+                not artifact_digest or digest != artifact_digest
+            ):
                 raise RuntimeResolutionError(
                     f"declared digest for {name!r} does not match the locked "
                     "artifact; digests are infra assertions, not Agent choices"

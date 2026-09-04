@@ -1032,6 +1032,11 @@ class Gateway:
                 raise first
 
     def _adapter_instance_id(self, job_id: str) -> str:
+        resolver = getattr(self._adapter, "_adapter_instance_id", None)
+        if callable(resolver):
+            value = resolver(job_id)
+            if isinstance(value, str) and value:
+                return value
         jobs = getattr(self._adapter, "_jobs", None)
         if not isinstance(jobs, dict):
             return ""
