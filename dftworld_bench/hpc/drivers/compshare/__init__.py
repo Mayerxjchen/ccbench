@@ -35,6 +35,19 @@ from dftworld_bench.hpc.drivers.compshare.policy import (
     is_canonical_ownership_marker,
 )
 from dftworld_bench.hpc.site_profile import CompShareBudgetPolicy
+from dftworld_bench.hpc.drivers.compshare.state import (
+    AccountScopeLock,
+    AccountScopeLockTimeout,
+    AccountScopeLockTimeoutError,
+    CompSharePolicyError,
+    CompShareStateError,
+    PersistentAccountScopeLock,
+    account_scope_digest,
+    account_scope_hash,
+    account_scope_material,
+    assert_account_capacity,
+    stable_account_scope_hash,
+)
 
 __all__ = [
     "CliResult",
@@ -64,4 +77,15 @@ __all__ = [
     "extract_verified_instance_id",
     "is_canonical_ownership_marker",
     "CompShareBudgetPolicy",
+    "AccountScopeLock",
+    "AccountScopeLockTimeout",
+    "AccountScopeLockTimeoutError",
+    "CompSharePolicyError",
+    "CompShareStateError",
+    "PersistentAccountScopeLock",
+    "account_scope_digest",
+    "account_scope_hash",
+    "account_scope_material",
+    "assert_account_capacity",
+    "stable_account_scope_hash",
 ]
