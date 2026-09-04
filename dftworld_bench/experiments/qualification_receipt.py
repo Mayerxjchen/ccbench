@@ -1451,52 +1451,252 @@ def _check_audit(
     job: dict[str, Any],
     problem,
 ) -> None:
+    """Verify the Gateway lifecycle protocol for one exact job lineage.
+
+    This is intentionally a partial-order check rather than a list-of-kinds
+    check.  An audit entry must carry the real Gateway ``kind`` and the
+    complete (run, operation, attempt, job) identity.  Legacy ``action``
+    labels and ``JOB_SUBMIT_*`` aliases are not protocol events and therefore
+    cannot make a receipt pass.
+    """
     run_id = job.get("run_id")
+    operation_id = job.get("operation_id")
+    attempt = job.get("attempt")
+    job_id = job.get("job_id")
+    expected_state = job.get("state")
+    expected_exit = job.get("exit_code")
 
-    def event_kind(entry: dict[str, Any]) -> str:
-        return (entry.get("event") or {}).get("kind", "")
-
-    accepted: list[tuple[str, int, str]] = []
-    settlement_begins = 0
-    voided = 0
-    for entry in entries:
-        event = entry.get("event") or {}
-        kind = event.get("kind")
+    run_events: list[tuple[int, dict[str, Any]]] = []
+    legacy_events = 0
+    for index, entry in enumerate(entries):
+        event = entry.get("event")
+        if not isinstance(event, dict):
+            continue
         if event.get("run_id") != run_id:
             continue
-        if kind == "SUBMIT_ACCEPTED":
-            accepted.append(
-                (
-                    event.get("operation_id"),
-                    event.get("attempt"),
-                    event.get("job_id"),
-                )
-            )
-        elif kind == "SETTLEMENT_BEGIN":
-            settlement_begins += 1
-        elif kind == "SUBMIT_VOIDED":
-            voided += 1
-    triple = (job.get("operation_id"), job.get("attempt"), job.get("job_id"))
-    if triple not in accepted:
+        run_events.append((index, event))
+        # A real Gateway event is identified by `kind`; old hand-written
+        # qualification ledgers used `action` and must remain unreadable for
+        # PASS even if their labels look similar.
+        if "kind" not in event and "action" in event:
+            legacy_events += 1
+    if legacy_events:
         problem(
             "audit_ledger",
-            f"(operation, attempt, job) {triple} never accepted in the "
-            f"durable ledger (accepted={accepted})",
+            f"{legacy_events} legacy action-only event(s) are not Gateway protocol events",
         )
-    extra = [a for a in accepted if a != triple]
-    if extra:
-        # Orphan scheduler jobs: submitted under this run but absent from
-        # settlement — exactly what "no orphan jobs" forbids.
-        problem("audit_ledger", f"orphan submissions outside settlement: {extra}")
-    if settlement_begins < 1:
-        problem(
-            "audit_ledger",
-            f"no SETTLEMENT_BEGIN for run {run_id!r}; submissions were never frozen",
+
+    def of_kind(kind: str) -> list[tuple[int, dict[str, Any]]]:
+        return [(index, event) for index, event in run_events if event.get("kind") == kind]
+
+    lineage = (run_id, operation_id, attempt)
+
+    def has_lineage(event: dict[str, Any]) -> bool:
+        return (
+            event.get("run_id"),
+            event.get("operation_id"),
+            event.get("attempt"),
+        ) == lineage
+
+    def describe(event: dict[str, Any]) -> str:
+        return (
+            f"({event.get('operation_id')!r}, {event.get('attempt')!r}, "
+            f"{event.get('job_id')!r})"
         )
+
+    # The run may contain no second scheduler job.  Any additional real
+    # SUBMIT_* lineage is an orphan even if the report names only the target.
+    intents = of_kind("SUBMIT_INTENT")
+    accepted = of_kind("SUBMIT_ACCEPTED")
+    voided = of_kind("SUBMIT_VOIDED")
+    target_intents = [(i, e) for i, e in intents if has_lineage(e)]
+    target_accepted = [(i, e) for i, e in accepted if has_lineage(e)]
+    extras = [describe(e) for _, e in accepted if not has_lineage(e)]
+    extras.extend(describe(e) for _, e in intents if not has_lineage(e))
+    if extras:
+        problem("audit_ledger", f"orphan SUBMIT_* lineage(s): {extras}")
     if voided:
         problem(
-            "audit_ledger", f"{voided} SUBMIT_VOIDED intents in the qualification run"
+            "audit_ledger",
+            f"{len(voided)} SUBMIT_VOIDED intent(s) in qualification run",
         )
+
+    if len(target_intents) != 1:
+        problem(
+            "audit_ledger",
+            f"expected exactly one real SUBMIT_INTENT for {lineage}, "
+            f"found {len(target_intents)}",
+        )
+    if len(target_accepted) != 1:
+        problem(
+            "audit_ledger",
+            f"expected exactly one real SUBMIT_ACCEPTED for {lineage} / {job_id!r}, "
+            f"found {len(target_accepted)}",
+        )
+
+    intent_index: int | None = target_intents[0][0] if target_intents else None
+    accepted_index: int | None = target_accepted[0][0] if target_accepted else None
+    intent = target_intents[0][1] if target_intents else {}
+    accepted_event = target_accepted[0][1] if target_accepted else {}
+
+    if accepted_event and accepted_event.get("job_id") != job_id:
+        problem(
+            "audit_ledger",
+            f"SUBMIT_ACCEPTED job {accepted_event.get('job_id')!r} != receipt job {job_id!r}; "
+            f"receipt job {job_id!r} was never accepted",
+        )
+    if intent_index is not None and accepted_index is not None:
+        if accepted_index <= intent_index:
+            problem(
+                "audit_ledger",
+                "SUBMIT_ACCEPTED precedes its SUBMIT_INTENT",
+            )
+        if accepted_event.get("marker") != intent.get("marker"):
+            problem(
+                "audit_ledger",
+                "SUBMIT_ACCEPTED marker does not close the exact SUBMIT_INTENT",
+            )
+        for field in ("operation_id", "attempt", "image_id", "runtime_decl"):
+            if intent.get(field) != accepted_event.get(field):
+                problem(
+                    "audit_ledger",
+                    f"SUBMIT_INTENT/{field} disagrees with SUBMIT_ACCEPTED",
+                )
+
+    # Concrete image identity comes from the receipt's runtime declaration;
+    # event records must carry the same identity.  A CompShare instance is
+    # optional for Slurm, but once present it must be propagated unchanged.
+    runtime_decl = job.get("runtime_decl")
+    # A CompShare ``image_id`` and a Slurm runtime name are different site
+    # identities.  Receipts that carry an explicit image_id bind it directly;
+    # otherwise the verifier still requires a non-empty event image and
+    # enforces equality across every lifecycle event.
+    expected_image = job.get("image_id") or job.get("image")
+    expected_instance = (
+        job.get("instance_id")
+        or job.get("cloud_instance_id")
+        or job.get("provider_instance_id")
+        or (job.get("accounting") or {}).get("instance_id")
+        or ""
+    )
+    accepted_image = accepted_event.get("image_id", "")
+    accepted_instance = accepted_event.get("instance_id", "")
+    if not isinstance(accepted_image, str) or not accepted_image:
+        problem("audit_ledger", "SUBMIT_ACCEPTED has no concrete image_id")
+    elif expected_image and accepted_image != expected_image:
+        problem(
+            "audit_ledger",
+            f"SUBMIT_ACCEPTED image_id {accepted_image!r} != receipt image {expected_image!r}",
+        )
+    if expected_instance and accepted_instance != expected_instance:
+        problem(
+            "audit_ledger",
+            f"SUBMIT_ACCEPTED instance_id {accepted_instance!r} != receipt instance {expected_instance!r}",
+        )
+    if isinstance(runtime_decl, str) and accepted_event.get("runtime_decl") != runtime_decl:
+        problem(
+            "audit_ledger",
+            "SUBMIT_ACCEPTED runtime_decl is not the receipt runtime declaration",
+        )
+
+    terminal = [
+        (i, e)
+        for i, e in of_kind("JOB_TERMINAL")
+        if has_lineage(e) and e.get("job_id") == job_id
+    ]
+    terminal_extras = [
+        describe(e)
+        for _, e in of_kind("JOB_TERMINAL")
+        if not (has_lineage(e) and e.get("job_id") == job_id)
+    ]
+    if terminal_extras:
+        problem("audit_ledger", f"terminal event(s) outside receipt job: {terminal_extras}")
+    if len(terminal) != 1:
+        problem(
+            "audit_ledger",
+            f"expected exactly one JOB_TERMINAL for {lineage} / {job_id!r}, "
+            f"found {len(terminal)}",
+        )
+    terminal_index: int | None = terminal[0][0] if terminal else None
+    terminal_event = terminal[0][1] if terminal else {}
+    if terminal_event:
+        if accepted_index is not None and terminal_index is not None and terminal_index <= accepted_index:
+            problem("audit_ledger", "JOB_TERMINAL precedes SUBMIT_ACCEPTED")
+        if terminal_event.get("state") != expected_state:
+            problem(
+                "audit_ledger",
+                f"JOB_TERMINAL state {terminal_event.get('state')!r} != receipt state {expected_state!r}",
+            )
+        if (
+            expected_state == "SUCCEEDED"
+            and "exit_code" in terminal_event
+            and terminal_event.get("exit_code") != expected_exit
+        ):
+            problem(
+                "audit_ledger",
+                f"JOB_TERMINAL exit_code {terminal_event.get('exit_code')!r} != receipt exit_code {expected_exit!r}",
+            )
+        if terminal_event.get("image_id") != accepted_image:
+            problem("audit_ledger", "JOB_TERMINAL image_id is not the accepted image")
+        if accepted_instance and terminal_event.get("instance_id") != accepted_instance:
+            problem("audit_ledger", "JOB_TERMINAL instance_id changed after submit")
+
+    fetched = [
+        (i, e)
+        for i, e in of_kind("ARTIFACT_FETCHED")
+        if has_lineage(e) and e.get("job_id") == job_id
+    ]
+    fetched_extras = [
+        describe(e)
+        for _, e in of_kind("ARTIFACT_FETCHED")
+        if not (has_lineage(e) and e.get("job_id") == job_id)
+    ]
+    if fetched_extras:
+        problem("audit_ledger", f"artifact event(s) outside receipt job: {fetched_extras}")
+    # Successful qualification evidence must have gone through the Gateway's
+    # fetch operation.  A cancelled probe cannot honestly fetch outputs after
+    # the terminal cancel, so it only requires the terminal event below.
+    if expected_state == "SUCCEEDED" and len(fetched) != 1:
+        problem(
+            "audit_ledger",
+            f"expected exactly one ARTIFACT_FETCHED for {lineage} / {job_id!r}, "
+            f"found {len(fetched)}",
+        )
+    if len(fetched) > 1:
+        problem("audit_ledger", "duplicate ARTIFACT_FETCHED events for receipt job")
+    if fetched:
+        fetched_index, fetched_event = fetched[0]
+        if terminal_index is not None and fetched_index <= terminal_index:
+            problem("audit_ledger", "ARTIFACT_FETCHED precedes JOB_TERMINAL")
+        if fetched_event.get("image_id") != accepted_image:
+            problem("audit_ledger", "ARTIFACT_FETCHED image_id is not the accepted image")
+        if accepted_instance and fetched_event.get("instance_id") != accepted_instance:
+            problem("audit_ledger", "ARTIFACT_FETCHED instance_id changed after submit")
+        if not isinstance(fetched_event.get("artifact_digest"), str):
+            problem("audit_ledger", "ARTIFACT_FETCHED has no artifact_digest")
+
+    begins = of_kind("SETTLEMENT_BEGIN")
+    completes = of_kind("SETTLEMENT_COMPLETE")
+    if len(begins) != 1:
+        problem(
+            "audit_ledger",
+            f"expected exactly one SETTLEMENT_BEGIN for run {run_id!r}, found {len(begins)}",
+        )
+    if len(completes) != 1:
+        problem(
+            "audit_ledger",
+            f"expected exactly one SETTLEMENT_COMPLETE for run {run_id!r}, found {len(completes)}",
+        )
+    begin_index: int | None = begins[0][0] if begins else None
+    complete_index: int | None = completes[0][0] if completes else None
+    required_before_settle = fetched[0][0] if fetched else terminal_index
+    if begin_index is not None and required_before_settle is not None and begin_index <= required_before_settle:
+        problem("audit_ledger", "SETTLEMENT_BEGIN precedes terminal/fetch evidence")
+    if complete_index is not None:
+        if begin_index is not None and complete_index <= begin_index:
+            problem("audit_ledger", "SETTLEMENT_COMPLETE precedes SETTLEMENT_BEGIN")
+        if complete_index < (required_before_settle or -1):
+            problem("audit_ledger", "SETTLEMENT_COMPLETE precedes job evidence")
 
 
 # -- schema plumbing -------------------------------------------------------------

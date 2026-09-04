@@ -166,6 +166,9 @@ def _run_real_dispatcher_job(
         state = session.status(job_id)["state"]
         assert state == "SUCCEEDED", state
         logs = session.logs(job_id)
+        # Qualification evidence must record an actual Gateway fetch event;
+        # copying adapter files directly is not sufficient for C8.
+        session.fetch(job_id)
         report = session.settle(cancel_pending=True)
         if artifacts_dir is not None:
             work = session.gateway._adapter._jobs[job_id]["work"]
@@ -476,6 +479,7 @@ def _run_real_cp2k_dispatcher_job(base: Path) -> dict:
         state = session.status(job_id)["state"]
         assert state == "SUCCEEDED", state
         logs = session.logs(job_id)
+        session.fetch(job_id)
         report = session.settle(cancel_pending=True)
     finally:
         session.close()
@@ -821,6 +825,7 @@ def _run_real_ai2kit_dispatcher_job(base: Path) -> dict:
         state = session.status(job_id)["state"]
         assert state == "SUCCEEDED", state
         logs = session.logs(job_id)
+        session.fetch(job_id)
         report = session.settle(cancel_pending=True)
         work = session.gateway._adapter._jobs[job_id]["work"]
         target = base / "artifacts-ai2kit"
