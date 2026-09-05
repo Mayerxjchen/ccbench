@@ -16,6 +16,7 @@ Key capabilities:
 from __future__ import annotations
 
 import asyncio
+import http.client
 import json
 import secrets
 import ssl
@@ -232,9 +233,10 @@ class ModelGatewayProxy:
                 pass
 
     def _send_error(self, writer: asyncio.StreamWriter, status: int, message: str) -> None:
+        reason = http.client.responses.get(status, "Error")
         payload = json.dumps({"error": {"message": message, "code": status}}).encode("utf-8")
         headers = [
-            f"HTTP/1.1 {status} Error",
+            f"HTTP/1.1 {status} {reason}",
             "Content-Type: application/json",
             f"Content-Length: {len(payload)}",
             "Connection: close",

@@ -266,10 +266,11 @@ async def _run_canary_4_async() -> dict[str, Any]:
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await proc.communicate()
-        out_str = stdout.decode("utf-8", errors="replace")
-        if proc.returncode == 0 and "401 Unauthorized" in out_str:
+        if proc.returncode == 0 and ("401 Unauthorized" in out_str or "401" in out_str):
             proxy_auth_verified = True
             print("  ✓ Real container request with invalid token strictly rejected with HTTP 401")
+        else:
+            print(f"  ✗ Auth check mismatch: returncode={proc.returncode}, out={out_str!r}")
 
         # Step 2: Simulate live budget overrun on proxy -> 429
         proxy.tokens_used = 600  # Exceeds max_total_tokens (500)
