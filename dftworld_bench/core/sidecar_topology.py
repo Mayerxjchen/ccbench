@@ -180,73 +180,111 @@ class SidecarTopologyManager:
         self.candidate_cid = candidate_cid
 
     async def rollback(self) -> None:
-        """Rollback all allocated resources on any initialization failure."""
+        """Rollback all allocated resources on any initialization failure.
+
+        Preserves resource handles if deletion fails so subsequent retries are possible.
+        """
         errors: list[str] = []
 
         if self.candidate_cid:
             cid = self.candidate_cid
-            self.candidate_cid = None
             rc_stop, _, err_stop = await self._run_cmd(["docker", "stop", "-t", "2", cid])
             rc_rm, _, err_rm = await self._run_cmd(["docker", "rm", "-f", cid])
+            cand_clean = True
             if rc_stop != 0 and "No such container" not in err_stop:
+                cand_clean = False
                 errors.append(f"stop candidate {cid}: {err_stop}")
             if rc_rm != 0 and "No such container" not in err_rm:
+                cand_clean = False
                 errors.append(f"rm candidate {cid}: {err_rm}")
+            if cand_clean:
+                self.candidate_cid = None
 
         if self.sidecar_cid:
             scid = self.sidecar_cid
-            self.sidecar_cid = None
             rc_stop, _, err_stop = await self._run_cmd(["docker", "stop", "-t", "2", scid])
             rc_rm, _, err_rm = await self._run_cmd(["docker", "rm", "-f", scid])
+            sc_clean = True
             if rc_stop != 0 and "No such container" not in err_stop:
+                sc_clean = False
                 errors.append(f"stop sidecar {scid}: {err_stop}")
             if rc_rm != 0 and "No such container" not in err_rm:
+                sc_clean = False
                 errors.append(f"rm sidecar {scid}: {err_rm}")
+            if sc_clean:
+                self.sidecar_cid = None
 
         if self.network_name:
             net = self.network_name
-            self.network_name = None
             rc_net, _, err_net = await self._run_cmd(["docker", "network", "rm", net])
+            net_clean = True
             if rc_net != 0 and "No such network" not in err_net:
+                net_clean = False
                 errors.append(f"rm network {net}: {err_net}")
+            if net_clean:
+                self.network_name = None
 
         if errors:
+            self.is_closed = False
             raise TopologyRollbackError(f"Errors occurred during topology rollback: {errors}")
+        self.is_closed = True
 
     async def close(self, stop_timeout_sec: int = 5) -> None:
-        """Strict, idempotent cleanup of all containers and internal network."""
+        """Strict, idempotent cleanup of all containers and internal network.
+
+        CRITICAL INVARIANT:
+        Resource IDs are cleared ONLY when deletion is confirmed successful or confirmed
+        non-existent. If any command fails, remaining resource IDs are PRESERVED and
+        is_closed remains False so that callers can retry cleanup.
+        """
+        if self.is_closed and not self.candidate_cid and not self.sidecar_cid and not self.network_name:
+            return
+
         errors: list[str] = []
 
         if self.candidate_cid:
             cid = self.candidate_cid
-            self.candidate_cid = None
             rc_stop, _, err_stop = await self._run_cmd(["docker", "stop", "-t", str(stop_timeout_sec), cid])
             rc_rm, _, err_rm = await self._run_cmd(["docker", "rm", "-f", cid])
+            cand_clean = True
             if rc_stop != 0 and "No such container" not in err_stop:
+                cand_clean = False
                 errors.append(f"docker stop candidate '{cid}' failed: {err_stop}")
             if rc_rm != 0 and "No such container" not in err_rm:
+                cand_clean = False
                 errors.append(f"docker rm candidate '{cid}' failed: {err_rm}")
+            if cand_clean:
+                self.candidate_cid = None
 
         if self.sidecar_cid:
             scid = self.sidecar_cid
-            self.sidecar_cid = None
             rc_stop, _, err_stop = await self._run_cmd(["docker", "stop", "-t", str(stop_timeout_sec), scid])
             rc_rm, _, err_rm = await self._run_cmd(["docker", "rm", "-f", scid])
+            sc_clean = True
             if rc_stop != 0 and "No such container" not in err_stop:
+                sc_clean = False
                 errors.append(f"docker stop sidecar '{scid}' failed: {err_stop}")
             if rc_rm != 0 and "No such container" not in err_rm:
+                sc_clean = False
                 errors.append(f"docker rm sidecar '{scid}' failed: {err_rm}")
+            if sc_clean:
+                self.sidecar_cid = None
 
         if self.network_name:
             net = self.network_name
-            self.network_name = None
             rc_net, _, err_net = await self._run_cmd(["docker", "network", "rm", net])
+            net_clean = True
             if rc_net != 0 and "No such network" not in err_net:
                 await asyncio.sleep(0.5)
                 rc_retry, _, err_retry = await self._run_cmd(["docker", "network", "rm", net])
                 if rc_retry != 0 and "No such network" not in err_retry:
+                    net_clean = False
                     errors.append(f"docker network rm '{net}' failed: {err_retry}")
+            if net_clean:
+                self.network_name = None
+
+        if errors:
+            self.is_closed = False
+            raise TopologyCleanupError(f"Errors occurred during topology teardown: {'; '.join(errors)}")
 
         self.is_closed = True
-        if errors:
-            raise TopologyCleanupError(f"Errors occurred during topology teardown: {'; '.join(errors)}")

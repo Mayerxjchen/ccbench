@@ -321,4 +321,87 @@ def test_topology_close_error_propagation():
         with pytest.raises(TopologyCleanupError, match="Mock Docker daemon filesystem corruption"):
             await topology.close()
 
+        # Critical invariant: failure must keep is_closed False and retain the candidate_cid
+        assert topology.is_closed is False
+        assert topology.candidate_cid == "fake-cid-123"
+
+    asyncio.run(_test())
+
+
+@pytest.mark.skipif(not _docker_available(), reason="Docker daemon not running")
+def test_network_connect_failure_triggers_atomic_rollback():
+    """Fault injection: network connect failure must rollback sidecar and internal network."""
+    async def _test():
+        topology = SidecarTopologyManager(image=AGENT_IMAGE)
+        net_name = await topology.create_network(prefix="test-conn-fail-net")
+
+        # Mock _run_cmd: let docker run sidecar succeed, but fail on docker network connect
+        orig_run_cmd = topology._run_cmd
+
+        async def _mock_run_cmd(cmd: list[str]) -> tuple[int, str, str]:
+            if "network" in cmd and "connect" in cmd:
+                return 1, "", "Mock Docker network daemon endpoint allocation failure"
+            return await orig_run_cmd(cmd)
+
+        topology._run_cmd = _mock_run_cmd
+
+        with pytest.raises(TopologyError, match="Failed to connect sidecar"):
+            await topology.start_sidecar(host_port=12345, prefix="test-sc-conn-fail-")
+
+        # Rollback must restore clean state
+        assert topology.network_name is None
+        assert topology.sidecar_cid is None
+
+        # Verify network was wiped from Docker
+        rc_net, out_net, _ = await orig_run_cmd(["docker", "network", "ls", "-q", "--filter", f"name={net_name}"])
+        assert rc_net == 0
+        assert out_net.strip() == ""
+
+    asyncio.run(_test())
+
+
+@pytest.mark.skipif(not _docker_available(), reason="Docker daemon not running")
+def test_topology_close_failure_retains_handles_and_retry_succeeds():
+    """Verify that failure during close retains resource IDs, keeps is_closed=False, and allows clean retry."""
+    async def _test():
+        topology = SidecarTopologyManager(image=AGENT_IMAGE)
+        net_name = await topology.create_network(prefix="test-retry-net")
+        sc_cid = await topology.start_sidecar(host_port=12345, prefix="test-sc-retry-")
+
+        assert topology.network_name == net_name
+        assert topology.sidecar_cid == sc_cid
+
+        orig_run_cmd = topology._run_cmd
+        first_call = True
+
+        async def _flaky_run_cmd(cmd: list[str]) -> tuple[int, str, str]:
+            nonlocal first_call
+            # Fail on the first stop/rm attempt
+            if first_call and ("stop" in cmd or "rm" in cmd):
+                first_call = False
+                return 1, "", "Temporary Docker daemon lock contention"
+            return await orig_run_cmd(cmd)
+
+        topology._run_cmd = _flaky_run_cmd
+
+        # First close: must fail and retain handles for uncleaned resources
+        with pytest.raises(TopologyCleanupError, match="Temporary Docker daemon lock contention"):
+            await topology.close()
+
+        assert topology.is_closed is False
+        assert topology.sidecar_cid == sc_cid
+
+        # Restore normal execution: second close must succeed and wipe remaining handles
+        topology._run_cmd = orig_run_cmd
+        await topology.close()
+
+        assert topology.is_closed is True
+        assert topology.sidecar_cid is None
+        assert topology.network_name is None
+
+        # Verify no network leftover in Docker engine
+        rc, out, _ = await orig_run_cmd(["docker", "network", "ls", "-q", "--filter", f"name={net_name}"])
+        assert rc == 0
+        assert out.strip() == ""
+
     asyncio.run(_test())

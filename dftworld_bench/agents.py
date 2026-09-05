@@ -1026,10 +1026,15 @@ class ClaudeCodeAdapter:
             except Exception as e:
                 errors.append(f"topology close: {e}")
             finally:
-                self._topology = None
-                self.container_id = None
-                self.sidecar_cid = None
-                self.internal_net = None
+                if self._topology.is_closed:
+                    self._topology = None
+                    self.container_id = None
+                    self.sidecar_cid = None
+                    self.internal_net = None
+                else:
+                    self.container_id = self._topology.candidate_cid
+                    self.sidecar_cid = self._topology.sidecar_cid
+                    self.internal_net = self._topology.network_name
         else:
             # Fallback direct cleanup if topology manager was bypassed
             if self.container_id:

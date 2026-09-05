@@ -490,3 +490,46 @@ def test_harness_session_stops_before_verifier_on_agent_failure(tmp_path):
     assert "candidate_frozen" in kinds
     assert "submission_sealed" not in kinds
     assert "verifier_result" not in kinds
+
+
+def test_harness_teardown_failure_marks_infra_invalid_and_halts_verification(tmp_path):
+    """Teardown failure (e.g. TopologyCleanupError) must be marked HARNESS_FAILURE / INFRA_INVALID
+    and strictly halt scientific verification."""
+    class TeardownFailingAdapter(FakeAdapter):
+        async def close(self) -> None:
+            raise RuntimeError("TopologyCleanupError: Dangling sidecar container")
+
+    verifier_called = []
+
+    def mock_verifier(*args, **kwargs):
+        verifier_called.append(True)
+        return _fake_verifier(*args, **kwargs)
+
+    from dftworld_bench.core.event_store import EventStore
+
+    adapter = TeardownFailingAdapter()
+    session = EventStore(tmp_path / "session" / "events.jsonl")
+    harness = TrustedHarness(
+        adapter,
+        store=RunStore(tmp_path / "jobs"),
+        collector=_fake_collector,
+        quarantiner=_fake_quarantiner,
+        verifier=mock_verifier,
+        session=session,
+    )
+
+    result = asyncio.run(
+        harness.run(_make_spec(tmp_path), _treatment(), _profile())
+    )
+
+    assert result.result_class is ResultClass.INFRA_INVALID
+    assert result.failure_code is FailureCode.HARNESS_FAILURE
+    assert "candidate teardown failed: RuntimeError: TopologyCleanupError" in result.reason
+    assert len(verifier_called) == 0, "Verifier MUST NOT be invoked when teardown fails!"
+
+    # Verify RunRecord was written
+    record_file = tmp_path / "jobs" / "2026-08-18__01-00-00__001-hello" / "run-record.json"
+    assert record_file.is_file()
+    record = json.loads(record_file.read_text(encoding="utf-8"))
+    assert record["result"]["result_class"] == "INFRA_INVALID"
+    assert record["result"]["failure_code"] == "HARNESS_FAILURE"

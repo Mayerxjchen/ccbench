@@ -345,8 +345,11 @@ class TrustedHarness:
                 self._emit("candidate_destroy")
                 try:
                     await self.agent.close()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    failure = (
+                        FailureCode.HARNESS_FAILURE,
+                        f"candidate teardown failed: {type(exc).__name__}: {exc}",
+                    )
 
             # Structural submission gate: shape checks only, never executes.
             # Order is collection → structural validation → quarantine → Verifier.
