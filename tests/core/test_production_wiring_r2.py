@@ -28,9 +28,23 @@ FAKE_DIGEST = "sha256:" + "ab" * 32
 
 
 @pytest.fixture()
-def local_task():
+def local_task(tmp_path: Path):
     """A real local-sandbox task, loaded exactly as the production entrypoint does."""
-    return eval_mod.load_task(ROOT / "001-hello")
+    task_dir = tmp_path / "fixture-local-task"
+    task_dir.mkdir()
+    (task_dir / "Dockerfile").write_text("FROM alpine:latest\n", encoding="utf-8")
+    (task_dir / "task.toml").write_text(
+        'schema_version = "1.2"\n'
+        '[task]\nname = "test/fixture-local-task"\ndescription = "fixture"\n'
+        '[execution]\nclass = "local_sandbox"\n'
+        '[candidate]\ninstruction = "instruction.md"\nsubmission_root = "."\nlegacy_submission_layout = true\n'
+        '[agent]\ntimeout_sec = 600.0\n'
+        '[verifier]\ntimeout_sec = 600.0\n'
+        '[environment]\ncpus = 2\nmemory_mb = 4096\nstorage_mb = 10240\ngpus = 0\nallow_internet = false\n',
+        encoding="utf-8",
+    )
+    (task_dir / "instruction.md").write_text("fixture instruction", encoding="utf-8")
+    return eval_mod.load_task(task_dir)
 
 
 # ---------------------------------------------------------------------------

@@ -1,1 +1,0 @@
-FROM dftworld-base-packmol

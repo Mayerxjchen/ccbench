@@ -56,7 +56,7 @@ _FROM_REQUIREMENTS: dict[str, tuple[str, ...] | None] = {
 
 # Case id -> migration scope.
 _SCOPE_RANGES: dict[str, tuple[tuple[int, int], ...]] = {
-    "local": ((1, 30), (35, 41)),
+    "local": (),
     "hpc": ((31, 34), (42, 42)),
 }
 

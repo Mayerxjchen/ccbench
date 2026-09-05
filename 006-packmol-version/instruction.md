@@ -1,1 +1,0 @@
-Check if packmol is installed and get its version number, put ONLY the numeric version (e.g. `21.2.1`) within `<answer>YOUR ANSWER</answer>` in `/app/out.txt`. Do not include any extra text — just the version number.

@@ -81,7 +81,7 @@ def test_tree_digest_is_deterministic(tmp_path: Path) -> None:
 def test_verifier_tree_digest_covers_test_outputs_not_just_test_sh() -> None:
     """The verifier identity includes thresholds (test_outputs.py), not only
     the runner (test.sh) — that is why the digest is a tree, not a file."""
-    tests = Path("001-hello") / "tests"
+    tests = Path("031-matclaw-cips-active-distillation") / "tests"
     assert builder.tree_digest(ROOT / tests) != builder.file_sha256(
         ROOT / tests / "test.sh"
     )

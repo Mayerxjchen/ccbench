@@ -1,5 +1,0 @@
-#!/bin/bash
-echo 'EPS_SCF=1.0E-6' > /app/params.txt
-sed -i 's/EPS_SCF 1.0E-4/EPS_SCF 1.0E-6/' /app/H2O.inp
-/opt/cp2k/bin/cp2k.psmp -i /app/H2O.inp -o /app/H2O.out
-grep "ENERGY| Total FORCE_EVAL" /app/H2O.out | awk '{print $NF}' > /app/out.txt

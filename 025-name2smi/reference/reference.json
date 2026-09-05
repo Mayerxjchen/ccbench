@@ -1,6 +1,0 @@
-{
-  "molecule_name": "2-acetoxybenzoic acid",
-  "input_smiles": "CC(=O)OC1=CC=CC=C1C(=O)O",
-  "expected_canonical_smiles": "CC(=O)Oc1ccccc1C(=O)O",
-  "rdkit_version": "2026.03.5"
-}

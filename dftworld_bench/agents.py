@@ -30,10 +30,6 @@ from dftworld_bench.core.model_proxy import ModelGatewayProxy
 from dftworld_bench.core.sidecar_topology import (
     CANDIDATE_ROLE_LABEL,
     SidecarTopologyManager,
-    TopologyCleanupError,
-    TopologyError,
-    TopologyRollbackError,
-    _SIDECAR_TCP_FORWARDER_PY,
 )
 from dftworld_bench.core.tool_watchdog import ToolWatchdog
 
@@ -64,8 +60,6 @@ SYSTEM = f"""\
 任务文件根目录是 {AGENT_HOME}。把输出写到指令要求的 {AGENT_HOME}/... 路径。
 任务数据已在工作目录中。写完要求的输出文件后即可结束，不要闲聊。
 """
-
-PAGENT_HOME = Path(__file__).resolve().parents[1] / ".pagent"
 
 
 # -- Event Stream Definitions -----------------------------------------------
@@ -182,10 +176,6 @@ def parse_claude_code_event(line: str) -> AgentEvent | None:
         )
 
     return None
-
-
-# PAgent has been retired. Claude Code is the sole formal Candidate Agent.
-_HAS_PAGENT = False
 
 
 
@@ -515,49 +505,6 @@ def collect_skill_invocations(thread_dir: str) -> list[str]:
         return []
     return invoked
 
-
-_SIDECAR_TCP_FORWARDER_PY = """
-import asyncio
-import sys
-
-TARGET_HOST = sys.argv[1]
-TARGET_PORT = int(sys.argv[2])
-LISTEN_PORT = int(sys.argv[3])
-
-async def pipe(reader, writer):
-    try:
-        while True:
-            data = await reader.read(65536)
-            if not data:
-                break
-            writer.write(data)
-            await writer.drain()
-    except Exception:
-        pass
-    finally:
-        try:
-            writer.close()
-            await writer.wait_closed()
-        except Exception:
-            pass
-
-async def handle_client(c_reader, c_writer):
-    try:
-        s_reader, s_writer = await asyncio.open_connection(TARGET_HOST, TARGET_PORT)
-    except Exception:
-        c_writer.close()
-        return
-    asyncio.create_task(pipe(c_reader, s_writer))
-    asyncio.create_task(pipe(s_reader, c_writer))
-
-async def main():
-    server = await asyncio.start_server(handle_client, "0.0.0.0", LISTEN_PORT)
-    async with server:
-        await server.serve_forever()
-
-if __name__ == "__main__":
-    asyncio.run(main())
-"""
 
 
 # -- Claude Code Candidate Agent Adapter ------------------------------------

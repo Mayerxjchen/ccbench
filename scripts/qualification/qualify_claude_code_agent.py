@@ -18,10 +18,7 @@ by CandidateAgentVerifier before producing a PROMOTED qualification receipt.
 from __future__ import annotations
 
 import asyncio
-import http.server
-import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -30,20 +27,19 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from dftworld_bench.agents import ClaudeCodeAdapter, _SIDECAR_TCP_FORWARDER_PY
-from dftworld_bench.config.profiles import ProfileRegistry, canonical_json, digest_bytes
+from dftworld_bench.agents import ClaudeCodeAdapter
+from dftworld_bench.config.profiles import ProfileRegistry
 from dftworld_bench.config.resolver import construct_experiment, resolve_formal
 from dftworld_bench.contracts.case import CaseSpec
 from dftworld_bench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPolicy
 from dftworld_bench.core.model_proxy import ModelGatewayProxy
 from dftworld_bench.core.sidecar_topology import (
-    CANDIDATE_ROLE_LABEL,
     NETWORK_ROLE_LABEL,
     SIDECAR_ROLE_LABEL,
     SidecarTopologyManager,
@@ -546,7 +542,7 @@ def run_canary_5_run_lock_and_schema(evidence: dict[str, Any]) -> None:
     """Canary 5: Deterministic formal run lock generation and verification."""
     print("--- [Canary 5/5] Deterministic RunLock & Complete Schema Compliance ---")
     registry = ProfileRegistry.load(ROOT / "infra" / "config")
-    case = CaseSpec.load(ROOT / "001-hello")
+    case = CaseSpec.load(ROOT / "031-matclaw-cips-active-distillation")
     experiment = construct_experiment({"agent": "claude-code-formal", "api": "default"}, registry)
 
     c1_digest = evidence["canary_1_image_isolation"]["image_digest"]
@@ -586,7 +582,7 @@ async def _run_real_claude_code_async(api_key: str, api_endpoint: str) -> dict[s
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_p = Path(tmpdir)
         threads_root = tmp_p / "threads"
-        case_dir = ROOT / "001-hello"
+        case_dir = ROOT / "031-matclaw-cips-active-distillation"
         adapter = ClaudeCodeAdapter(
             model="claude-3-7-sonnet-20250219",
             threads_root=threads_root,
