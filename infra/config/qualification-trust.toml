@@ -22,3 +22,10 @@ algorithm = "ed25519"
 public_key_hex = ""
 status = "UNCONFIGURED"
 purpose = "compute-profile-qualification"
+
+# Independent Candidate Agent signing anchor for MLFFBench.
+[keys.candidate-agent-v1]
+algorithm = "ed25519"
+public_key_hex = "39afce400b85bdc2675671f0a388d6078bde32fb421ce3c995fb0d4eac2a8e1f"
+status = "ACTIVE"
+purpose = "candidate-agent-qualification"

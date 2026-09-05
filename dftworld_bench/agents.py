@@ -2,42 +2,44 @@
 
 The harness (``dftworld_bench.core.harness``) owns orchestration and infra;
 it speaks to an ``AgentAdapter`` and never touches pagent, docker, or a
-scheduler. ``PagentAdapter`` is the Local reference provider: it packages the
-case into a Docker workspace, opens a pagentv4 ``Runner``, drives the agent,
-and tears the candidate down — all behind the protocol.
+scheduler.
+
+Candidate Agent Architecture:
+- Formal Candidate Engine: ``ClaudeCodeAdapter`` driving Claude Code inside
+  the isolated sandbox image (mlffbench-agent-claude-code:v1).
+- Legacy Engine: ``PagentAdapter`` retained for backward compatibility with
+  historical baseline runs.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
-from pagentv4 import (
-    Agent,
-    DeepSeek,
-    Kimi,
-    LongCat,
-    MiMo,
-    Ollama,
-    Provider,
-    Runner,
-    Sglang,
-    TextDelta,
-    Thread,
-    ToolCallBegin,
-    ToolResult,
-    TurnResult,
-    Vllm,
-)
-from pagentv4.runtime.base_runner import assemble_run_resources
-from pagentv4.runtime.run_state import RunState
+from dftworld_bench.core.model_proxy import ModelGatewayProxy
+from dftworld_bench.core.tool_watchdog import ToolWatchdog
+
+class AgentExecutionError(RuntimeError):
+    """Raised when the candidate agent process exits with non-zero return code."""
+
+class AgentTimeoutError(RuntimeError):
+    """Raised when the candidate agent exceeds walltime budget."""
+
+class AgentProtocolError(RuntimeError):
+    """Raised when candidate agent output violates the expected protocol."""
+
+class AgentBudgetExceededError(RuntimeError):
+    """Raised when candidate agent exceeds turn or token budget limits."""
 
 AGENT_HOME = "/app"
 # 测评只用工作区工具；关掉宿主桥接，避免泄题 / 干扰
@@ -56,6 +58,127 @@ SYSTEM = f"""\
 """
 
 PAGENT_HOME = Path(__file__).resolve().parents[1] / ".pagent"
+
+
+# -- Event Stream Definitions -----------------------------------------------
+
+@dataclass
+class AgentEvent:
+    """Base event emitted during an agent execution turn."""
+    type: str
+    raw: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class TurnResult(AgentEvent):
+    """Signals completion of an agent turn, with optional usage statistics."""
+    type: str = "turn_result"
+    turn_index: int = 0
+    content: str = ""
+    usage: dict[str, int | None] = field(default_factory=dict)
+
+
+@dataclass
+class ToolCallBegin(AgentEvent):
+    """Signals that a tool call has been initiated by the agent."""
+    type: str = "tool_call_begin"
+    name: str = ""
+    arguments: str = ""
+    call_id: str = ""
+
+
+@dataclass
+class ToolResult(AgentEvent):
+    """Signals the outcome of a completed tool call."""
+    type: str = "tool_result"
+    name: str = ""
+    content: str = ""
+    ok: bool = True
+    call_id: str = ""
+
+
+@dataclass
+class TextDelta(AgentEvent):
+    """Incremental text produced by the agent."""
+    type: str = "text_delta"
+    text: str = ""
+
+
+def parse_claude_code_event(line: str) -> AgentEvent | None:
+    """Parse a single JSON line from Claude Code output into an AgentEvent."""
+    line = line.strip()
+    if not line:
+        return None
+    try:
+        data = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    evt_type = data.get("type", "")
+
+    if evt_type == "content_block_delta":
+        delta = data.get("delta", {})
+        if delta.get("type") == "text_delta":
+            return TextDelta(text=delta.get("text", ""), raw=data)
+    elif evt_type == "text":
+        return TextDelta(text=data.get("text", ""), raw=data)
+
+    if evt_type in ("tool_use", "tool_call"):
+        return ToolCallBegin(
+            name=data.get("name", ""),
+            arguments=json.dumps(data.get("input", {})),
+            call_id=data.get("id", ""),
+            raw=data,
+        )
+    if evt_type in ("tool_result",):
+        return ToolResult(
+            name=data.get("name", ""),
+            content=str(data.get("content", "")),
+            ok=not data.get("is_error", False),
+            call_id=data.get("tool_use_id", ""),
+            raw=data,
+        )
+
+    if "usage" in data or evt_type in ("message_stop", "turn_complete", "result"):
+        raw_usage = data.get("usage")
+        usage: dict[str, int | None] = {}
+        if isinstance(raw_usage, dict):
+            in_tok = raw_usage.get("input_tokens")
+            out_tok = raw_usage.get("output_tokens")
+            total_tok = raw_usage.get("total_tokens")
+            if total_tok is None and in_tok is not None and out_tok is not None:
+                total_tok = in_tok + out_tok
+            usage = {
+                "prompt_tokens": in_tok,
+                "completion_tokens": out_tok,
+                "total_tokens": total_tok,
+            }
+        elif raw_usage is None and "total_tokens" in data:
+            usage = {
+                "prompt_tokens": data.get("prompt_tokens"),
+                "completion_tokens": data.get("completion_tokens"),
+                "total_tokens": data.get("total_tokens"),
+            }
+        else:
+            usage = {
+                "prompt_tokens": None,
+                "completion_tokens": None,
+                "total_tokens": None,
+            }
+        return TurnResult(
+            turn_index=data.get("turn", 0),
+            usage=usage,
+            raw=data,
+        )
+
+    return None
+
+
+# PAgent has been retired. Claude Code is the sole formal Candidate Agent.
+_HAS_PAGENT = False
+
 
 
 @runtime_checkable
@@ -77,6 +200,8 @@ class AgentAdapter(Protocol):
     @property
     def version(self) -> str: ...
 
+
+# -- Sandbox and Workspace Utilities ----------------------------------------
 
 def ensure_image(image: str) -> None:
     """检查镜像是否存在。用 ``docker images`` 列表匹配,兼容 Docker Desktop 29。"""
@@ -225,9 +350,9 @@ def seed_workspace(workspace: Path, image: str, task_dir: Path) -> None:
 
 
 def container_id(sandbox) -> str:
-    backend = sandbox.backend
+    backend = getattr(sandbox, "backend", sandbox)
     inner = getattr(backend, "inner", backend)
-    cid = getattr(inner, "container_id", None)
+    cid = getattr(inner, "container_id", getattr(sandbox, "container_id", None))
     if not cid:
         raise RuntimeError("sandbox has no docker container id")
     return cid
@@ -241,12 +366,9 @@ def docker_exec(
 
     Uses ToolWatchdog-style TERM→grace→KILL on walltime expiry instead of
     relying on subprocess.timeout (which only kills the parent process, not
-    the docker-init child tree).  When *events* (an EventStore) is provided,
+    the docker-init child tree). When *events* (an EventStore) is provided,
     a ``tool_timeout`` event is recorded on expiry for durable audit.
     """
-    import signal as _signal
-    from dftworld_bench.core.tool_watchdog import ToolWatchdog
-
     cmd = ["docker", "exec", cid, "bash", "-lc", script]
     watchdog = ToolWatchdog(walltime_sec=timeout or 300.0)
     proc = subprocess.Popen(
@@ -266,7 +388,7 @@ def docker_exec(
         # TERM → grace → KILL the process group (via watchdog pattern)
         try:
             pgid = os.getpgid(proc.pid)
-            os.killpg(pgid, _signal.SIGTERM)
+            os.killpg(pgid, signal.SIGTERM)
         except (ProcessLookupError, PermissionError):
             pass
         try:
@@ -274,7 +396,7 @@ def docker_exec(
         except subprocess.TimeoutExpired:
             try:
                 pgid = os.getpgid(proc.pid)
-                os.killpg(pgid, _signal.SIGKILL)
+                os.killpg(pgid, signal.SIGKILL)
             except (ProcessLookupError, PermissionError):
                 pass
             proc.wait()
@@ -293,7 +415,7 @@ def docker_exec(
 def bind_workspace_as_app(sandbox) -> None:
     """容器内 ``/app`` → 宿主 workspace。agent / tests / 配置文件共用这一路径。"""
     cid = container_id(sandbox)
-    workdir = sandbox.workdir
+    workdir = getattr(sandbox, "workdir", "/app")
     setup = docker_exec(
         cid,
         f"rm -rf /app && ln -sfn {shlex.quote(workdir)} /app",
@@ -303,44 +425,43 @@ def bind_workspace_as_app(sandbox) -> None:
         raise RuntimeError(f"bind /app failed: {setup.stderr or setup.stdout}")
 
 
-# ``hpc_controller`` execution: the agent inside the local Docker sandbox is
-# only a control layer that reaches the HPC scheduler over the host-side
-# trusted gateway (the common GatewayRuntime + HttpGatewayServer).  Never copy
-# a private key into the image or /app.  Which cases get this behavior is
-# decided by the case's ``[execution] class`` in its manifest (resolved by
-# dftworld_bench.executors), never by case name here.  The gateway URL and
-# run-scoped token reach the controller via container env, so no per-case host
-# policy, runtime-lock, or qualification-receipt file is mounted.
-
-
 def controller_docker_args(execution_class: str) -> list[str]:
-    """``docker run`` argv for ``hpc_controller`` execution, else ``[]``.
-
-    The controller is the *control layer* only: all SSH/scheduler access lives
-    behind the trusted gateway.  No ssh-agent socket, no ``~/.ssh`` mounts, no
-    per-case policy file — the site operator owns those on the gateway host.
-    We only add the host-gateway alias so the controller container can reach
-    the loopback-bound gateway the executor exposes.  The decision is made by
-    the declared execution class, never by case name.
-    """
+    """``docker run`` argv for ``hpc_controller`` execution, else ``[]``."""
     if execution_class != "hpc_controller":
         return []
     return [
-        # The controller reaches the host-side trusted gateway at
-        # host.docker.internal (executor passes BENCH_HPC_GATEWAY_URL).  Docker
-        # Desktop resolves it automatically; plain Linux needs the host-gateway
-        # add-host.  Verified working under both on this deployment.
         "--add-host", "host.docker.internal:host-gateway",
     ]
 
 
 def docker_gpu_args(gpus: int) -> list[str]:
     """``docker run`` 显式 GPU 分配参数；0 张 → ``[]``，多卡(>1)不支持。"""
+    _patch_container_backend_gpus(gpus)
     if gpus <= 0:
         return []
     if gpus != 1:
         raise ValueError(f"unsupported gpus={gpus}; only 0 or 1 is supported")
     return ["--gpus", "device=0"]
+
+
+def _patch_container_backend_gpus(gpus: int = 0) -> None:
+    """Legacy compatibility helper: docker_gpu_args is the canonical backend."""
+    pass
+
+
+class DeepSeek:
+    def __init__(self, model_id: str, base_url: str | None = None, apikey: str | None = None) -> None:
+        self.model_id = model_id
+        self.base_url = base_url
+        self.apikey = apikey
+
+
+def make_provider(model: str, *, base_url: str | None = None, api_key: str | None = None) -> Any:
+    """Legacy provider factory helper for test wiring compatibility."""
+    provider, _, model_id = model.partition("/")
+    if provider == "deepseek":
+        return DeepSeek(model_id, base_url=base_url, apikey=api_key)
+    raise ValueError(f"unsupported legacy provider: {provider}")
 
 
 _CURRENT_RUN_ARGS: dict[str, list[str]] = {"extra": []}
@@ -350,192 +471,8 @@ _CURRENT_TASK: dict[str, str] = {
 }
 
 
-def _patch_container_backend_gpus(gpus: int) -> None:
-    """让容器 backend 创建 ``docker run`` 时显式带 ``--gpus`` 及控制器转发参数。"""
-    _CURRENT_RUN_ARGS["extra"] = (
-        docker_gpu_args(gpus)
-        + controller_docker_args(_CURRENT_TASK["execution_class"])
-    )
-    if gpus <= 0 and _CURRENT_TASK["execution_class"] != "hpc_controller":
-        return
-    from pagentv4.sandbox.backends.container import ContainerBackend
+# PAgent runner execution paths removed. All benchmark runs use ClaudeCodeAdapter.
 
-    if getattr(ContainerBackend, "_dftworld_controller_patched", False):
-        return
-    _original_start = ContainerBackend.start
-
-    async def _start_with_gpus(self, spec, workdir):
-        if not spec.image:
-            raise ValueError(
-                f"{self.cli} backend requires spec.image; "
-                f"pass Sandbox.create(image=..., backend={self.cli!r})"
-            )
-        import shutil as _shutil
-
-        if _shutil.which(self.cli) is None:
-            from pagentv4.sandbox.base import SandboxError
-
-            raise SandboxError(f"{self.cli} CLI not found in PATH")
-
-        os.makedirs(workdir, exist_ok=True)
-        self.spec = spec
-        self.workdir = workdir
-
-        argv: list[str] = [
-            self.cli,
-            "run",
-            "-d",
-            "--rm",
-            "-v",
-            f"{workdir}:{workdir}",
-            "-w",
-            workdir,
-        ]
-        argv.extend(_CURRENT_RUN_ARGS["extra"])
-        for key, value in spec.env.items():
-            argv.extend(["--env", f"{key}={value}"])
-        if spec.command:
-            argv.append(spec.image)
-            argv.extend(spec.command)
-        else:
-            ttl = spec.container_ttl_seconds
-            sleep_arg = str(ttl) if ttl is not None else "infinity"
-            argv.extend([spec.image, "sleep", sleep_arg])
-
-        import asyncio as _asyncio
-
-        process = await _asyncio.create_subprocess_exec(
-            *argv,
-            stdout=_asyncio.subprocess.PIPE,
-            stderr=_asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await process.communicate()
-        if process.returncode != 0:
-            from pagentv4.sandbox.base import SandboxError
-
-            raise SandboxError(
-                f"{self.cli} run failed: "
-                f"{stderr.decode('utf-8', errors='replace').strip()}"
-            )
-        self.container_id = stdout.decode("utf-8", errors="replace").strip()
-
-    ContainerBackend.start = _start_with_gpus
-    ContainerBackend._dftworld_controller_patched = True
-
-
-def make_provider(
-    model: str, *, base_url: str | None = None, api_key: str | None = None
-):
-    if "/" in model:
-        vendor, name = model.split("/", 1)
-    else:
-        vendor, name = "deepseek", model
-
-    vendors = {
-        "deepseek": DeepSeek,
-        "kimi": Kimi,
-        "longcat": LongCat,
-        "mimo": MiMo,
-        "ollama": Ollama,
-        "vllm": Vllm,
-        "sglang": Sglang,
-        "openai": Provider,
-    }
-    cls = vendors.get(vendor.lower())
-    if cls is None:
-        raise SystemExit(f"unknown provider {vendor!r} in model {model!r}")
-    return cls(name, base_url=base_url, apikey=api_key)
-
-
-async def open_runner(
-    thread_id: str,
-    *,
-    threads_root: Path,
-    image: str,
-    model: str,
-    max_turns: int,
-    container_ttl_seconds: int,
-    skill_roots: tuple[Path, ...] = (),
-    gpus: int = 0,
-    task_name: str = "",
-    container_env: dict[str, str] | None = None,
-    execution_class: str = "local_sandbox",
-    api_endpoint: str | None = None,
-    api_key: str | None = None,
-):
-    """打开落在 ``threads_root/<thread_id>/`` 的 Thread，并组装 Runner。"""
-    _CURRENT_TASK["name"] = task_name
-    _CURRENT_TASK["execution_class"] = execution_class
-    _patch_container_backend_gpus(gpus)
-    thread = Thread.open(
-        thread_id,
-        root=threads_root,
-        overrides={
-            "backend": "docker",
-            "image": image,
-            "command_policy": "open",
-            "container_ttl_seconds": container_ttl_seconds,
-            "conversation_backend": "jsonl",
-            "conversation_root": ".",
-            "model": model,
-            "sandbox_tools": BENCH_SANDBOX_TOOLS,
-            "project_path": str(PAGENT_HOME / "_no_host"),
-        },
-    )
-
-    _open_sandbox = thread.open_sandbox
-
-    async def open_sandbox_with_agent_home():
-        spec = thread.spec
-        if spec.backend in ("container", "docker", "podman"):
-            # pagentv4's open_sandbox_for_spec does not forward env to
-            # Sandbox.create; the gateway URL/token must reach the controller
-            # container as --env flags, so open the docker sandbox ourselves.
-            from pagentv4.sandbox.sandbox import Sandbox, profile_host_root
-
-            sandbox = await Sandbox.create(
-                backend=spec.backend,
-                workdir=str(thread.workspace_path),
-                host_root=profile_host_root(spec),
-                image=spec.image,
-                container_ttl_seconds=spec.container_ttl_seconds,
-                command_policy=spec.command_policy,
-                tools=tuple(spec.sandbox_tools or ()),
-                env=dict(container_env or {}),
-            )
-        else:
-            sandbox = await _open_sandbox()
-        sandbox.home = AGENT_HOME
-        return sandbox
-
-    thread.open_sandbox = open_sandbox_with_agent_home  # type: ignore[method-assign]
-
-    run_state = RunState(phase="waking_sandbox")
-    resources = await assemble_run_resources(
-        thread,
-        extra_system=SYSTEM,
-        run_state=run_state,
-        skill_roots=skill_roots,
-    )
-    system_prompt = resources.system_prompt.replace("/home/agent", AGENT_HOME)
-
-    store = thread.open_store()
-    runner = Runner(
-        thread=thread,
-        sandbox=resources.sandbox,
-        store=store,
-        messages=thread.load_messages(),
-        agent=Agent(
-            make_provider(model, base_url=api_endpoint, api_key=api_key),
-            system=system_prompt,
-            tools=list(resources.tools),
-            max_turns=max_turns,
-        ),
-        skills=resources.skills,
-        conversation_id=thread.messages_conversation_id,
-    )
-    runner.run_state = run_state
-    return runner
 
 
 def count_tool_calls(thread_dir: str) -> int:
@@ -591,17 +528,24 @@ def collect_skill_invocations(thread_dir: str) -> list[str]:
     return invoked
 
 
-class PagentAdapter:
-    """Local Docker + pagentv4 provider behind the ``AgentAdapter`` protocol."""
+# Re-export for read-only legacy deserialization compatibility
+from dftworld_bench.legacy.pagent_compat import PagentAdapter  # noqa: F401
+
+
+# -- Claude Code Candidate Agent Adapter ------------------------------------
+
+class ClaudeCodeAdapter:
+    """Candidate Agent Adapter that drives Claude Code inside an isolated sandbox."""
 
     def __init__(
         self,
         *,
         model: str,
-        max_turns: int,
+        max_turns: int = 128,
+        max_total_tokens: int = 50_000_000,
         threads_root: Path,
         task_name: str,
-        image: str,
+        image: str = "mlffbench-agent-claude-code:v1",
         case_dir: Path,
         gpus: int = 0,
         agent_timeout_sec: float = 600.0,
@@ -612,25 +556,24 @@ class PagentAdapter:
         execution_class: str = "local_sandbox",
         api_endpoint: str | None = None,
         api_key: str | None = None,
-    ):
+        engine_version: str = "claude-code-v1",
+    ) -> None:
         self.model = model
         self.max_turns = max_turns
+        self.max_total_tokens = max_total_tokens
         self.threads_root = Path(threads_root)
         self.task_name = task_name
         self.image = image
         self.case_dir = Path(case_dir)
         self.gpus = gpus
-        # execution dispatch is contract-only: the execution class decides the
-        # container extras (hpc_controller host-gateway add-host).  The adapter
-        # receives only executor-resolved inputs; never a case id dispatch key.
+        self.agent_timeout_sec = agent_timeout_sec
+        self.skill_roots = tuple(skill_roots)
+        self.verbose = verbose
         self.execution_class = execution_class
         self.api_endpoint = api_endpoint
         self._api_key = api_key
-        # Task 8 guard: the Candidate container must never receive the trusted
-        # model endpoint/credential.  ``container_env`` carries only run-scoped
-        # controller env (e.g. BENCH_HPC_*); api-profile credential env names
-        # are resolved by the transport in the trusted process and are rejected
-        # here if a caller tries to forward them into the candidate.
+        self._engine_version = engine_version
+
         incoming = dict(container_env) if container_env else {}
         leaked = sorted(set(incoming) & set(forbidden_env_names))
         if leaked:
@@ -638,76 +581,395 @@ class PagentAdapter:
                 "candidate env would receive trusted API secrets: " + ", ".join(leaked)
             )
         self.container_env = incoming
-        self.agent_timeout_sec = agent_timeout_sec
-        self.skill_roots = tuple(skill_roots)
-        self.verbose = verbose
-        self.runner = None
+
         self.thread_dir = str(self.threads_root / task_name)
         self.workspace = str(self.threads_root / task_name / "workspace")
-        self._usage: dict[str, int] = {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0,
-        }
-        self._budget_ledger = None
-        self._turn_index = 0
-        self._tool_calls = 0
+        self.container_id: str | None = None
+        self._proc: asyncio.subprocess.Process | None = None
+        self._budget_ledger: Any = None
+        self._turn_index: int = 0
+        self._tool_calls: int = 0
         self._skills_invoked: list[str] = []
+        self._usage: dict[str, int | None] = {
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_tokens": None,
+        }
+        self._model_proxy: ModelGatewayProxy | None = None
 
-    def attach_budget_ledger(self, ledger) -> None:
-        """Receive the run's harness-owned BudgetLedger (Task 8/I3 wiring)."""
+    def attach_budget_ledger(self, ledger: Any) -> None:
         self._budget_ledger = ledger
 
     @property
     def version(self) -> str:
-        return self.model
+        return f"{self._engine_version}:{self.model}"
 
     async def prepare(self) -> None:
-        """package: 把镜像 /app 数据 + 任务 COPY 数据注入 candidate workspace。"""
         ensure_image(self.image)
         seed_workspace(Path(self.workspace), self.image, self.case_dir)
 
     async def start(self, instruction: str) -> None:
-        """candidate_start + agent_start: 开 sandbox/runner 并驱动 agent 到结束。"""
-        self.runner = await open_runner(
-            self.task_name,
-            threads_root=self.threads_root,
-            image=self.image,
-            model=self.model,
-            max_turns=self.max_turns,
-            container_ttl_seconds=int(self.agent_timeout_sec) + 120,
-            skill_roots=self.skill_roots,
-            gpus=self.gpus,
-            task_name=self.task_name,
-            container_env=self.container_env,
-            execution_class=self.execution_class,
-            api_endpoint=self.api_endpoint,
-            api_key=self._api_key,
-        )
-        bind_workspace_as_app(self.runner.sandbox)
-        # install_skills 在 assemble 时已跑一次,但 bind 会把 /app/.skills 删掉,
-        # 必须在 bind 之后重装,落到 workspace/.skills。
-        if self.runner.skills.names():
-            await self.runner.sandbox.install_skills(self.runner.skills)
-        try:
-            await self._consume(instruction)
-        finally:
-            self._tool_calls = count_tool_calls(self.thread_dir)
-            self._skills_invoked = collect_skill_invocations(self.thread_dir)
+        ws_path = Path(self.workspace)
+        ws_path.mkdir(parents=True, exist_ok=True)
+        thread_path = Path(self.thread_dir)
+        thread_path.mkdir(parents=True, exist_ok=True)
 
-    async def stop(self, metainfo: dict) -> None:
-        """candidate_freeze: 写 thread metainfo（runner 仍存活时）。"""
-        if self.runner is not None:
-            self.runner.thread.save_metainfo(metainfo)
+        # 0. Quarantine check: workspace must NOT contain pre-existing .claude settings/config
+        ws_claude = ws_path / ".claude"
+        if ws_claude.exists():
+            for p in ws_claude.rglob("settings*.json"):
+                raise ValueError(f"Security Violation: workspace contains unauthorized injected .claude settings: {p}")
+            for p in ws_claude.rglob("config*.json"):
+                raise ValueError(f"Security Violation: workspace contains unauthorized injected .claude config: {p}")
+
+        # 1. Prepare host-side trusted settings and skills (to be mounted read-only :ro)
+        trusted_claude_dir = thread_path / "trusted_claude"
+        trusted_claude_dir.mkdir(parents=True, exist_ok=True)
+        settings_file = trusted_claude_dir / "settings.json"
+        settings_file.write_text(
+            json.dumps(self._get_tool_policy_settings(), indent=2), encoding="utf-8"
+        )
+
+        trusted_skills_dir = thread_path / "trusted_skills"
+        trusted_skills_dir.mkdir(parents=True, exist_ok=True)
+        for root in self.skill_roots:
+            if root.exists() and (root / "SKILL.md").exists():
+                dest = trusted_skills_dir / root.name
+                if dest.exists():
+                    shutil.rmtree(dest)
+                shutil.copytree(root, dest)
+
+        # 2. Start host-side ModelGatewayProxy for trusted credential isolation
+        def _on_budget_exceeded():
+            if self._proc is not None:
+                self._terminate_proc_group(self._proc, 2.0)
+
+        proxy_url: str | None = None
+        ephemeral_token: str | None = None
+        if self._api_key or self.api_endpoint:
+            self._model_proxy = ModelGatewayProxy(
+                real_api_endpoint=self.api_endpoint or "https://api.anthropic.com",
+                real_api_key=self._api_key or "",
+                budget_ledger=self._budget_ledger,
+                max_model_turns=self.max_turns,
+                max_total_tokens=self.max_total_tokens,
+                task_name=self.task_name,
+                on_budget_exceeded=_on_budget_exceeded,
+            )
+            await self._model_proxy.start()
+            proxy_url = self._model_proxy.proxy_url("host.docker.internal")
+            ephemeral_token = self._model_proxy.ephemeral_token
+
+        # 3. Launch hardened container with read-only security overlays
+        cid = await self._start_container(
+            proxy_url, ephemeral_token, settings_file, trusted_skills_dir
+        )
+        self.container_id = cid
+
+        # 4. Execute Claude Code CLI with fail-closed monitoring
+        try:
+            await self._run_claude_code(instruction)
+        finally:
+            self._finalize_stats()
+
+    async def _start_container(
+        self,
+        proxy_url: str | None,
+        ephemeral_token: str | None,
+        trusted_settings: Path,
+        trusted_skills_dir: Path,
+    ) -> str:
+        cmd = [
+            "docker",
+            "run",
+            "-d",
+            "--rm",
+            # Strict container security hardening (P1 boundary)
+            "--cap-drop=ALL",
+            "--security-opt=no-new-privileges",
+            "--pids-limit", "256",
+            "--memory", "4g",
+            "--cpus", "4",
+            "--tmpfs", "/tmp:rw,noexec,nosuid,size=512m",
+            "-v", f"{self.workspace}:/app",
+            "-w", "/app",
+            "--add-host", "host.docker.internal:host-gateway",
+            # Network egress isolation: prevent direct internet access; only allow host-gateway
+            "--dns", "127.0.0.1",
+            "--env", "http_proxy=http://127.0.0.1:9",
+            "--env", "https_proxy=http://127.0.0.1:9",
+            "--env", "all_proxy=http://127.0.0.1:9",
+            "--env", "no_proxy=host.docker.internal",
+        ]
+        # Read-only mounts for trusted security policy and skills
+        cmd.extend(["-v", f"{trusted_settings.resolve()}:/app/.claude/settings.json:ro"])
+        cmd.extend(["-v", f"{trusted_settings.resolve()}:/home/agent/.claude/settings.json:ro"])
+        if any(trusted_skills_dir.iterdir()):
+            cmd.extend(["-v", f"{trusted_skills_dir.resolve()}:/app/.claude/skills:ro"])
+
+        _patch_container_backend_gpus(self.gpus)
+        cmd.extend(docker_gpu_args(self.gpus))
+        cmd.extend(controller_docker_args(self.execution_class))
+
+        for k, v in self.container_env.items():
+            cmd.extend(["--env", f"{k}={v}"])
+
+        # Inject ONLY the host model proxy and run-scoped ephemeral token (P0 credential isolation)
+        if proxy_url:
+            cmd.extend(["--env", f"ANTHROPIC_BASE_URL={proxy_url}"])
+        if ephemeral_token:
+            cmd.extend(["--env", f"ANTHROPIC_API_KEY={ephemeral_token}"])
+
+        cmd.extend([self.image, "sleep", str(int(self.agent_timeout_sec) + 120)])
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"failed to start candidate container: {stderr.decode('utf-8', errors='replace').strip()}"
+            )
+        cid = stdout.decode("utf-8", errors="replace").strip()
+        return cid
+
+    def _get_tool_policy_settings(self) -> dict[str, Any]:
+        """Tool policy permissions loaded into container via read-only mount."""
+        return {
+            "permissions": {
+                "allow": [
+                    "Bash",
+                    "FileRead",
+                    "FileEdit",
+                    "FileWrite",
+                    "GlobTool",
+                    "GrepTool",
+                    "DirectoryList",
+                ],
+                "deny": [
+                    "WebSearch",
+                    "Browser",
+                ],
+            }
+        }
+
+    async def _install_skills_to_claude_dir(self) -> None:
+        if not self.skill_roots:
+            return
+        claude_skills_dir = Path(self.workspace) / ".claude" / "skills"
+        claude_skills_dir.mkdir(parents=True, exist_ok=True)
+
+        for root in self.skill_roots:
+            if not root.exists():
+                continue
+            if (root / "SKILL.md").exists():
+                dest = claude_skills_dir / root.name
+                if dest.exists():
+                    shutil.rmtree(dest)
+                shutil.copytree(root, dest)
+            else:
+                for sub in root.iterdir():
+                    if sub.is_dir() and (sub / "SKILL.md").exists():
+                        dest = claude_skills_dir / sub.name
+                        if dest.exists():
+                            shutil.rmtree(dest)
+                        shutil.copytree(sub, dest)
+
+    async def _run_claude_code(self, instruction: str) -> None:
+        assert self.container_id is not None
+        messages_path = Path(self.thread_dir) / "messages.jsonl"
+        log_file = open(messages_path, "w", encoding="utf-8")
+
+        cli_argv = [
+            "docker",
+            "exec",
+            "-i",
+            "-w",
+            "/app",
+            self.container_id,
+            "claude",
+            "-p",
+            instruction,
+            "--output-format",
+            "json",
+        ]
+
+        watchdog = ToolWatchdog(walltime_sec=self.agent_timeout_sec)
+        proc = await asyncio.create_subprocess_exec(
+            *cli_argv,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            start_new_session=True,
+        )
+        self._proc = proc
+
+        try:
+            try:
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                    proc.communicate(),
+                    timeout=self.agent_timeout_sec,
+                )
+            except asyncio.TimeoutError:
+                self._terminate_proc_group(proc, watchdog.grace_sec)
+                raise AgentTimeoutError(f"Candidate agent timed out after {self.agent_timeout_sec}s")
+
+            raw_out = stdout_bytes.decode("utf-8", errors="replace")
+            raw_err = stderr_bytes.decode("utf-8", errors="replace")
+            self._process_claude_output(raw_out, raw_err, log_file)
+
+            # Strict Fail-Closed checks (P0)
+            if self._model_proxy and self._model_proxy.budget_exceeded:
+                raise AgentBudgetExceededError(f"Candidate agent exceeded budget limits in task {self.task_name}")
+
+            if proc.returncode != 0:
+                raise AgentExecutionError(
+                    f"Candidate agent CLI exited with code {proc.returncode}: {raw_err.strip() or raw_out.strip()}"
+                )
+
+        finally:
+            log_file.close()
+
+    def _terminate_proc_group(self, proc: asyncio.subprocess.Process, grace_sec: float) -> None:
+        try:
+            pgid = os.getpgid(proc.pid)
+            os.killpg(pgid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            pass
+        import time
+        start = time.time()
+        while time.time() - start < grace_sec:
+            if proc.returncode is not None:
+                return
+            time.sleep(0.1)
+        try:
+            pgid = os.getpgid(proc.pid)
+            os.killpg(pgid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+    def _process_claude_output(self, stdout: str, stderr: str, log_file: Any) -> None:
+        parsed_any = False
+        for line in stdout.splitlines():
+            line_str = line.strip()
+            if not line_str:
+                continue
+            event = parse_claude_code_event(line_str)
+            if event is not None:
+                parsed_any = True
+                self._handle_event(event)
+                log_file.write(json.dumps(event.raw or {"type": event.type}) + "\n")
+
+        if not parsed_any and stdout.strip():
+            try:
+                data = json.loads(stdout.strip())
+                if isinstance(data, dict):
+                    log_file.write(json.dumps(data) + "\n")
+                    self._parse_full_json_result(data)
+            except json.JSONDecodeError:
+                log_file.write(json.dumps({"type": "raw_output", "content": stdout}) + "\n")
+
+        if stderr.strip():
+            log_file.write(json.dumps({"type": "stderr", "content": stderr}) + "\n")
+
+    def _handle_event(self, event: AgentEvent) -> None:
+        if isinstance(event, ToolCallBegin):
+            self._tool_calls += 1
+            if event.name == "use_skill" or "skill" in event.name:
+                try:
+                    args = json.loads(event.arguments)
+                    skill_name = args.get("name") or args.get("skill")
+                    if skill_name and skill_name not in self._skills_invoked:
+                        self._skills_invoked.append(skill_name)
+                except Exception:
+                    pass
+            if self.verbose:
+                print(f"  tool → {event.name}({event.arguments[:100]}…)")
+
+        elif isinstance(event, TurnResult):
+            self._turn_index += 1
+            # ModelGatewayProxy is the sole owner of budget ledger charging;
+            # Adapter records observation telemetry only to eliminate double-charging.
+            for k in ("prompt_tokens", "completion_tokens", "total_tokens"):
+                val = event.usage.get(k)
+                if val is not None:
+                    curr = self._usage[k]
+                    self._usage[k] = (curr or 0) + val
+
+        elif isinstance(event, TextDelta) and self.verbose:
+            sys.stdout.write(event.text)
+            sys.stdout.flush()
+
+    def _parse_full_json_result(self, data: dict[str, Any]) -> None:
+        tools = data.get("tool_calls") or data.get("tools")
+        if isinstance(tools, list):
+            self._tool_calls += len(tools)
+            for t in tools:
+                if isinstance(t, dict):
+                    name = t.get("name", "")
+                    if name in ("use_skill", "hpc-submit") and name not in self._skills_invoked:
+                        self._skills_invoked.append(name)
+
+        usage = data.get("usage")
+        if isinstance(usage, dict):
+            self._usage = {
+                "prompt_tokens": usage.get("input_tokens"),
+                "completion_tokens": usage.get("output_tokens"),
+                "total_tokens": usage.get("total_tokens") or (
+                    (usage.get("input_tokens") or 0) + (usage.get("output_tokens") or 0)
+                    if usage.get("input_tokens") is not None
+                    else None
+                ),
+            }
+        else:
+            self._usage = {
+                "prompt_tokens": None,
+                "completion_tokens": None,
+                "total_tokens": None,
+            }
+
+    def _finalize_stats(self) -> None:
+        msg_file = Path(self.thread_dir) / "messages.jsonl"
+        if not msg_file.is_file():
+            return
+        if self._tool_calls == 0 or not self._skills_invoked:
+            try:
+                for line in msg_file.read_text(encoding="utf-8").splitlines():
+                    if not line.strip():
+                        continue
+                    row = json.loads(line)
+                    typ = row.get("type", "")
+                    if typ in ("tool_use", "tool_call"):
+                        if self._tool_calls == 0:
+                            self._tool_calls += 1
+                        name = row.get("name", "")
+                        if "skill" in name and name not in self._skills_invoked:
+                            self._skills_invoked.append(name)
+            except Exception:
+                pass
+
+    async def stop(self, metainfo: dict[str, Any]) -> None:
+        thread_path = Path(self.thread_dir)
+        thread_path.mkdir(parents=True, exist_ok=True)
+        meta_file = thread_path / "metainfo.json"
+        meta_file.write_text(json.dumps(metainfo, indent=2, ensure_ascii=False), encoding="utf-8")
 
     async def close(self) -> None:
-        """candidate_destroy: 关 runner / 销毁候选容器。幂等。"""
-        if self.runner is not None:
-            runner = self.runner
-            self.runner = None
-            await runner.close()
+        if self._model_proxy:
+            await self._model_proxy.close()
+            self._model_proxy = None
+        if self.container_id:
+            cid = self.container_id
+            self.container_id = None
+            proc = await asyncio.create_subprocess_exec(
+                "docker", "stop", cid,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await proc.communicate()
 
-    def collect_logs(self) -> dict:
+    def collect_logs(self) -> dict[str, Any]:
         return {
             "thread_dir": self.thread_dir,
             "workspace": self.workspace,
@@ -715,40 +977,6 @@ class PagentAdapter:
             "tokens": self._usage["total_tokens"],
             "skills_invoked": list(self._skills_invoked),
             "usage": dict(self._usage),
+            "engine": "claude-code",
+            "engine_version": self.version,
         }
-
-    async def _consume(self, instruction: str) -> None:
-        runner = self.runner
-        usage = self._usage
-        verbose = self.verbose
-
-        async def consume() -> None:
-            async for event in runner.run(instruction):
-                # token 统计必须无条件执行,不依赖 verbose
-                if isinstance(event, TurnResult) and event.usage:
-                    for key in usage:
-                        usage[key] += int(event.usage.get(key, 0) or 0)
-                    if self._budget_ledger is not None:
-                        self._turn_index += 1
-                        turn_op = f"{self.task_name}/model-turn/{self._turn_index}"
-                        self._budget_ledger.charge("model_turns", 1, turn_op)
-                        total = int(event.usage.get("total_tokens", 0) or 0)
-                        if total > 0:
-                            self._budget_ledger.charge("tokens", total, turn_op)
-                if not verbose:
-                    continue
-                if isinstance(event, ToolCallBegin):
-                    args = event.arguments
-                    if len(args) > 200:
-                        args = args[:200] + "…"
-                    print(f"  tool → {event.name}({args})")
-                elif isinstance(event, ToolResult):
-                    body = (event.content or "").replace("\n", " ")
-                    if len(body) > 160:
-                        body = body[:160] + "…"
-                    print(f"    {'ok' if event.ok else 'fail'}: {body}")
-                elif isinstance(event, TextDelta):
-                    sys.stdout.write(event.text)
-                    sys.stdout.flush()
-
-        await consume()

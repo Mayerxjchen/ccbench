@@ -163,3 +163,28 @@ def test_resolve_formal_with_hpc(registry, case):
     )
     assert "hpc" in lock.payload
     assert lock.payload["hpc"]["scheduler"] == "slurm"
+
+
+def test_resolve_formal_claude_code_and_legacy_pagent(registry, case):
+    """resolve_formal() defaults to claude-code and supports legacy pagent."""
+    experiment = construct_experiment({"agent": "formal-long", "api": "default"}, registry)
+
+    # Default engine: claude-code
+    lock_cc = resolve_formal(
+        experiment, case, "run-cc", 1,
+        model="claude-3-7-sonnet-20250219", benchmark_commit="abc123",
+        engine_version="0.2.29",
+    )
+    assert lock_cc.payload["agent"]["engine"] == "claude-code"
+    assert lock_cc.payload["agent"]["engine_version"] == "0.2.29"
+    assert lock_cc.payload["agent"]["tool_surface_digest"].startswith("sha256:")
+
+    # Explicit legacy engine: pagent
+    lock_pa = resolve_formal(
+        experiment, case, "run-pa", 1,
+        model="deepseek/deepseek-chat", benchmark_commit="abc123",
+        engine="pagent",
+    )
+    assert lock_pa.payload["agent"]["engine"] == "pagent"
+    assert lock_pa.payload["agent"]["tool_surface_digest"].startswith("sha256:")
+    assert lock_pa.payload["agent"]["tool_surface_digest"] != lock_cc.payload["agent"]["tool_surface_digest"]

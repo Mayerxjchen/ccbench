@@ -32,6 +32,7 @@ Targets:
   matclaw-cips-gpu dftworld-base-matclaw-cips:2.2.11-gpu (DeePMD 2.2.11 + CUDA 12 + qualify_gpu)
   matclaw-cips-controller dftworld-base-matclaw-cips:2.2.11-controller (HPC 控制层，依赖 matclaw-cips)
   ai2kit-controller dftworld-base-ai2kit:0.1.0-cpu-controller (HPC 控制层，依赖外部 ai2kit base)
+  agent-claude-code mlffbench-agent-claude-code:v1 (独立 Candidate Agent Sandbox 镜像)
   skills       dftworld-skills:<sha>      (skill bundle，非执行镜像；生成 .skill-image.json)
   all          以上全部（很吃磁盘）
 
@@ -342,6 +343,14 @@ for step in "${STEPS[@]}"; do
                 -f "$DIR/ai2kit-controller/Dockerfile" \
                 -t dftworld-base-ai2kit:0.1.0-cpu-controller \
                 "$ROOT"
+            ;;
+        agent-claude-code)
+            rmi_if_force mlffbench-agent-claude-code:v1
+            echo "=== Building mlffbench-agent-claude-code:v1 ==="
+            docker build \
+                -f "$DIR/agent-claude-code/Dockerfile" \
+                -t mlffbench-agent-claude-code:v1 \
+                "$DIR/agent-claude-code"
             ;;
         skills)
             # 唯一依赖 git:取当前 HEAD 短 hash 作为 immutable tag

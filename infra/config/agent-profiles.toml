@@ -36,3 +36,17 @@ max_model_turns = 64
 max_total_tokens = 10000000
 agent_active_walltime_sec = 7200
 scheduler_wait_walltime_sec = 0
+
+# Claude Code 正式/基准配置：用于 Claude Code 作为正式 Candidate Agent 的全量评测
+[agents.claude-code-formal]
+max_model_turns = 256
+max_total_tokens = 50000000
+agent_active_walltime_sec = 14400
+scheduler_wait_walltime_sec = 604800
+
+# Claude Code 试点/开发配置：用于轻量验证与资格测试
+[agents.claude-code-pilot]
+max_model_turns = 64
+max_total_tokens = 10000000
+agent_active_walltime_sec = 3600
+scheduler_wait_walltime_sec = 0

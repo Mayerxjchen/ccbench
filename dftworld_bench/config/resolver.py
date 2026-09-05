@@ -6,7 +6,9 @@ a complete ResolvedRunLock. For formal runs, no overrides are permitted.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from dftworld_bench.config.profiles import ProfileRegistry, canonical_json, digest_bytes
@@ -89,6 +91,9 @@ def resolve_formal(
     run_config: Any = None,
     run_metadata: dict[str, Any] | None = None,
     compute_route: Any = None,
+    engine: str = "claude-code",
+    engine_version: str | None = None,
+    agent_image_digest: str | None = None,
 ) -> ResolvedRunLock:
     """Resolve a formal run lock from a frozen experiment.
 
@@ -120,9 +125,46 @@ def resolve_formal(
     sampling_digest = digest_bytes(canonical_json({"max_turns": max_turns}))
     context_digest = digest_bytes(canonical_json({"policy": "eval-v2"}))
     skill_bundle = digest_bytes(skills_sha) if skills_sha else digest_bytes(b"")
-    tool_surface_digest = digest_bytes(canonical_json({"engine": "pagent"}))
+
+    resolved_engine = engine or "claude-code"
+    if resolved_engine == "pagent":
+        tool_surface_payload = {"engine": "pagent"}
+    else:
+        # Resolve real tool-policy
+        policy_file = Path(__file__).resolve().parents[2] / "base-env-build" / "agent-claude-code" / "tool-policy.json"
+        if policy_file.is_file():
+            try:
+                tool_surface_payload = json.loads(policy_file.read_text(encoding="utf-8"))
+            except Exception:
+                tool_surface_payload = {"engine": "claude-code", "tools": ["Bash", "FileRead", "FileEdit"]}
+        else:
+            tool_surface_payload = {"engine": "claude-code", "tools": ["Bash", "FileRead", "FileEdit"]}
+    tool_surface_digest = digest_bytes(canonical_json(tool_surface_payload))
 
     # Build the complete lock payload — every digest is real.
+    agent_block: dict[str, Any] = {
+        "provider": provider,
+        "model_id": model_id,
+        "identity_strength": (
+            run_config.model.identity_strength
+            if run_config is not None and not (run_metadata or {}).get("override_present", False)
+            else "alias"
+        ),
+        **({"deployment_id": run_config.model.deployment_id}
+           if run_config is not None and not (run_metadata or {}).get("override_present", False)
+           else {}),
+        "engine": resolved_engine,
+        "prompt_digest": prompt_digest,
+        "sampling_digest": sampling_digest,
+        "context_digest": context_digest,
+        "skill_bundle_digest": skill_bundle,
+        "tool_surface_digest": tool_surface_digest,
+    }
+    if engine_version:
+        agent_block["engine_version"] = engine_version
+    if agent_image_digest:
+        agent_block["agent_image_digest"] = agent_image_digest
+
     payload: dict[str, Any] = {
         "case": {
             "case_id": case.case_id,
@@ -144,24 +186,7 @@ def resolve_formal(
                 )),
             } if run_config is not None else {}),
         },
-        "agent": {
-            "provider": provider,
-            "model_id": model_id,
-            "identity_strength": (
-                run_config.model.identity_strength
-                if run_config is not None and not (run_metadata or {}).get("override_present", False)
-                else "alias"
-            ),
-            **({"deployment_id": run_config.model.deployment_id}
-               if run_config is not None and not (run_metadata or {}).get("override_present", False)
-               else {}),
-            "engine": "pagent",
-            "prompt_digest": prompt_digest,
-            "sampling_digest": sampling_digest,
-            "context_digest": context_digest,
-            "skill_bundle_digest": skill_bundle,
-            "tool_surface_digest": tool_surface_digest,
-        },
+        "agent": agent_block,
         "api": {
             "api_profile_digest": (
                 digest_bytes(canonical_json(run_config.api.model_dump(mode="json")))

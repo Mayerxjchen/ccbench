@@ -60,14 +60,16 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from pagentv4 import Runner  # noqa: F401  (kept for downstream imports)
+# PAgent runner execution paths removed. All benchmark runs use ClaudeCodeAdapter.
+Runner = None  # type: ignore
+
 
 from dftworld_bench.agents import (
     AGENT_HOME,  # noqa: F401
     BENCH_SANDBOX_TOOLS,  # noqa: F401
     PAGENT_HOME,
     SYSTEM,  # noqa: F401
-    PagentAdapter,
+    ClaudeCodeAdapter,
     apply_dockerfile_copies,  # noqa: F401  (re-exported for tests)
     ensure_image,  # noqa: F401
 )
@@ -114,18 +116,13 @@ SKILLS_IN_IMAGE = "/opt/electromind/skills"
 FROM_RE = re.compile(r"^\s*FROM\s+(\S+)", re.MULTILINE)
 
 
-# -- transport shim for pagentv4 --------------------------------------------
+# -- transport shim for Candidate Agent --------------------------------------
 
 
-class PagentTransport:
-    """Adapts the pagentv4 ProviderProtocol to the Transport protocol.
+class CandidateModelTransport:
+    """Candidate model transport for RetryingModelClient integration."""
 
-    The pagent provider owns the HTTP client and streaming; this shim converts
-    the pagent ``complete()`` async stream into a ``ModelResponse`` that the
-    ``RetryingModelClient`` can classify and record.
-    """
-
-    def __init__(self, provider: Any) -> None:
+    def __init__(self, provider: Any = None) -> None:
         self._provider = provider
 
     async def request(
@@ -134,33 +131,35 @@ class PagentTransport:
         request: dict[str, Any],
         timeout_sec: float,
     ) -> Any:
-        from dftworld_bench.core.model_transport import ModelResponse, HttpFailure, TimeoutUnknown
+        from dftworld_bench.core.model_transport import ModelResponse, HttpFailure
 
-        try:
-            stream = await self._provider.complete(
-                messages=request.get("messages", []),
-                tools=request.get("tools"),
-            )
-        except Exception as exc:
-            return HttpFailure(status=0, body=str(exc))
-        collected: list[str] = []
-        usage: dict[str, Any] | None = None
-        request_id: str | None = None
-        async for chunk in stream:
-            if hasattr(chunk, "choices") and chunk.choices:
-                delta = getattr(chunk.choices[0], "delta", None)
-                content = getattr(delta, "content", None) if delta else None
-                if content:
-                    collected.append(content)
-            if hasattr(chunk, "usage") and chunk.usage is not None:
-                usage = {"tokens": getattr(chunk.usage, "total_tokens", 0)}
-            if hasattr(chunk, "id") and chunk.id:
-                request_id = chunk.id
-        return ModelResponse(
-            text="".join(collected),
-            request_id=request_id,
-            usage=usage,
-        )
+        if self._provider is not None and hasattr(self._provider, "complete"):
+            try:
+                stream = await self._provider.complete(
+                    messages=request.get("messages", []),
+                    tools=request.get("tools"),
+                )
+                collected: list[str] = []
+                usage: dict[str, Any] | None = None
+                request_id: str | None = None
+                async for chunk in stream:
+                    if hasattr(chunk, "choices") and chunk.choices:
+                        delta = getattr(chunk.choices[0], "delta", None)
+                        content = getattr(delta, "content", None) if delta else None
+                        if content:
+                            collected.append(content)
+                    if hasattr(chunk, "usage") and chunk.usage is not None:
+                        usage = {"tokens": getattr(chunk.usage, "total_tokens", 0)}
+                    if hasattr(chunk, "id") and chunk.id:
+                        request_id = chunk.id
+                return ModelResponse(
+                    text="".join(collected),
+                    request_id=request_id,
+                    usage=usage,
+                )
+            except Exception as exc:
+                return HttpFailure(status=0, body=str(exc))
+        return ModelResponse(text="", request_id=None, usage={"tokens": 0})
 
 
 class _DockerRunner:
@@ -200,12 +199,7 @@ class _DockerRunner:
         return proc.returncode, proc.stdout, proc.stderr
 
 
-def isolate_pagent_home() -> None:
-    """把 pagent home 钉到仓库空的隔离目录,保证 SkillRegistry 扫不到任何宿主 skill。"""
-    home = PAGENT_HOME / "_isolated"
-    home.mkdir(parents=True, exist_ok=True)
-    (PAGENT_HOME / "_no_host").mkdir(parents=True, exist_ok=True)
-    os.environ["PAGENT_HOME"] = str(home)
+
 
 
 def git_head_commit(cwd: Path | None = None) -> str:
@@ -708,6 +702,7 @@ def resolve_harness_provenance(
     runtime_runner: Any = None,
     run_config: Any = None,
     run_metadata: dict[str, Any] | None = None,
+    engine: str = "claude-code",
 ) -> HarnessProvenance:
     """Resolve a complete lock, budgets, runtimes, and site for one caller.
 
@@ -732,8 +727,18 @@ def resolve_harness_provenance(
         run_config=run_config,
     )
 
-    # Frozen experiment from profile selections.
-    selection: dict[str, str] = {"agent": "formal-long", "api": "default"}
+    # Frozen experiment from profile selections (bind claude-code-formal if available).
+    agent_lock_path = Path(__file__).resolve().parent / "base-env-build" / "agent-claude-code" / "claude-code.lock.json"
+    agent_image_digest = None
+    if agent_lock_path.is_file():
+        try:
+            agent_lock_data = json.loads(agent_lock_path.read_text(encoding="utf-8"))
+            agent_image_digest = agent_lock_data.get("built_image_digest")
+        except Exception:
+            pass
+
+    agent_profile_name = "claude-code-formal" if "claude-code-formal" in registry.names("agents") else "formal-long"
+    selection: dict[str, str] = {"agent": agent_profile_name, "api": "default"}
     site_name = "<site-alias>" if task.execution_class == "hpc_controller" else None
     if site_name:
         selection["site"] = site_name
@@ -755,6 +760,9 @@ def resolve_harness_provenance(
         budgets=budgets,
         run_config=run_config,
         run_metadata=run_metadata,
+        engine=engine,
+        engine_version="0.2.29",
+        agent_image_digest=agent_image_digest,
     )
 
     # Profile for run record (platform, execution_class, site digest).
@@ -885,7 +893,120 @@ def resolve_harness_provenance(
                 f"{', '.join(failed)}"
             )
 
+    # Candidate Agent Qualification Gate: enforce strict verified receipt on formal runs
+    is_formal = False
+    if run_metadata and run_metadata.get("counted"):
+        is_formal = True
+    elif run_config and getattr(run_config, "mode", None) in ("formal", "pilot"):
+        is_formal = True
+    elif os.getenv("MLFFBENCH_ENFORCE_AGENT_GATE") == "1":
+        is_formal = True
+
+    _verify_candidate_agent_gate(
+        task,
+        is_formal=is_formal,
+        agent_image_digest=agent_image_digest,
+    )
+
     return HarnessProvenance(lock, budgets, runtime_identities, profile)
+
+
+def _verify_candidate_agent_gate(
+    task: TaskSpec,
+    *,
+    is_formal: bool,
+    agent_image_digest: str | None = None,
+    receipt_path: Path | None = None,
+) -> None:
+    """Formal admission gate: verify Candidate Agent qualification receipt.
+
+    Fail-closed policy:
+    1. In formal / counted mode, receipt MUST exist and be verified against
+       qualification-trust.toml.
+    2. Status must be PROMOTED.
+    3. Readiness must be READY.
+    4. Execution status must be PASS.
+    5. All canary checks must PASS.
+    6. If locked agent_image_digest is provided, receipt must match it.
+    7. If BLOCKED or verification fails, abort formal execution immediately.
+    """
+    if not is_formal:
+        return
+
+    if receipt_path is None:
+        env_receipt = os.getenv("MLFFBENCH_CANDIDATE_AGENT_RECEIPT")
+        if env_receipt:
+            receipt_path = Path(env_receipt)
+        else:
+            receipt_path = (
+                Path.home()
+                / ".config"
+                / "mlffbench"
+                / "evidence"
+                / "gate_agent"
+                / "claude_code_receipt.json"
+            )
+
+    if not receipt_path.is_file():
+        raise RuntimeError(
+            f"Candidate Agent qualification receipt not found at {receipt_path}. "
+            "Formal benchmark requires an official, cryptographically verified qualification receipt. "
+            "Run 'python scripts/qualification/qualify_claude_code_agent.py' first."
+        )
+
+    from dftworld_bench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
+    from dftworld_bench.hpc.trust_store import QualificationTrustStore
+
+    verifier = CandidateAgentVerifier(workspace_root=ROOT)
+    trust_store = QualificationTrustStore.load_default()
+    if not verifier.verify_receipt_file(receipt_path, trust_store=trust_store):
+        raise RuntimeError(
+            f"Candidate Agent qualification receipt signature verification FAILED for {receipt_path}. "
+            "Receipt signature does not match trusted keys in qualification-trust.toml."
+        )
+
+    try:
+        receipt_data = json.loads(receipt_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"Failed to parse qualification receipt {receipt_path}: {exc}") from exc
+
+    verdict = receipt_data.get("verdict", {})
+    status = verdict.get("status")
+    if status != "PROMOTED":
+        raise RuntimeError(
+            f"Candidate Agent qualification status is {status!r} (BLOCKED). "
+            "Formal benchmark execution is rejected."
+        )
+
+    readiness = verdict.get("readiness")
+    if readiness and readiness != "READY":
+        raise RuntimeError(
+            f"Candidate Agent readiness is {readiness!r} != 'READY'. Formal benchmark rejected."
+        )
+
+    execution_status = verdict.get("agent_execution")
+    if execution_status and execution_status != "PASS":
+        raise RuntimeError(
+            f"Candidate Agent execution status is {execution_status!r} != 'PASS'. Formal benchmark rejected."
+        )
+
+    canaries = receipt_data.get("canary_results", {})
+    for c_name, c_val in canaries.items():
+        if isinstance(c_val, dict) and c_val.get("status") != "PASS":
+            raise RuntimeError(
+                f"Candidate Agent qualification canary {c_name} status is {c_val.get('status')!r} != 'PASS'."
+            )
+
+    if agent_image_digest:
+        evidence = receipt_data.get("evidence", {})
+        receipt_image_digest = (
+            evidence.get("image_digest")
+            or evidence.get("canary_1_image_isolation", {}).get("image_digest")
+        )
+        if receipt_image_digest and receipt_image_digest != agent_image_digest:
+            raise RuntimeError(
+                f"Candidate Agent receipt image digest mismatch: receipt={receipt_image_digest}, lock={agent_image_digest}"
+            )
 
 
 def profile_for_task(task: TaskSpec) -> Profile:
@@ -920,7 +1041,7 @@ def profile_for_task(task: TaskSpec) -> Profile:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="dftworld eval with pagentv4 Runner")
+    parser = argparse.ArgumentParser(description="mlffbench eval with Claude Code Agent")
     parser.add_argument("tasks", nargs="*", help="任务名，如 001-hello")
     parser.add_argument("--all", action="store_true", help="跑全部任务")
     parser.add_argument(
@@ -1050,7 +1171,6 @@ async def amain(argv: list[str] | None = None) -> int:
     # .env contains values only; policy selection comes from Run Config.
     load_dotenv()
     args = parse_args(argv)
-    isolate_pagent_home()
     from dftworld_bench.config.run_config import load_run_config
 
     base_run_config = load_run_config(args.run_config)
@@ -1171,25 +1291,6 @@ async def amain(argv: list[str] | None = None) -> int:
         )
         try:
             await executor.prepare(context)
-            adapter = PagentAdapter(
-                model=settings.model,
-                max_turns=settings.max_turns,
-                threads_root=threads_root,
-                task_name=task.name,
-                image=task.image,
-                case_dir=task.path,
-                gpus=context.local_gpus,
-                agent_timeout_sec=agent_active_walltime_sec,
-                skill_roots=skill_roots,
-                verbose=args.verbose,
-                container_env=context.container_env,
-                execution_class=task.execution_class,
-                api_endpoint=api_endpoint,
-                api_key=api_key,
-                forbidden_env_names=frozenset(
-                    {base_run_config.api.endpoint_env, base_run_config.api.credential_env}
-                ),
-            )
             provenance = resolve_harness_provenance(
                 task,
                 run_id=run_id,
@@ -1206,6 +1307,30 @@ async def amain(argv: list[str] | None = None) -> int:
                     "frozen": settings.frozen,
                     "counted": settings.counted,
                 },
+                engine="claude-code",
+            )
+            from dftworld_bench.core.budgets import BudgetPolicy
+            budget_policy = BudgetPolicy.from_lock({"budgets": provenance.budgets})
+            resolved_tokens = budget_policy.require("tokens")
+            resolved_turns = budget_policy.require("model_turns")
+            adapter = ClaudeCodeAdapter(
+                model=settings.model,
+                max_turns=resolved_turns,
+                max_total_tokens=resolved_tokens,
+                threads_root=threads_root,
+                task_name=task.name,
+                case_dir=task.path,
+                gpus=context.local_gpus,
+                agent_timeout_sec=agent_active_walltime_sec,
+                skill_roots=skill_roots,
+                verbose=args.verbose,
+                container_env=context.container_env,
+                execution_class=task.execution_class,
+                api_endpoint=api_endpoint,
+                api_key=api_key,
+                forbidden_env_names=frozenset(
+                    {base_run_config.api.endpoint_env, base_run_config.api.credential_env}
+                ),
             )
             spec = HarnessSpec(
                 case_id=task.name,
@@ -1250,7 +1375,7 @@ async def amain(argv: list[str] | None = None) -> int:
             # after adapter.start() runs inside harness.  We construct the
             # RetryingModelClient here so eval.py is the single composition
             # root; the adapter will inject its provider into the transport.
-            transport = PagentTransport(provider=None)  # wired after start
+            transport = CandidateModelTransport(provider=None)
             model_client = RetryingModelClient(
                 transport=transport,
                 max_attempts=base_run_config.api.max_attempts,

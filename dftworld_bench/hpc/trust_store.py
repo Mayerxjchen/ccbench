@@ -71,6 +71,16 @@ class QualificationTrustStore:
                 status=str(meta.get("status", "UNCONFIGURED")).strip(),
                 purpose=str(meta.get("purpose", "")).strip(),
             )
+        import os
+        env_agent_pub = os.environ.get("MLFFBENCH_CANDIDATE_AGENT_PUBKEY", "").strip()
+        if env_agent_pub and len(env_agent_pub) == 64:
+            keys["candidate-agent-v1"] = TrustKey(
+                key_id="candidate-agent-v1",
+                algorithm="ed25519",
+                public_key_hex=env_agent_pub,
+                status="ACTIVE",
+                purpose="candidate-agent-qualification",
+            )
         return cls(keys)
 
     def get_key(self, key_id: str) -> TrustKey | None:

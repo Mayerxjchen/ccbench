@@ -335,17 +335,17 @@ class TestI3BudgetWiring:
         ledger = BudgetLedger(BudgetPolicy({d: 10_000 for d in BUDGET_DOMAINS}))
         adapter.attach_budget_ledger(ledger)
 
-        from pagentv4 import TurnResult
+        from dftworld_bench.agents import ClaudeCodeAdapter, TurnResult
 
         class FakeRunner:
             async def run(self, instruction):
                 yield TurnResult(
-                    content="a",
+                    raw={"content": "a"},
                     usage={"prompt_tokens": 10, "completion_tokens": 5,
                            "total_tokens": 15},
                 )
                 yield TurnResult(
-                    content="b",
+                    raw={"content": "b"},
                     usage={"prompt_tokens": 20, "completion_tokens": 10,
                            "total_tokens": 30},
                 )
@@ -357,6 +357,23 @@ class TestI3BudgetWiring:
             "BUG I3: two driven model turns were not charged to the run ledger"
         )
         assert ledger.used("tokens") == 45
+
+        # Also verify ClaudeCodeAdapter records telemetry and delegates ledger charging
+        # exclusively to ModelGatewayProxy (preventing double-charging)
+        cc_adapter = ClaudeCodeAdapter(
+            model="m",
+            threads_root=tmp_path,
+            task_name="t1",
+            case_dir=tmp_path,
+        )
+        cc_ledger = BudgetLedger(BudgetPolicy({d: 10_000 for d in BUDGET_DOMAINS}))
+        cc_adapter.attach_budget_ledger(cc_ledger)
+        cc_adapter._handle_event(
+            TurnResult(usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15})
+        )
+        assert cc_adapter._turn_index == 1
+        assert cc_adapter._usage["total_tokens"] == 15
+        assert cc_ledger.used("model_turns") == 0  # Proxy is sole owner of charging
 
 
 # ============================================================================
