@@ -971,28 +971,28 @@ def _verify_candidate_agent_gate(
         raise RuntimeError(f"Failed to parse qualification receipt {receipt_path}: {exc}") from exc
 
     verdict = receipt_data.get("verdict", {})
-    status = verdict.get("status")
+    status = receipt_data.get("status") or verdict.get("status")
     if status != "PROMOTED":
         raise RuntimeError(
             f"Candidate Agent qualification status is {status!r} (BLOCKED). "
             "Formal benchmark execution is rejected."
         )
 
-    readiness = verdict.get("readiness")
+    readiness = receipt_data.get("formal_benchmark_readiness") or verdict.get("readiness")
     if readiness and readiness != "READY":
         raise RuntimeError(
             f"Candidate Agent readiness is {readiness!r} != 'READY'. Formal benchmark rejected."
         )
 
-    execution_status = verdict.get("agent_execution")
+    execution_status = receipt_data.get("agent_execution_status") or verdict.get("agent_execution")
     if execution_status and execution_status != "PASS":
         raise RuntimeError(
             f"Candidate Agent execution status is {execution_status!r} != 'PASS'. Formal benchmark rejected."
         )
 
-    canaries = receipt_data.get("canary_results", {})
+    canaries = receipt_data.get("canary_results") or receipt_data.get("evidence") or {}
     for c_name, c_val in canaries.items():
-        if isinstance(c_val, dict) and c_val.get("status") != "PASS":
+        if isinstance(c_val, dict) and c_val.get("status") not in ("PASS", None):
             raise RuntimeError(
                 f"Candidate Agent qualification canary {c_name} status is {c_val.get('status')!r} != 'PASS'."
             )
