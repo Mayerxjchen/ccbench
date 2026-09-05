@@ -99,12 +99,6 @@ class ModelGatewayProxy:
             return not self.budget_exceeded
 
         self.tokens_used += delta
-        if self.tokens_used > self.max_total_tokens:
-            self.budget_exceeded = True
-            if self.on_budget_exceeded:
-                self.on_budget_exceeded()
-            return False
-
         if self.budget_ledger is not None:
             try:
                 self.budget_ledger.charge("tokens", delta, f"{self.task_name}/tokens")
@@ -113,6 +107,12 @@ class ModelGatewayProxy:
                 if self.on_budget_exceeded:
                     self.on_budget_exceeded()
                 raise
+
+        if self.tokens_used > self.max_total_tokens:
+            self.budget_exceeded = True
+            if self.on_budget_exceeded:
+                self.on_budget_exceeded()
+            return False
 
         return True
 

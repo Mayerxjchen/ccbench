@@ -57,6 +57,11 @@ def valid_evidence() -> dict[str, Any]:
             "proxy_auth_verified": True,
             "budget_cutoff_verified": True,
             "budget_cutoff_http_code": 429,
+            "callback_count": 1,
+            "over_limit_chunk_forwarded": False,
+            "ledger_before": 0,
+            "ledger_after_request_1": 25,
+            "ledger_after_overflow": 35,
         },
         "canary_5_run_lock_compliance": {
             "status": "PASS",
@@ -201,6 +206,31 @@ def test_verifier_rejects_self_signed_forgery_without_external_trust_root(valid_
     # 2. When the operator trust store actively registers this key, verification passes
     from dftworld_bench.hpc.trust_store import QualificationTrustStore
     store = QualificationTrustStore()
-    store.register_key("candidate-agent-v1", pub_hex, purpose="candidate-agent-qualification")
+    store.register_key("candidate-agent-v2", pub_hex, purpose="candidate-agent-qualification")
     assert verifier.verify_receipt_file(receipt_file, trust_store=store) is True
+
+
+def test_verifier_rejects_canary_4_missing_callback(valid_evidence: dict[str, Any]):
+    valid_evidence["canary_4_model_gateway_and_budget"]["callback_count"] = 0
+    verifier = CandidateAgentVerifier()
+    verdict = verifier.verify(valid_evidence)
+    assert verdict.passed is False
+    assert any("callback was not invoked" in r for r in verdict.reasons)
+
+
+def test_verifier_rejects_canary_4_over_limit_leak(valid_evidence: dict[str, Any]):
+    valid_evidence["canary_4_model_gateway_and_budget"]["over_limit_chunk_forwarded"] = True
+    verifier = CandidateAgentVerifier()
+    verdict = verifier.verify(valid_evidence)
+    assert verdict.passed is False
+    assert any("leaked over-limit chunk" in r for r in verdict.reasons)
+
+
+def test_verifier_rejects_canary_4_no_overflow_accounting(valid_evidence: dict[str, Any]):
+    valid_evidence["canary_4_model_gateway_and_budget"]["ledger_after_overflow"] = 25
+    valid_evidence["canary_4_model_gateway_and_budget"]["ledger_after_request_1"] = 25
+    verifier = CandidateAgentVerifier()
+    verdict = verifier.verify(valid_evidence)
+    assert verdict.passed is False
+    assert any("did not record overflow accounting" in r for r in verdict.reasons)
 

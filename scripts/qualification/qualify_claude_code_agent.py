@@ -40,6 +40,7 @@ from dftworld_bench.agents import ClaudeCodeAdapter
 from dftworld_bench.config.profiles import ProfileRegistry, canonical_json, digest_bytes
 from dftworld_bench.config.resolver import construct_experiment, resolve_formal
 from dftworld_bench.contracts.case import CaseSpec
+from dftworld_bench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPolicy
 from dftworld_bench.core.model_proxy import ModelGatewayProxy
 from dftworld_bench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
 
@@ -271,6 +272,9 @@ def run_canary_3_skills_topology(evidence: dict[str, Any]) -> None:
     }
 
 
+OVER_LIMIT_ATTACK_STRING = "CANARY_OVER_LIMIT_LEAK_PROBE_UNAUTHORIZED"
+
+
 class DummyUpstreamHandler(http.server.BaseHTTPRequestHandler):
     req_count = 0
 
@@ -290,13 +294,20 @@ class DummyUpstreamHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(chunk)
             self.wfile.flush()
         else:
-            # Second request: triggers live budget exceeded (25 + 40 = 65 > 50)
-            chunk = (
-                b'event: message_start\r\ndata: {"type": "message_start", "message": {"usage": {"input_tokens": 40}}}\r\n\r\n'
-                b'event: message_delta\r\ndata: {"type": "message_delta", "usage": {"output_tokens": 10}}\r\n\r\n'
+            # Second request:
+            # Chunk 1: within budget (10 tokens -> total used 25 + 10 = 35 <= 50)
+            chunk1 = (
+                b'event: message_start\r\ndata: {"type": "message_start", "message": {"usage": {"input_tokens": 10}}}\r\n\r\n'
             )
+            self.wfile.write(chunk1)
+            self.wfile.flush()
+            time.sleep(0.05)
+            # Chunk 2: triggers live budget exceeded (35 + 30 = 65 > 50). Must be intercepted and NOT forwarded!
+            chunk2 = (
+                f'event: message_delta\r\ndata: {{"type": "message_delta", "usage": {{"output_tokens": 30}}, "delta": {{"text": "{OVER_LIMIT_ATTACK_STRING}"}}}}\r\n\r\n'
+            ).encode("utf-8")
             try:
-                self.wfile.write(chunk)
+                self.wfile.write(chunk2)
                 self.wfile.flush()
             except Exception:
                 pass
@@ -307,16 +318,32 @@ class DummyUpstreamHandler(http.server.BaseHTTPRequestHandler):
 
 async def _run_canary_4_async() -> dict[str, Any]:
     """Canary 4 Async runner for Model Gateway Proxy."""
-    # 0. Start live Dummy SSE upstream on host
+    # 0. Reset upstream counter and start live Dummy SSE upstream on host
+    DummyUpstreamHandler.req_count = 0
     server = http.server.HTTPServer(("127.0.0.1", 0), DummyUpstreamHandler)
     u_port = server.server_address[1]
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
 
+    # 1. Construct production BudgetPolicy & BudgetLedger
+    policy_limits = {d: 10_000 for d in BUDGET_DOMAINS}
+    policy_limits["tokens"] = 50
+    policy_limits["model_turns"] = 10
+    budget_policy = BudgetPolicy(policy_limits)
+    budget_ledger = BudgetLedger(budget_policy)
+
+    callback_count = 0
+
+    def on_budget_exceeded() -> None:
+        nonlocal callback_count
+        callback_count += 1
+
     proxy = ModelGatewayProxy(
         real_api_endpoint=f"http://127.0.0.1:{u_port}",
         real_api_key="sk-ant-canary-dummy-key",
         max_total_tokens=50,  # Strict small budget: 50 tokens
+        budget_ledger=budget_ledger,
+        on_budget_exceeded=on_budget_exceeded,
     )
     port = await proxy.start()
     token = proxy.ephemeral_token
@@ -324,6 +351,10 @@ async def _run_canary_4_async() -> dict[str, Any]:
     proxy_auth_verified = False
     budget_cutoff_verified = False
     budget_http_code = 0
+    over_limit_chunk_forwarded = False
+    ledger_before = budget_ledger.used("tokens")
+    ledger_after_request_1 = 0
+    ledger_after_overflow = 0
 
     try:
         # Step 1: Real container curl to host proxy with invalid token -> 401
@@ -369,10 +400,12 @@ async def _run_canary_4_async() -> dict[str, Any]:
             stderr=asyncio.subprocess.PIPE,
         )
         await proc1.communicate()
+        ledger_after_request_1 = budget_ledger.used("tokens")
+        assert ledger_after_request_1 == 25, f"Expected ledger_after_request_1=25, got {ledger_after_request_1}"
         assert proxy.tokens_used == 25, f"Expected proxy tokens_used=25, got {proxy.tokens_used}"
-        print(f"  ✓ Live SSE request 1 streamed through proxy; tokens charged to ledger: {proxy.tokens_used}/50")
+        print(f"  ✓ Live SSE request 1 streamed through proxy; tokens charged to ledger: {ledger_after_request_1}/50")
 
-        # Step 3: Live SSE Request 2 triggering over-limit (25 + 40 = 65 > 50)
+        # Step 3: Live SSE Request 2 triggering over-limit (25 + 10 + 30 = 65 > 50)
         cmd_req2 = [
             "docker", "run", "--rm",
             "--add-host", "host.docker.internal:host-gateway",
@@ -389,9 +422,21 @@ async def _run_canary_4_async() -> dict[str, Any]:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        await proc2.communicate()
+        stdout2, _ = await proc2.communicate()
+        out2_str = stdout2.decode("utf-8", errors="replace")
+        if OVER_LIMIT_ATTACK_STRING in out2_str:
+            over_limit_chunk_forwarded = True
+            print("  ✗ Security Leak: over-limit SSE chunk was leaked to candidate container!")
+        else:
+            print("  ✓ Live SSE request 2 over-limit chunk strictly intercepted and suppressed before socket forward")
+
+        ledger_after_overflow = budget_ledger.used("tokens")
         assert proxy.budget_exceeded is True, "Proxy should have flagged budget_exceeded upon over-limit SSE chunk"
-        print("  ✓ Live SSE request 2 over-limit chunk intercepted and suppressed; proxy flagged budget_exceeded")
+        assert callback_count > 0, f"on_budget_exceeded callback must be invoked (count={callback_count})"
+        assert ledger_after_overflow > ledger_after_request_1, (
+            f"Expected overflow ledger accounting > {ledger_after_request_1}, got {ledger_after_overflow}"
+        )
+        print(f"  ✓ Central BudgetLedger accounting and callback verified (overflow={ledger_after_overflow}, callback_count={callback_count})")
 
         # Step 4: Subsequent request rejected immediately with HTTP 429 Too Many Requests
         cmd_cutoff = [
@@ -421,11 +466,24 @@ async def _run_canary_4_async() -> dict[str, Any]:
         await proxy.close()
         server.shutdown()
 
+    canary_pass = (
+        proxy_auth_verified
+        and budget_cutoff_verified
+        and not over_limit_chunk_forwarded
+        and callback_count > 0
+        and ledger_after_overflow > ledger_after_request_1
+    )
+
     return {
-        "status": "PASS" if (proxy_auth_verified and budget_cutoff_verified) else "FAIL",
+        "status": "PASS" if canary_pass else "FAIL",
         "proxy_auth_verified": proxy_auth_verified,
         "budget_cutoff_verified": budget_cutoff_verified,
         "budget_cutoff_http_code": budget_http_code,
+        "callback_count": callback_count,
+        "over_limit_chunk_forwarded": over_limit_chunk_forwarded,
+        "ledger_before": ledger_before,
+        "ledger_after_request_1": ledger_after_request_1,
+        "ledger_after_overflow": ledger_after_overflow,
     }
 
 
@@ -566,7 +624,63 @@ def verify_container_cleanup(evidence: dict[str, Any]) -> None:
     print("  ✓ Zero orphan agent containers verified")
 
 
+def resolve_maintainer_signing_key(signing_key_file: Path | None = None) -> str:
+    """Resolve and securely load the Ed25519 maintainer private key.
+
+    Security requirements:
+    1. Private key files must exist and possess strict POSIX permissions (0600 or 0400).
+    2. Any group or others read/write permissions cause immediate rejection.
+    3. Prefer secure key file over raw environment variable to prevent process / shell history leakage.
+    """
+    key_path = signing_key_file
+    if key_path is None:
+        default_path = Path.home() / ".config" / "mlffbench" / "keys" / "candidate-agent-v2.key"
+        if default_path.is_file():
+            key_path = default_path
+
+    if key_path is not None:
+        key_p = Path(key_path).expanduser().resolve()
+        if not key_p.is_file():
+            raise RuntimeError(f"Maintainer signing key file does not exist: {key_p}")
+        # Check permissions on POSIX
+        stat_mode = key_p.stat().st_mode
+        if stat_mode & 0o077 != 0:
+            raise RuntimeError(
+                f"Insecure private key file permissions on {key_p} ({oct(stat_mode)}). "
+                "Private key must have permissions 0600 (-rw-------) or stricter."
+            )
+        content = key_p.read_text(encoding="utf-8").strip()
+        if not content:
+            raise RuntimeError(f"Private key file is empty: {key_p}")
+        return content
+
+    # Fallback to env var if explicitly set (logs security warning)
+    signing_key_hex = os.getenv("MLFFBENCH_CANDIDATE_AGENT_SIGNING_KEY", "").strip()
+    if signing_key_hex:
+        print(
+            "  ⚠ WARNING: Using MLFFBENCH_CANDIDATE_AGENT_SIGNING_KEY environment variable. "
+            "Prefer storing in ~/.config/mlffbench/keys/candidate-agent-v2.key with 0600 permissions.",
+            file=sys.stderr,
+        )
+        return signing_key_hex
+
+    raise RuntimeError(
+        "Maintainer private key is required to seal candidate agent qualification receipt. "
+        "Provide --signing-key-file <path> or save key to ~/.config/mlffbench/keys/candidate-agent-v2.key (0600)."
+    )
+
+
 def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="MLFFBench Candidate Agent Live Qualification Battery")
+    parser.add_argument(
+        "--signing-key-file",
+        type=Path,
+        default=None,
+        help="Path to 0600 Ed25519 private key file (defaults to ~/.config/mlffbench/keys/candidate-agent-v2.key)",
+    )
+    args = parser.parse_args()
+
     print("=================================================================")
     print("MLFFBench Candidate Agent Live Qualification Battery: Claude Code")
     print("=================================================================")
@@ -588,12 +702,7 @@ def main() -> None:
         verifier = CandidateAgentVerifier(workspace_root=ROOT)
         verdict = verifier.verify(evidence)
 
-        signing_key_hex = os.getenv("MLFFBENCH_CANDIDATE_AGENT_SIGNING_KEY")
-        if not signing_key_hex:
-            raise RuntimeError(
-                "Maintainer private key is required to seal candidate agent qualification receipt. "
-                "Set MLFFBENCH_CANDIDATE_AGENT_SIGNING_KEY environment variable."
-            )
+        signing_key_hex = resolve_maintainer_signing_key(args.signing_key_file)
 
         evidence_dir = Path.home() / ".config" / "mlffbench" / "evidence" / "gate_agent" / run_id
         receipt_file = verifier.seal_receipt(
@@ -601,7 +710,7 @@ def main() -> None:
             evidence=evidence,
             evidence_dir=evidence_dir,
             signing_key_hex=signing_key_hex,
-            key_id="candidate-agent-v1",
+            key_id="candidate-agent-v2",
         )
 
         # Immediate round-trip verification against trusted root

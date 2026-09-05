@@ -23,9 +23,17 @@ public_key_hex = ""
 status = "UNCONFIGURED"
 purpose = "compute-profile-qualification"
 
-# Independent Candidate Agent signing anchor for MLFFBench.
+# Revoked Candidate Agent signing anchor (leaked in history/logs).
 [keys.candidate-agent-v1]
 algorithm = "ed25519"
 public_key_hex = "39afce400b85bdc2675671f0a388d6078bde32fb421ce3c995fb0d4eac2a8e1f"
+status = "REVOKED"
+purpose = "candidate-agent-qualification"
+
+# Active Candidate Agent signing anchor for MLFFBench (candidate-agent-v2).
+[keys.candidate-agent-v2]
+algorithm = "ed25519"
+public_key_hex = "cab6520d400602832d8c0dc7d3d9c53b79751403b2983e9eeb2be74fc99cd4aa"
 status = "ACTIVE"
 purpose = "candidate-agent-qualification"
+

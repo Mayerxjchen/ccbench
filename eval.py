@@ -1051,61 +1051,86 @@ def _verify_candidate_agent_gate(
             f"Candidate Agent receipt reports dangling containers or missing cleanup evidence: {cleanup}"
         )
 
-    # 5. Locked Image Digest match
-    if agent_image_digest:
-        receipt_image_digest = receipt_data.get("candidate_image_digest")
-        if receipt_image_digest != agent_image_digest:
-            raise RuntimeError(
-                f"Candidate Agent receipt image digest mismatch: receipt={receipt_image_digest}, lock={agent_image_digest}"
-            )
-
-    # 6. Provenance Commit verification
-    target_commit = benchmark_commit or (verifier.get_source_commit() if "source_commit" in receipt_data else None)
-    receipt_commit = receipt_data.get("source_commit")
-    if benchmark_commit and benchmark_commit != "unknown":
-        if receipt_commit != benchmark_commit:
-            raise RuntimeError(
-                f"Candidate Agent receipt source_commit mismatch: receipt={receipt_commit}, current={benchmark_commit}. "
-                "Qualification receipt must match the exact benchmark source commit."
-            )
-    elif target_commit and target_commit != "unknown" and receipt_commit and receipt_commit != target_commit:
+    # 5. candidate_image_digest 必须存在且等于 RunLock
+    receipt_image_digest = receipt_data.get("candidate_image_digest")
+    if not receipt_image_digest:
         raise RuntimeError(
-            f"Candidate Agent receipt source_commit mismatch: receipt={receipt_commit}, current={target_commit}. "
-            "Qualification receipt must match the exact benchmark source commit."
+            "Candidate Agent receipt missing required 'candidate_image_digest'. Formal benchmark rejected."
+        )
+    if agent_image_digest and receipt_image_digest != agent_image_digest:
+        raise RuntimeError(
+            f"Candidate Agent receipt image digest mismatch: receipt={receipt_image_digest}, lock={agent_image_digest}"
         )
 
-    # 7. Dynamic Offline Anchors Mechanical Verification (Zero Drift)
-    if "code_identity" in receipt_data:
-        receipt_code_identity = receipt_data.get("code_identity", {})
-        current_code_identity = verifier.compute_code_identity()
-        for path_key, expected_hash in receipt_code_identity.items():
-            current_hash = current_code_identity.get(path_key)
-            if current_hash != expected_hash:
-                raise RuntimeError(
-                    f"Candidate Agent codebase identity drift for '{path_key}': "
-                    f"receipt={expected_hash}, current={current_hash}. "
-                    "Code changes invalidate prior qualification receipt."
-                )
+    # 6. source_commit 必须存在且等于 benchmark_commit
+    receipt_commit = receipt_data.get("source_commit")
+    if not receipt_commit or receipt_commit == "unknown":
+        raise RuntimeError(
+            "Candidate Agent receipt missing valid 'source_commit'. Formal benchmark rejected."
+        )
+    expected_commit = benchmark_commit or verifier.get_source_commit()
+    if expected_commit and expected_commit != "unknown":
+        if receipt_commit != expected_commit:
+            raise RuntimeError(
+                f"Candidate Agent receipt source_commit mismatch: receipt={receipt_commit}, expected={expected_commit}. "
+                "Qualification receipt must match the exact benchmark source commit."
+            )
 
-    if "offline_anchors" in receipt_data:
-        receipt_anchors = receipt_data.get("offline_anchors", {})
-        anchors_to_check = {
-            "tool_policy_digest": verifier.policy_file,
-            "dockerfile_digest": verifier.dockerfile,
-            "probe_digest": verifier.probe_file,
-            "agent_profile_digest": verifier.agent_profiles,
-            "skill_bundle_digest": verifier.skill_image_lock,
-        }
-        import hashlib
-        for anchor_key, anchor_path in anchors_to_check.items():
-            if anchor_key in receipt_anchors:
-                curr_digest = "sha256:" + hashlib.sha256(anchor_path.read_bytes()).hexdigest() if anchor_path.is_file() else "missing"
-                if curr_digest != receipt_anchors[anchor_key]:
-                    raise RuntimeError(
-                        f"Candidate Agent offline anchor drift for '{anchor_key}': "
-                        f"receipt={receipt_anchors[anchor_key]}, current={curr_digest}. "
-                        "Configuration drift invalidates prior qualification receipt."
-                    )
+    # 7. code_identity 必须存在且键集合完全相等
+    receipt_code_identity = receipt_data.get("code_identity")
+    if not isinstance(receipt_code_identity, dict):
+        raise RuntimeError(
+            "Candidate Agent receipt missing required 'code_identity' block. Formal benchmark rejected."
+        )
+    expected_code_keys = set(CandidateAgentVerifier.REQUIRED_CODE_MODULES)
+    actual_code_keys = set(receipt_code_identity.keys())
+    if actual_code_keys != expected_code_keys:
+        raise RuntimeError(
+            f"Candidate Agent receipt 'code_identity' keys mismatch: "
+            f"expected {sorted(expected_code_keys)}, got {sorted(actual_code_keys)}"
+        )
+
+    current_code_identity = verifier.compute_code_identity()
+    for mod_key in expected_code_keys:
+        exp_hash = current_code_identity.get(mod_key)
+        rec_hash = receipt_code_identity.get(mod_key)
+        if rec_hash != exp_hash:
+            raise RuntimeError(
+                f"Candidate Agent codebase identity drift for '{mod_key}': "
+                f"receipt={rec_hash}, current={exp_hash}. "
+                "Code changes invalidate prior qualification receipt."
+            )
+
+    # 8. offline_anchors 必须存在，且 5 个规定 anchor 必须全部存在且相等
+    receipt_anchors = receipt_data.get("offline_anchors")
+    if not isinstance(receipt_anchors, dict):
+        raise RuntimeError(
+            "Candidate Agent receipt missing required 'offline_anchors' block. Formal benchmark rejected."
+        )
+
+    expected_anchors_map = {
+        "tool_policy_digest": verifier.policy_file,
+        "dockerfile_digest": verifier.dockerfile,
+        "probe_digest": verifier.probe_file,
+        "agent_profile_digest": verifier.agent_profiles,
+        "skill_bundle_digest": verifier.skill_image_lock,
+    }
+    missing_anchors = [k for k in expected_anchors_map if k not in receipt_anchors]
+    if missing_anchors:
+        raise RuntimeError(
+            f"Candidate Agent receipt missing mandatory offline anchors: {missing_anchors}"
+        )
+
+    import hashlib
+    for anchor_key, anchor_path in expected_anchors_map.items():
+        curr_digest = "sha256:" + hashlib.sha256(anchor_path.read_bytes()).hexdigest() if anchor_path.is_file() else "missing"
+        rec_digest = receipt_anchors.get(anchor_key)
+        if rec_digest != curr_digest:
+            raise RuntimeError(
+                f"Candidate Agent offline anchor drift for '{anchor_key}': "
+                f"receipt={rec_digest}, current={curr_digest}. "
+                "Configuration drift invalidates prior qualification receipt."
+            )
 
 
 def profile_for_task(task: TaskSpec) -> Profile:

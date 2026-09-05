@@ -66,6 +66,19 @@ class CandidateAgentVerifier:
         "canary_4_model_gateway_and_budget",
         "canary_5_run_lock_compliance",
     )
+    REQUIRED_CODE_MODULES = (
+        "dftworld_bench/agents.py",
+        "dftworld_bench/core/model_proxy.py",
+        "dftworld_bench/verifiers/candidate_agent_verifier.py",
+        "eval.py",
+    )
+    REQUIRED_OFFLINE_ANCHORS = (
+        "tool_policy_digest",
+        "dockerfile_digest",
+        "probe_digest",
+        "agent_profile_digest",
+        "skill_bundle_digest",
+    )
 
     def __init__(self, workspace_root: Path | None = None) -> None:
         self.workspace_root = workspace_root or Path(__file__).resolve().parents[2]
@@ -189,6 +202,12 @@ class CandidateAgentVerifier:
             reasons.append("Canary 4 failed to verify live budget cut-off enforcement")
         if c4.get("budget_cutoff_http_code") != 429:
             reasons.append(f"Canary 4 budget cut-off did not return HTTP 429 (got {c4.get('budget_cutoff_http_code')})")
+        if c4.get("callback_count", 0) <= 0:
+            reasons.append("Canary 4 budget exceeded callback was not invoked")
+        if c4.get("over_limit_chunk_forwarded", True) is not False:
+            reasons.append("Canary 4 leaked over-limit chunk to candidate client")
+        if c4.get("ledger_after_overflow", 0) <= c4.get("ledger_after_request_1", 0):
+            reasons.append("Canary 4 BudgetLedger did not record overflow accounting")
 
         # 6. Re-verify Canary 5: RunLock Compliance
         c5 = evidence["canary_5_run_lock_compliance"]
@@ -222,7 +241,7 @@ class CandidateAgentVerifier:
         evidence: Dict[str, Any],
         evidence_dir: Path,
         signing_key_hex: Optional[str] = None,
-        key_id: str = "candidate-agent-v1",
+        key_id: str = "candidate-agent-v2",
     ) -> Path:
         """Verify evidence and seal an immutable Ed25519-signed receipt."""
         verdict = self.verify(evidence)
@@ -327,7 +346,7 @@ class CandidateAgentVerifier:
         if data.get("receipt_digest") != recomputed_digest:
             return False
 
-        key_id = sig_block.get("key_id", "candidate-agent-v1")
+        key_id = sig_block.get("key_id", "candidate-agent-v2")
         if expected_public_key_hex:
             pub_key = expected_public_key_hex
         else:

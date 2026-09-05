@@ -177,6 +177,19 @@ def test_candidate_agent_gate_promoted_admitted():
     pub_hex = priv.public_key().public_bytes_raw().hex()
 
     with tempfile.TemporaryDirectory() as tmpdir:
+        from dftworld_bench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
+        import hashlib
+        verifier = CandidateAgentVerifier()
+        current_commit = verifier.get_source_commit()
+        code_identity = verifier.compute_code_identity()
+        offline_anchors = {
+            "tool_policy_digest": "sha256:" + hashlib.sha256(verifier.policy_file.read_bytes()).hexdigest(),
+            "dockerfile_digest": "sha256:" + hashlib.sha256(verifier.dockerfile.read_bytes()).hexdigest(),
+            "probe_digest": "sha256:" + hashlib.sha256(verifier.probe_file.read_bytes()).hexdigest(),
+            "agent_profile_digest": "sha256:" + hashlib.sha256(verifier.agent_profiles.read_bytes()).hexdigest(),
+            "skill_bundle_digest": "sha256:" + hashlib.sha256(verifier.skill_image_lock.read_bytes()).hexdigest(),
+        }
+
         receipt_path = Path(tmpdir) / "receipt.json"
         img_digest = "sha256:abc0123456789abcdef0123456789abcdef0123456789abcdef0123456789abc"
         payload = {
@@ -184,6 +197,9 @@ def test_candidate_agent_gate_promoted_admitted():
             "agent_execution_status": "PASS",
             "formal_benchmark_readiness": "READY",
             "candidate_image_digest": img_digest,
+            "source_commit": current_commit,
+            "code_identity": code_identity,
+            "offline_anchors": offline_anchors,
             "verdict": {
                 "status": "PROMOTED",
                 "agent_execution": "PASS",
@@ -216,4 +232,5 @@ def test_candidate_agent_gate_promoted_admitted():
                 is_formal=True,
                 receipt_path=receipt_path,
                 agent_image_digest=img_digest,
+                benchmark_commit=current_commit,
             )
