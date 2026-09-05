@@ -32,15 +32,15 @@ Targets:
   matclaw-cips-gpu dftworld-base-matclaw-cips:2.2.11-gpu (DeePMD 2.2.11 + CUDA 12 + qualify_gpu)
   matclaw-cips-controller dftworld-base-matclaw-cips:2.2.11-controller (HPC 控制层，依赖 matclaw-cips)
   ai2kit-controller dftworld-base-ai2kit:0.1.0-cpu-controller (HPC 控制层，依赖外部 ai2kit base)
-  agent-claude-code mlffbench-agent-claude-code:v1 (独立 Candidate Agent Sandbox 镜像)
+  candidate-claude-code mlffbench-candidate-claude-code-sandbox:v1 (独立 Candidate Agent Sandbox 镜像)
   skills       dftworld-skills:<sha>      (skill bundle，非执行镜像；生成 .skill-image.json)
   all          以上全部（很吃磁盘）
 
-也可直接传任务名（如 001-hello），会读 environment/Dockerfile 的 FROM。
+也可直接传任务名（如 031-matclaw-cips-active-distillation），会读 Dockerfile 的 FROM。
 
 示例:
   bash build.sh base
-  bash build.sh 001-hello 003-uv-version
+  bash build.sh 031-matclaw-cips-active-distillation
   bash build.sh cp2k
   bash build.sh -f chem
 
@@ -344,13 +344,12 @@ for step in "${STEPS[@]}"; do
                 -t dftworld-base-ai2kit:0.1.0-cpu-controller \
                 "$ROOT"
             ;;
-        agent-claude-code)
+        candidate-claude-code|agent-claude-code)
             rmi_if_force mlffbench-candidate-claude-code-sandbox:v1
             echo "=== Building mlffbench-candidate-claude-code-sandbox:v1 ==="
             docker build \
                 -f "$DIR/agent-claude-code/Dockerfile" \
                 -t mlffbench-candidate-claude-code-sandbox:v1 \
-                -t mlffbench-agent-claude-code:v1 \
                 "$DIR/agent-claude-code"
             ;;
         skills)

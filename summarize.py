@@ -26,14 +26,11 @@ ROOT = Path(__file__).resolve().parent
 JOBS = ROOT / "jobs"
 
 TASK_ORDER = [
-    "001-hello", "002-arithmetic", "003-uv-version", "004-python-version",
-    "005-cp2k-version", "006-packmol-version", "007-pip-install",
-    "008-packmol-build", "009-cp2k-run", "010-deepmd-train",
-    "011-cp2k-template", "012-ase-methane", "013-rdkit-volume",
-    "014-deepmd-template", "015-cp2k-scratch", "016-deepmd-pipeline",
-    "017-cp2k-cutoff", "018-deepmd-rcut", "019-cp2k-eps-scf",
-    "020-hartree-to-ev", "021-gth-valence", "022-spin-multiplicity",
-    "023-deepmd-type-map", "024-xc-gth-match",
+    "031-matclaw-cips-active-distillation",
+    "032-matclaw-cips-curie-temperature",
+    "033-matclaw-cips-domain-wall-search",
+    "034-ai2kit-water64-end-to-end-potential",
+    "042-go-water-dpmp",
 ]
 
 

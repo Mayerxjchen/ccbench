@@ -2,10 +2,10 @@
   "schema": "ablation-ready-release/v1",
   "name": "ablation-ready-benchmark-v0",
   "status": "frozen",
-  "source_commit": "aae1becabc11041f454a7dc2d617e2ccadb95763",
+  "source_commit": "88ee9e14c2308b9164b69cd41a5143e0189cddd3",
   "generated_at": "2026-08-19T00:00:00Z",
   "agent_model": "deepseek/deepseek-chat",
-  "note": "Frozen at git source_commit. Scope: cases 001-033 (031/032/033 are benchmark_valid; 034 is in construction and excluded from v0). Per-run run-record.json carries the exact agent_model of each trial; this field records the benchmark default agent identity. Component digests are deterministic and recomputable from disk via dftworld_bench.experiments.release_builder (file sha256 / tree digest excluding __pycache__).",
+  "note": "Frozen at git source_commit. Scope: formal validated cases 031-033 (034 is in construction and 042 is draft, both excluded from v0). Per-run run-record.json carries the exact agent_model of each trial; this field records the benchmark default agent identity. Component digests are deterministic and recomputable from disk via dftworld_bench.experiments.release_builder (file sha256 / tree digest excluding __pycache__).",
   "components": {
     "schemas": [
       {
@@ -78,27 +78,21 @@
     "cases": [
       {
         "case_id": "031-matclaw-cips-active-distillation",
-        "task_toml_sha256": "1f3bda2b8e4927f90290abeb4e64b718c36c7650bc9425aef8a879398a7db50f",
+        "task_toml_sha256": "536416d7718a80428cfe4388e8817a51b6a84f265127b28ca06cabcac7c88697",
         "instruction_sha256": "14f58874571c7e9500483bc6418d0be26cc2ef94e8a86b5e1dd755c6e52bac75",
         "public_digest": "8c84cf3ffd42bdbf1717317254bf473c1a7120012234eaef8ef481854548a435"
       },
       {
         "case_id": "032-matclaw-cips-curie-temperature",
-        "task_toml_sha256": "4f4d26a83669a3c3ca2b255187a9fc4d200c792453f348c9f769405029384dda",
+        "task_toml_sha256": "13f9eb229524500f74bcbd8c987d483587c39788b018ef227acdd3f1fc0aabad",
         "instruction_sha256": "885caad0259af4b8074074fb89248154265dc7e0a6a3b7c0709658313d42e0ae",
         "public_digest": "c18009c7f6e2120a62995e629b7783a1a76cb71bd20f92ab78c0b96b3b136394"
       },
       {
         "case_id": "033-matclaw-cips-domain-wall-search",
-        "task_toml_sha256": "b61e11561d78b13498742e412822e4363ea9c2970344640f1074554ab138bd7a",
+        "task_toml_sha256": "20e655ba6a93eede48159e94f5106d9c16e4dc3d8b8b9048a8533becfd725bf4",
         "instruction_sha256": "f3427302eb389cb9d06bcd73f9978d53c320ad91bf00b8501042d12d27cbfa25",
         "public_digest": "4e96b556e7681c1e50f9b4d1b1d6a689e2c2ff7b75c1ae8d942ab3bd833e5fcb"
-      },
-      {
-        "case_id": "034-ai2kit-water64-end-to-end-potential",
-        "task_toml_sha256": "33f2ca6f64e8b314f8f119930789ccd1c0caa65485e671e8e7ed457f1102f69d",
-        "instruction_sha256": "6e35f53be2bfe1e665f06f273abb1eb294dbf11c48feb0306ab209edcbe84e32",
-        "public_digest": "6638e128b4c2bbaa0debf8f7a87e67c46dd544cf66e0190cacafbcb0c88ee5eb"
       }
     ],
     "skills": [
@@ -183,10 +177,6 @@
       {
         "path": "033-matclaw-cips-domain-wall-search/profiles/resource.yaml",
         "sha256": "354c8e9a0c87526912b9e2c323e81345a55f0f943acf5729c5cbff219af41cec"
-      },
-      {
-        "path": "034-ai2kit-water64-end-to-end-potential/profiles/resource.yaml",
-        "sha256": "edc8651c4b9900ec38872a48b8fdb5cf451ed2d43ccf3f7fe50f948acdf4e19c"
       }
     ],
     "platform_profiles": [
@@ -201,10 +191,6 @@
       {
         "path": "033-matclaw-cips-domain-wall-search/profiles/platform.yaml",
         "sha256": "a175bc7b4e2d43da70264b512111f453ad640f7670e2c932fda2834311a41e5e"
-      },
-      {
-        "path": "034-ai2kit-water64-end-to-end-potential/profiles/platform.yaml",
-        "sha256": "3ab3fa68c18e24a618a3bab0412718c43e8847a81258d916ad914f175c675064"
       }
     ],
     "compute_runtimes": [
@@ -219,10 +205,6 @@
       {
         "path": "033-matclaw-cips-domain-wall-search/reference/compute-runtime.lock.json",
         "sha256": "c6843bd67bbd3229f6717ac00172b6b0a0fba0136d4482508d7d9ba8d175c3aa"
-      },
-      {
-        "path": "034-ai2kit-water64-end-to-end-potential/reference/compute-runtime.lock.json",
-        "sha256": "4a9c6db1550ae579435f3726d4d4121ce38530f5265690dea56294374ff9f447"
       }
     ],
     "verifiers": [
@@ -237,10 +219,6 @@
       {
         "path": "033-matclaw-cips-domain-wall-search/tests",
         "digest": "493fa54574d607a3581027249403e0c2922645fde7573fff58b9c9b5bebb8670"
-      },
-      {
-        "path": "034-ai2kit-water64-end-to-end-potential/tests",
-        "digest": "2782fa9931ab97028675f6685b2a707cde651e9d21d287843e596578ccae48b7"
       }
     ],
     "candidate_images": [
@@ -314,5 +292,5 @@
       }
     ]
   },
-  "release_digest": "sha256:7c3b428c5278249edaca9321c0276d239f6e6c4bf6dff4c32d80e131ea1bf383"
+  "release_digest": "sha256:6136f2ef283bb104d58c389acc1d9ab92c53bb6a6bfd68f33787f586aedb0508"
 }

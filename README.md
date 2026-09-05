@@ -1,26 +1,26 @@
-# dftworld
+# MLFFBench (dftworld)
 
-AI agent benchmark for computational chemistry tasks.
+AI agent benchmark for computational chemistry and machine learning potential tasks.
 
-Tasks use unified IDs `001`–`042` (easy → hard, plus knowledge drills, plus paper-derived cases). Directory names are `NNN-slug`（如 `001-hello`、`015-cp2k-scratch`、`042-go-water-dpmp`）。`eval.py` 扫描**仓库根级**的 `NNN-slug` 目录自动发现任务（无需 dataset.toml）——因此案例目录必须留在根级。
+Tasks focus on **5 long-horizon scientific benchmark cases** (`031-matclaw-cips-active-distillation`, `032-matclaw-cips-curie-temperature`, `033-matclaw-cips-domain-wall-search`, `034-ai2kit-water64-end-to-end-potential`, `042-go-water-dpmp`). Directory names are `NNN-slug`. `eval.py` scans root-level `NNN-slug` directories to discover benchmark cases.
 
 ## Repository Map
 
-仓库按「冻结案例 / 构造中区 / 活跃工作 / 基建」四个区组织：
+仓库按「长周期核心案例 / 构造中区 / 活跃工作 / 基建」组织：
 
 ```text
 dftworld/
-├── 001-hello … 041-smiles2coord   # 冻结案例区：已定稿的基准任务，只进不改
-├── 042-go-water-dpmp/             # 构造中区：GO-water DeePMD 势（Runnable Draft）
-├── 034-ai2kit-water64-…/          # 构造中区：water64 端到端势（hidden lineage 在 reference/ 下）
+├── 031-matclaw-cips-active-distillation   # 核心案例：MatClaw CIPS 势能主动学习蒸馏
+├── 032-matclaw-cips-curie-temperature     # 核心案例：MatClaw CIPS 居里温度分子动力学
+├── 033-matclaw-cips-domain-wall-search    # 核心案例：MatClaw CIPS 畴壁搜索
+├── 034-ai2kit-water64-…/                  # 构造中区：water64 端到端势（hidden lineage 在 reference/ 下）
+├── 042-go-water-dpmp/                     # 构造中区：GO-water DeePMD 势（Runnable Draft）
 │
-├── active-work/                   # ★ 活跃工作区：不参与评测扫描的工作内容
-│   └── ai2kit/                    #   water64 专家流水线工作目录（034 血统；
-│                                  #   62 个文件与封存哈希逐字节一致的恢复副本）
+├── active-work/                           # 活跃工作区：不参与评测扫描的工作内容
+│   └── ai2kit/                            #   water64 专家流水线工作目录
 │
-├── eval.py                        # pagentv4 Runner harness（v1/v2 布局都支持）
-├── skills_sha.py                  # skill bundle 内容哈希（eval 与 build.sh 共用）
-├── summarize.py                   # jobs/ 汇总 → jobs/SUMMARY.md
+├── eval.py                                # Formal Runner harness
+├── summarize.py                           # jobs/ 汇总 → jobs/SUMMARY.md
 ├── scripts/infra/qualify_hpc_dispatcher.py   # 双 canary 资格化驱动（--phase
 │                                  #   preflight/canary/cp2k/verify/resume；
 │                                  #   --phase resume 完成中断的 canary，绝不重提）

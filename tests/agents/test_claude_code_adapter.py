@@ -121,3 +121,72 @@ def test_install_skills_to_claude_dir(tmp_path: Path) -> None:
     installed = ws / ".claude" / "skills" / "test-skill" / "SKILL.md"
     assert installed.is_file()
     assert installed.read_text(encoding="utf-8") == "# Test Skill"
+
+
+def test_adapter_startup_failure_rollback_retains_topology_and_retry_close_succeeds(tmp_path: Path) -> None:
+    """When container startup fails and topology rollback fails, Adapter retains
+    _topology and resource handles, proxy is closed, and subsequent close() retries topology cleanup."""
+    from unittest import mock
+    from dftworld_bench.core.sidecar_topology import SidecarTopologyManager, TopologyRollbackError
+
+    async def _test():
+        threads_root = tmp_path / "threads"
+        case_dir = tmp_path / "case"
+        case_dir.mkdir(parents=True, exist_ok=True)
+        (case_dir / "Dockerfile").write_text("FROM alpine:latest\n", encoding="utf-8")
+        (case_dir / "task.toml").write_text('schema_version = "1.2"\n[task]\nname="test"\n', encoding="utf-8")
+
+        mock_proxy = mock.MagicMock()
+        mock_proxy.start = mock.AsyncMock(return_value=9999)
+        mock_proxy.ephemeral_token = "tok"
+        mock_proxy.close = mock.AsyncMock()
+
+        mock_topology = mock.MagicMock(spec=SidecarTopologyManager)
+        mock_topology.create_network = mock.AsyncMock(return_value="net-123")
+        mock_topology.start_sidecar = mock.AsyncMock(return_value="sidecar-cid-456")
+        mock_topology.register_candidate = mock.MagicMock()
+        mock_topology.rollback = mock.AsyncMock(side_effect=TopologyRollbackError("simulated rollback failure"))
+        mock_topology.candidate_cid = "cand-cid-789"
+        mock_topology.sidecar_cid = "sidecar-cid-456"
+        mock_topology.network_name = "net-123"
+        mock_topology.is_closed = False
+
+        adapter = ClaudeCodeAdapter(
+            model="claude-3-7-sonnet-20250219",
+            threads_root=threads_root,
+            task_name="sample_case",
+            case_dir=case_dir,
+            api_endpoint="http://fake-upstream",
+        )
+
+        with mock.patch("dftworld_bench.agents.SidecarTopologyManager", return_value=mock_topology), \
+             mock.patch("dftworld_bench.agents.ModelGatewayProxy", return_value=mock_proxy), \
+             mock.patch.object(adapter, "_start_container", new_callable=mock.AsyncMock, side_effect=RuntimeError("container launch error")):
+
+            with pytest.raises(TopologyRollbackError, match="simulated rollback failure"):
+                await adapter.start("test instruction")
+
+            # 1. Verify _topology is retained and handles are synchronized
+            assert adapter._topology is mock_topology
+            assert adapter.container_id == "cand-cid-789"
+            assert adapter.sidecar_cid == "sidecar-cid-456"
+            assert adapter.internal_net == "net-123"
+
+            # 2. Verify model_proxy was properly closed despite rollback failure
+            mock_proxy.close.assert_awaited_once()
+            assert adapter._model_proxy is None
+
+        # 3. Subsequent close() retries topology cleanup
+        async def _close_success():
+            mock_topology.is_closed = True
+
+        mock_topology.close = mock.AsyncMock(side_effect=_close_success)
+        await adapter.close()
+        mock_topology.close.assert_awaited_once()
+        assert adapter._topology is None
+        assert adapter.container_id is None
+        assert adapter.sidecar_cid is None
+        assert adapter.internal_net is None
+
+    asyncio.run(_test())
+

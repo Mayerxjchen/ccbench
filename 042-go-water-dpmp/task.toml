@@ -1,5 +1,7 @@
 schema_version = "1.2"
+
 case_version = "1.0.0"
+
 artifacts = []
 
 [execution]
@@ -9,12 +11,7 @@ class = "hpc_controller"
 instruction = "instruction.md"
 submission_root = "final"
 legacy_submission_layout = false
-image = "dftworld-base-deepmd-jax"
-
-[[candidate.files]]
-source = "public/**"
-destination = "."
-strip_prefix = "public"
+files = [{ destination = ".", source = "public/**", strip_prefix = "public" }]
 
 [hpc]
 contract_version = "hpc-execution/v1"
@@ -26,6 +23,9 @@ requires = ["dispatcher.cpu", "dispatcher.gpu", "runtime.cp2k", "runtime.jax"]
 [hpc.scientific_capabilities]
 required = ["cp2k", "deepmd-jax"]
 optional = ["gpu-training", "jax-md-gpu"]
+
+[runtime]
+requirements = [{ family = "deepmd-jax", name = "dpmp", version = "==0.2.1" }]
 
 [task]
 name = "benchmark/042-go-water-dpmp"
@@ -52,6 +52,8 @@ allow_internet = false
 mcp_servers = []
 
 [environment.env]
+
+[solution]
 
 [solution.env]
 

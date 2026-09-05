@@ -657,17 +657,29 @@ class ClaudeCodeAdapter:
             self._topology.register_candidate(cid)
         except Exception:
             # Fail-closed atomic rollback on ANY startup failure
-            if self._topology:
-                try:
-                    await self._topology.rollback()
-                finally:
-                    self._topology = None
-                    self.container_id = None
-                    self.sidecar_cid = None
-                    self.internal_net = None
-            if self._model_proxy:
-                await self._model_proxy.close()
-                self._model_proxy = None
+            try:
+                if self._topology:
+                    try:
+                        await self._topology.rollback()
+                    except Exception:
+                        # Rollback failed: DO NOT discard _topology!
+                        # Retain self._topology and container/network handles
+                        # so that agent.close() or external reconciler can retry cleanup.
+                        self.container_id = self._topology.candidate_cid
+                        self.sidecar_cid = self._topology.sidecar_cid
+                        self.internal_net = self._topology.network_name
+                        raise
+                    else:
+                        self._topology = None
+                        self.container_id = None
+                        self.sidecar_cid = None
+                        self.internal_net = None
+            finally:
+                if self._model_proxy:
+                    try:
+                        await self._model_proxy.close()
+                    finally:
+                        self._model_proxy = None
             raise
 
         # 5. Execute Claude Code CLI with fail-closed monitoring

@@ -64,12 +64,15 @@ _SCOPE_RANGES: dict[str, tuple[tuple[int, int], ...]] = {
 # ``name / implementation (registry family) / version`` per the case contract.
 # The compute image is resolved by the runtime registry — never owned by the
 # case and never read from the (legacy, non-authoritative) Dockerfile.
-_HPC_RUNTIME: dict[int, tuple[str, str, str]] = {
-    31: ("matclaw-cips", "matclaw-cips", "==2.2.11"),
-    32: ("matclaw-cips", "matclaw-cips", "==2.2.11"),
-    33: ("matclaw-cips", "matclaw-cips", "==2.2.11"),
-    34: ("ai2kit", "ai2kit", "==1.1.0"),
-    42: ("dpmp", "deepmd-jax", "==0.2.1"),
+_HPC_RUNTIME: dict[int, list[tuple[str, str, str]]] = {
+    31: [("matclaw-cips", "matclaw-cips", "==2.2.11")],
+    32: [("matclaw-cips", "matclaw-cips", "==2.2.11")],
+    33: [("matclaw-cips", "matclaw-cips", "==2.2.11")],
+    34: [
+        ("ai2kit", "ai2kit", "==1.1.0"),
+        ("cp2k", "cp2k", "==2025.2"),
+    ],
+    42: [("dpmp", "deepmd-jax", "==0.2.1")],
 }
 
 # HPC case number -> scientific capabilities.  ``required`` is fixed by the
@@ -287,9 +290,12 @@ def _transform_hpc(raw: dict[str, Any], case_dir: Path) -> dict[str, Any]:
         hpc["scientific_capabilities"] = _HPC_SCOPES[number]
     out["hpc"] = hpc
 
-    name, family, version = _HPC_RUNTIME[number]
+    reqs = _HPC_RUNTIME[number]
     out["runtime"] = {
-        "requirements": [{"name": name, "family": family, "version": version}]
+        "requirements": [
+            {"family": family, "name": name, "version": version}
+            for name, family, version in reqs
+        ]
     }
 
     # Preserve every other non-infra-owned table unchanged (environment,
