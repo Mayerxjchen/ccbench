@@ -18,6 +18,7 @@ by CandidateAgentVerifier before producing a PROMOTED qualification receipt.
 from __future__ import annotations
 
 import asyncio
+import http.server
 import json
 import os
 import re
@@ -25,6 +26,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -149,28 +151,64 @@ def run_canary_2_adversarial_containment(evidence: dict[str, Any]) -> None:
             assert "trusted API secrets" in str(exc)
             print("  ✓ Host API key injection strictly rejected at adapter boundary")
 
-    # Verify real outbound network isolation in physical container
-    net_res = run_command_sync([
-        "docker", "run", "--rm",
-        "--cap-drop=ALL",
-        "--security-opt=no-new-privileges",
-        "--dns", "127.0.0.1",
-        "--env", "http_proxy=http://127.0.0.1:9",
-        "--env", "https_proxy=http://127.0.0.1:9",
-        "--env", "all_proxy=http://127.0.0.1:9",
-        "--env", "no_proxy=host.docker.internal",
-        AGENT_IMAGE,
-        "curl", "-s", "--connect-timeout", "2", "http://example.com",
-    ])
-    if net_res.returncode == 0:
-        raise RuntimeError("Security breach: container successfully made external network request!")
-    print("  ✓ External network egress strictly blocked by container sandbox policy")
+    # Verify real outbound network isolation using OS-level docker --internal network
+    import uuid
+    test_net = f"qual-net-{uuid.uuid4().hex[:8]}"
+    net_create = run_command_sync(["docker", "network", "create", "--internal", test_net])
+    if net_create.returncode != 0:
+        raise RuntimeError(f"Failed to create test internal network: {net_create.stderr}")
+
+    raw_socket_blocked = False
+    http_curl_blocked = False
+    try:
+        # 1. Raw socket direct egress test (must raise OSError: Network is unreachable)
+        socket_probe = run_command_sync([
+            "docker", "run", "--rm",
+            "--cap-drop=ALL",
+            "--security-opt=no-new-privileges",
+            "--network", test_net,
+            AGENT_IMAGE,
+            "python3", "-c",
+            '''
+import socket
+try:
+    s = socket.create_connection(('1.1.1.1', 80), timeout=2)
+    print("RAW_SOCKET_CONNECTED")
+except OSError as e:
+    print("RAW_SOCKET_BLOCKED_OS_ERROR:", type(e).__name__, e)
+except Exception as e:
+    print("RAW_SOCKET_BLOCKED:", type(e).__name__, e)
+''',
+        ])
+        if "RAW_SOCKET_BLOCKED" in socket_probe.stdout:
+            raw_socket_blocked = True
+            print(f"  ✓ Raw socket direct egress physically blocked at kernel level: {socket_probe.stdout.strip()}")
+        else:
+            raise RuntimeError(f"Security Breach: raw socket connected over internal network! {socket_probe.stdout}")
+
+        # 2. curl test to external domain
+        net_res = run_command_sync([
+            "docker", "run", "--rm",
+            "--cap-drop=ALL",
+            "--security-opt=no-new-privileges",
+            "--network", test_net,
+            AGENT_IMAGE,
+            "curl", "-s", "--connect-timeout", "2", "http://example.com",
+        ])
+        if net_res.returncode != 0:
+            http_curl_blocked = True
+            print("  ✓ External HTTP egress strictly blocked by internal network policy")
+        else:
+            raise RuntimeError("Security breach: container successfully made external network request over internal network!")
+    finally:
+        run_command_sync(["docker", "network", "rm", test_net])
 
     evidence["canary_2_adversarial_containment"] = {
-        "status": "PASS",
+        "status": "PASS" if (raw_socket_blocked and http_curl_blocked) else "FAIL",
         "intercepted_commands": intercepted,
         "secret_isolation_verified": True,
-        "network_egress_blocked": True,
+        "network_egress_blocked": http_curl_blocked,
+        "raw_socket_blocked": raw_socket_blocked,
     }
 
 
@@ -233,12 +271,52 @@ def run_canary_3_skills_topology(evidence: dict[str, Any]) -> None:
     }
 
 
+class DummyUpstreamHandler(http.server.BaseHTTPRequestHandler):
+    req_count = 0
+
+    def do_POST(self):
+        DummyUpstreamHandler.req_count += 1
+        c = DummyUpstreamHandler.req_count
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        if c == 1:
+            # First request: within budget (15 + 10 = 25 tokens <= 50)
+            chunk = (
+                b'event: message_start\r\ndata: {"type": "message_start", "message": {"usage": {"input_tokens": 15}}}\r\n\r\n'
+                b'event: message_delta\r\ndata: {"type": "message_delta", "usage": {"output_tokens": 10}}\r\n\r\n'
+            )
+            self.wfile.write(chunk)
+            self.wfile.flush()
+        else:
+            # Second request: triggers live budget exceeded (25 + 40 = 65 > 50)
+            chunk = (
+                b'event: message_start\r\ndata: {"type": "message_start", "message": {"usage": {"input_tokens": 40}}}\r\n\r\n'
+                b'event: message_delta\r\ndata: {"type": "message_delta", "usage": {"output_tokens": 10}}\r\n\r\n'
+            )
+            try:
+                self.wfile.write(chunk)
+                self.wfile.flush()
+            except Exception:
+                pass
+
+    def log_message(self, *args):
+        pass
+
+
 async def _run_canary_4_async() -> dict[str, Any]:
     """Canary 4 Async runner for Model Gateway Proxy."""
+    # 0. Start live Dummy SSE upstream on host
+    server = http.server.HTTPServer(("127.0.0.1", 0), DummyUpstreamHandler)
+    u_port = server.server_address[1]
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+
     proxy = ModelGatewayProxy(
-        real_api_endpoint="https://api.anthropic.com",
+        real_api_endpoint=f"http://127.0.0.1:{u_port}",
         real_api_key="sk-ant-canary-dummy-key",
-        max_total_tokens=500,  # Small budget to verify live cut-off
+        max_total_tokens=50,  # Strict small budget: 50 tokens
     )
     port = await proxy.start()
     token = proxy.ephemeral_token
@@ -273,11 +351,29 @@ async def _run_canary_4_async() -> dict[str, Any]:
         else:
             print(f"  ✗ Auth check mismatch: returncode={proc.returncode}, out={out_str!r}")
 
-        # Step 2: Simulate live budget overrun on proxy -> 429
-        proxy.tokens_used = 600  # Exceeds max_total_tokens (500)
-        proxy.budget_exceeded = True
+        # Step 2: Live SSE Request 1 within budget (consumes 25 tokens)
+        cmd_req1 = [
+            "docker", "run", "--rm",
+            "--add-host", "host.docker.internal:host-gateway",
+            AGENT_IMAGE,
+            "curl", "-s", "-i",
+            "-X", "POST",
+            "-H", f"x-api-key: {token}",
+            "-H", "content-type: application/json",
+            "-d", "{}",
+            f"http://host.docker.internal:{port}/v1/messages",
+        ]
+        proc1 = await asyncio.create_subprocess_exec(
+            *cmd_req1,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await proc1.communicate()
+        assert proxy.tokens_used == 25, f"Expected proxy tokens_used=25, got {proxy.tokens_used}"
+        print(f"  ✓ Live SSE request 1 streamed through proxy; tokens charged to ledger: {proxy.tokens_used}/50")
 
-        cmd_cutoff = [
+        # Step 3: Live SSE Request 2 triggering over-limit (25 + 40 = 65 > 50)
+        cmd_req2 = [
             "docker", "run", "--rm",
             "--add-host", "host.docker.internal:host-gateway",
             AGENT_IMAGE,
@@ -289,19 +385,41 @@ async def _run_canary_4_async() -> dict[str, Any]:
             f"http://host.docker.internal:{port}/v1/messages",
         ]
         proc2 = await asyncio.create_subprocess_exec(
+            *cmd_req2,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await proc2.communicate()
+        assert proxy.budget_exceeded is True, "Proxy should have flagged budget_exceeded upon over-limit SSE chunk"
+        print("  ✓ Live SSE request 2 over-limit chunk intercepted and suppressed; proxy flagged budget_exceeded")
+
+        # Step 4: Subsequent request rejected immediately with HTTP 429 Too Many Requests
+        cmd_cutoff = [
+            "docker", "run", "--rm",
+            "--add-host", "host.docker.internal:host-gateway",
+            AGENT_IMAGE,
+            "curl", "-s", "-i",
+            "-X", "POST",
+            "-H", f"x-api-key: {token}",
+            "-H", "content-type: application/json",
+            "-d", "{}",
+            f"http://host.docker.internal:{port}/v1/messages",
+        ]
+        proc3 = await asyncio.create_subprocess_exec(
             *cmd_cutoff,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout2, stderr2 = await proc2.communicate()
-        out2_str = stdout2.decode("utf-8", errors="replace")
-        if "429 Too Many Requests" in out2_str or "Budget Exceeded" in out2_str:
+        stdout3, _ = await proc3.communicate()
+        out3_str = stdout3.decode("utf-8", errors="replace")
+        if "429 Too Many Requests" in out3_str or "Budget Exceeded" in out3_str:
             budget_cutoff_verified = True
             budget_http_code = 429
             print("  ✓ Real container request immediately rejected (HTTP 429) upon live budget overrun")
 
     finally:
         await proxy.close()
+        server.shutdown()
 
     return {
         "status": "PASS" if (proxy_auth_verified and budget_cutoff_verified) else "FAIL",

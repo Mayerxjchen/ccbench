@@ -67,17 +67,6 @@ class PagentAdapter:
     def attach_budget_ledger(self, ledger: Any) -> None:
         self._budget_ledger = ledger
 
-    async def _consume(self, instruction: str) -> None:
-        runner = getattr(self, "runner", None)
-        if runner is not None and hasattr(runner, "run"):
-            turn_idx = 0
-            async for turn in runner.run(instruction):
-                turn_idx += 1
-                if self._budget_ledger is not None:
-                    self._budget_ledger.charge("model_turns", 1, f"turn-{turn_idx}")
-                    usage = getattr(turn, "usage", {}) or {}
-                    self._budget_ledger.charge("tokens", usage.get("total_tokens", 0), f"tokens-{turn_idx}")
-
     async def prepare(self) -> None:
         raise RuntimeError(
             "PAgent execution is strictly retired from MLFFBench. "

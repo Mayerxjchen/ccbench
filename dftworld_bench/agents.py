@@ -5,10 +5,10 @@ it speaks to an ``AgentAdapter`` and never touches pagent, docker, or a
 scheduler.
 
 Candidate Agent Architecture:
-- Formal Candidate Engine: ``ClaudeCodeAdapter`` driving Claude Code inside
+- Sole Formal Candidate Engine: ``ClaudeCodeAdapter`` driving Claude Code inside
   the isolated sandbox image (mlffbench-agent-claude-code:v1).
-- Legacy Engine: ``PagentAdapter`` retained for backward compatibility with
-  historical baseline runs.
+- Host Model Gateway Proxy provides run-scoped credential isolation and real-time streaming budget accounting.
+- Docker internal network ensures OS-level physical network egress isolation.
 """
 
 from __future__ import annotations
@@ -436,32 +436,11 @@ def controller_docker_args(execution_class: str) -> list[str]:
 
 def docker_gpu_args(gpus: int) -> list[str]:
     """``docker run`` 显式 GPU 分配参数；0 张 → ``[]``，多卡(>1)不支持。"""
-    _patch_container_backend_gpus(gpus)
     if gpus <= 0:
         return []
     if gpus != 1:
         raise ValueError(f"unsupported gpus={gpus}; only 0 or 1 is supported")
     return ["--gpus", "device=0"]
-
-
-def _patch_container_backend_gpus(gpus: int = 0) -> None:
-    """Legacy compatibility helper: docker_gpu_args is the canonical backend."""
-    pass
-
-
-class DeepSeek:
-    def __init__(self, model_id: str, base_url: str | None = None, apikey: str | None = None) -> None:
-        self.model_id = model_id
-        self.base_url = base_url
-        self.apikey = apikey
-
-
-def make_provider(model: str, *, base_url: str | None = None, api_key: str | None = None) -> Any:
-    """Legacy provider factory helper for test wiring compatibility."""
-    provider, _, model_id = model.partition("/")
-    if provider == "deepseek":
-        return DeepSeek(model_id, base_url=base_url, apikey=api_key)
-    raise ValueError(f"unsupported legacy provider: {provider}")
 
 
 _CURRENT_RUN_ARGS: dict[str, list[str]] = {"extra": []}
@@ -528,8 +507,48 @@ def collect_skill_invocations(thread_dir: str) -> list[str]:
     return invoked
 
 
-# Re-export for read-only legacy deserialization compatibility
-from dftworld_bench.legacy.pagent_compat import PagentAdapter  # noqa: F401
+_SIDECAR_TCP_FORWARDER_PY = """
+import asyncio
+import sys
+
+TARGET_HOST = sys.argv[1]
+TARGET_PORT = int(sys.argv[2])
+LISTEN_PORT = int(sys.argv[3])
+
+async def pipe(reader, writer):
+    try:
+        while True:
+            data = await reader.read(65536)
+            if not data:
+                break
+            writer.write(data)
+            await writer.drain()
+    except Exception:
+        pass
+    finally:
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except Exception:
+            pass
+
+async def handle_client(c_reader, c_writer):
+    try:
+        s_reader, s_writer = await asyncio.open_connection(TARGET_HOST, TARGET_PORT)
+    except Exception:
+        c_writer.close()
+        return
+    asyncio.create_task(pipe(c_reader, s_writer))
+    asyncio.create_task(pipe(s_reader, c_writer))
+
+async def main():
+    server = await asyncio.start_server(handle_client, "0.0.0.0", LISTEN_PORT)
+    async with server:
+        await server.serve_forever()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+"""
 
 
 # -- Claude Code Candidate Agent Adapter ------------------------------------
@@ -585,6 +604,8 @@ class ClaudeCodeAdapter:
         self.thread_dir = str(self.threads_root / task_name)
         self.workspace = str(self.threads_root / task_name / "workspace")
         self.container_id: str | None = None
+        self.internal_net: str | None = None
+        self.sidecar_cid: str | None = None
         self._proc: asyncio.subprocess.Process | None = None
         self._budget_ledger: Any = None
         self._turn_index: int = 0
@@ -644,8 +665,8 @@ class ClaudeCodeAdapter:
             if self._proc is not None:
                 self._terminate_proc_group(self._proc, 2.0)
 
-        proxy_url: str | None = None
         ephemeral_token: str | None = None
+        host_port: int | None = None
         if self._api_key or self.api_endpoint:
             self._model_proxy = ModelGatewayProxy(
                 real_api_endpoint=self.api_endpoint or "https://api.anthropic.com",
@@ -656,17 +677,69 @@ class ClaudeCodeAdapter:
                 task_name=self.task_name,
                 on_budget_exceeded=_on_budget_exceeded,
             )
-            await self._model_proxy.start()
-            proxy_url = self._model_proxy.proxy_url("host.docker.internal")
+            host_port = await self._model_proxy.start()
             ephemeral_token = self._model_proxy.ephemeral_token
 
-        # 3. Launch hardened container with read-only security overlays
+        # 3. Create OS-level internal docker network & optional dual-homed sidecar gateway
+        import uuid
+        run_uid = uuid.uuid4().hex[:10]
+        net_name = f"mlffbench-net-{run_uid}"
+        self.internal_net = net_name
+
+        net_proc = await asyncio.create_subprocess_exec(
+            "docker", "network", "create", "--internal", net_name,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, n_err = await net_proc.communicate()
+        if net_proc.returncode != 0:
+            raise RuntimeError(
+                f"failed to create internal docker network {net_name}: {n_err.decode('utf-8', errors='replace').strip()}"
+            )
+
+        candidate_base_url: str | None = None
+        if host_port is not None:
+            sidecar_cmd = [
+                "docker", "run", "-d", "--rm",
+                "--name", f"sidecar-{run_uid}",
+                "--network", "bridge",
+                "--add-host", "host.docker.internal:host-gateway",
+                self.image,
+                "python3", "-c", _SIDECAR_TCP_FORWARDER_PY,
+                "host.docker.internal", str(host_port), "8080",
+            ]
+            sc_proc = await asyncio.create_subprocess_exec(
+                *sidecar_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            sc_out, sc_err = await sc_proc.communicate()
+            if sc_proc.returncode != 0:
+                raise RuntimeError(
+                    f"failed to start model gateway sidecar: {sc_err.decode('utf-8', errors='replace').strip()}"
+                )
+            self.sidecar_cid = sc_out.decode("utf-8", errors="replace").strip()
+
+            conn_proc = await asyncio.create_subprocess_exec(
+                "docker", "network", "connect", "--alias", "model-gateway", net_name, self.sidecar_cid,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, c_err = await conn_proc.communicate()
+            if conn_proc.returncode != 0:
+                raise RuntimeError(
+                    f"failed to connect sidecar to internal network: {c_err.decode('utf-8', errors='replace').strip()}"
+                )
+            candidate_base_url = "http://model-gateway:8080"
+
+        # 4. Launch hardened Candidate container attached ONLY to the internal network
         cid = await self._start_container(
-            proxy_url, ephemeral_token, settings_file, trusted_skills_dir
+            candidate_base_url, ephemeral_token, settings_file, trusted_skills_dir,
+            network_name=self.internal_net,
         )
         self.container_id = cid
 
-        # 4. Execute Claude Code CLI with fail-closed monitoring
+        # 5. Execute Claude Code CLI with fail-closed monitoring
         try:
             await self._run_claude_code(instruction)
         finally:
@@ -674,10 +747,11 @@ class ClaudeCodeAdapter:
 
     async def _start_container(
         self,
-        proxy_url: str | None,
+        candidate_base_url: str | None,
         ephemeral_token: str | None,
         trusted_settings: Path,
         trusted_skills_dir: Path,
+        network_name: str | None = None,
     ) -> str:
         cmd = [
             "docker",
@@ -693,30 +767,25 @@ class ClaudeCodeAdapter:
             "--tmpfs", "/tmp:rw,noexec,nosuid,size=512m",
             "-v", f"{self.workspace}:/app",
             "-w", "/app",
-            "--add-host", "host.docker.internal:host-gateway",
-            # Network egress isolation: prevent direct internet access; only allow host-gateway
-            "--dns", "127.0.0.1",
-            "--env", "http_proxy=http://127.0.0.1:9",
-            "--env", "https_proxy=http://127.0.0.1:9",
-            "--env", "all_proxy=http://127.0.0.1:9",
-            "--env", "no_proxy=host.docker.internal",
         ]
+        if network_name:
+            cmd.extend(["--network", network_name])
+
         # Read-only mounts for trusted security policy and skills
         cmd.extend(["-v", f"{trusted_settings.resolve()}:/app/.claude/settings.json:ro"])
         cmd.extend(["-v", f"{trusted_settings.resolve()}:/home/agent/.claude/settings.json:ro"])
         if any(trusted_skills_dir.iterdir()):
             cmd.extend(["-v", f"{trusted_skills_dir.resolve()}:/app/.claude/skills:ro"])
 
-        _patch_container_backend_gpus(self.gpus)
         cmd.extend(docker_gpu_args(self.gpus))
         cmd.extend(controller_docker_args(self.execution_class))
 
         for k, v in self.container_env.items():
             cmd.extend(["--env", f"{k}={v}"])
 
-        # Inject ONLY the host model proxy and run-scoped ephemeral token (P0 credential isolation)
-        if proxy_url:
-            cmd.extend(["--env", f"ANTHROPIC_BASE_URL={proxy_url}"])
+        # Inject ONLY the internal sidecar model gateway and run-scoped ephemeral token (P0 credential isolation)
+        if candidate_base_url:
+            cmd.extend(["--env", f"ANTHROPIC_BASE_URL={candidate_base_url}"])
         if ephemeral_token:
             cmd.extend(["--env", f"ANTHROPIC_API_KEY={ephemeral_token}"])
 
@@ -964,6 +1033,24 @@ class ClaudeCodeAdapter:
             self.container_id = None
             proc = await asyncio.create_subprocess_exec(
                 "docker", "stop", cid,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await proc.communicate()
+        if self.sidecar_cid:
+            scid = self.sidecar_cid
+            self.sidecar_cid = None
+            proc = await asyncio.create_subprocess_exec(
+                "docker", "stop", scid,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await proc.communicate()
+        if self.internal_net:
+            net = self.internal_net
+            self.internal_net = None
+            proc = await asyncio.create_subprocess_exec(
+                "docker", "network", "rm", net,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )

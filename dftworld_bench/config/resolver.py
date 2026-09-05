@@ -128,17 +128,20 @@ def resolve_formal(
 
     resolved_engine = engine or "claude-code"
     if resolved_engine == "pagent":
-        tool_surface_payload = {"engine": "pagent"}
-    else:
-        # Resolve real tool-policy
-        policy_file = Path(__file__).resolve().parents[2] / "base-env-build" / "agent-claude-code" / "tool-policy.json"
-        if policy_file.is_file():
-            try:
-                tool_surface_payload = json.loads(policy_file.read_text(encoding="utf-8"))
-            except Exception:
-                tool_surface_payload = {"engine": "claude-code", "tools": ["Bash", "FileRead", "FileEdit"]}
-        else:
+        raise ValueError(
+            "PAgent has been permanently retired from MLFFBench. "
+            "Claude Code is the sole formal Candidate Agent ('claude-code')."
+        )
+
+    # Resolve real tool-policy
+    policy_file = Path(__file__).resolve().parents[2] / "base-env-build" / "agent-claude-code" / "tool-policy.json"
+    if policy_file.is_file():
+        try:
+            tool_surface_payload = json.loads(policy_file.read_text(encoding="utf-8"))
+        except Exception:
             tool_surface_payload = {"engine": "claude-code", "tools": ["Bash", "FileRead", "FileEdit"]}
+    else:
+        tool_surface_payload = {"engine": "claude-code", "tools": ["Bash", "FileRead", "FileEdit"]}
     tool_surface_digest = digest_bytes(canonical_json(tool_surface_payload))
 
     # Build the complete lock payload — every digest is real.

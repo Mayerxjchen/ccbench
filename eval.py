@@ -5,7 +5,7 @@
 
     容器内任务根目录 = /app
       ↔ 宿主 jobs/<ts>/threads/<task>/workspace/
-      ↔ pagent sandbox.home
+      ↔ candidate sandbox.home
 
 镜像把数据装在 /app；seed 只从镜像 /app 拷到 workspace，再把容器
 ``/app`` 换成指向 workspace 的 symlink。任务 instruction / tests /
@@ -26,20 +26,26 @@ input.json 继续写 ``/app/...``。
     jobs/<ts>__<task>/run-record.json   # canonical 不可变 RunRecord(Task 7)
 
 编排由 ``dftworld_bench.core.harness.TrustedHarness`` 拥有（固定阶段顺序 +
-独立 Verifier + 不可变 run record）；agent 侧由 ``PagentAdapter`` 提供
-（pagentv4 Runner + 本地 docker）。本文件只做参数解析、任务加载、skill
+独立 Verifier + 不可变 run record）；agent 侧由 ``ClaudeCodeAdapter`` 提供
+（Claude Code + 独立 Agent 沙箱）。本文件只做参数解析、任务加载、skill
 快照、调用 harness、写兼容 summary。
 
 用法::
 
     cp .env.example .env   # 填入 API key
-    cd base-env-build && bash build.sh base
-    uv sync
-    uv run python eval.py 001-hello -v
-    uv run python eval.py --all
-    # 正式消融:两次独立调用,带 experiment + condition;skill 由 --skills 开关决定
-    uv run python eval.py --all --experiment skill-ablation-v1 --condition no-skill --no-skills
-    uv run python eval.py --all --experiment skill-ablation-v1 --condition with-skill --skills
+    pytest                 # 跑测试
+    python eval.py --task 001-hello   # 跑单任务
+
+CLI flags::
+
+    --task NAME            只跑一个任务（默认跑全部 001-024）
+    --tasks-dir DIR        任务目录（默认 benchmark/）
+    --model PROVIDER/MODEL 模型标识（默认 deepseek/deepseek-chat）
+    --max-turns N          每个任务最多对话轮数（默认 32）
+    --skills               启用 skill：优先 public/，回退 base-env-build/skills/
+    --skills-bundle        从 dftworld-skills bundle 镜像提取 skill
+    --no-cache             跑完清理容器，不留 cache
+    --verbose, -v          打印 harness 阶段日志
 """
 
 from __future__ import annotations
@@ -47,10 +53,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import re
 import secrets
+import shutil
 import subprocess
+import sys
+import tempfile
 import time
 import tomllib
 from typing import Callable
@@ -60,14 +70,10 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-# PAgent runner execution paths removed. All benchmark runs use ClaudeCodeAdapter.
-Runner = None  # type: ignore
-
 
 from dftworld_bench.agents import (
     AGENT_HOME,  # noqa: F401
     BENCH_SANDBOX_TOOLS,  # noqa: F401
-    PAGENT_HOME,
     SYSTEM,  # noqa: F401
     ClaudeCodeAdapter,
     apply_dockerfile_copies,  # noqa: F401  (re-exported for tests)
@@ -906,6 +912,7 @@ def resolve_harness_provenance(
         task,
         is_formal=is_formal,
         agent_image_digest=agent_image_digest,
+        benchmark_commit=benchmark_commit,
     )
 
     return HarnessProvenance(lock, budgets, runtime_identities, profile)
@@ -917,18 +924,24 @@ def _verify_candidate_agent_gate(
     is_formal: bool,
     agent_image_digest: str | None = None,
     receipt_path: Path | None = None,
+    benchmark_commit: str | None = None,
 ) -> None:
     """Formal admission gate: verify Candidate Agent qualification receipt.
 
-    Fail-closed policy:
-    1. In formal / counted mode, receipt MUST exist and be verified against
-       qualification-trust.toml.
-    2. Status must be PROMOTED.
-    3. Readiness must be READY.
-    4. Execution status must be PASS.
-    5. All canary checks must PASS.
-    6. If locked agent_image_digest is provided, receipt must match it.
-    7. If BLOCKED or verification fails, abort formal execution immediately.
+    Strict Fail-closed policy (Zero Fail-Open):
+    1. In formal / counted mode, receipt MUST exist and cryptographically verify
+       against qualification-trust.toml.
+    2. Status must be EXACTLY 'PROMOTED'.
+    3. Readiness must be EXACTLY 'READY'.
+    4. Execution status must be EXACTLY 'PASS'.
+    5. Canary 1..5 evidence blocks must ALL be present and each status == 'PASS'.
+    6. Canary 2 must verify network egress blockage AND raw socket blockage.
+    7. Canary 4 must verify real-time live budget cut-off (HTTP 429).
+    8. Real agent execution must be present and status == 'PASS'.
+    9. Container cleanup evidence must report running_containers_found == 0.
+    10. If benchmark_commit is provided, receipt source_commit must match it.
+    11. Offline anchors (tool_policy, dockerfile, probe, agent_profile, skill_bundle)
+        and code_identity must match the current codebase exactly with zero drift.
     """
     if not is_formal:
         return
@@ -970,6 +983,7 @@ def _verify_candidate_agent_gate(
     except Exception as exc:
         raise RuntimeError(f"Failed to parse qualification receipt {receipt_path}: {exc}") from exc
 
+    # 1. Exact status assertions (zero fail-open)
     verdict = receipt_data.get("verdict", {})
     status = receipt_data.get("status") or verdict.get("status")
     if status != "PROMOTED":
@@ -979,34 +993,119 @@ def _verify_candidate_agent_gate(
         )
 
     readiness = receipt_data.get("formal_benchmark_readiness") or verdict.get("readiness")
-    if readiness and readiness != "READY":
+    if readiness != "READY":
         raise RuntimeError(
             f"Candidate Agent readiness is {readiness!r} != 'READY'. Formal benchmark rejected."
         )
 
     execution_status = receipt_data.get("agent_execution_status") or verdict.get("agent_execution")
-    if execution_status and execution_status != "PASS":
+    if execution_status != "PASS":
         raise RuntimeError(
             f"Candidate Agent execution status is {execution_status!r} != 'PASS'. Formal benchmark rejected."
         )
 
-    canaries = receipt_data.get("canary_results") or receipt_data.get("evidence") or {}
-    for c_name, c_val in canaries.items():
-        if isinstance(c_val, dict) and c_val.get("status") not in ("PASS", None):
+    # 2. Evidence and Required Canaries assertions
+    evidence = receipt_data.get("evidence")
+    if not isinstance(evidence, dict):
+        raise RuntimeError(
+            "Candidate Agent receipt missing valid 'evidence' block. Formal benchmark rejected."
+        )
+
+    required_canaries = [
+        "canary_1_image_isolation",
+        "canary_2_adversarial_containment",
+        "canary_3_skills_topology",
+        "canary_4_model_gateway_and_budget",
+        "canary_5_run_lock_compliance",
+    ]
+    for c_name in required_canaries:
+        c_block = evidence.get(c_name)
+        if not isinstance(c_block, dict):
+            raise RuntimeError(f"Candidate Agent receipt missing required canary: {c_name}.")
+        if c_block.get("status") != "PASS":
             raise RuntimeError(
-                f"Candidate Agent qualification canary {c_name} status is {c_val.get('status')!r} != 'PASS'."
+                f"Candidate Agent canary {c_name} status is {c_block.get('status')!r} != 'PASS'."
             )
 
-    if agent_image_digest:
-        evidence = receipt_data.get("evidence", {})
-        receipt_image_digest = (
-            evidence.get("image_digest")
-            or evidence.get("canary_1_image_isolation", {}).get("image_digest")
+    # 3. Canary 2 & 4 deep security assertions
+    c2 = evidence["canary_2_adversarial_containment"]
+    if not c2.get("network_egress_blocked"):
+        raise RuntimeError("Candidate Agent Canary 2 failed network egress isolation verification.")
+    if not c2.get("raw_socket_blocked"):
+        raise RuntimeError("Candidate Agent Canary 2 failed raw socket kernel-level blockage verification.")
+
+    c4 = evidence["canary_4_model_gateway_and_budget"]
+    if not c4.get("budget_cutoff_verified") or c4.get("budget_cutoff_http_code") != 429:
+        raise RuntimeError("Candidate Agent Canary 4 failed live budget cut-off enforcement.")
+
+    # 4. Real agent execution & Container cleanup assertions
+    real_exec = evidence.get("real_agent_execution")
+    if not isinstance(real_exec, dict) or not real_exec.get("executed") or real_exec.get("status") != "PASS":
+        raise RuntimeError(
+            f"Candidate Agent receipt missing verified real agent execution evidence: {real_exec}"
         )
-        if receipt_image_digest and receipt_image_digest != agent_image_digest:
+
+    cleanup = evidence.get("container_cleanup")
+    if not isinstance(cleanup, dict) or cleanup.get("running_containers_found", 1) != 0:
+        raise RuntimeError(
+            f"Candidate Agent receipt reports dangling containers or missing cleanup evidence: {cleanup}"
+        )
+
+    # 5. Locked Image Digest match
+    if agent_image_digest:
+        receipt_image_digest = receipt_data.get("candidate_image_digest")
+        if receipt_image_digest != agent_image_digest:
             raise RuntimeError(
                 f"Candidate Agent receipt image digest mismatch: receipt={receipt_image_digest}, lock={agent_image_digest}"
             )
+
+    # 6. Provenance Commit verification
+    target_commit = benchmark_commit or (verifier.get_source_commit() if "source_commit" in receipt_data else None)
+    receipt_commit = receipt_data.get("source_commit")
+    if benchmark_commit and benchmark_commit != "unknown":
+        if receipt_commit != benchmark_commit:
+            raise RuntimeError(
+                f"Candidate Agent receipt source_commit mismatch: receipt={receipt_commit}, current={benchmark_commit}. "
+                "Qualification receipt must match the exact benchmark source commit."
+            )
+    elif target_commit and target_commit != "unknown" and receipt_commit and receipt_commit != target_commit:
+        raise RuntimeError(
+            f"Candidate Agent receipt source_commit mismatch: receipt={receipt_commit}, current={target_commit}. "
+            "Qualification receipt must match the exact benchmark source commit."
+        )
+
+    # 7. Dynamic Offline Anchors Mechanical Verification (Zero Drift)
+    if "code_identity" in receipt_data:
+        receipt_code_identity = receipt_data.get("code_identity", {})
+        current_code_identity = verifier.compute_code_identity()
+        for path_key, expected_hash in receipt_code_identity.items():
+            current_hash = current_code_identity.get(path_key)
+            if current_hash != expected_hash:
+                raise RuntimeError(
+                    f"Candidate Agent codebase identity drift for '{path_key}': "
+                    f"receipt={expected_hash}, current={current_hash}. "
+                    "Code changes invalidate prior qualification receipt."
+                )
+
+    if "offline_anchors" in receipt_data:
+        receipt_anchors = receipt_data.get("offline_anchors", {})
+        anchors_to_check = {
+            "tool_policy_digest": verifier.policy_file,
+            "dockerfile_digest": verifier.dockerfile,
+            "probe_digest": verifier.probe_file,
+            "agent_profile_digest": verifier.agent_profiles,
+            "skill_bundle_digest": verifier.skill_image_lock,
+        }
+        import hashlib
+        for anchor_key, anchor_path in anchors_to_check.items():
+            if anchor_key in receipt_anchors:
+                curr_digest = "sha256:" + hashlib.sha256(anchor_path.read_bytes()).hexdigest() if anchor_path.is_file() else "missing"
+                if curr_digest != receipt_anchors[anchor_key]:
+                    raise RuntimeError(
+                        f"Candidate Agent offline anchor drift for '{anchor_key}': "
+                        f"receipt={receipt_anchors[anchor_key]}, current={curr_digest}. "
+                        "Configuration drift invalidates prior qualification receipt."
+                    )
 
 
 def profile_for_task(task: TaskSpec) -> Profile:
@@ -1366,14 +1465,12 @@ async def amain(argv: list[str] | None = None) -> int:
                 agent_model=settings.model,
             )
             profile = provenance.profile
-            # Production transport: RetryingModelClient wraps the pagent
-            # provider via a PagentTransport shim.  The adapter still owns
-            # the agent lifecycle; the transport is the single retry/breaker
-            # owner for model requests.
+            # Candidate transport: RetryingModelClient wraps the candidate
+            # agent model transport via CandidateModelTransport shim. The adapter owns
+            # the candidate sandbox lifecycle, while ModelGatewayProxy isolates credentials
+            # and enforces streaming budget accounting.
             harness = TrustedHarness(adapter, store=store, session=session)
-            # The transport is created lazily: the pagent provider only exists
-            # after adapter.start() runs inside harness.  We construct the
-            # RetryingModelClient here so eval.py is the single composition
+            # RetryingModelClient is composed at the harness root.
             # root; the adapter will inject its provider into the transport.
             transport = CandidateModelTransport(provider=None)
             model_client = RetryingModelClient(

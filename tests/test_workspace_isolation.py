@@ -427,7 +427,8 @@ def test_candidate_env_rejects_api_secret_names():
     即使有人显式传 `DFTWORLD_API_KEY` 也必须 fail-fast。run-scoped 的
     controller env（BENCH_HPC_*）不是 api credential 名，不受影响。
     """
-    from dftworld_bench.agents import ClaudeCodeAdapter, PagentAdapter
+    from dftworld_bench.agents import ClaudeCodeAdapter
+    from dftworld_bench.legacy.pagent_compat import PagentAdapter
     from dftworld_bench.core.model_transport import credential_env_names
 
     forbidden = credential_env_names(

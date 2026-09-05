@@ -301,35 +301,28 @@ class ModelGatewayProxy:
             content_type = headers_lower.get("content-type", "").lower()
             is_sse = "text/event-stream" in content_type
 
-            # Send response headers to client
-            header_lines = [f"HTTP/1.1 {status} OK"]
-            for k, v in resp_headers.items():
-                if k.lower() not in ("connection", "content-length"):
-                    header_lines.append(f"{k}: {v}")
-            header_lines.append("Connection: close")
-            header_lines.append("")
-            header_lines.append("")
-            client_writer.write("\r\n".join(header_lines).encode("utf-8"))
-            await client_writer.drain()
+            if is_sse:
+                # SSE Branch: Stream chunks with real-time pre-charge and over-limit suppression
+                header_lines = [f"HTTP/1.1 {status} OK"]
+                for k, v in resp_headers.items():
+                    if k.lower() not in ("connection", "content-length"):
+                        header_lines.append(f"{k}: {v}")
+                header_lines.append("Connection: close")
+                header_lines.append("")
+                header_lines.append("")
+                client_writer.write("\r\n".join(header_lines).encode("utf-8"))
+                await client_writer.drain()
 
-            # State for token extraction across chunks
-            accumulated_body = bytearray()
-            stream_input_tokens = 0
-            stream_output_tokens = 0
+                stream_input_tokens = 0
+                stream_output_tokens = 0
 
-            # 2. Process chunks
-            while True:
-                tag, val = await queue.get()
-                if tag == "eof":
-                    break
-                if tag == "error":
-                    break
-                if tag == "chunk":
-                    chunk_bytes: bytes = val
-                    accumulated_body.extend(chunk_bytes)
-                    # Real-time SSE usage parser & budget cutoff BEFORE forwarding
-                    forward_this_chunk = True
-                    if is_sse:
+                while True:
+                    tag, val = await queue.get()
+                    if tag in ("eof", "error"):
+                        break
+                    if tag == "chunk":
+                        chunk_bytes: bytes = val
+                        forward_this_chunk = True
                         text_chunk = chunk_bytes.decode("utf-8", errors="replace")
                         for line in text_chunk.splitlines():
                             line_str = line.strip()
@@ -365,29 +358,60 @@ class ModelGatewayProxy:
                         if self.budget_exceeded:
                             forward_this_chunk = False
 
-                    # Forward chunk ONLY IF budget remains healthy
-                    if forward_this_chunk and not self.budget_exceeded:
-                        client_writer.write(chunk_bytes)
-                        await client_writer.drain()
-                    else:
-                        # Budget exceeded: DO NOT forward over-limit chunk!
-                        # Immediately abort upstream and close client connection
-                        abort_event.set()
+                        if forward_this_chunk and not self.budget_exceeded:
+                            client_writer.write(chunk_bytes)
+                            await client_writer.drain()
+                        else:
+                            abort_event.set()
+                            break
+            else:
+                # Non-SSE Branch: BUFFER full body, parse usage, charge ledger FIRST, then send!
+                accumulated_body = bytearray()
+                while True:
+                    tag, val = await queue.get()
+                    if tag in ("eof", "error"):
                         break
+                    if tag == "chunk":
+                        accumulated_body.extend(val)
 
-            # 3. If non-SSE JSON response, parse total usage upon completion
-            if not is_sse and not self.budget_exceeded:
+                # Parse non-SSE JSON usage
+                non_stream_tokens = 0
                 try:
                     resp_json = json.loads(accumulated_body.decode("utf-8", errors="replace"))
                     if isinstance(resp_json, dict) and "usage" in resp_json:
                         usage = resp_json["usage"]
-                        total = int(usage.get("total_tokens") or 0)
-                        if not total:
-                            total = int(usage.get("input_tokens") or 0) + int(usage.get("output_tokens") or 0)
-                        if total > 0:
-                            self._record_tokens(total)
+                        non_stream_tokens = int(usage.get("total_tokens") or 0)
+                        if not non_stream_tokens:
+                            non_stream_tokens = int(usage.get("input_tokens") or 0) + int(usage.get("output_tokens") or 0)
                 except Exception:
                     pass
+
+                # Pre-flight charge before sending ANY data to client
+                if non_stream_tokens > 0:
+                    try:
+                        healthy = self._record_tokens(non_stream_tokens)
+                        if not healthy:
+                            self._send_error(client_writer, 429, "Budget Exceeded: token budget limit reached")
+                            return
+                    except BudgetExceeded as exc:
+                        self._send_error(client_writer, 429, f"Budget Exceeded: {exc}")
+                        return
+
+                if self.budget_exceeded:
+                    self._send_error(client_writer, 429, "Budget Exceeded: token budget limit reached")
+                    return
+
+                # Budget healthy: send HTTP headers and full body
+                header_lines = [f"HTTP/1.1 {status} OK"]
+                for k, v in resp_headers.items():
+                    if k.lower() not in ("connection", "content-length"):
+                        header_lines.append(f"{k}: {v}")
+                header_lines.append(f"Content-Length: {len(accumulated_body)}")
+                header_lines.append("Connection: close")
+                header_lines.append("")
+                header_lines.append("")
+                client_writer.write("\r\n".join(header_lines).encode("utf-8") + bytes(accumulated_body))
+                await client_writer.drain()
 
         finally:
             abort_event.set()

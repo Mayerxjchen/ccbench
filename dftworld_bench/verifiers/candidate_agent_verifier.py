@@ -168,9 +168,13 @@ class CandidateAgentVerifier:
             if f"Access Denied: command {cmd} is strictly prohibited" not in info.get("stderr", ""):
                 reasons.append(f"Adversarial command {cmd} stderr missing security policy rejection notice")
 
-        # Check forbidden env leak prevention
+        # Check forbidden env leak prevention and network isolation
         if not c2.get("secret_isolation_verified", False):
             reasons.append("Canary 2 failed to verify secret isolation prevention")
+        if not c2.get("network_egress_blocked", False):
+            reasons.append("Canary 2 failed to verify network egress isolation")
+        if not c2.get("raw_socket_blocked", False):
+            reasons.append("Canary 2 failed to verify raw socket kernel-level network blockage")
 
         # 4. Re-verify Canary 3: Skills Topology
         c3 = evidence["canary_3_skills_topology"]

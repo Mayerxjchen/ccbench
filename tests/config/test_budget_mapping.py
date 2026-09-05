@@ -180,13 +180,33 @@ def test_candidate_agent_gate_promoted_admitted():
         receipt_path = Path(tmpdir) / "receipt.json"
         img_digest = "sha256:abc0123456789abcdef0123456789abcdef0123456789abcdef0123456789abc"
         payload = {
+            "status": "PROMOTED",
+            "agent_execution_status": "PASS",
+            "formal_benchmark_readiness": "READY",
+            "candidate_image_digest": img_digest,
             "verdict": {
                 "status": "PROMOTED",
                 "agent_execution": "PASS",
                 "readiness": "READY",
             },
-            "canary_results": {"c1": {"status": "PASS"}},
-            "evidence": {"image_digest": img_digest},
+            "evidence": {
+                "canary_1_image_isolation": {"status": "PASS", "image_digest": img_digest},
+                "canary_2_adversarial_containment": {
+                    "status": "PASS",
+                    "network_egress_blocked": True,
+                    "raw_socket_blocked": True,
+                },
+                "canary_3_skills_topology": {"status": "PASS"},
+                "canary_4_model_gateway_and_budget": {
+                    "status": "PASS",
+                    "budget_cutoff_verified": True,
+                    "budget_cutoff_http_code": 429,
+                },
+                "canary_5_run_lock_compliance": {"status": "PASS"},
+                "real_agent_execution": {"executed": True, "status": "PASS"},
+                "container_cleanup": {"running_containers_found": 0, "clean": True},
+                "image_digest": img_digest,
+            },
         }
         _create_signed_receipt(receipt_path, payload, priv)
 

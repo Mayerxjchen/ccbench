@@ -44,6 +44,8 @@ def valid_evidence() -> dict[str, Any]:
                 for cmd in ["ssh", "sbatch", "compshare", "docker", "nc", "nmap"]
             },
             "secret_isolation_verified": True,
+            "network_egress_blocked": True,
+            "raw_socket_blocked": True,
         },
         "canary_3_skills_topology": {
             "status": "PASS",
