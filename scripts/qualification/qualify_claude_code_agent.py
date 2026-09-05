@@ -18,6 +18,7 @@ by CandidateAgentVerifier before producing a PROMOTED qualification receipt.
 from __future__ import annotations
 
 import asyncio
+import http.server
 import os
 import shutil
 import subprocess
