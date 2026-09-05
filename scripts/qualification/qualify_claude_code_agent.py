@@ -42,6 +42,12 @@ from dftworld_bench.config.resolver import construct_experiment, resolve_formal
 from dftworld_bench.contracts.case import CaseSpec
 from dftworld_bench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPolicy
 from dftworld_bench.core.model_proxy import ModelGatewayProxy
+from dftworld_bench.core.sidecar_topology import (
+    CANDIDATE_ROLE_LABEL,
+    NETWORK_ROLE_LABEL,
+    SIDECAR_ROLE_LABEL,
+    SidecarTopologyManager,
+)
 from dftworld_bench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
 
 AGENT_IMAGE = "mlffbench-candidate-claude-code-sandbox:v1"
@@ -351,13 +357,8 @@ async def _run_canary_4_async() -> dict[str, Any]:
     token = proxy.ephemeral_token
 
     # 2. Setup Production Topology: internal network + dual-homed model-gateway sidecar
-    run_uid = uuid.uuid4().hex[:8]
-    net_name = f"qual-net-{run_uid}"
-    sidecar_name = f"sidecar-qual-{run_uid}"
-
-    net_res = run_command_sync(["docker", "network", "create", "--internal", net_name])
-    if net_res.returncode != 0:
-        raise RuntimeError(f"Failed to create internal network for Canary 4: {net_res.stderr}")
+    topology = SidecarTopologyManager(image=AGENT_IMAGE)
+    net_name = await topology.create_network(prefix="qual-net")
 
     sidecar_gateway_verified = False
     proxy_auth_verified = False
@@ -369,30 +370,10 @@ async def _run_canary_4_async() -> dict[str, Any]:
     ledger_after_overflow = 0
 
     try:
-        # Launch sidecar on bridge network with host-gateway resolution
-        sc_run = run_command_sync([
-            "docker", "run", "-d", "--rm",
-            "--name", sidecar_name,
-            "--network", "bridge",
-            "--add-host", "host.docker.internal:host-gateway",
-            AGENT_IMAGE,
-            "python3", "-c", _SIDECAR_TCP_FORWARDER_PY,
-            "host.docker.internal", str(port), "8080",
-        ])
-        if sc_run.returncode != 0:
-            raise RuntimeError(f"Failed to start model-gateway sidecar: {sc_run.stderr}")
-        sidecar_cid = sc_run.stdout.strip()
-
-        # Connect sidecar to internal network with alias 'model-gateway'
-        conn_res = run_command_sync([
-            "docker", "network", "connect", "--alias", "model-gateway", net_name, sidecar_cid,
-        ])
-        if conn_res.returncode != 0:
-            raise RuntimeError(f"Failed to connect sidecar to internal network: {conn_res.stderr}")
-
+        sidecar_cid = await topology.start_sidecar(host_port=port, prefix="sidecar-qual-")
         await asyncio.sleep(0.5)  # Wait for sidecar TCP forwarder to bind 8080
         sidecar_gateway_verified = True
-        print(f"  ✓ Production Dual-Homed Sidecar attached: {sidecar_name} (bridge + {net_name})")
+        print(f"  ✓ Production Dual-Homed Sidecar attached: {topology.sidecar_name} (bridge + {net_name})")
 
         # Step 1: Verify Candidate internal-only container cannot bypass sidecar
         cmd_bypass = [
@@ -524,9 +505,8 @@ except OSError:
             print("  ✓ Candidate request through production sidecar immediately rejected (HTTP 429) upon live budget overrun")
 
     finally:
-        # Cleanup sidecar and internal network immediately
-        run_command_sync(["docker", "rm", "-f", sidecar_name])
-        run_command_sync(["docker", "network", "rm", net_name])
+        # Cleanup sidecar and internal network strictly via topology manager
+        await topology.close()
         await proxy.close()
         server.shutdown()
 
@@ -674,20 +654,84 @@ def run_real_claude_code_canary(evidence: dict[str, Any]) -> None:
 
 
 def verify_container_cleanup(evidence: dict[str, Any]) -> None:
-    """Verify no lingering containers remain running from the qualification session."""
-    print("--- Verifying Zero Orphan Candidate Containers ---")
-    res = run_command_sync([
-        "docker", "ps", "-q",
+    """Verify no lingering candidate containers, sidecars, or internal networks remain."""
+    print("--- Verifying Zero Orphan Candidate Containers & Topology Resources ---")
+
+    # 1. Candidate containers (running and exited)
+    res_cand = run_command_sync([
+        "docker", "ps", "-a", "-q",
         "--filter", f"ancestor={AGENT_IMAGE}",
     ])
-    running_ids = [cid.strip() for cid in res.stdout.splitlines() if cid.strip()]
+    if res_cand.returncode != 0:
+        raise RuntimeError(
+            f"Failed to query candidate containers (exit code {res_cand.returncode}): {res_cand.stderr.strip()}"
+        )
+    candidate_ids = [cid.strip() for cid in res_cand.stdout.splitlines() if cid.strip()]
+
+    # 2. Sidecar containers (via role label and name prefix)
+    res_sidecar_label = run_command_sync([
+        "docker", "ps", "-a", "-q",
+        "--filter", f"label={SIDECAR_ROLE_LABEL}",
+    ])
+    if res_sidecar_label.returncode != 0:
+        raise RuntimeError(
+            f"Failed to query sidecar containers by label (exit code {res_sidecar_label.returncode}): {res_sidecar_label.stderr.strip()}"
+        )
+    res_sidecar_name = run_command_sync([
+        "docker", "ps", "-a", "-q",
+        "--filter", "name=sidecar-qual-",
+    ])
+    if res_sidecar_name.returncode != 0:
+        raise RuntimeError(
+            f"Failed to query sidecar containers by name (exit code {res_sidecar_name.returncode}): {res_sidecar_name.stderr.strip()}"
+        )
+    sidecar_ids = sorted(set(
+        [cid.strip() for cid in res_sidecar_label.stdout.splitlines() if cid.strip()]
+        + [cid.strip() for cid in res_sidecar_name.stdout.splitlines() if cid.strip()]
+    ))
+
+    # 3. Internal isolated networks (via role label and name prefix)
+    res_net_label = run_command_sync([
+        "docker", "network", "ls", "-q",
+        "--filter", f"label={NETWORK_ROLE_LABEL}",
+    ])
+    if res_net_label.returncode != 0:
+        raise RuntimeError(
+            f"Failed to query internal networks by label (exit code {res_net_label.returncode}): {res_net_label.stderr.strip()}"
+        )
+    res_net_name = run_command_sync([
+        "docker", "network", "ls", "-q",
+        "--filter", "name=qual-net-",
+    ])
+    if res_net_name.returncode != 0:
+        raise RuntimeError(
+            f"Failed to query internal networks by name (exit code {res_net_name.returncode}): {res_net_name.stderr.strip()}"
+        )
+    network_ids = sorted(set(
+        [nid.strip() for nid in res_net_label.stdout.splitlines() if nid.strip()]
+        + [nid.strip() for nid in res_net_name.stdout.splitlines() if nid.strip()]
+    ))
+
+    total_containers = len(candidate_ids) + len(sidecar_ids)
+    is_clean = len(candidate_ids) == 0 and len(sidecar_ids) == 0 and len(network_ids) == 0
+
     evidence["container_cleanup"] = {
-        "running_containers_found": len(running_ids),
-        "clean": len(running_ids) == 0,
+        "clean": is_clean,
+        "candidate_containers_found": len(candidate_ids),
+        "sidecar_containers_found": len(sidecar_ids),
+        "internal_networks_found": len(network_ids),
+        "running_containers_found": total_containers,
+        "queries_succeeded": True,
     }
-    if len(running_ids) > 0:
-        raise RuntimeError(f"Orphan agent containers found running: {running_ids}")
-    print("  ✓ Zero orphan agent containers verified")
+
+    if not is_clean:
+        raise RuntimeError(
+            f"Zero-orphan verification failed! Lingering resources detected:\n"
+            f"  candidate_containers: {candidate_ids}\n"
+            f"  sidecar_containers: {sidecar_ids}\n"
+            f"  internal_networks: {network_ids}"
+        )
+    print("  ✓ Zero orphan agent containers, sidecars, and internal networks verified")
 
 
 def resolve_maintainer_signing_key(signing_key_file: Path | None = None) -> str:
@@ -749,6 +793,10 @@ def main() -> None:
 
     # 0. Enforce clean Git working tree before qualification
     status_proc = run_command_sync(["git", "status", "--porcelain"])
+    if status_proc.returncode != 0:
+        raise RuntimeError(
+            f"Failed to execute git status --porcelain (exit code {status_proc.returncode}): {status_proc.stderr.strip()}"
+        )
     dirty_entries = [l.strip() for l in status_proc.stdout.splitlines() if l.strip()]
     if dirty_entries:
         raise RuntimeError(

@@ -27,6 +27,14 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from dftworld_bench.core.model_proxy import ModelGatewayProxy
+from dftworld_bench.core.sidecar_topology import (
+    CANDIDATE_ROLE_LABEL,
+    SidecarTopologyManager,
+    TopologyCleanupError,
+    TopologyError,
+    TopologyRollbackError,
+    _SIDECAR_TCP_FORWARDER_PY,
+)
 from dftworld_bench.core.tool_watchdog import ToolWatchdog
 
 class AgentExecutionError(RuntimeError):
@@ -620,6 +628,7 @@ class ClaudeCodeAdapter:
             "total_tokens": None,
         }
         self._model_proxy: ModelGatewayProxy | None = None
+        self._topology: SidecarTopologyManager | None = None
 
     def attach_budget_ledger(self, ledger: Any) -> None:
         self._budget_ledger = ledger
@@ -684,63 +693,35 @@ class ClaudeCodeAdapter:
             ephemeral_token = self._model_proxy.ephemeral_token
 
         # 3. Create OS-level internal docker network & optional dual-homed sidecar gateway
-        import uuid
-        run_uid = uuid.uuid4().hex[:10]
-        net_name = f"mlffbench-net-{run_uid}"
-        self.internal_net = net_name
-
-        net_proc = await asyncio.create_subprocess_exec(
-            "docker", "network", "create", "--internal", net_name,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, n_err = await net_proc.communicate()
-        if net_proc.returncode != 0:
-            raise RuntimeError(
-                f"failed to create internal docker network {net_name}: {n_err.decode('utf-8', errors='replace').strip()}"
-            )
-
+        self._topology = SidecarTopologyManager(image=self.image)
         candidate_base_url: str | None = None
-        if host_port is not None:
-            sidecar_cmd = [
-                "docker", "run", "-d", "--rm",
-                "--name", f"sidecar-{run_uid}",
-                "--network", "bridge",
-                "--add-host", "host.docker.internal:host-gateway",
-                self.image,
-                "python3", "-c", _SIDECAR_TCP_FORWARDER_PY,
-                "host.docker.internal", str(host_port), "8080",
-            ]
-            sc_proc = await asyncio.create_subprocess_exec(
-                *sidecar_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            sc_out, sc_err = await sc_proc.communicate()
-            if sc_proc.returncode != 0:
-                raise RuntimeError(
-                    f"failed to start model gateway sidecar: {sc_err.decode('utf-8', errors='replace').strip()}"
-                )
-            self.sidecar_cid = sc_out.decode("utf-8", errors="replace").strip()
+        try:
+            self.internal_net = await self._topology.create_network()
+            if host_port is not None:
+                self.sidecar_cid = await self._topology.start_sidecar(host_port=host_port)
+                candidate_base_url = "http://model-gateway:8080"
 
-            conn_proc = await asyncio.create_subprocess_exec(
-                "docker", "network", "connect", "--alias", "model-gateway", net_name, self.sidecar_cid,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+            # 4. Launch hardened Candidate container attached ONLY to the internal network
+            cid = await self._start_container(
+                candidate_base_url, ephemeral_token, settings_file, trusted_skills_dir,
+                network_name=self.internal_net,
             )
-            _, c_err = await conn_proc.communicate()
-            if conn_proc.returncode != 0:
-                raise RuntimeError(
-                    f"failed to connect sidecar to internal network: {c_err.decode('utf-8', errors='replace').strip()}"
-                )
-            candidate_base_url = "http://model-gateway:8080"
-
-        # 4. Launch hardened Candidate container attached ONLY to the internal network
-        cid = await self._start_container(
-            candidate_base_url, ephemeral_token, settings_file, trusted_skills_dir,
-            network_name=self.internal_net,
-        )
-        self.container_id = cid
+            self.container_id = cid
+            self._topology.register_candidate(cid)
+        except Exception:
+            # Fail-closed atomic rollback on ANY startup failure
+            if self._topology:
+                try:
+                    await self._topology.rollback()
+                finally:
+                    self._topology = None
+                    self.container_id = None
+                    self.sidecar_cid = None
+                    self.internal_net = None
+            if self._model_proxy:
+                await self._model_proxy.close()
+                self._model_proxy = None
+            raise
 
         # 5. Execute Claude Code CLI with fail-closed monitoring
         try:
@@ -770,7 +751,10 @@ class ClaudeCodeAdapter:
             "--tmpfs", "/tmp:rw,noexec,nosuid,size=512m",
             "-v", f"{self.workspace}:/app",
             "-w", "/app",
+            "--label", CANDIDATE_ROLE_LABEL,
         ]
+        if self._topology:
+            cmd.extend(["--label", f"mlffbench.run_id={self._topology.run_uid}"])
         if network_name:
             cmd.extend(["--network", network_name])
 
@@ -1028,36 +1012,64 @@ class ClaudeCodeAdapter:
         meta_file.write_text(json.dumps(metainfo, indent=2, ensure_ascii=False), encoding="utf-8")
 
     async def close(self) -> None:
+        errors: list[str] = []
         if self._model_proxy:
-            await self._model_proxy.close()
+            try:
+                await self._model_proxy.close()
+            except Exception as e:
+                errors.append(f"model_proxy close: {e}")
             self._model_proxy = None
-        if self.container_id:
-            cid = self.container_id
-            self.container_id = None
-            proc = await asyncio.create_subprocess_exec(
-                "docker", "stop", cid,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await proc.communicate()
-        if self.sidecar_cid:
-            scid = self.sidecar_cid
-            self.sidecar_cid = None
-            proc = await asyncio.create_subprocess_exec(
-                "docker", "stop", scid,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await proc.communicate()
-        if self.internal_net:
-            net = self.internal_net
-            self.internal_net = None
-            proc = await asyncio.create_subprocess_exec(
-                "docker", "network", "rm", net,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await proc.communicate()
+
+        if self._topology:
+            try:
+                await self._topology.close()
+            except Exception as e:
+                errors.append(f"topology close: {e}")
+            finally:
+                self._topology = None
+                self.container_id = None
+                self.sidecar_cid = None
+                self.internal_net = None
+        else:
+            # Fallback direct cleanup if topology manager was bypassed
+            if self.container_id:
+                cid = self.container_id
+                self.container_id = None
+                proc = await asyncio.create_subprocess_exec(
+                    "docker", "stop", cid,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, err = await proc.communicate()
+                if proc.returncode != 0 and b"No such container" not in err:
+                    errors.append(f"docker stop candidate failed: {err.decode('utf-8', errors='replace').strip()}")
+
+            if self.sidecar_cid:
+                scid = self.sidecar_cid
+                self.sidecar_cid = None
+                proc = await asyncio.create_subprocess_exec(
+                    "docker", "stop", scid,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, err = await proc.communicate()
+                if proc.returncode != 0 and b"No such container" not in err:
+                    errors.append(f"docker stop sidecar failed: {err.decode('utf-8', errors='replace').strip()}")
+
+            if self.internal_net:
+                net = self.internal_net
+                self.internal_net = None
+                proc = await asyncio.create_subprocess_exec(
+                    "docker", "network", "rm", net,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, err = await proc.communicate()
+                if proc.returncode != 0 and b"No such network" not in err:
+                    errors.append(f"docker network rm failed: {err.decode('utf-8', errors='replace').strip()}")
+
+        if errors:
+            raise RuntimeError(f"Errors occurred during ClaudeCodeAdapter teardown: {'; '.join(errors)}")
 
     def collect_logs(self) -> dict[str, Any]:
         return {

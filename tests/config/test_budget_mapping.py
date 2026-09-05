@@ -131,8 +131,9 @@ def test_candidate_agent_gate_fail_closed_on_blocked_status():
         }
         _create_signed_receipt(receipt_path, payload, priv)
 
+        clean_status = mock.Mock(returncode=0, stdout="", stderr="")
         with mock.patch.object(QualificationTrustStore, "resolve_public_key_hex", return_value=pub_hex):
-            with mock.patch.dict(os.environ, {"MLFFBENCH_SKIP_CLEAN_TREE_CHECK": "1"}):
+            with mock.patch("subprocess.run", return_value=clean_status):
                 with pytest.raises(RuntimeError, match="Candidate Agent qualification status is 'BLOCKED'"):
                     _verify_candidate_agent_gate(
                         dummy_task,
@@ -222,14 +223,22 @@ def test_candidate_agent_gate_promoted_admitted():
                 },
                 "canary_5_run_lock_compliance": {"status": "PASS"},
                 "real_agent_execution": {"executed": True, "status": "PASS"},
-                "container_cleanup": {"running_containers_found": 0, "clean": True},
+                "container_cleanup": {
+                    "running_containers_found": 0,
+                    "clean": True,
+                    "candidate_containers_found": 0,
+                    "sidecar_containers_found": 0,
+                    "internal_networks_found": 0,
+                    "queries_succeeded": True,
+                },
                 "image_digest": img_digest,
             },
         }
         _create_signed_receipt(receipt_path, payload, priv)
 
+        clean_status = mock.Mock(returncode=0, stdout="", stderr="")
         with mock.patch.object(QualificationTrustStore, "resolve_public_key_hex", return_value=pub_hex):
-            with mock.patch.dict(os.environ, {"MLFFBENCH_SKIP_CLEAN_TREE_CHECK": "1"}):
+            with mock.patch("subprocess.run", return_value=clean_status):
                 _verify_candidate_agent_gate(
                     dummy_task,
                     is_formal=True,
@@ -250,9 +259,52 @@ def test_candidate_agent_gate_rejects_dirty_working_tree():
         _create_signed_receipt(receipt_path, {"status": "PROMOTED"}, priv)
 
         with mock.patch.object(QualificationTrustStore, "resolve_public_key_hex", return_value=pub_hex):
-            with mock.patch.dict(os.environ, {}, clear=False):
-                os.environ.pop("MLFFBENCH_SKIP_CLEAN_TREE_CHECK", None)
-                fake_status = mock.Mock(returncode=0, stdout=" M dirty_file.py\n")
+            fake_status = mock.Mock(returncode=0, stdout=" M dirty_file.py\n", stderr="")
+            with mock.patch("subprocess.run", return_value=fake_status):
+                with pytest.raises(RuntimeError, match="Git working tree is dirty"):
+                    _verify_candidate_agent_gate(
+                        dummy_task,
+                        is_formal=True,
+                        receipt_path=receipt_path,
+                        agent_image_digest="sha256:" + "0" * 64,
+                    )
+
+
+def test_candidate_agent_gate_rejects_git_status_failure():
+    """Formal admission must fail-closed if git status command fails (returncode != 0)."""
+    dummy_task = mock.Mock(spec=TaskSpec)
+    priv = Ed25519PrivateKey.generate()
+    pub_hex = priv.public_key().public_bytes_raw().hex()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        receipt_path = Path(tmpdir) / "receipt.json"
+        _create_signed_receipt(receipt_path, {"status": "PROMOTED"}, priv)
+
+        with mock.patch.object(QualificationTrustStore, "resolve_public_key_hex", return_value=pub_hex):
+            failing_status = mock.Mock(returncode=128, stdout="", stderr="fatal: not a git repository")
+            with mock.patch("subprocess.run", return_value=failing_status):
+                with pytest.raises(RuntimeError, match="git status failed with exit code 128"):
+                    _verify_candidate_agent_gate(
+                        dummy_task,
+                        is_formal=True,
+                        receipt_path=receipt_path,
+                        agent_image_digest="sha256:" + "0" * 64,
+                    )
+
+
+def test_candidate_agent_gate_ignores_skip_clean_tree_env():
+    """Formal admission must NEVER allow MLFFBENCH_SKIP_CLEAN_TREE_CHECK to bypass dirty tree."""
+    dummy_task = mock.Mock(spec=TaskSpec)
+    priv = Ed25519PrivateKey.generate()
+    pub_hex = priv.public_key().public_bytes_raw().hex()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        receipt_path = Path(tmpdir) / "receipt.json"
+        _create_signed_receipt(receipt_path, {"status": "PROMOTED"}, priv)
+
+        with mock.patch.object(QualificationTrustStore, "resolve_public_key_hex", return_value=pub_hex):
+            with mock.patch.dict(os.environ, {"MLFFBENCH_SKIP_CLEAN_TREE_CHECK": "1"}):
+                fake_status = mock.Mock(returncode=0, stdout="?? untracked.py\n", stderr="")
                 with mock.patch("subprocess.run", return_value=fake_status):
                     with pytest.raises(RuntimeError, match="Git working tree is dirty"):
                         _verify_candidate_agent_gate(

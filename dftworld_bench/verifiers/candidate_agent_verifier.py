@@ -220,10 +220,23 @@ class CandidateAgentVerifier:
             reasons.append("Canary 5 RunLock verification failed")
         anchors["lock_digest"] = lock_digest
 
-        # 7. Check container cleanup
+        # 7. Check container cleanup (Zero-Orphan multi-dimensional assertions)
         cleanup = evidence.get("container_cleanup", {})
-        if cleanup.get("running_containers_found", 0) > 0:
-            reasons.append(f"Orphan agent containers found after run: {cleanup.get('running_containers_found')}")
+        if not isinstance(cleanup, dict):
+            reasons.append("Missing required container_cleanup evidence block")
+        else:
+            if not cleanup.get("clean", False):
+                reasons.append("Container cleanup clean status is False")
+            if not cleanup.get("queries_succeeded", False):
+                reasons.append("Container cleanup audit queries reported failure")
+            if cleanup.get("candidate_containers_found", 0) > 0:
+                reasons.append(f"Orphan candidate containers found after run: {cleanup.get('candidate_containers_found')}")
+            if cleanup.get("sidecar_containers_found", 0) > 0:
+                reasons.append(f"Orphan sidecar containers found after run: {cleanup.get('sidecar_containers_found')}")
+            if cleanup.get("internal_networks_found", 0) > 0:
+                reasons.append(f"Orphan internal networks found after run: {cleanup.get('internal_networks_found')}")
+            if cleanup.get("running_containers_found", 0) > 0:
+                reasons.append(f"Orphan running containers found after run: {cleanup.get('running_containers_found')}")
 
         passed = len(reasons) == 0
 

@@ -1012,23 +1012,25 @@ def _verify_candidate_agent_gate(
     except Exception as exc:
         raise RuntimeError(f"Failed to parse qualification receipt {receipt_path}: {exc}") from exc
 
-    # 0. Working tree cleanliness verification (Reject dirty or untracked state)
-    if os.getenv("MLFFBENCH_SKIP_CLEAN_TREE_CHECK") != "1":
-        import subprocess
-        git_status = subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
+    # 0. Working tree cleanliness verification (Reject dirty, untracked, or error state)
+    import subprocess
+    git_status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if git_status.returncode != 0:
+        raise RuntimeError(
+            f"Candidate Agent gate rejected: git status failed with exit code {git_status.returncode}: {git_status.stderr.strip()}"
         )
-        if git_status.returncode == 0:
-            dirty_lines = [l.strip() for l in git_status.stdout.splitlines() if l.strip()]
-            if dirty_lines:
-                raise RuntimeError(
-                    f"Candidate Agent gate rejected: Git working tree is dirty ({len(dirty_lines)} unstaged/untracked files):\n"
-                    + "\n".join(f"  {line}" for line in dirty_lines[:10])
-                    + "\nFormal benchmark requires a completely clean Git working tree matching the signed qualification receipt."
-                )
+    dirty_lines = [l.strip() for l in git_status.stdout.splitlines() if l.strip()]
+    if dirty_lines:
+        raise RuntimeError(
+            f"Candidate Agent gate rejected: Git working tree is dirty ({len(dirty_lines)} unstaged/untracked files):\n"
+            + "\n".join(f"  {line}" for line in dirty_lines[:10])
+            + "\nFormal benchmark requires a completely clean Git working tree matching the signed qualification receipt."
+        )
 
     # 1. Exact status assertions (zero fail-open)
     verdict = receipt_data.get("verdict", {})
@@ -1095,9 +1097,17 @@ def _verify_candidate_agent_gate(
         )
 
     cleanup = evidence.get("container_cleanup")
-    if not isinstance(cleanup, dict) or cleanup.get("running_containers_found", 1) != 0:
+    if (
+        not isinstance(cleanup, dict)
+        or not cleanup.get("clean")
+        or not cleanup.get("queries_succeeded")
+        or cleanup.get("candidate_containers_found", 1) != 0
+        or cleanup.get("sidecar_containers_found", 1) != 0
+        or cleanup.get("internal_networks_found", 1) != 0
+        or cleanup.get("running_containers_found", 1) != 0
+    ):
         raise RuntimeError(
-            f"Candidate Agent receipt reports dangling containers or missing cleanup evidence: {cleanup}"
+            f"Candidate Agent receipt reports dangling containers, uncleaned networks, or invalid cleanup audit: {cleanup}"
         )
 
     # 5. candidate_image_digest 必须存在且等于 RunLock

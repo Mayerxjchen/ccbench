@@ -70,8 +70,12 @@ def valid_evidence() -> dict[str, Any]:
             "lock_verified": True,
         },
         "container_cleanup": {
-            "running_containers_found": 0,
             "clean": True,
+            "candidate_containers_found": 0,
+            "sidecar_containers_found": 0,
+            "internal_networks_found": 0,
+            "running_containers_found": 0,
+            "queries_succeeded": True,
         },
     }
 
@@ -173,10 +177,11 @@ def test_verifier_rejects_mismatched_image_digest(valid_evidence: dict[str, Any]
 
 def test_verifier_rejects_orphan_containers(valid_evidence: dict[str, Any]):
     valid_evidence["container_cleanup"]["running_containers_found"] = 2
+    valid_evidence["container_cleanup"]["clean"] = False
     verifier = CandidateAgentVerifier()
     verdict = verifier.verify(valid_evidence)
     assert verdict.passed is False
-    assert any("Orphan agent containers found" in r for r in verdict.reasons)
+    assert any("Orphan" in r and "containers found" in r for r in verdict.reasons)
 
 
 def test_verifier_refuses_to_seal_without_explicit_signing_key(valid_evidence: dict[str, Any], tmp_path: Path):

@@ -1,4 +1,4 @@
-"""Integration tests for the production Model Gateway Sidecar and internal network topology."""
+"""Integration and fault-injection tests for production Model Gateway Sidecar and topology manager."""
 
 from __future__ import annotations
 
@@ -12,9 +12,15 @@ from pathlib import Path
 from typing import Any
 import pytest
 
-from dftworld_bench.agents import _SIDECAR_TCP_FORWARDER_PY
+from dftworld_bench.agents import ClaudeCodeAdapter
 from dftworld_bench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPolicy
 from dftworld_bench.core.model_proxy import ModelGatewayProxy
+from dftworld_bench.core.sidecar_topology import (
+    SidecarTopologyManager,
+    TopologyCleanupError,
+    TopologyError,
+    TopologyRollbackError,
+)
 
 AGENT_IMAGE = "mlffbench-candidate-claude-code-sandbox:v1"
 OVER_LIMIT_ATTACK_STRING = "CANARY_OVER_LIMIT_LEAK_PROBE_UNAUTHORIZED"
@@ -72,8 +78,8 @@ class DummySSEHandler(http.server.BaseHTTPRequestHandler):
 
 
 @pytest.mark.skipif(not _docker_available(), reason="Docker daemon not running")
-def test_production_sidecar_internal_network_topology():
-    """Verify Candidate internal network -> dual-homed sidecar -> host proxy -> upstream."""
+def test_production_sidecar_topology_manager_lifecycle():
+    """Verify Candidate internal network -> dual-homed sidecar -> host proxy managed by SidecarTopologyManager."""
     async def _test():
         async def run_cmd(cmd: list[str]) -> tuple[int, str, str]:
             proc = await asyncio.create_subprocess_exec(
@@ -82,7 +88,7 @@ def test_production_sidecar_internal_network_topology():
                 stderr=asyncio.subprocess.PIPE,
             )
             out, err = await proc.communicate()
-            return proc.returncode, out.decode("utf-8", errors="replace"), err.decode("utf-8", errors="replace")
+            return proc.returncode or 0, out.decode("utf-8", errors="replace"), err.decode("utf-8", errors="replace")
 
         DummySSEHandler.req_count = 0
         server = http.server.HTTPServer(("127.0.0.1", 0), DummySSEHandler)
@@ -109,27 +115,13 @@ def test_production_sidecar_internal_network_topology():
         port = await proxy.start()
         token = proxy.ephemeral_token
 
-        run_uid = uuid.uuid4().hex[:8]
-        net_name = f"test-net-{run_uid}"
-        sidecar_name = f"test-sidecar-{run_uid}"
-
-        await run_cmd(["docker", "network", "create", "--internal", net_name])
+        topology = SidecarTopologyManager(image=AGENT_IMAGE)
+        net_name = await topology.create_network(prefix="test-net")
 
         try:
-            _, sc_out, _ = await run_cmd([
-                "docker", "run", "-d", "--rm",
-                "--name", sidecar_name,
-                "--network", "bridge",
-                "--add-host", "host.docker.internal:host-gateway",
-                AGENT_IMAGE,
-                "python3", "-c", _SIDECAR_TCP_FORWARDER_PY,
-                "host.docker.internal", str(port), "8080",
-            ])
-            sc_cid = sc_out.strip()
-
-            await run_cmd([
-                "docker", "network", "connect", "--alias", "model-gateway", net_name, sc_cid,
-            ])
+            sc_cid = await topology.start_sidecar(host_port=port, prefix="test-sidecar-")
+            assert topology.sidecar_cid == sc_cid
+            assert topology.network_name == net_name
 
             await asyncio.sleep(0.5)
 
@@ -209,9 +201,124 @@ except OSError:
             assert "429 Too Many Requests" in stdout_3 or "Budget Exceeded" in stdout_3
 
         finally:
-            await run_cmd(["docker", "rm", "-f", sidecar_name])
-            await run_cmd(["docker", "network", "rm", net_name])
+            await topology.close()
             await proxy.close()
             server.shutdown()
+
+        # Check zero dangling resources
+        assert topology.is_closed is True
+        assert topology.network_name is None
+        assert topology.sidecar_cid is None
+
+        # Verify network is removed from host docker
+        rc_net, stdout_net, _ = await run_cmd(["docker", "network", "ls", "-q", "--filter", f"name={net_name}"])
+        assert rc_net == 0
+        assert stdout_net.strip() == ""
+
+    asyncio.run(_test())
+
+
+@pytest.mark.skipif(not _docker_available(), reason="Docker daemon not running")
+def test_sidecar_launch_failure_triggers_atomic_rollback():
+    """Fault injection: sidecar launch failure must trigger atomic rollback of the internal network."""
+    async def _test():
+        topology = SidecarTopologyManager(image=AGENT_IMAGE)
+        net_name = await topology.create_network(prefix="test-rollback-net")
+
+        # Inject failure: supply an impossible docker arg that causes docker run to immediately exit non-zero
+        with pytest.raises(TopologyError) as exc_info:
+            await topology.start_sidecar(
+                host_port=12345,
+                prefix="test-sc-fail-",
+                extra_docker_args=["--invalid-docker-flag-strictly-failing"],
+            )
+
+        assert "Failed to start model gateway sidecar" in str(exc_info.value)
+        # Verify rollback wiped internal state
+        assert topology.network_name is None
+        assert topology.sidecar_cid is None
+
+        # Verify network was cleaned up from Docker engine
+        proc = await asyncio.create_subprocess_exec(
+            "docker", "network", "ls", "-q", "--filter", f"name={net_name}",
+            stdout=asyncio.subprocess.PIPE,
+        )
+        out, _ = await proc.communicate()
+        assert out.decode("utf-8").strip() == "", "Network was not rolled back upon sidecar failure!"
+
+    asyncio.run(_test())
+
+
+@pytest.mark.skipif(not _docker_available(), reason="Docker daemon not running")
+def test_candidate_start_failure_triggers_adapter_rollback(tmp_path: Path):
+    """Fault injection: candidate container start failure must rollback sidecar and network."""
+    async def _test():
+        case_dir = tmp_path / "case"
+        case_dir.mkdir(parents=True, exist_ok=True)
+        (case_dir / "Dockerfile").write_text("FROM scratch\n")
+
+        adapter = ClaudeCodeAdapter(
+            model="test-model",
+            threads_root=tmp_path / "threads",
+            task_name="fail_task",
+            case_dir=case_dir,
+            image=AGENT_IMAGE,
+            api_endpoint="http://127.0.0.1:9",
+            api_key="test-key",
+        )
+        await adapter.prepare()
+
+        # Inject failure into _start_container: make it fail
+        async def _mock_failing_start(*args, **kwargs):
+            raise RuntimeError("Injected Candidate Container Startup Crash")
+
+        adapter._start_container = _mock_failing_start
+
+        with pytest.raises(RuntimeError, match="Injected Candidate Container Startup Crash"):
+            await adapter.start("test instruction")
+
+        # Verify adapter cleaned up topology & proxy
+        assert adapter._topology is None
+        assert adapter.container_id is None
+        assert adapter.sidecar_cid is None
+        assert adapter.internal_net is None
+        assert adapter._model_proxy is None
+
+    asyncio.run(_test())
+
+
+@pytest.mark.skipif(not _docker_available(), reason="Docker daemon not running")
+def test_topology_close_idempotency():
+    """Verify close() is safe to call multiple times without side effects or errors."""
+    async def _test():
+        topology = SidecarTopologyManager(image=AGENT_IMAGE)
+        await topology.create_network(prefix="test-idem-net")
+        # Call close multiple times
+        await topology.close()
+        await topology.close()
+        await topology.close()
+        assert topology.is_closed is True
+        assert topology.network_name is None
+        assert topology.sidecar_cid is None
+
+    asyncio.run(_test())
+
+
+@pytest.mark.skipif(not _docker_available(), reason="Docker daemon not running")
+def test_topology_close_error_propagation():
+    """Verify teardown errors are collected and raised as TopologyCleanupError rather than swallowed."""
+    async def _test():
+        topology = SidecarTopologyManager(image=AGENT_IMAGE)
+        # Register a fake CID that cannot be stopped cleanly (or command fails)
+        async def _failing_cmd(cmd: list[str]) -> tuple[int, str, str]:
+            if "rm" in cmd:
+                return 1, "", "Mock Docker daemon filesystem corruption"
+            return 0, "", ""
+
+        topology._run_cmd = _failing_cmd
+        topology.candidate_cid = "fake-cid-123"
+
+        with pytest.raises(TopologyCleanupError, match="Mock Docker daemon filesystem corruption"):
+            await topology.close()
 
     asyncio.run(_test())
