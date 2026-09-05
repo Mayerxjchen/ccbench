@@ -345,10 +345,11 @@ for step in "${STEPS[@]}"; do
                 "$ROOT"
             ;;
         agent-claude-code)
-            rmi_if_force mlffbench-agent-claude-code:v1
-            echo "=== Building mlffbench-agent-claude-code:v1 ==="
+            rmi_if_force mlffbench-candidate-claude-code-sandbox:v1
+            echo "=== Building mlffbench-candidate-claude-code-sandbox:v1 ==="
             docker build \
                 -f "$DIR/agent-claude-code/Dockerfile" \
+                -t mlffbench-candidate-claude-code-sandbox:v1 \
                 -t mlffbench-agent-claude-code:v1 \
                 "$DIR/agent-claude-code"
             ;;

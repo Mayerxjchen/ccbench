@@ -733,15 +733,44 @@ def resolve_harness_provenance(
         run_config=run_config,
     )
 
+    # Candidate Agent Qualification Gate mode determination
+    is_formal = False
+    if run_metadata and run_metadata.get("counted"):
+        is_formal = True
+    elif run_config and getattr(run_config, "mode", None) in ("formal", "pilot"):
+        is_formal = True
+    elif os.getenv("MLFFBENCH_ENFORCE_AGENT_GATE") == "1":
+        is_formal = True
+
     # Frozen experiment from profile selections (bind claude-code-formal if available).
     agent_lock_path = Path(__file__).resolve().parent / "base-env-build" / "agent-claude-code" / "claude-code.lock.json"
     agent_image_digest = None
-    if agent_lock_path.is_file():
+    if not agent_lock_path.is_file():
+        if is_formal:
+            raise RuntimeError(
+                f"Candidate Agent lock file not found at {agent_lock_path}. "
+                "Formal benchmark requires locked candidate image digest."
+            )
+    else:
         try:
             agent_lock_data = json.loads(agent_lock_path.read_text(encoding="utf-8"))
-            agent_image_digest = agent_lock_data.get("built_image_digest")
-        except Exception:
-            pass
+            candidate_digest = agent_lock_data.get("built_image_digest")
+            if not candidate_digest or not isinstance(candidate_digest, str) or not candidate_digest.startswith("sha256:") or len(candidate_digest) != 71:
+                if is_formal:
+                    raise RuntimeError(
+                        f"Candidate Agent lock file at {agent_lock_path} contains invalid 'built_image_digest': {candidate_digest!r}. "
+                        "Formal benchmark requires valid sha256 locked image digest."
+                    )
+            else:
+                agent_image_digest = candidate_digest
+        except Exception as exc:
+            if is_formal:
+                if isinstance(exc, RuntimeError):
+                    raise
+                raise RuntimeError(
+                    f"Failed to parse Candidate Agent image lock file at {agent_lock_path}: {exc}. "
+                    "Formal benchmark requires valid locked image digest."
+                ) from exc
 
     agent_profile_name = "claude-code-formal" if "claude-code-formal" in registry.names("agents") else "formal-long"
     selection: dict[str, str] = {"agent": agent_profile_name, "api": "default"}
@@ -983,6 +1012,24 @@ def _verify_candidate_agent_gate(
     except Exception as exc:
         raise RuntimeError(f"Failed to parse qualification receipt {receipt_path}: {exc}") from exc
 
+    # 0. Working tree cleanliness verification (Reject dirty or untracked state)
+    if os.getenv("MLFFBENCH_SKIP_CLEAN_TREE_CHECK") != "1":
+        import subprocess
+        git_status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if git_status.returncode == 0:
+            dirty_lines = [l.strip() for l in git_status.stdout.splitlines() if l.strip()]
+            if dirty_lines:
+                raise RuntimeError(
+                    f"Candidate Agent gate rejected: Git working tree is dirty ({len(dirty_lines)} unstaged/untracked files):\n"
+                    + "\n".join(f"  {line}" for line in dirty_lines[:10])
+                    + "\nFormal benchmark requires a completely clean Git working tree matching the signed qualification receipt."
+                )
+
     # 1. Exact status assertions (zero fail-open)
     verdict = receipt_data.get("verdict", {})
     status = receipt_data.get("status") or verdict.get("status")
@@ -1035,6 +1082,8 @@ def _verify_candidate_agent_gate(
         raise RuntimeError("Candidate Agent Canary 2 failed raw socket kernel-level blockage verification.")
 
     c4 = evidence["canary_4_model_gateway_and_budget"]
+    if not c4.get("sidecar_gateway_verified"):
+        raise RuntimeError("Candidate Agent Canary 4 failed production dual-homed sidecar communication verification.")
     if not c4.get("budget_cutoff_verified") or c4.get("budget_cutoff_http_code") != 429:
         raise RuntimeError("Candidate Agent Canary 4 failed live budget cut-off enforcement.")
 
@@ -1052,12 +1101,16 @@ def _verify_candidate_agent_gate(
         )
 
     # 5. candidate_image_digest 必须存在且等于 RunLock
+    if not agent_image_digest or not agent_image_digest.startswith("sha256:"):
+        raise RuntimeError(
+            f"Formal benchmark rejected: missing or invalid RunLock agent_image_digest ({agent_image_digest!r})."
+        )
     receipt_image_digest = receipt_data.get("candidate_image_digest")
     if not receipt_image_digest:
         raise RuntimeError(
             "Candidate Agent receipt missing required 'candidate_image_digest'. Formal benchmark rejected."
         )
-    if agent_image_digest and receipt_image_digest != agent_image_digest:
+    if receipt_image_digest != agent_image_digest:
         raise RuntimeError(
             f"Candidate Agent receipt image digest mismatch: receipt={receipt_image_digest}, lock={agent_image_digest}"
         )
@@ -1455,6 +1508,7 @@ async def amain(argv: list[str] | None = None) -> int:
                 forbidden_env_names=frozenset(
                     {base_run_config.api.endpoint_env, base_run_config.api.credential_env}
                 ),
+                expected_image_digest=provenance.lock.payload.get("agent", {}).get("agent_image_digest"),
             )
             spec = HarnessSpec(
                 case_id=task.name,

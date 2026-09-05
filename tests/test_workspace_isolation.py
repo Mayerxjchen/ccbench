@@ -455,7 +455,7 @@ def test_candidate_env_rejects_api_secret_names():
             max_turns=8,
             threads_root=Path("/tmp/t"),
             task_name="001-hello",
-            image="mlffbench-agent-claude-code:v1",
+            image="mlffbench-candidate-claude-code-sandbox:v1",
             case_dir=Path("/tmp/c"),
             container_env={
                 "DFTWORLD_API_KEY": "sk-fake",

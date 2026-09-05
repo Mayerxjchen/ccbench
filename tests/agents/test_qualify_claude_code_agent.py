@@ -23,7 +23,7 @@ def valid_evidence() -> dict[str, Any]:
     return {
         "canary_1_image_isolation": {
             "status": "PASS",
-            "image_name": "mlffbench-agent-claude-code:v1",
+            "image_name": "mlffbench-candidate-claude-code-sandbox:v1",
             "image_digest": image_digest,
             "probe_returncode": 0,
             "probe_stdout": (
@@ -54,6 +54,7 @@ def valid_evidence() -> dict[str, Any]:
         },
         "canary_4_model_gateway_and_budget": {
             "status": "PASS",
+            "sidecar_gateway_verified": True,
             "proxy_auth_verified": True,
             "budget_cutoff_verified": True,
             "budget_cutoff_http_code": 429,
@@ -233,4 +234,12 @@ def test_verifier_rejects_canary_4_no_overflow_accounting(valid_evidence: dict[s
     verdict = verifier.verify(valid_evidence)
     assert verdict.passed is False
     assert any("did not record overflow accounting" in r for r in verdict.reasons)
+
+
+def test_verifier_rejects_canary_4_missing_sidecar(valid_evidence: dict[str, Any]):
+    valid_evidence["canary_4_model_gateway_and_budget"]["sidecar_gateway_verified"] = False
+    verifier = CandidateAgentVerifier()
+    verdict = verifier.verify(valid_evidence)
+    assert verdict.passed is False
+    assert any("failed to verify production dual-homed sidecar" in r for r in verdict.reasons)
 

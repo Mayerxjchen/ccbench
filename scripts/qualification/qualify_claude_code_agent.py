@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from dftworld_bench.agents import ClaudeCodeAdapter
+from dftworld_bench.agents import ClaudeCodeAdapter, _SIDECAR_TCP_FORWARDER_PY
 from dftworld_bench.config.profiles import ProfileRegistry, canonical_json, digest_bytes
 from dftworld_bench.config.resolver import construct_experiment, resolve_formal
 from dftworld_bench.contracts.case import CaseSpec
@@ -44,7 +44,7 @@ from dftworld_bench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPoli
 from dftworld_bench.core.model_proxy import ModelGatewayProxy
 from dftworld_bench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
 
-AGENT_IMAGE = "mlffbench-agent-claude-code:v1"
+AGENT_IMAGE = "mlffbench-candidate-claude-code-sandbox:v1"
 
 
 def run_command_sync(cmd: list[str], timeout: float = 30.0) -> subprocess.CompletedProcess[str]:
@@ -317,7 +317,9 @@ class DummyUpstreamHandler(http.server.BaseHTTPRequestHandler):
 
 
 async def _run_canary_4_async() -> dict[str, Any]:
-    """Canary 4 Async runner for Model Gateway Proxy."""
+    """Canary 4 Async runner for Model Gateway Proxy via production dual-homed sidecar topology."""
+    import uuid
+
     # 0. Reset upstream counter and start live Dummy SSE upstream on host
     DummyUpstreamHandler.req_count = 0
     server = http.server.HTTPServer(("127.0.0.1", 0), DummyUpstreamHandler)
@@ -348,6 +350,16 @@ async def _run_canary_4_async() -> dict[str, Any]:
     port = await proxy.start()
     token = proxy.ephemeral_token
 
+    # 2. Setup Production Topology: internal network + dual-homed model-gateway sidecar
+    run_uid = uuid.uuid4().hex[:8]
+    net_name = f"qual-net-{run_uid}"
+    sidecar_name = f"sidecar-qual-{run_uid}"
+
+    net_res = run_command_sync(["docker", "network", "create", "--internal", net_name])
+    if net_res.returncode != 0:
+        raise RuntimeError(f"Failed to create internal network for Canary 4: {net_res.stderr}")
+
+    sidecar_gateway_verified = False
     proxy_auth_verified = False
     budget_cutoff_verified = False
     budget_http_code = 0
@@ -357,17 +369,66 @@ async def _run_canary_4_async() -> dict[str, Any]:
     ledger_after_overflow = 0
 
     try:
-        # Step 1: Real container curl to host proxy with invalid token -> 401
+        # Launch sidecar on bridge network with host-gateway resolution
+        sc_run = run_command_sync([
+            "docker", "run", "-d", "--rm",
+            "--name", sidecar_name,
+            "--network", "bridge",
+            "--add-host", "host.docker.internal:host-gateway",
+            AGENT_IMAGE,
+            "python3", "-c", _SIDECAR_TCP_FORWARDER_PY,
+            "host.docker.internal", str(port), "8080",
+        ])
+        if sc_run.returncode != 0:
+            raise RuntimeError(f"Failed to start model-gateway sidecar: {sc_run.stderr}")
+        sidecar_cid = sc_run.stdout.strip()
+
+        # Connect sidecar to internal network with alias 'model-gateway'
+        conn_res = run_command_sync([
+            "docker", "network", "connect", "--alias", "model-gateway", net_name, sidecar_cid,
+        ])
+        if conn_res.returncode != 0:
+            raise RuntimeError(f"Failed to connect sidecar to internal network: {conn_res.stderr}")
+
+        await asyncio.sleep(0.5)  # Wait for sidecar TCP forwarder to bind 8080
+        sidecar_gateway_verified = True
+        print(f"  ✓ Production Dual-Homed Sidecar attached: {sidecar_name} (bridge + {net_name})")
+
+        # Step 1: Verify Candidate internal-only container cannot bypass sidecar
+        cmd_bypass = [
+            "docker", "run", "--rm",
+            "--network", net_name,
+            AGENT_IMAGE,
+            "python3", "-c",
+            '''
+import socket
+try:
+    s = socket.create_connection(('1.1.1.1', 80), timeout=2)
+    print("LEAK_EXTERNAL_CONNECTED")
+except OSError:
+    print("PASS_EGRESS_BLOCKED")
+''',
+        ]
+        proc_bp = await asyncio.create_subprocess_exec(
+            *cmd_bypass,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_bp, _ = await proc_bp.communicate()
+        assert "PASS_EGRESS_BLOCKED" in stdout_bp.decode("utf-8", errors="replace"), "Candidate bypassed internal network!"
+        print("  ✓ Candidate container strictly isolated on internal network (direct egress blocked)")
+
+        # Step 2: Real container request through sidecar with invalid token -> 401
         cmd_bad = [
             "docker", "run", "--rm",
-            "--add-host", "host.docker.internal:host-gateway",
+            "--network", net_name,
             AGENT_IMAGE,
             "curl", "-s", "-i",
             "-X", "POST",
             "-H", "x-api-key: invalid-token-attack",
             "-H", "content-type: application/json",
             "-d", "{}",
-            f"http://host.docker.internal:{port}/v1/messages",
+            "http://model-gateway:8080/v1/messages",
         ]
         proc = await asyncio.create_subprocess_exec(
             *cmd_bad,
@@ -378,21 +439,21 @@ async def _run_canary_4_async() -> dict[str, Any]:
         out_str = stdout.decode("utf-8", errors="replace")
         if proc.returncode == 0 and ("401 Unauthorized" in out_str or "401" in out_str):
             proxy_auth_verified = True
-            print("  ✓ Real container request with invalid token strictly rejected with HTTP 401")
+            print("  ✓ Candidate request through production sidecar with invalid token rejected with HTTP 401")
         else:
-            print(f"  ✗ Auth check mismatch: returncode={proc.returncode}, out={out_str!r}")
+            print(f"  ✗ Sidecar auth check mismatch: returncode={proc.returncode}, out={out_str!r}")
 
-        # Step 2: Live SSE Request 1 within budget (consumes 25 tokens)
+        # Step 3: Live SSE Request 1 through sidecar within budget (consumes 25 tokens)
         cmd_req1 = [
             "docker", "run", "--rm",
-            "--add-host", "host.docker.internal:host-gateway",
+            "--network", net_name,
             AGENT_IMAGE,
             "curl", "-s", "-i",
             "-X", "POST",
             "-H", f"x-api-key: {token}",
             "-H", "content-type: application/json",
             "-d", "{}",
-            f"http://host.docker.internal:{port}/v1/messages",
+            "http://model-gateway:8080/v1/messages",
         ]
         proc1 = await asyncio.create_subprocess_exec(
             *cmd_req1,
@@ -403,19 +464,19 @@ async def _run_canary_4_async() -> dict[str, Any]:
         ledger_after_request_1 = budget_ledger.used("tokens")
         assert ledger_after_request_1 == 25, f"Expected ledger_after_request_1=25, got {ledger_after_request_1}"
         assert proxy.tokens_used == 25, f"Expected proxy tokens_used=25, got {proxy.tokens_used}"
-        print(f"  ✓ Live SSE request 1 streamed through proxy; tokens charged to ledger: {ledger_after_request_1}/50")
+        print(f"  ✓ Live SSE request 1 streamed through production sidecar: tokens charged to ledger: {ledger_after_request_1}/50")
 
-        # Step 3: Live SSE Request 2 triggering over-limit (25 + 10 + 30 = 65 > 50)
+        # Step 4: Live SSE Request 2 through sidecar triggering over-limit (25 + 10 + 30 = 65 > 50)
         cmd_req2 = [
             "docker", "run", "--rm",
-            "--add-host", "host.docker.internal:host-gateway",
+            "--network", net_name,
             AGENT_IMAGE,
             "curl", "-s", "-i",
             "-X", "POST",
             "-H", f"x-api-key: {token}",
             "-H", "content-type: application/json",
             "-d", "{}",
-            f"http://host.docker.internal:{port}/v1/messages",
+            "http://model-gateway:8080/v1/messages",
         ]
         proc2 = await asyncio.create_subprocess_exec(
             *cmd_req2,
@@ -426,9 +487,9 @@ async def _run_canary_4_async() -> dict[str, Any]:
         out2_str = stdout2.decode("utf-8", errors="replace")
         if OVER_LIMIT_ATTACK_STRING in out2_str:
             over_limit_chunk_forwarded = True
-            print("  ✗ Security Leak: over-limit SSE chunk was leaked to candidate container!")
+            print("  ✗ Security Leak: over-limit SSE chunk was leaked through sidecar to candidate container!")
         else:
-            print("  ✓ Live SSE request 2 over-limit chunk strictly intercepted and suppressed before socket forward")
+            print("  ✓ Live SSE request 2 over-limit chunk strictly intercepted by proxy before sidecar stream")
 
         ledger_after_overflow = budget_ledger.used("tokens")
         assert proxy.budget_exceeded is True, "Proxy should have flagged budget_exceeded upon over-limit SSE chunk"
@@ -438,17 +499,17 @@ async def _run_canary_4_async() -> dict[str, Any]:
         )
         print(f"  ✓ Central BudgetLedger accounting and callback verified (overflow={ledger_after_overflow}, callback_count={callback_count})")
 
-        # Step 4: Subsequent request rejected immediately with HTTP 429 Too Many Requests
+        # Step 5: Subsequent request rejected immediately with HTTP 429 Too Many Requests
         cmd_cutoff = [
             "docker", "run", "--rm",
-            "--add-host", "host.docker.internal:host-gateway",
+            "--network", net_name,
             AGENT_IMAGE,
             "curl", "-s", "-i",
             "-X", "POST",
             "-H", f"x-api-key: {token}",
             "-H", "content-type: application/json",
             "-d", "{}",
-            f"http://host.docker.internal:{port}/v1/messages",
+            "http://model-gateway:8080/v1/messages",
         ]
         proc3 = await asyncio.create_subprocess_exec(
             *cmd_cutoff,
@@ -460,14 +521,18 @@ async def _run_canary_4_async() -> dict[str, Any]:
         if "429 Too Many Requests" in out3_str or "Budget Exceeded" in out3_str:
             budget_cutoff_verified = True
             budget_http_code = 429
-            print("  ✓ Real container request immediately rejected (HTTP 429) upon live budget overrun")
+            print("  ✓ Candidate request through production sidecar immediately rejected (HTTP 429) upon live budget overrun")
 
     finally:
+        # Cleanup sidecar and internal network immediately
+        run_command_sync(["docker", "rm", "-f", sidecar_name])
+        run_command_sync(["docker", "network", "rm", net_name])
         await proxy.close()
         server.shutdown()
 
     canary_pass = (
-        proxy_auth_verified
+        sidecar_gateway_verified
+        and proxy_auth_verified
         and budget_cutoff_verified
         and not over_limit_chunk_forwarded
         and callback_count > 0
@@ -476,6 +541,7 @@ async def _run_canary_4_async() -> dict[str, Any]:
 
     return {
         "status": "PASS" if canary_pass else "FAIL",
+        "sidecar_gateway_verified": sidecar_gateway_verified,
         "proxy_auth_verified": proxy_auth_verified,
         "budget_cutoff_verified": budget_cutoff_verified,
         "budget_cutoff_http_code": budget_http_code,
@@ -654,19 +720,11 @@ def resolve_maintainer_signing_key(signing_key_file: Path | None = None) -> str:
             raise RuntimeError(f"Private key file is empty: {key_p}")
         return content
 
-    # Fallback to env var if explicitly set (logs security warning)
-    signing_key_hex = os.getenv("MLFFBENCH_CANDIDATE_AGENT_SIGNING_KEY", "").strip()
-    if signing_key_hex:
-        print(
-            "  ⚠ WARNING: Using MLFFBENCH_CANDIDATE_AGENT_SIGNING_KEY environment variable. "
-            "Prefer storing in ~/.config/mlffbench/keys/candidate-agent-v2.key with 0600 permissions.",
-            file=sys.stderr,
-        )
-        return signing_key_hex
-
+    # Environment variable ingestion is permanently prohibited for candidate agent signing keys
     raise RuntimeError(
-        "Maintainer private key is required to seal candidate agent qualification receipt. "
-        "Provide --signing-key-file <path> or save key to ~/.config/mlffbench/keys/candidate-agent-v2.key (0600)."
+        "Maintainer private key file is required to seal qualification receipt. "
+        "Provide --signing-key-file <path> or save key to ~/.config/mlffbench/keys/candidate-agent-v2.key (0600). "
+        "Environment variable ingestion is permanently prohibited to prevent credential leakage into process logs."
     )
 
 
@@ -688,6 +746,16 @@ def main() -> None:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_id = f"claude-code-{stamp}"
     evidence: dict[str, Any] = {}
+
+    # 0. Enforce clean Git working tree before qualification
+    status_proc = run_command_sync(["git", "status", "--porcelain"])
+    dirty_entries = [l.strip() for l in status_proc.stdout.splitlines() if l.strip()]
+    if dirty_entries:
+        raise RuntimeError(
+            f"Git working tree is dirty ({len(dirty_entries)} unstaged/untracked files detected):\n"
+            + "\n".join(f"  {line}" for line in dirty_entries[:10])
+            + "\nQualification receipt generation requires a completely clean Git working tree."
+        )
 
     try:
         run_canary_1_image_isolation(evidence)

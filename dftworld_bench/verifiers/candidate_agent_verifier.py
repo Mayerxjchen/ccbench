@@ -194,10 +194,12 @@ class CandidateAgentVerifier:
         if not c3.get("skill_mounted", False) or c3.get("target_path") != "/app/.claude/skills/hpc-submit/SKILL.md":
             reasons.append(f"Canary 3 invalid skills mount verification: {c3}")
 
-        # 5. Re-verify Canary 4: Model Gateway & Real-time Budget Enforcement
+        # 5. Re-verify Canary 4: Model Gateway Proxy & Budget Enforcement
         c4 = evidence["canary_4_model_gateway_and_budget"]
-        if not c4.get("proxy_auth_verified", False):
-            reasons.append("Canary 4 failed to verify ephemeral token authentication")
+        if not c4.get("sidecar_gateway_verified"):
+            reasons.append("Canary 4 failed to verify production dual-homed sidecar communication")
+        if not c4.get("proxy_auth_verified"):
+            reasons.append("Canary 4 failed to verify proxy ephemeral token authentication")
         if not c4.get("budget_cutoff_verified", False):
             reasons.append("Canary 4 failed to verify live budget cut-off enforcement")
         if c4.get("budget_cutoff_http_code") != 429:
@@ -272,7 +274,7 @@ class CandidateAgentVerifier:
             "agent_execution_status": "PASS" if verdict.status == "PROMOTED" else "NOT_RUN",
             "formal_benchmark_readiness": "READY" if verdict.status == "PROMOTED" else "BLOCKED",
             "candidate_engine": "claude-code",
-            "candidate_image": "mlffbench-agent-claude-code:v1",
+            "candidate_image": "mlffbench-candidate-claude-code-sandbox:v1",
             "candidate_image_digest": c1.get("image_digest"),
             "source_commit": source_commit,
             "code_identity": code_identity,

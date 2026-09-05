@@ -6,7 +6,7 @@ scheduler.
 
 Candidate Agent Architecture:
 - Sole Formal Candidate Engine: ``ClaudeCodeAdapter`` driving Claude Code inside
-  the isolated sandbox image (mlffbench-agent-claude-code:v1).
+  the isolated sandbox image (mlffbench-candidate-claude-code-sandbox:v1).
 - Host Model Gateway Proxy provides run-scoped credential isolation and real-time streaming budget accounting.
 - Docker internal network ensures OS-level physical network egress isolation.
 """
@@ -203,27 +203,28 @@ class AgentAdapter(Protocol):
 
 # -- Sandbox and Workspace Utilities ----------------------------------------
 
-def ensure_image(image: str) -> None:
-    """检查镜像是否存在。用 ``docker images`` 列表匹配,兼容 Docker Desktop 29。"""
+def ensure_image(image: str, expected_digest: str | None = None) -> str:
+    """检查镜像是否存在，并机械核验其实际 Image ID / Digest（防止静默换 tag）。"""
     tag = image if ":" in image else f"{image}:latest"
-    listed = subprocess.run(
-        ["docker", "images", "--format", "{{.Repository}}:{{.Tag}}"],
+    inspect_res = subprocess.run(
+        ["docker", "image", "inspect", "--format", "{{.Id}}", tag],
         capture_output=True,
         text=True,
     )
-    if listed.returncode == 0 and tag in listed.stdout.splitlines():
-        return
-    probe = subprocess.run(
-        ["docker", "image", "inspect", tag],
-        capture_output=True,
-        text=True,
-    )
-    if probe.returncode == 0:
-        return
-    raise SystemExit(
-        f"本地没有镜像 {image!r}。先构建：\n"
-        f"  cd {Path(__file__).resolve().parents[1] / 'base-env-build'} && bash build.sh"
-    )
+    if inspect_res.returncode != 0:
+        raise RuntimeError(
+            f"本地没有镜像 {image!r}。Docker image inspect failed: {inspect_res.stderr.strip()}。\n"
+            f"先构建：cd {Path(__file__).resolve().parents[1] / 'base-env-build'} && bash build.sh"
+        )
+    actual_digest = inspect_res.stdout.strip()
+    if expected_digest:
+        if actual_digest != expected_digest:
+            raise RuntimeError(
+                f"Docker live image digest mismatch for {image!r}: "
+                f"live ID={actual_digest}, expected={expected_digest}. "
+                "The image tag may have been retagged or rebuilt after qualification."
+            )
+    return actual_digest
 
 
 def _parse_copy_directives(text: str) -> list[tuple[str, list[str]]]:
@@ -564,7 +565,7 @@ class ClaudeCodeAdapter:
         max_total_tokens: int = 50_000_000,
         threads_root: Path,
         task_name: str,
-        image: str = "mlffbench-agent-claude-code:v1",
+        image: str = "mlffbench-candidate-claude-code-sandbox:v1",
         case_dir: Path,
         gpus: int = 0,
         agent_timeout_sec: float = 600.0,
@@ -576,6 +577,7 @@ class ClaudeCodeAdapter:
         api_endpoint: str | None = None,
         api_key: str | None = None,
         engine_version: str = "claude-code-v1",
+        expected_image_digest: str | None = None,
     ) -> None:
         self.model = model
         self.max_turns = max_turns
@@ -583,6 +585,7 @@ class ClaudeCodeAdapter:
         self.threads_root = Path(threads_root)
         self.task_name = task_name
         self.image = image
+        self.expected_image_digest = expected_image_digest
         self.case_dir = Path(case_dir)
         self.gpus = gpus
         self.agent_timeout_sec = agent_timeout_sec
@@ -626,7 +629,7 @@ class ClaudeCodeAdapter:
         return f"{self._engine_version}:{self.model}"
 
     async def prepare(self) -> None:
-        ensure_image(self.image)
+        self.actual_image_digest = ensure_image(self.image, self.expected_image_digest)
         seed_workspace(Path(self.workspace), self.image, self.case_dir)
 
     async def start(self, instruction: str) -> None:

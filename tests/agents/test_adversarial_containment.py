@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 import pytest
 
-AGENT_IMAGE = "mlffbench-agent-claude-code:v1"
+AGENT_IMAGE = "mlffbench-candidate-claude-code-sandbox:v1"
 LOCK_FILE = Path(__file__).resolve().parents[2] / "base-env-build" / "agent-claude-code" / "claude-code.lock.json"
 
 
