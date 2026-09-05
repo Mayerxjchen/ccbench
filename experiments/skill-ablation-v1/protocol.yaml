@@ -6,8 +6,8 @@
 #
 # STATUS: frozen.  The referenced release (ablation-ready-benchmark-v0) is
 # frozen at its git source_commit with every component digest recomputable
-# from disk.  Scope covers cases 001-033: 031/032/033 are benchmark_valid;
-# 034 is in construction and excluded from v0.  The provisional infrastructure
+# from disk. # Scope covers cases 031-033: all are formal benchmark_valid; 034 is in
+# construction and 042 is draft, both excluded from v0. The provisional infrastructure
 # pilot (experiment_id skill-ablation-v1-pilot) may run on a benchmark-valid
 # case now to validate the pairing machinery, but no formal No-Skill/With-Skill
 # observation counts outside the frozen protocol.

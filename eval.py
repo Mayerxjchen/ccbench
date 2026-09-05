@@ -34,11 +34,11 @@ input.json 继续写 ``/app/...``。
 
     cp .env.example .env   # 填入 API key
     pytest                 # 跑测试
-    python eval.py --task 001-hello   # 跑单任务
+    python eval.py 031-matclaw-cips-active-distillation   # 跑单任务
 
 CLI flags::
 
-    --task NAME            只跑一个任务（默认跑全部 001-024）
+    --task NAME            只跑一个任务（如 031-matclaw-cips-active-distillation）
     --tasks-dir DIR        任务目录（默认 benchmark/）
     --model PROVIDER/MODEL 模型标识（默认 deepseek/deepseek-chat）
     --max-turns N          每个任务最多对话轮数（默认 32）
@@ -1229,7 +1229,7 @@ def profile_for_task(task: TaskSpec) -> Profile:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="mlffbench eval with Claude Code Agent")
-    parser.add_argument("tasks", nargs="*", help="任务名，如 001-hello")
+    parser.add_argument("tasks", nargs="*", help="任务名，如 031-matclaw-cips-active-distillation")
     parser.add_argument("--all", action="store_true", help="跑全部任务")
     parser.add_argument(
         "--model",

@@ -3,9 +3,9 @@
 #
 # 用法:
 #   bash build.sh                  # 只列当前镜像 + 帮助
-#   bash build.sh base             # 最小：001–004、007
+#   bash build.sh base             # 基础镜像
 #   bash build.sh cp2k chem        # 指定若干 target
-#   bash build.sh 001-hello        # 按任务 Dockerfile FROM 构建
+#   bash build.sh 031-matclaw-cips-active-distillation # 按任务 Dockerfile FROM 构建
 #   bash build.sh -f base          # 先删再重建
 #   bash build.sh all              # 全量（占磁盘，慎用）
 set -euo pipefail

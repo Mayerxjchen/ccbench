@@ -124,10 +124,10 @@ ssh <你的hpc别名> hostname      # 连通性自检
 ## Running eval
 
 ```bash
-uv run python eval.py 001-hello -v
+uv run python eval.py 031-matclaw-cips-active-distillation -v
 uv run python eval.py --all
 uv run python eval.py --all --skills      # 启用 skill bundle（需先 build.sh skills）
-uv run python eval.py 027-name2opt-so2 028-name2vib-water   # 指定多个任务
+uv run python eval.py 031-matclaw-cips-active-distillation 032-matclaw-cips-curie-temperature   # 指定多个任务
 ```
 
 Counted runs load `infra/runs/skill-ablation-v2.yaml`. The command without
@@ -231,65 +231,24 @@ manifest 比对；不一致即本次 run 作废。**改过 `base-env-build/skill
 ### 从源码校验新案例（可选）
 
 ```bash
-uv run python 027-name2opt-so2/reference/generate_reference.py   # 在 dftworld-base-mace 里复现参考值
-uv run pytest 027-name2opt-so2/tests/                            # 跑验收测试（oracle + 负样本）
+uv run python 031-matclaw-cips-active-distillation/reference/generate_reference.py   # 复现参考值
+uv run pytest tests/contracts/test_hpc_cases_gold_matrix.py   # 跑长案例契约验证矩阵
 ```
 
-每个新案例目录都有 `VALIDATION.json`（L1–L6 六层验收记录）与
-`reference/source.lock.json`（溯源锁定：DOI / 数据集实例 id / 生成镜像）。溯源原始
-材料在 `benchmark/sources/chemgraph/`（40 条 ground_truth + 实例分配 + 验收标准），
-论文 PDF 在 `paper/`。
+每个长案例目录包含 `VALIDATION.json`、`benchmark_valid.json`、`task.toml`、`instruction.md`、`reference/` 以及独立验证器套件。详细科学背景、理论依据与指标说明见 [TASKS.md](TASKS.md)。
 
 ## Task Overview
 
-| Task | Difficulty | Description |
-|------|-----------|-------------|
-| 001-hello | easy | Create hello.txt |
-| 002-arithmetic | easy | Arithmetic calculation |
-| 003-uv-version | easy | Check uv version |
-| 004-python-version | easy | Check python3 version |
-| 005-cp2k-version | easy | Check cp2k version |
-| 006-packmol-version | easy | Check packmol version |
-| 007-pip-install | easy | Install a Python package |
-| 008-packmol-build | easy | Compile packmol from source |
-| 009-cp2k-run | easy | CP2K single-point energy (complete input) |
-| 010-deepmd-train | easy | DeePMD train/freeze/test (complete config) |
-| 011-cp2k-template | medium | CP2K fill template |
-| 012-ase-methane | medium | ASE methane XYZ |
-| 013-rdkit-volume | medium | RDKit VDW volume |
-| 014-deepmd-template | medium | DeePMD fill template |
-| 015-cp2k-scratch | hard | CP2K from scratch |
-| 016-deepmd-pipeline | hard | DeePMD full pipeline |
-| 017-cp2k-cutoff | medium | Choose GPW CUTOFF from convergence table |
-| 018-deepmd-rcut | medium | Choose DeePMD rcut from geometry report |
-| 019-cp2k-eps-scf | medium | Choose CP2K EPS_SCF from SCF table |
-| 020-hartree-to-ev | knowledge | Hartree → eV unit conversion |
-| 021-gth-valence | knowledge | GTH `-qN` valence electron count |
-| 022-spin-multiplicity | knowledge | Ground-state spin multiplicity |
-| 023-deepmd-type-map | knowledge | DeePMD `type_map` element order |
-| 024-xc-gth-match | knowledge | XC functional matching GTH-PBE |
-| 025-name2smi | medium | Name → canonical SMILES (RDKit) |
-| 026-name2coord | medium | Name → 3D XYZ coordinates (RDKit embed) |
-| 027-name2opt-so2 | paper | SO₂ geometry optimization (MACE-MP-0 medium) |
-| 028-name2vib-water | paper | Water vibrational frequencies (MACE-MP-0 medium) |
-| 029-name2gibbs-co2 | paper | CO₂ Gibbs free energy @800 K (GFN2-xTB) |
-| 030-name2file-so2 | paper | SO₂ optimization + save optimized XYZ (MACE-MP-0) |
-| 031-matclaw-cips-active-distillation | paper | CIPS DeePMD active distillation |
-| 032-matclaw-cips-curie-temperature | paper | CIPS Curie temperature (DeePMD MD) |
-| 033-matclaw-cips-domain-wall-search | paper | CIPS domain-wall search (adaptive) |
-| 034-ai2kit-water64-end-to-end-potential | hard | Water64 end-to-end DeePMD potential (CP2K AIMD → AL → validation) |
-| 035-smiles2opt | medium | SMILES → geometry optimization (GFN2-xTB) |
-| 036-smiles2vib | medium | SMILES → vibrational frequencies (GFN2-xTB) |
-| 037-smiles2gibbs | medium | SMILES → Gibbs free energy (GFN2-xTB) |
-| 038-smiles2file | medium | SMILES → optimized structure XYZ (GFN2-xTB) |
-| 039-react2enthalpy-methane | paper | Methane combustion enthalpy @400 K (GFN2-xTB) |
-| 040-react2gibbs-ammonia | paper | Ammonia synthesis ΔG @400 K (GFN2-xTB) |
-| 041-smiles2coord | medium | SMILES → 3D XYZ coordinates (RDKit embed) |
-| 042-go-water-dpmp | hard | GO-water DeePMD potential: graphene/graphene-oxide water interfaces (construction) |
+| Task | Execution Class | Runtime Family | Keywords / Description |
+|---|---|---|---|
+| `031-matclaw-cips-active-distillation` | `hpc_controller` | `matclaw-cips` | Active distillation of a fast CIPS DeePMD potential (active-learning, cips) |
+| `032-matclaw-cips-curie-temperature` | `hpc_controller` | `matclaw-cips` | Curie temperature MD search with DeePMD (cips, curie-temperature, md) |
+| `033-matclaw-cips-domain-wall-search` | `hpc_controller` | `matclaw-cips` | Domain-wall search under electric field/temperature (domain-wall, ferroelectric) |
+| `034-ai2kit-water64-end-to-end-potential` | `hpc_controller` | `ai2kit`, `cp2k` | End-to-end water potential (CP2K AIMD -> active learning -> validation) |
+| `042-go-water-dpmp` | `hpc_controller` | `deepmd-jax` | End-to-end development of a GO–water DPMP interatomic potential |
 
-`027`–`030`、`039`–`040` 来自 ChemGraph 论文 ground-truth；`025`–`026`、`035`–`038`、`041`
-为 RDKit/SMILES 工具链任务；`031`–`033` 来自 MatClaw 论文、`034` 为 ai2kit 端到端势函数
-流水线、`042` 为构造中的 GO-water DeePMP 案例（见上方「新案例镜像配置」与 [TASKS.md](TASKS.md)）。
+`031`–`033` 源自 MatClaw 高性能铁电体系科学计算工作流；`034` 为 ai2kit + CP2K 端到端全自动势函数主动学习流水线；`042` 为氧化石墨烯-水界面 (GO–water) JAX/DPMP 势函数复现与隐式物理验证案例。详细规范请参阅 [TASKS.md](TASKS.md)。
+
 
 ## Workspace maintenance
 
