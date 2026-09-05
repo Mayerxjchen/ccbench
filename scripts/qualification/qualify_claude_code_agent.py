@@ -248,27 +248,30 @@ async def _run_canary_4_async() -> dict[str, Any]:
     budget_http_code = 0
 
     try:
-        # Step 1: Real container curl to host proxy with ephemeral token
-        cmd_auth = [
+        # Step 1: Real container curl to host proxy with invalid token -> 401
+        cmd_bad = [
             "docker", "run", "--rm",
             "--add-host", "host.docker.internal:host-gateway",
             AGENT_IMAGE,
             "curl", "-s", "-i",
-            "-H", f"x-api-key: {token}",
+            "-X", "POST",
+            "-H", "x-api-key: invalid-token-attack",
+            "-H", "content-type: application/json",
+            "-d", "{}",
             f"http://host.docker.internal:{port}/v1/messages",
         ]
         proc = await asyncio.create_subprocess_exec(
-            *cmd_auth,
+            *cmd_bad,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await proc.communicate()
         out_str = stdout.decode("utf-8", errors="replace")
-        if proc.returncode == 0 and ("405 Method Not Allowed" in out_str or "HTTP/1.1" in out_str):
+        if proc.returncode == 0 and "401 Unauthorized" in out_str:
             proxy_auth_verified = True
-            print("  ✓ Real container successfully authenticated with host Model Gateway Proxy via ephemeral token")
+            print("  ✓ Real container request with invalid token strictly rejected with HTTP 401")
 
-        # Step 2: Simulate live budget overrun on proxy
+        # Step 2: Simulate live budget overrun on proxy -> 429
         proxy.tokens_used = 600  # Exceeds max_total_tokens (500)
         proxy.budget_exceeded = True
 
@@ -277,7 +280,10 @@ async def _run_canary_4_async() -> dict[str, Any]:
             "--add-host", "host.docker.internal:host-gateway",
             AGENT_IMAGE,
             "curl", "-s", "-i",
+            "-X", "POST",
             "-H", f"x-api-key: {token}",
+            "-H", "content-type: application/json",
+            "-d", "{}",
             f"http://host.docker.internal:{port}/v1/messages",
         ]
         proc2 = await asyncio.create_subprocess_exec(
