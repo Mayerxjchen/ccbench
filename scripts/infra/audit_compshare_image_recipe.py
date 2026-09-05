@@ -63,16 +63,24 @@ def audit_image_recipe(
     except jsonschema.ValidationError as exc:
         raise RecipeAuditError(f"Recipe schema validation failed: {exc.message}") from exc
 
-    # 2. Scope gate: strictly cases 031-033, no 034/042, no forbidden runtimes
+    # 2. Scope gate: strictly cases 031-033 or 042, strictly isolated runtimes
     cases = set(doc.get("target_cases", []))
-    if cases.intersection(FORBIDDEN_CASES):
-        raise RecipeAuditError(f"Recipe improperly includes forbidden cases: {cases.intersection(FORBIDDEN_CASES)}")
-    if cases != {"031", "032", "033"}:
-        raise RecipeAuditError(f"Recipe target_cases must be exactly {{'031', '032', '033'}}; got {cases}")
-
     caps = set(doc.get("target_capabilities", []))
-    if caps.intersection(FORBIDDEN_CAPABILITIES):
-        raise RecipeAuditError(f"Recipe improperly includes forbidden capabilities: {caps.intersection(FORBIDDEN_CAPABILITIES)}")
+
+    if cases == {"031", "032", "033"}:
+        if cases.intersection({"034", "042"}):
+            raise RecipeAuditError(f"MatClaw Recipe improperly includes forbidden cases: {cases.intersection({'034', '042'})}")
+        if caps.intersection({"jax", "deepmd-jax", "ai2kit", "cp2k"}):
+            raise RecipeAuditError(f"MatClaw Recipe improperly includes forbidden capabilities: {caps.intersection({'jax', 'deepmd-jax', 'ai2kit', 'cp2k'})}")
+    elif cases == {"042"}:
+        if cases.intersection({"031", "032", "033", "034"}):
+            raise RecipeAuditError(f"JAX Recipe improperly includes forbidden cases: {cases.intersection({'031', '032', '033', '034'})}")
+        if caps.intersection({"deepmd", "matclaw-cips", "lammps", "ai2kit", "cp2k"}):
+            raise RecipeAuditError(f"JAX Recipe improperly includes forbidden capabilities: {caps.intersection({'deepmd', 'matclaw-cips', 'lammps', 'ai2kit', 'cp2k'})}")
+        if "jax" not in caps:
+            raise RecipeAuditError("JAX Recipe must include 'jax' capability")
+    else:
+        raise RecipeAuditError(f"Recipe target_cases must be exactly {{'031', '032', '033'}} or {{'042'}}; got {cases}")
 
     # 3. Base image must carry explicit OCI digest
     base_img = doc.get("base_image", {})

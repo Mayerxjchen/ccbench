@@ -101,10 +101,22 @@ def build_runtime_lock_doc(
 
     if note is None:
         target_cases_str = ", ".join(recipe_doc.get("target_cases", []))
+        cap_title = "MatClaw CIPS" if capability == "matclaw-cips" else capability
         note = (
-            f"Frozen MatClaw CIPS GPU runtime for MLFFBench (Cases {target_cases_str}). "
+            f"Frozen {cap_title} GPU runtime for MLFFBench (Cases {target_cases_str}). "
             f"Built from recipe {recipe_relpath}."
         )
+
+    if capability in ("jax", "deepmd-jax", "dpmp"):
+        env_vars = {
+            "CUDA_VISIBLE_DEVICES": "0",
+            "JAX_ENABLE_X64": "1",
+        }
+    else:
+        env_vars = {
+            "CUDA_VISIBLE_DEVICES": "0",
+            "TF_FORCE_GPU_ALLOW_GROWTH": "true",
+        }
 
     doc: dict[str, Any] = {
         "schema": "dispatcher-compshare-runtime-lock/v2",
@@ -126,10 +138,7 @@ def build_runtime_lock_doc(
             "receipt_digest": receipt_digest,
             "site_profile_id": site_profile_id,
         },
-        "env": {
-            "CUDA_VISIBLE_DEVICES": "0",
-            "TF_FORCE_GPU_ALLOW_GROWTH": "true",
-        },
+        "env": env_vars,
     }
 
     # Validate against schema

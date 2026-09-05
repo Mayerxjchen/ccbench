@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "image_name": "mlff-jax-gpu-v1",
+  "target_cases": [
+    "042"
+  ],
+  "target_capabilities": [
+    "jax",
+    "dpmp"
+  ],
+  "platform": "linux/amd64",
+  "status": "RECIPE_VERIFIED",
+  "image_status": "UNBUILT",
+  "base_image": {
+    "image": "compshare/pytorch:2.1.2-cuda12.1-cudnn8-devel-ubuntu22.04",
+    "oci_digest": "sha256:7f4955b274534a62580a6bbf08365f50ef917c91350a4b7fef557116b0a88092"
+  },
+  "python": {
+    "version": "3.11.15",
+    "implementation": "CPython"
+  },
+  "requirements_lock": {
+    "path": "base-env-build/jax-gpu/requirements.lock",
+    "sha256": "88ce52e6f03afc30995ab95e447f644c72c4ff69f70fc38f8c6430ba14a7aae1",
+    "package_count": 68
+  },
+  "assets": [
+    {
+      "name": "deepmd_jax-0.2.tar.gz",
+      "path": "base-env-build/jax-gpu/assets/deepmd_jax-0.2.tar.gz",
+      "sha256": "f6a4de451d24ef1d540b6935b5ad56e65af860401a1e03247426a02d60cdba15"
+    },
+    {
+      "name": "jax_md-0.2.29.tar.gz",
+      "path": "base-env-build/jax-gpu/assets/jax_md-0.2.29.tar.gz",
+      "sha256": "b50c7318305db3deab3f033190210239dd275d73b0c0f06e02cd8a51463dd638"
+    }
+  ],
+  "probes": [
+    {
+      "name": "qualify_jax.py",
+      "path": "base-env-build/jax-gpu/probes/qualify_jax.py",
+      "sha256": "52f789a162b27a8c8e0bc5b9ba6b7cdbd3bededb407c41ff4b38c90de87c7f2a"
+    }
+  ],
+  "recipe_digest": "sha256:766bacfeb5f1c306181302d8b3c5cb1b6f4f192bee2e4cdfb1427a9d95c7118f"
+}

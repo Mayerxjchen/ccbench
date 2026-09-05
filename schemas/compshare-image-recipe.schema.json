@@ -24,13 +24,13 @@
     "image_name": { "type": "string", "minLength": 1 },
     "target_cases": {
       "type": "array",
-      "items": { "type": "string", "enum": ["031", "032", "033"] },
+      "items": { "type": "string", "enum": ["031", "032", "033", "042"] },
       "minItems": 1,
       "uniqueItems": true
     },
     "target_capabilities": {
       "type": "array",
-      "items": { "type": "string", "enum": ["matclaw-cips", "deepmd", "lammps"] },
+      "items": { "type": "string", "enum": ["matclaw-cips", "deepmd", "lammps", "jax", "dpmp"] },
       "minItems": 1,
       "uniqueItems": true
     },

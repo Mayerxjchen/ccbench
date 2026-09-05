@@ -23,6 +23,7 @@ def test_production_runtime_locks_exist_and_conform():
     """Verify production runtime locks exist and are well-formed."""
     assert (PROD_LOCK_DIR / "deepmd-runtime.lock.json").is_file()
     assert (PROD_LOCK_DIR / "matclaw-cips-runtime.lock.json").is_file()
+    assert (PROD_LOCK_DIR / "jax-runtime.lock.json").is_file()
 
     deepmd = json.loads((PROD_LOCK_DIR / "deepmd-runtime.lock.json").read_text(encoding="utf-8"))
     assert deepmd["artifact"]["image_id"] == "compshareImage-1uw6sd44931i"
@@ -34,13 +35,18 @@ def test_production_runtime_locks_exist_and_conform():
     assert matclaw["qualification"]["status"] == "BUILT_NOT_QUALIFIED"
     assert matclaw["qualification"]["receipt_digest"].startswith("sha256:")
 
+    jax = json.loads((PROD_LOCK_DIR / "jax-runtime.lock.json").read_text(encoding="utf-8"))
+    assert jax["artifact"]["image_id"] == "compshareImage-1uwv0ijzwej6"
+    assert jax["qualification"]["status"] == "BUILT_NOT_QUALIFIED"
+    assert jax["qualification"]["receipt_digest"].startswith("sha256:")
+
 
 @pytest.mark.skipif(
     not DEFAULT_EVIDENCE_DIR.is_dir() or not SITE_PROFILE_PATH.is_file(),
     reason="Production evidence and site profile required for live promotion check",
 )
-def test_production_catalog_promotes_both_capabilities():
-    """Verify TrustedRuntimeCatalog verifies formal receipts and promotes both runtimes."""
+def test_production_catalog_promotes_all_capabilities():
+    """Verify TrustedRuntimeCatalog verifies formal receipts and promotes all runtimes."""
     site_doc = json.loads(SITE_PROFILE_PATH.read_text(encoding="utf-8"))
     site_obj = HpcSiteProfile.from_dict(site_doc)
     trust_store = QualificationTrustStore.from_file(TRUST_STORE_PATH)
@@ -57,6 +63,7 @@ def test_production_catalog_promotes_both_capabilities():
     qualified = catalog.qualified_capabilities()
     assert "deepmd" in qualified
     assert "matclaw-cips" in qualified
+    assert "jax" in qualified
 
     resolver = catalog.to_resolver()
     deepmd_resolved = resolver.resolve("deepmd")
@@ -68,3 +75,8 @@ def test_production_catalog_promotes_both_capabilities():
     assert matclaw_resolved.status == RuntimeStatus.QUALIFIED
     assert matclaw_resolved.qualification_verified is True
     assert matclaw_resolved.image_id == "compshareImage-1uw6sd44931i"
+
+    jax_resolved = resolver.resolve("jax")
+    assert jax_resolved.status == RuntimeStatus.QUALIFIED
+    assert jax_resolved.qualification_verified is True
+    assert jax_resolved.image_id == "compshareImage-1uwv0ijzwej6"
