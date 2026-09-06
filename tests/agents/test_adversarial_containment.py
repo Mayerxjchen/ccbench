@@ -16,7 +16,7 @@ AGENT_IMAGE = "mlffbench-candidate-claude-code-sandbox:v1"
 LOCK_FILE = Path(__file__).resolve().parents[2] / "base-env-build" / "agent-claude-code" / "claude-code.lock.json"
 
 
-def _docker_available() -> bool:
+def _docker_and_image_available() -> bool:
     try:
         res = subprocess.run(
             ["docker", "info"],
@@ -25,12 +25,24 @@ def _docker_available() -> bool:
             text=True,
             timeout=5,
         )
-        return res.returncode == 0
+        if res.returncode != 0:
+            return False
+        img = subprocess.run(
+            ["docker", "image", "inspect", AGENT_IMAGE],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5,
+        )
+        return img.returncode == 0
     except Exception:
         return False
 
 
-pytestmark = pytest.mark.skipif(not _docker_available(), reason="Docker daemon not available")
+pytestmark = [
+    pytest.mark.container,
+    pytest.mark.skipif(not _docker_and_image_available(), reason=f"Docker daemon or candidate image {AGENT_IMAGE} not available"),
+]
 
 
 def test_agent_image_inspect_and_lock_digest():

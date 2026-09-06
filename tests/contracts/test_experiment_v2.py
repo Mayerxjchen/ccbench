@@ -188,10 +188,63 @@ def test_build_run_lock_v2():
         repeat=1,
         budget=budget,
         model_entry=model_entry,
-        candidate_digest="sha256:" + "0" * 64,
+        candidate_digest="sha256:" + "a" * 64,
         verifier_digest="sha256:" + "1" * 64,
         ccbench_commit="2" * 40,
     )
     assert doc["schema_version"] == 2
     assert doc["model_identity"]["provider"] == "anthropic"
     assert doc["repeat"] == 1
+
+
+def test_build_run_lock_rejects_zero_placeholder():
+    import pytest
+    from dftworld_bench.contracts.experiment_v2 import (
+        ExperimentBudget,
+        ExperimentError,
+        ModelEntry,
+        build_run_lock_v2,
+    )
+
+    budget = ExperimentBudget(
+        max_model_turns=1024,
+        max_total_tokens=100000000,
+        agent_active_walltime_sec=86400.0,
+        scheduler_wait_walltime_sec=604800.0,
+    )
+    model_entry = ModelEntry(
+        name="claude-sonnet",
+        provider="anthropic",
+        model_id="claude-sonnet-4-20250514",
+    )
+    # Zero placeholder in candidate_digest must be rejected
+    with pytest.raises(ExperimentError, match="cannot be a zero-placeholder"):
+        build_run_lock_v2(
+            run_id="run-1",
+            experiment_id="main-v1",
+            case="001",
+            model="claude-sonnet",
+            skill="hpc-submit",
+            repeat=1,
+            budget=budget,
+            model_entry=model_entry,
+            candidate_digest="sha256:" + "0" * 64,
+            verifier_digest="sha256:" + "1" * 64,
+            ccbench_commit="2" * 40,
+        )
+
+    # Zero placeholder in ccbench_commit must be rejected
+    with pytest.raises(ExperimentError, match="cannot be a zero-placeholder"):
+        build_run_lock_v2(
+            run_id="run-1",
+            experiment_id="main-v1",
+            case="001",
+            model="claude-sonnet",
+            skill="hpc-submit",
+            repeat=1,
+            budget=budget,
+            model_entry=model_entry,
+            candidate_digest="sha256:" + "a" * 64,
+            verifier_digest="sha256:" + "1" * 64,
+            ccbench_commit="0" * 40,
+        )

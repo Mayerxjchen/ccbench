@@ -76,7 +76,7 @@ def test_experiment_spec_and_run_lock_v2_generation(tmp_path: Path) -> None:
         repeat=1,
         budget=budget,
         model_entry=model_entry,
-        candidate_digest="sha256:" + "0" * 64,
+        candidate_digest="sha256:" + "b" * 64,
         verifier_digest="sha256:" + "1" * 64,
         ccbench_commit="a" * 40,
     )

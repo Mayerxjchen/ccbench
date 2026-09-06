@@ -88,8 +88,8 @@ def test_quarantine_rejects_socket(tmp_path):
 def test_quarantine_rejects_device(tmp_path):
     raw = _normal_raw(tmp_path)
     try:
-        os.mknod(raw / "dev", 0o600, stat_mod.S_IFCHR)
-    except PermissionError:
+        os.mknod(raw / "dev", stat_mod.S_IFCHR | 0o600, os.makedev(1, 3))
+    except (PermissionError, OSError):
         pytest.skip("cannot create device node without privileges")
     with pytest.raises(QuarantineError, match="device"):
         quarantine_submission(raw, tmp_path / "clean", LIMITS)

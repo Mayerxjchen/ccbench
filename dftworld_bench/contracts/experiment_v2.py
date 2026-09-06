@@ -177,8 +177,41 @@ def validate_run_lock(data: dict[str, Any]) -> None:
         raise ExperimentError(f"Invalid run lock: {exc.message}") from exc
 
 
-def build_experiment_lock(spec: ExperimentSpecV2, ccbench_commit: str) -> dict[str, Any]:
+def _validate_hex_digest(
+    name: str,
+    value: Any,
+    expected_len: int = 64,
+    prefix: str = "sha256:",
+    allow_placeholders: bool = False,
+) -> str:
+    if not isinstance(value, str):
+        raise ExperimentError(f"{name} must be a string, got {type(value).__name__}")
+    if prefix and not value.startswith(prefix):
+        raise ExperimentError(f"{name} must start with {prefix!r}, got {value!r}")
+    hex_part = value[len(prefix):] if prefix else value
+    if len(hex_part) != expected_len or not all(c in "0123456789abcdefABCDEF" for c in hex_part):
+        raise ExperimentError(f"{name} must be a {expected_len}-char hex string, got {value!r}")
+    if not allow_placeholders:
+        if hex_part == "0" * expected_len:
+            raise ExperimentError(f"{name} cannot be a zero-placeholder: {value!r}")
+        if value.lower() in ("unknown", "null", "none", ""):
+            raise ExperimentError(f"{name} cannot be empty or placeholder: {value!r}")
+    return value
+
+
+def canonical_run_lock_digest(run_lock_doc: dict[str, Any]) -> str:
+    """Compute sha256 digest of canonical json serialization of RunLockV2."""
+    raw = json.dumps(run_lock_doc, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return "sha256:" + hashlib.sha256(raw).hexdigest()
+
+
+def build_experiment_lock(
+    spec: ExperimentSpecV2,
+    ccbench_commit: str,
+    allow_placeholders: bool = False,
+) -> dict[str, Any]:
     """Generate and validate an immutable experiment lock dictionary."""
+    _validate_hex_digest("ccbench_commit", ccbench_commit, expected_len=40, prefix="", allow_placeholders=allow_placeholders)
     matrix = spec.expand_matrix()
     canonical_spec_json = json.dumps(
         {
@@ -224,8 +257,18 @@ def build_run_lock_v2(
     compute_profile_digest: str | None = None,
     runtime_digests: dict[str, str] | None = None,
     created_at: str | None = None,
+    allow_placeholders: bool = False,
 ) -> dict[str, Any]:
     """Construct and validate an immutable RunLockV2 dictionary."""
+    _validate_hex_digest("ccbench_commit", ccbench_commit, expected_len=40, prefix="", allow_placeholders=allow_placeholders)
+    _validate_hex_digest("candidate_digest", candidate_digest, expected_len=64, prefix="sha256:", allow_placeholders=allow_placeholders)
+    _validate_hex_digest("verifier_digest", verifier_digest, expected_len=64, prefix="sha256:", allow_placeholders=allow_placeholders)
+    if compute_profile_digest:
+        _validate_hex_digest("compute_profile_digest", compute_profile_digest, expected_len=64, prefix="sha256:", allow_placeholders=allow_placeholders)
+    if runtime_digests:
+        for k, v in runtime_digests.items():
+            _validate_hex_digest(f"runtime_digests[{k}]", v, expected_len=64, prefix="sha256:", allow_placeholders=allow_placeholders)
+
     stamp = created_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     strength = model_entry.identity_strength
     if strength not in ("alias", "alias-only", "exact-snapshot", "pinned-digest"):

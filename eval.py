@@ -92,10 +92,13 @@ from dftworld_bench.config.profiles import (
 from dftworld_bench.contracts.case import CaseSpec, EXECUTION_ALIASES, EXECUTION_CLASSES
 from dftworld_bench.contracts.experiment_v2 import (
     ExperimentBudget,
+    ExperimentError,
     ExperimentSpecV2,
+    ModelEntry,
     ModelRegistry,
     build_experiment_lock,
     build_run_lock_v2,
+    canonical_run_lock_digest,
 )
 from dftworld_bench.contracts.resolved_lock import ResolvedRunLock
 from dftworld_bench.contracts.result import FailureCode
@@ -236,18 +239,20 @@ class _DockerRunner:
 
 
 def git_head_commit(cwd: Path | None = None) -> str:
-    """repo 当前 HEAD 短 hash;不是 git repo 时返回 'unknown'。"""
+    """repo 当前 HEAD 完整 40 位 SHA-1 hash；失败时返回空字符串。"""
     cwd = cwd or ROOT
     try:
         out = subprocess.run(
-            ["git", "rev-parse", "--short=10", "HEAD"],
+            ["git", "rev-parse", "HEAD"],
             capture_output=True, text=True, cwd=cwd, timeout=10,
         )
-        if out.returncode == 0 and out.stdout.strip():
-            return out.stdout.strip()
+        if out.returncode == 0:
+            commit = out.stdout.strip()
+            if len(commit) == 40 and all(c in "0123456789abcdefABCDEF" for c in commit):
+                return commit
     except Exception:
         pass
-    return "unknown"
+    return ""
 
 
 def frozen_release_source_commit() -> str | None:
@@ -1381,26 +1386,36 @@ def _resolve_run_config_path(args: argparse.Namespace) -> Path:
 
 
 def resolve_task_run_settings(
-    args: argparse.Namespace, execution_class: str
+    args: argparse.Namespace,
+    execution_class: str,
+    *,
+    cell_model: str | None = None,
+    cell_skill_enabled: bool | None = None,
 ) -> TaskRunSettings:
     """Resolve the one policy object used by runtime, budgets, and lock."""
     from dftworld_bench.config.run_config import load_run_config
 
     cfg_path = _resolve_run_config_path(args)
     config = load_run_config(cfg_path)
-    derived_condition = "with-skill" if args.skills_enabled else "no-skill"
-    if args.condition is not None and args.condition != derived_condition:
-        raise SystemExit(
-            f"--condition {args.condition!r} conflicts with "
-            f"{'--skills' if args.skills_enabled else '--no-skills'}"
-        )
-    override_present = args.model is not None or args.max_turns is not None
+    if cell_skill_enabled is not None:
+        derived_condition = "with-skill" if cell_skill_enabled else "no-skill"
+        skills_enabled = cell_skill_enabled
+    else:
+        derived_condition = "with-skill" if args.skills_enabled else "no-skill"
+        skills_enabled = args.skills_enabled
+        if args.condition is not None and args.condition != derived_condition:
+            raise SystemExit(
+                f"--condition {args.condition!r} conflicts with "
+                f"{'--skills' if args.skills_enabled else '--no-skills'}"
+            )
+    is_matrix = getattr(args, "matrix", False)
+    override_present = (args.model is not None or args.max_turns is not None) and not is_matrix
     if override_present and not args.uncounted_smoke:
         raise SystemExit(
             "--model/--max-turns policy overrides require --uncounted-smoke"
         )
     budget = config.budget_for(execution_class)
-    model = args.model or f"{config.model.provider}/{config.model.model_id}"
+    model = cell_model or args.model or f"{config.model.provider}/{config.model.model_id}"
     max_turns = args.max_turns or budget.max_model_turns
     counted = config.mode in {"pilot", "formal"} and not args.uncounted_smoke
     return TaskRunSettings(
@@ -1408,7 +1423,7 @@ def resolve_task_run_settings(
         model=model,
         max_turns=max_turns,
         condition_id=derived_condition,
-        skills_enabled=args.skills_enabled,
+        skills_enabled=skills_enabled,
         override_present=override_present,
         frozen=not args.uncounted_smoke and not override_present,
         counted=counted,
@@ -1423,70 +1438,26 @@ async def amain(argv: list[str] | None = None) -> int:
 
     cfg_path = _resolve_run_config_path(args)
     base_run_config = load_run_config(cfg_path)
-    api_endpoint = os.getenv(base_run_config.api.endpoint_env)
-    api_key = os.getenv(base_run_config.api.credential_env)
-    missing = [
-        name for name, value in (
-            (base_run_config.api.endpoint_env, api_endpoint),
-            (base_run_config.api.credential_env, api_key),
-        ) if not value
-    ]
-    if missing:
-        raise SystemExit("missing trusted API environment: " + ", ".join(missing))
-    if args.all:
-        task_dirs = discover_tasks()
-    elif args.tasks:
-        task_dirs = []
-        for name in args.tasks:
-            mapped_name = CASE_ALIASES.get(name, name)
-            path = Path(mapped_name) if Path(mapped_name).is_dir() else ROOT / mapped_name
-            if not path.is_dir():
-                path = Path(name) if Path(name).is_dir() else ROOT / name
-            if not path.is_dir():
-                raise SystemExit(f"task not found: {name}")
-            task_dirs.append(path)
-    else:
-        raise SystemExit("请指定任务名，或加 --all")
 
+    # 判定 formal 运行
+    is_formal_run = (
+        not args.uncounted_smoke
+        and getattr(base_run_config, "mode", None) in ("pilot", "formal")
+        and not getattr(args, "smoke", False)
+    )
+
+    benchmark_commit = args.benchmark_commit or frozen_release_source_commit() or git_head_commit()
+    if is_formal_run:
+        if not benchmark_commit or len(benchmark_commit) != 40 or not all(c in "0123456789abcdefABCDEF" for c in benchmark_commit):
+            raise SystemExit(
+                f"Formal benchmark execution requires a valid 40-character git commit SHA, got {benchmark_commit!r}"
+            )
+
+    agent_commit = args.agent_commit or "unknown"
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d__%H-%M-%S")
     run_dir = args.jobs_dir / stamp
     threads_root = run_dir / "threads"
     threads_root.mkdir(parents=True, exist_ok=True)
-
-    # skill bundle:--skills 时从 manifest 锁定镜像,提取快照作为 skill_roots。
-    # 提取后哈希必须与 manifest 一致,否则本次 run 作废。
-    skills_source = "none"
-    skill_image = skill_commit = skills_sha = ""
-    skill_roots: tuple[Path, ...] = ()
-    if args.skills_enabled:
-        manifest = load_skill_manifest()
-        snapshot = run_dir / "skills_src"
-        extract_skills_image(snapshot, manifest["tag"])
-        skills_sha = verify_skills_sha(snapshot, manifest["skills_sha"])
-        skill_image = manifest["tag"]
-        skill_commit = manifest["commit"]
-        skills_source = "image"
-        skill_roots = (snapshot,)
-
-    experiment_id = (
-        base_run_config.run_config_id if args.experiment == "default" else args.experiment
-    )
-    condition_id = "with-skill" if args.skills_enabled else "no-skill"
-    if args.condition is not None and args.condition != condition_id:
-        raise SystemExit(
-            f"--condition {args.condition!r} conflicts with Skill treatment {condition_id!r}"
-        )
-    skill_label = "image-pinned" if args.skills_enabled else "No Skill"
-    replicate = args.replicate
-    benchmark_commit = args.benchmark_commit or frozen_release_source_commit() or git_head_commit()
-    agent_commit = args.agent_commit or "unknown"
-    print(
-        f"run: exp={experiment_id}  cond={condition_id}  replicate={replicate}  "
-        f"benchmark={benchmark_commit}  agent={agent_commit}  "
-        f"run_config={base_run_config.run_config_id}@{base_run_config.digest}  "
-        f"skills={'ON' if args.skills_enabled else 'OFF'}  "
-        f"skills_source={skills_source}  skill_image={skill_image or '-'}"
-    )
 
     exp_v2_spec: ExperimentSpecV2 | None = None
     if cfg_path.suffix == ".toml" or str(cfg_path).endswith(".toml"):
@@ -1494,40 +1465,245 @@ async def amain(argv: list[str] | None = None) -> int:
             exp_v2_spec = ExperimentSpecV2.from_file(cfg_path)
             exp_lock_doc = build_experiment_lock(
                 exp_v2_spec,
-                benchmark_commit if len(benchmark_commit) == 40 else ("0" * 40),
+                benchmark_commit,
+                allow_placeholders=not is_formal_run,
             )
             (run_dir / "experiment-lock.v2.json").write_text(
                 json.dumps(exp_lock_doc, indent=2, sort_keys=True), encoding="utf-8"
             )
             print(f"experiment_lock_v2: {run_dir / 'experiment-lock.v2.json'}")
         except Exception as exc:
+            if is_formal_run:
+                raise SystemExit(f"Formal benchmark execution requires valid experiment lock: {exc}") from exc
             logging.debug(f"failed to build experiment lock: {exc}")
             exp_v2_spec = None
 
+    models_path = ROOT / "experiments" / "models.toml"
+    model_reg = ModelRegistry.from_file(models_path) if models_path.is_file() else None
+
+    def _resolve_model_entry(m_name: str) -> ModelEntry:
+        entry = None
+        if model_reg:
+            entry = model_reg.get(m_name)
+        if entry is None:
+            if model_reg and m_name == "default":
+                entry = model_reg.get("default")
+            elif m_name == base_run_config.model.model_id:
+                entry = ModelEntry(
+                    name=m_name,
+                    provider=base_run_config.model.provider,
+                    model_id=base_run_config.model.model_id,
+                    identity_strength=base_run_config.model.identity_strength,
+                )
+            elif model_reg and "default" in model_reg.models:
+                entry = model_reg.models["default"]
+            else:
+                entry = ModelEntry(
+                    name=m_name,
+                    provider=base_run_config.model.provider,
+                    model_id=m_name,
+                    identity_strength="alias-only",
+                )
+        return entry
+
+    def _resolve_provider_credentials(provider: str) -> tuple[str | None, str | None, str, str]:
+        if provider == "anthropic":
+            ep_env = "ANTHROPIC_BASE_URL"
+            cr_env = "ANTHROPIC_API_KEY"
+            ep = os.getenv(ep_env, "https://api.anthropic.com")
+            cr = os.getenv(cr_env)
+        elif provider == "openai":
+            ep_env = "OPENAI_BASE_URL"
+            cr_env = "OPENAI_API_KEY"
+            ep = os.getenv(ep_env, "https://api.openai.com/v1")
+            cr = os.getenv(cr_env)
+        else:
+            ep_env = base_run_config.api.endpoint_env
+            cr_env = base_run_config.api.credential_env
+            ep = os.getenv(ep_env, os.getenv("DFTWORLD_API_ENDPOINT"))
+            cr = os.getenv(cr_env, os.getenv("DFTWORLD_API_KEY"))
+        return ep, cr, ep_env, cr_env
+
+    experiment_id = (
+        base_run_config.run_config_id if args.experiment == "default" else args.experiment
+    )
+
+    run_plan: list[dict[str, Any]] = []
+    if args.matrix:
+        if not exp_v2_spec:
+            raise SystemExit("--matrix requires a valid Experiment v2 specification (.toml)")
+        matrix_cells = exp_v2_spec.expand_matrix()
+        task_filter = set(args.tasks) if args.tasks else None
+        for cell in matrix_cells:
+            case_key = cell["case"]
+            if task_filter and case_key not in task_filter and CASE_ALIASES.get(case_key) not in task_filter:
+                continue
+            mapped_name = CASE_ALIASES.get(case_key, case_key)
+            p = Path(mapped_name) if Path(mapped_name).is_dir() else ROOT / mapped_name
+            if not p.is_dir():
+                p = Path(case_key) if Path(case_key).is_dir() else ROOT / case_key
+            if not p.is_dir():
+                raise SystemExit(f"matrix case directory not found: {case_key}")
+            run_plan.append({
+                "path": p,
+                "model_name": cell["model"],
+                "skill_name": cell["skill"],
+                "replicate": cell["repeat"],
+            })
+        print(f"Matrix plan: {len(run_plan)} runs expanded from {cfg_path.name}")
+    else:
+        if args.all:
+            task_dirs = discover_tasks()
+        elif args.tasks:
+            task_dirs = []
+            for name in args.tasks:
+                mapped_name = CASE_ALIASES.get(name, name)
+                path = Path(mapped_name) if Path(mapped_name).is_dir() else ROOT / mapped_name
+                if not path.is_dir():
+                    path = Path(name) if Path(name).is_dir() else ROOT / name
+                if not path.is_dir():
+                    raise SystemExit(f"task not found: {name}")
+                task_dirs.append(path)
+        else:
+            raise SystemExit("请指定任务名，或加 --all，或加 --matrix")
+
+        target_model = args.model or (exp_v2_spec.models[0] if exp_v2_spec and exp_v2_spec.models else base_run_config.model.model_id)
+        target_skill = "with-skill" if args.skills_enabled else "no-skill"
+        for p in task_dirs:
+            run_plan.append({
+                "path": p,
+                "model_name": target_model,
+                "skill_name": target_skill,
+                "replicate": args.replicate,
+            })
+
+    # 先做 API 凭证环境检查
+    for item in run_plan:
+        m_entry = _resolve_model_entry(item["model_name"])
+        ep, cr, ep_env, cr_env = _resolve_provider_credentials(m_entry.provider)
+        if not cr and is_formal_run:
+            raise SystemExit(f"missing trusted API credential {cr_env} for provider {m_entry.provider}")
+
     store = RunStore(args.jobs_dir)
     results: list[TaskResult] = []
-    for path in task_dirs:
+
+    for item in run_plan:
+        path = item["path"]
         task = load_task(path)
-        settings = resolve_task_run_settings(args, task.execution_class)
+        m_name = item["model_name"]
+        m_entry = _resolve_model_entry(m_name)
+        cell_endpoint, cell_key, endpoint_env, cred_env = _resolve_provider_credentials(m_entry.provider)
+
+        skill_spec = item["skill_name"]
+        cell_skill_enabled = skill_spec in ("with-skill", "hpc-submit")
+        cell_condition_id = "with-skill" if cell_skill_enabled else "no-skill"
+        cell_skill_label = "image-pinned" if cell_skill_enabled else "No Skill"
+        cell_skills_source = "image" if cell_skill_enabled else "none"
+        cell_skill_roots: tuple[Path, ...] = ()
+        cell_skill_image = cell_skill_commit = cell_skills_sha = ""
+        if cell_skill_enabled:
+            manifest = load_skill_manifest()
+            snapshot = run_dir / f"skills_src_{m_name}_{cell_condition_id}"
+            if not snapshot.is_dir():
+                extract_skills_image(snapshot, manifest["tag"])
+            cell_skills_sha = verify_skills_sha(snapshot, manifest["skills_sha"])
+            cell_skill_image = manifest["tag"]
+            cell_skill_commit = manifest["commit"]
+            cell_skill_roots = (snapshot,)
+
+        cell_replicate = item["replicate"]
+        settings = resolve_task_run_settings(
+            args,
+            task.execution_class,
+            cell_model=m_entry.model_id,
+            cell_skill_enabled=cell_skill_enabled,
+        )
         agent_active_walltime_sec = settings.run_config.budget_for(
             task.execution_class
         ).active_walltime_sec
-        attempt = next_attempt(args.jobs_dir, experiment_id, condition_id, task.name, replicate)
-        # Task 9: durable session (events + checkpoints) at the attempt's
-        # side-effect boundaries; the RunCoordinator resumes from these.
+        attempt = next_attempt(args.jobs_dir, experiment_id, cell_condition_id, task.name, cell_replicate)
+
+        run_id = f"{stamp}__{task.name}" if len(run_plan) == 1 else f"{stamp}__{task.name}__{m_name}__{cell_condition_id}__r{cell_replicate}"
+
+        # Candidate Agent 镜像摘要
+        agent_lock_path = ROOT / "base-env-build" / "agent-claude-code" / "claude-code.lock.json"
+        cand_d = None
+        if agent_lock_path.is_file():
+            try:
+                ald = json.loads(agent_lock_path.read_text(encoding="utf-8"))
+                cand_d = ald.get("built_image_digest")
+            except Exception:
+                pass
+        if not cand_d or not cand_d.startswith("sha256:"):
+            if is_formal_run:
+                raise SystemExit(f"Formal benchmark execution requires valid candidate_digest, got {cand_d!r}")
+            cand_d = "sha256:" + "a" * 64
+
+        # Verifier 镜像摘要
+        verif_d = docker_image_digest(task.image)
+        if not verif_d or not verif_d.startswith("sha256:") or verif_d == ("sha256:" + "0" * 64):
+            if is_formal_run:
+                raise SystemExit(f"Formal benchmark execution requires valid verifier_digest for image {task.image}, got {verif_d!r}")
+            verif_d = "sha256:" + "1" * 64
+
+        b_spec = exp_v2_spec.budget if exp_v2_spec else ExperimentBudget(
+            max_model_turns=base_run_config.budget_for(task.execution_class).max_model_turns,
+            max_total_tokens=base_run_config.budget_for(task.execution_class).max_total_tokens,
+            agent_active_walltime_sec=base_run_config.budget_for(task.execution_class).active_walltime_sec,
+            scheduler_wait_walltime_sec=base_run_config.budget_for(task.execution_class).scheduler_wait_walltime_sec,
+        )
+
+        # 事前生成并落盘 RunLockV2 (E21-04, E21-05)
+        run_lock_v2 = build_run_lock_v2(
+            run_id=run_id,
+            experiment_id=experiment_id,
+            case=task.name,
+            model=m_name,
+            skill=cell_condition_id,
+            repeat=cell_replicate,
+            budget=b_spec,
+            model_entry=m_entry,
+            candidate_digest=cand_d,
+            verifier_digest=verif_d,
+            ccbench_commit=benchmark_commit,
+            allow_placeholders=not is_formal_run,
+        )
+        run_lock_digest = canonical_run_lock_digest(run_lock_v2)
+
+        thread_task_dir = threads_root / task.name
+        thread_task_dir.mkdir(parents=True, exist_ok=True)
+        thread_lock_file = thread_task_dir / "run-lock.v2.json"
+        if thread_lock_file.exists():
+            try:
+                os.chmod(thread_lock_file, 0o644)
+            except Exception:
+                pass
+        thread_lock_file.write_text(json.dumps(run_lock_v2, indent=2, sort_keys=True), encoding="utf-8")
+        try:
+            os.chmod(thread_lock_file, 0o444)
+        except Exception:
+            pass
+
+        rec_task_dir = args.jobs_dir / run_id
+        rec_task_dir.mkdir(parents=True, exist_ok=True)
+        rec_lock_file = rec_task_dir / "run-lock.v2.json"
+        if rec_lock_file.exists():
+            try:
+                os.chmod(rec_lock_file, 0o644)
+            except Exception:
+                pass
+        rec_lock_file.write_text(json.dumps(run_lock_v2, indent=2, sort_keys=True), encoding="utf-8")
+        try:
+            os.chmod(rec_lock_file, 0o444)
+        except Exception:
+            pass
+
+        print(f"pre_run_lock_v2: {thread_lock_file}  digest={run_lock_digest}")
+
         session = durable_session_for_run(run_dir, task.name)
-        print(f"==> {task.name}  ({task.image})  attempt={attempt}")
+        print(f"==> {task.name}  ({task.image})  attempt={attempt}  model={m_name}  skill={cell_condition_id}")
         t0 = time.perf_counter()
 
-        # Execution dispatch is contract-only (Task 11): the executor registry
-        # maps the case's declared ``execution_class`` to the runtime lifecycle.
-        # ``hpc_controller`` starts the host-side trusted gateway and pins the
-        # local container to zero GPUs — the GPU lives on the remote Slurm job
-        # (``--gres`` in the controller's slurm template).  ``local_sandbox``
-        # uses the task's own GPU allowance.  The task.toml ``gpus`` value still
-        # feeds the verifier/profile layer, but the container backend must not
-        # pass ``--gpus device=0`` for controller cases (Apple M4 has no NVIDIA
-        # runtime and would fail at start).
         cluster_prof = args.cluster_profile
         gpu_prof = args.gpu_site_profile
         if args.site_profile:
@@ -1546,7 +1722,6 @@ async def amain(argv: list[str] | None = None) -> int:
         )
         run_adapter_config = executor_deps.pop("run_adapter_config", None)
         executor = resolve(task.execution_class, **executor_deps)
-        run_id = f"{stamp}__{task.name}"
         context = ExecutionContext(
             task=task,
             threads_root=threads_root,
@@ -1563,12 +1738,12 @@ async def amain(argv: list[str] | None = None) -> int:
                 task,
                 run_id=run_id,
                 experiment_id=experiment_id,
-                condition_id=condition_id,
-                replicate=replicate,
+                condition_id=cell_condition_id,
+                replicate=cell_replicate,
                 model=settings.model,
                 max_turns=settings.max_turns,
                 benchmark_commit=benchmark_commit,
-                skills_sha=skills_sha or None,
+                skills_sha=cell_skills_sha or None,
                 run_config=base_run_config,
                 run_metadata={
                     "override_present": settings.override_present,
@@ -1590,14 +1765,14 @@ async def amain(argv: list[str] | None = None) -> int:
                 case_dir=task.path,
                 gpus=context.local_gpus,
                 agent_timeout_sec=agent_active_walltime_sec,
-                skill_roots=skill_roots,
+                skill_roots=cell_skill_roots,
                 verbose=args.verbose,
                 container_env=context.container_env,
                 execution_class=task.execution_class,
-                api_endpoint=api_endpoint,
-                api_key=api_key,
+                api_endpoint=cell_endpoint,
+                api_key=cell_key,
                 forbidden_env_names=frozenset(
-                    {base_run_config.api.endpoint_env, base_run_config.api.credential_env}
+                    {endpoint_env, cred_env}
                 ),
                 expected_image_digest=provenance.lock.payload.get("agent", {}).get("agent_image_digest"),
             )
@@ -1624,24 +1799,18 @@ async def amain(argv: list[str] | None = None) -> int:
             )
             treatment = Treatment(
                 experiment_id=experiment_id,
-                condition_id=condition_id,
-                skills_source=skills_source,
-                skill_image=skill_image,
-                skill_commit=skill_commit,
-                skills_sha=skills_sha or None,  # no-skill: "" -> None (record requires null)
-                replicate=replicate,
+                condition_id=cell_condition_id,
+                skills_source=cell_skills_source,
+                skill_image=cell_skill_image,
+                skill_commit=cell_skill_commit,
+                skills_sha=cell_skills_sha or None,  # no-skill: "" -> None (record requires null)
+                replicate=cell_replicate,
                 attempt=attempt,
                 benchmark_commit=benchmark_commit,
                 agent_model=settings.model,
             )
             profile = provenance.profile
-            # Candidate transport: RetryingModelClient wraps the candidate
-            # agent model transport via CandidateModelTransport shim. The adapter owns
-            # the candidate sandbox lifecycle, while ModelGatewayProxy isolates credentials
-            # and enforces streaming budget accounting.
             harness = TrustedHarness(adapter, store=store, session=session)
-            # RetryingModelClient is composed at the harness root.
-            # root; the adapter will inject its provider into the transport.
             transport = CandidateModelTransport(provider=None)
             model_client = RetryingModelClient(
                 transport=transport,
@@ -1667,30 +1836,51 @@ async def amain(argv: list[str] | None = None) -> int:
             await executor.close(context)
 
         logs = adapter.collect_logs()
-        passed = br.is_counted_scientifically and br.failure_code is FailureCode.PASS
+
+        # 事后观测：校验 RunLockV2 不可变性 (E21-05, E21-09)
+        run_lock_tampered = False
+        tamper_msg = ""
+        try:
+            current_raw = thread_lock_file.read_text(encoding="utf-8")
+            observed_lock = json.loads(current_raw)
+            observed_digest = canonical_run_lock_digest(observed_lock)
+            if observed_digest != run_lock_digest:
+                run_lock_tampered = True
+                tamper_msg = f"RunLockV2 digest mismatch: pre={run_lock_digest} != post={observed_digest}"
+        except Exception as e_lock:
+            run_lock_tampered = True
+            tamper_msg = f"RunLockV2 verification read error: {e_lock}"
+
+        if run_lock_tampered:
+            passed = False
+            final_err = tamper_msg
+        else:
+            passed = br.is_counted_scientifically and br.failure_code is FailureCode.PASS
+            final_err = "" if passed else br.reason
+
         elapsed_sec = time.perf_counter() - t0
         result = TaskResult(
             task=task.name,
             image=task.image,
             reward=1.0 if passed else 0.0,
             ok=passed,
-            skill=skill_label,
+            skill=cell_skill_label,
             tool_calls=logs.get("tool_calls", 0),
             tokens=logs.get("tokens", 0),
-            error="" if passed else br.reason,
+            error=final_err,
             elapsed_sec=elapsed_sec,
             thread_id=task.name,
             thread_dir=logs.get("thread_dir", ""),
             workspace=logs.get("workspace", ""),
             experiment_id=experiment_id,
-            condition_id=condition_id,
-            replicate=replicate,
+            condition_id=cell_condition_id,
+            replicate=cell_replicate,
             attempt=attempt,
             benchmark_commit=benchmark_commit,
-            skills_source=skills_source,
-            skill_image=skill_image,
-            skill_commit=skill_commit,
-            skills_sha=skills_sha,
+            skills_source=cell_skills_source,
+            skill_image=cell_skill_image,
+            skill_commit=cell_skill_commit,
+            skills_sha=cell_skills_sha,
             compute_image=task.image,
             requested_gpus=task.gpus,
             skills_invoked=logs.get("skills_invoked", []),
@@ -1706,54 +1896,6 @@ async def amain(argv: list[str] | None = None) -> int:
         if result.thread_dir:
             print(f"    thread: {result.thread_dir}")
             print(f"    record: {args.jobs_dir / spec.run_id / 'run-record.json'}")
-
-        # Emit canonical immutable RunLockV2 (Experiment v2 execution contract)
-        models_path = ROOT / "experiments" / "models.toml"
-        model_reg = ModelRegistry.from_file(models_path) if models_path.is_file() else None
-        m_name = getattr(task, "model_name", None) or (exp_v2_spec.models[0] if exp_v2_spec else base_run_config.model.model_id)
-        m_entry = None
-        if model_reg:
-            m_entry = model_reg.get(m_name) or model_reg.get("default")
-        if m_entry is None:
-            m_entry = ModelEntry(
-                name=m_name,
-                provider=base_run_config.model.provider,
-                model_id=base_run_config.model.model_id,
-                identity_strength=base_run_config.model.identity_strength,
-            )
-
-        b_spec = exp_v2_spec.budget if exp_v2_spec else ExperimentBudget(
-            max_model_turns=base_run_config.budget_for(task.execution_class).max_model_turns,
-            max_total_tokens=base_run_config.budget_for(task.execution_class).max_total_tokens,
-            agent_active_walltime_sec=base_run_config.budget_for(task.execution_class).active_walltime_sec,
-            scheduler_wait_walltime_sec=base_run_config.budget_for(task.execution_class).scheduler_wait_walltime_sec,
-        )
-        cand_d = agent_image_digest if (agent_image_digest and agent_image_digest.startswith("sha256:")) else ("sha256:" + "0" * 64)
-        verif_d = image_digest if (image_digest and image_digest.startswith("sha256:")) else ("sha256:" + "0" * 64)
-        cc_commit = benchmark_commit if len(benchmark_commit) == 40 else ("0" * 40)
-        run_lock_v2 = build_run_lock_v2(
-            run_id=spec.run_id,
-            experiment_id=experiment_id,
-            case=task.name,
-            model=m_name,
-            skill=condition_id,
-            repeat=replicate,
-            budget=b_spec,
-            model_entry=m_entry,
-            candidate_digest=cand_d,
-            verifier_digest=verif_d,
-            ccbench_commit=cc_commit,
-        )
-        rec_dir = args.jobs_dir / spec.run_id
-        if rec_dir.is_dir():
-            (rec_dir / "run-lock.v2.json").write_text(
-                json.dumps(run_lock_v2, indent=2, sort_keys=True), encoding="utf-8"
-            )
-        if result.thread_dir and Path(result.thread_dir).is_dir():
-            (Path(result.thread_dir) / "run-lock.v2.json").write_text(
-                json.dumps(run_lock_v2, indent=2, sort_keys=True), encoding="utf-8"
-            )
-            print(f"    run_lock: {Path(result.thread_dir) / 'run-lock.v2.json'}")
 
     summary = {
         "run_id": stamp,

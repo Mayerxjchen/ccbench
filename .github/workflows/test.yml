@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
@@ -43,7 +45,7 @@ jobs:
 
       - name: Run verification suite
         run: |
-          uv run pytest tests/ -q
+          uv run pytest tests/ -m "not container and not live" -q
 
       - name: Verify release provenance & digest integrity
         run: |

@@ -36,3 +36,7 @@ include = ["dftworld_bench*"]
 # reached.  norecursedirs keeps future data dirs under tests/ out too.
 testpaths = ["tests"]
 norecursedirs = ["jobs", ".worktrees", ".pagent"]
+markers = [
+    "container: marks tests requiring pre-built container images or docker daemon",
+    "live: marks tests requiring external live clusters or cloud credentials",
+]

@@ -40,6 +40,9 @@ def _docker_available() -> bool:
         return False
 
 
+pytestmark = pytest.mark.container
+
+
 class DummySSEHandler(http.server.BaseHTTPRequestHandler):
     req_count = 0
 
