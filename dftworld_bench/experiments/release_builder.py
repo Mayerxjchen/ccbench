@@ -1,7 +1,8 @@
-"""Canonical release identity hashing and rebuild from the frozen on-disk state.
+"""Canonical release identity hashing and rebuild from the frozen Git tree at source_commit.
 
-Every digest in the release manifest must recompute from disk so the frozen
-anchors pin real bytes.  Two serializations are canonical:
+Every digest in the release manifest must recompute from the frozen Git tree at
+source_commit so the frozen anchors pin real immutable bytes.  Two serializations
+are canonical:
 
 - file: ``sha256(content)``
 - directory tree: ``sha256(rel_path + '\\0' + file_sha256 + '\\0' ...)`` over the
@@ -11,14 +12,15 @@ anchors pin real bytes.  Two serializations are canonical:
   locally.
 
 ``release_mismatches`` reports what the committed release gets wrong.
-``regenerate_release`` rewrites every locally verifiable digest from ``root``
-and recomputes ``release_digest``.
+``regenerate_release`` rewrites every locally verifiable digest from the target
+commit's Git tree and recomputes ``release_digest``.
 """
 
 from __future__ import annotations
 
 import copy
 import hashlib
+import re
 import subprocess
 from pathlib import Path
 
@@ -62,6 +64,29 @@ def tree_digest(root: Path) -> str:
         h.update(digest.encode("ascii"))
         h.update(b"\0")
     return h.hexdigest()
+
+
+def validate_source_commit(commit: str, root: Path) -> None:
+    """Enforce strict commit pinning: must be a full 40-character hex commit SHA
+    that exists in the git repository. Rejects mutable refs (main, HEAD, tags)
+    and short SHAs.
+    """
+    if commit == "DISK":
+        return
+    if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", commit):
+        raise ValueError(
+            f"Invalid source_commit '{commit}': must be a full 40-character hex SHA. "
+            f"Mutable refs (main, HEAD, tags) and abbreviated SHAs are strictly rejected."
+        )
+    proc = subprocess.run(
+        ["git", "cat-file", "-e", f"{commit}^{{commit}}"],
+        cwd=root,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        raise ValueError(
+            f"Commit '{commit}' does not exist as a commit in repository {root}."
+        )
 
 
 def git_file_sha256(commit: str, rel_path: str, root: Path) -> str:
@@ -140,6 +165,8 @@ def entry_digests(
     tree (when ``commit`` is given and != 'DISK') or from the host disk.
     """
     use_git = commit is not None and commit != "DISK"
+    if use_git:
+        validate_source_commit(commit, root)
 
     if component == "cases":
         case_id = entry["case_id"]
@@ -202,6 +229,8 @@ def release_mismatches(
     target_commit = commit if commit is not None else release.get("source_commit")
     if target_commit is None:
         target_commit = "DISK"
+    if target_commit != "DISK":
+        validate_source_commit(target_commit, root)
 
     out: list[tuple[str, str, str, str]] = []
     for component, entries in release["components"].items():
@@ -223,6 +252,8 @@ def regenerate_components(
     target_commit = commit if commit is not None else release.get("source_commit")
     if target_commit is None:
         target_commit = "DISK"
+    if target_commit != "DISK":
+        validate_source_commit(target_commit, root)
 
     components = copy.deepcopy(release["components"])
     for component, entries in components.items():
@@ -240,17 +271,14 @@ def regenerate_release(
     """Return a release with all locally verifiable digests recomputed from
     the target commit (or disk) and ``release_digest`` re-derived."""
     target_commit = commit if commit is not None else release.get("source_commit")
+    if target_commit is None:
+        target_commit = "DISK"
+    if target_commit != "DISK":
+        validate_source_commit(target_commit, root)
+
     out = dict(release)
-    if target_commit and target_commit != "DISK":
-        # Resolve to full 40-character sha if valid git ref
-        rev_proc = subprocess.run(
-            ["git", "rev-parse", target_commit],
-            cwd=root,
-            capture_output=True,
-            text=True,
-        )
-        if rev_proc.returncode == 0:
-            out["source_commit"] = rev_proc.stdout.strip()
+    if target_commit != "DISK":
+        out["source_commit"] = target_commit
     out["components"] = regenerate_components(release, root, commit=target_commit)
     out["release_digest"] = ablation.release_digest(out)
     return out

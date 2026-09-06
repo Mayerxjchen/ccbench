@@ -1,9 +1,9 @@
-"""Every release component digest must recompute from the frozen on-disk state.
+"""Every release component digest must recompute from the frozen Git tree at source_commit.
 
 The release manifest freezes identities — per-file sha256 and per-directory tree
 digests — so a formal ablation run can verify it is measuring the exact code,
 skills, and thresholds it declares.  A digest that cannot be recomputed from
-disk is a hallucinated anchor: it pins nothing.
+the frozen Git tree at source_commit is a hallucinated anchor: it pins nothing.
 
 Two directory-digest families are exercised here:
 - ``skills``: one tree digest per skill bundle under ``base-env-build/skills/``
@@ -155,4 +155,41 @@ def test_release_verifier_fails_when_disk_matches_but_git_tree_differs(
     assert label == "task.toml"
     assert want == c1_toml_sha  # What git tree at source_commit has
     assert have == disk_toml_sha  # What the false manifest had
+
+
+@pytest.mark.parametrize(
+    "invalid_ref",
+    [
+        "main",
+        "HEAD",
+        "HEAD~1",
+        "v1.0.0",
+        "ablation-v0-deepseek-frozen",
+        "8af7b86",
+        "8af7b8638f2b",
+        "not-a-sha-at-all",
+        "8af7b8638f2b4d57dff45d90c9eee8bb2f0c828g",  # invalid hex
+    ],
+)
+def test_validate_source_commit_rejects_mutable_refs_and_short_shas(invalid_ref: str) -> None:
+    """Must reject mutable refs, branch names, tags, and abbreviated SHAs."""
+    with pytest.raises(ValueError, match="must be a full 40-character hex SHA"):
+        builder.validate_source_commit(invalid_ref, ROOT)
+
+
+def test_validate_source_commit_rejects_nonexistent_40char_shas() -> None:
+    """Must reject 40-character hex strings that do not exist as commits."""
+    nonexistent = "0" * 40
+    with pytest.raises(ValueError, match="does not exist as a commit"):
+        builder.validate_source_commit(nonexistent, ROOT)
+
+
+def test_validate_source_commit_accepts_valid_40char_sha() -> None:
+    """Must accept real, existing 40-character commit SHAs and DISK sentinel."""
+    builder.validate_source_commit("DISK", ROOT)
+    release = _release()
+    source_commit = release["source_commit"]
+    # Existing source_commit must be accepted without error
+    builder.validate_source_commit(source_commit, ROOT)
+
 

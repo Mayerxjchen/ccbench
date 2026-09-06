@@ -29,7 +29,7 @@ dftworld/
 │   ├── build.sh
 │   ├── skills/                    # benchmark skill bundle（→ dftworld-skills:<sha>）
 │   └── .skill-image.json          # skill 镜像锁（tag/commit/skills_sha）
-├── benchmark/sources/             # 论文溯源（matclaw 论文与参考实现；旧 ChemGraph 已彻底归档废弃）
+├── benchmark/sources/             # 论文溯源（matclaw 论文与参考实现；旧 ChemGraph 已从当前版本移除、历史可由 Git 追溯）
 ├── scripts/                       # infra / qualification / ablation / evidence 工具
 │   └── ablation/hpc/              # G9 参考运行脚手架（submit/fetch/common/template）
 ├── tests/                         # 架构回归测试套件（pytest testpaths=["tests"]）
@@ -152,7 +152,7 @@ jobs/<timestamp>/
     verifier-logs/          # 独立 Verifier 的输出（result.json / reward.txt）
 ```
 
-容器内任务根目录统一为 `/app`（instruction / tests / Dockerfile 同源）。eval 会把镜像 `/app` 拷进 `workspace/`，再把容器 `/app` 链到该目录；不继承任何宿主外部 agent skills（完全与宿主 `~/.pagent`、全局技能目录及外部环境隔离解耦）。
+容器内任务根目录统一为 `/app`（instruction / tests / Dockerfile 同源）。eval 会把镜像 `/app` 拷进 `workspace/`，再把容器 `/app` 链到该目录；不继承任何宿主外部 agent skills（完全与宿主 agent 配置文件、全局技能目录及外部环境隔离解耦）。
 
 验证永远发生在**独立 Verifier 容器**里，不共享 Candidate：Agent 轮结束后先冻结并
 收集声明提交（legacy 布局排除 `.venv`/`.skills`/`_dftworld_tests`/`tests` 等运行时

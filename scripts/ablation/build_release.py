@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Rebuild release component digests from the frozen on-disk state.
+"""Rebuild release component digests from the frozen Git tree at source_commit.
 
 Reads a release manifest, recomputes every locally verifiable digest with the
-canonical methods (file sha256 / tree digest excluding ``__pycache__``), and
-re-derives ``release_digest``.  Remote-only entries (cluster SIFs) are left
-untouched — they are verified on the cluster, not the host.
+canonical methods (file sha256 / tree digest excluding ``__pycache__``) from
+the pinned source_commit Git tree, and re-derives ``release_digest``.
+Remote-only entries (cluster SIFs) are left untouched — they are verified
+on the cluster, not the host.
 
 Usage:
     python3 scripts/ablation/build_release.py                 # dry-run summary
@@ -24,6 +25,7 @@ sys.path.insert(0, str(ROOT))
 from dftworld_bench.experiments.release_builder import (  # noqa: E402
     regenerate_release,
     release_mismatches,
+    validate_source_commit,
 )
 
 
@@ -32,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--release", type=Path,
                     default=ROOT / "releases" / "ablation-ready-v0.json")
     ap.add_argument("--commit", type=str, default=None,
-                    help="git commit tree to verify against or regenerate from (defaults to release source_commit)")
+                    help="40-character git commit SHA to verify against or regenerate from (defaults to release source_commit)")
     ap.add_argument("--disk", action="store_true",
                     help="verify or regenerate directly against host disk instead of git tree")
     ap.add_argument("--apply", action="store_true",
@@ -43,6 +45,13 @@ def main(argv: list[str] | None = None) -> int:
 
     release = json.loads(args.release.read_text(encoding="utf-8"))
     target_commit = "DISK" if args.disk else (args.commit or release.get("source_commit"))
+
+    try:
+        if target_commit != "DISK":
+            validate_source_commit(target_commit, ROOT)
+    except ValueError as err:
+        print(f"ERROR: {err}", file=sys.stderr)
+        return 1
 
     mismatches = release_mismatches(release, ROOT, commit=target_commit)
 
