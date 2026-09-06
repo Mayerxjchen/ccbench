@@ -1,4 +1,4 @@
-"""Tests for Verifier Compiler and primitive generation."""
+"""Tests for Verifier Compiler, layer explicitness, and threshold SSOT binding."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 import pytest
 
-from ccbench.builder.verifier_plan import VerifierPlan, VerifierRule
-from ccbench.builder.verifier_compile import compile_verifier
+from ccbench.builder.verifier_plan import LayerDeclaration, LayerStatus, VerifierPlan, VerifierPlanError, VerifierRule
+from ccbench.builder.verifier_compile import VerifierCompileError, compile_verifier
 
 
 def test_compile_and_run_verifier_smoke(tmp_path: Path):
@@ -19,17 +19,24 @@ def test_compile_and_run_verifier_smoke(tmp_path: Path):
         rules=[
             VerifierRule(
                 primitive="artifact_exists",
+                target="final",
+                layer="V0",
+                params={"is_dir": True},
+            ),
+            VerifierRule(
+                primitive="artifact_exists",
                 target="final/result.json",
                 layer="V1",
             ),
             VerifierRule(
                 primitive="mlp.energy_rmse",
                 target="final/result.json",
-                params={"metric": "rmse", "threshold": 0.05},
+                threshold_ref="rmse_threshold",
+                params={"metric": "rmse"},
                 layer="V4",
             ),
         ],
-        thresholds={"rmse": 0.05},
+        thresholds={"rmse_threshold": 0.05},
     )
 
     verifier_dir = tmp_path / "verifier"
@@ -69,3 +76,49 @@ def test_compile_and_run_verifier_smoke(tmp_path: Path):
         capture_output=True,
     )
     assert proc3.returncode == 0
+
+
+def test_unknown_primitive_fails_at_compile_time(tmp_path: Path):
+    plan = VerifierPlan(
+        case_id="toy-002",
+        layers=["V0"],
+        rules=[
+            VerifierRule(
+                primitive="mlp.energy_rms",  # typo!
+                target="final",
+                layer="V0",
+            )
+        ],
+    )
+    with pytest.raises(VerifierCompileError, match="Unknown verifier primitive 'mlp.energy_rms'"):
+        compile_verifier(plan, tmp_path / "verifier")
+
+
+def test_silent_layer_drop_rejected(tmp_path: Path):
+    with pytest.raises(VerifierPlanError, match="no associated verification rules"):
+        VerifierPlan(
+            case_id="toy-003",
+            layers=["V0", "V1", "V4"],
+            rules=[
+                VerifierRule(primitive="artifact_exists", target="final", layer="V0"),
+                VerifierRule(primitive="artifact_exists", target="final/a.txt", layer="V1"),
+                # V4 has NO rules!
+            ],
+        )
+
+
+def test_unresolved_threshold_ref_rejected():
+    with pytest.raises(VerifierPlanError, match="Unresolved threshold_ref 'missing_ref'"):
+        VerifierPlan(
+            case_id="toy-004",
+            layers=["V0"],
+            rules=[
+                VerifierRule(
+                    primitive="mlp.energy_rmse",
+                    target="final/res.json",
+                    threshold_ref="missing_ref",
+                    layer="V0",
+                )
+            ],
+            thresholds={"other_ref": 0.05},
+        )

@@ -16,6 +16,14 @@ class CaseIRValidationError(ValueError):
     """Raised when Case IR fails schema or semantic validation."""
 
 
+# Registry of supported category plugins
+def get_category_plugin(category_name: str):
+    if category_name == "mlp":
+        from ccbench.builder.categories.mlp.plugin import MlpCategoryPlugin
+        return MlpCategoryPlugin()
+    return None
+
+
 def load_case_ir_schema() -> dict[str, Any]:
     """Load the canonical Case IR json schema."""
     schema_path = SCHEMAS_DIR / "case-ir.schema.json"
@@ -25,7 +33,7 @@ def load_case_ir_schema() -> dict[str, Any]:
 
 
 def validate_case_ir(doc: dict[str, Any]) -> None:
-    """Validate a Case IR document against schemas/case-ir.schema.json."""
+    """Validate a Case IR document against schemas/case-ir.schema.json and Category Plugin."""
     schema = load_case_ir_schema()
     validator = jsonschema.Draft202012Validator(schema)
     errors = list(validator.iter_errors(doc))
@@ -33,13 +41,28 @@ def validate_case_ir(doc: dict[str, Any]) -> None:
         msg = "; ".join(e.message for e in errors)
         raise CaseIRValidationError(f"Case IR schema validation failed: {msg}")
 
-    # Semantic cross-checks
+    # Semantic cross-checks: research_question
     sel = doc.get("selection", {})
     if sel.get("paradigm") == "research_question":
         if not sel.get("hypothesis"):
             raise CaseIRValidationError(
                 "Research question cases must define selection.hypothesis"
             )
+
+    # Category plugin semantic validation
+    cat = doc.get("identity", {}).get("category", "")
+    plugin = get_category_plugin(cat)
+    if plugin is None:
+        raise CaseIRValidationError(
+            f"Unsupported case category '{cat}'. "
+            f"Currently supported production category: ['mlp']"
+        )
+
+    plugin_errors = plugin.validate_design(doc)
+    if plugin_errors:
+        raise CaseIRValidationError(
+            f"Category plugin '{cat}' design validation failed: {'; '.join(plugin_errors)}"
+        )
 
 
 def load_case_ir(path: Path) -> dict[str, Any]:

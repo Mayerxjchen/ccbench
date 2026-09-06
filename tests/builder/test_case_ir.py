@@ -1,4 +1,4 @@
-"""Tests for Case IR schema validation and scaffold compilation."""
+"""Tests for Case IR schema validation, category plugin enforcement, and scaffold compilation."""
 
 from __future__ import annotations
 
@@ -76,6 +76,20 @@ def valid_case_ir_doc() -> dict:
 
 def test_valid_case_ir_passes_schema(valid_case_ir_doc: dict):
     validate_case_ir(valid_case_ir_doc)
+
+
+def test_unsupported_category_rejected(valid_case_ir_doc: dict):
+    doc = dict(valid_case_ir_doc)
+    doc["identity"] = {**doc["identity"], "category": "quantum_gravity"}
+    with pytest.raises(CaseIRValidationError, match="Unsupported case category"):
+        validate_case_ir(doc)
+
+
+def test_mlp_missing_thresholds_rejected(valid_case_ir_doc: dict):
+    doc = dict(valid_case_ir_doc)
+    doc["verification"] = {**doc["verification"], "thresholds": {}}
+    with pytest.raises(CaseIRValidationError, match="must declare numeric verification thresholds"):
+        validate_case_ir(doc)
 
 
 def test_research_question_requires_hypothesis(valid_case_ir_doc: dict):

@@ -18,7 +18,7 @@ fabricating lifecycle state directly.
 ```text
 /build-scientific-benchmark-case
     mode: intake | design | build | validate | discovery | release | publish
-    category: mlp | spectroscopy | catalysis | electrolyte
+    category: mlp  # (production-supported category; spectroscopy/catalysis planned)
 ```
 
 ### The 7 User Modes

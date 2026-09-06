@@ -1,4 +1,10 @@
-"""Verifier Compiler — Compiles declarative verifier plans into executable verifier packages."""
+"""Verifier Compiler — Compiles declarative verifier plans into executable verifier packages.
+
+Security invariants:
+- Unknown primitives cause a compile-time error (never silently fall through).
+- Missing thresholds cause a runtime hard-fail (no code-level defaults).
+- Declared layers with no associated rules cause a compile-time error.
+"""
 
 from __future__ import annotations
 
@@ -9,24 +15,73 @@ from typing import Any
 from ccbench.builder.verifier_plan import VerifierPlan
 
 
+class VerifierCompileError(ValueError):
+    """Raised when verifier compilation encounters an invalid plan."""
+
+
+# Canonical set of known verification primitives.
+# Any primitive NOT in this set will be rejected at compile time.
+KNOWN_PRIMITIVES: frozenset[str] = frozenset({
+    "artifact_exists",
+    "numeric_threshold",
+    "range",
+    "json_schema",
+    "mlp.energy_rmse",
+    "mlp.force_rmse",
+    "mlp.stability",
+})
+
+
 def compile_verifier(
     plan: VerifierPlan,
     target_dir: Path,
 ) -> dict[str, Path]:
-    """Compile a VerifierPlan into executable verifier artifacts in target_dir."""
+    """Compile a VerifierPlan into executable verifier artifacts in target_dir.
+
+    Raises VerifierCompileError if:
+    - Any rule references an unknown primitive.
+    - A declared layer has zero associated rules.
+    """
     target_dir = Path(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
+
+    # ── Compile-time validation ──────────────────────────────────────
+
+    # 1. Reject unknown primitives
+    for rule in plan.rules:
+        if rule.primitive not in KNOWN_PRIMITIVES:
+            raise VerifierCompileError(
+                f"Unknown verifier primitive '{rule.primitive}'; "
+                f"known primitives: {sorted(KNOWN_PRIMITIVES)}"
+            )
+
+    # 2. Reject declared layers with no rules
+    rule_layers = {r.layer for r in plan.rules}
+    for item in plan.layers:
+        layer_name = item.layer if hasattr(item, "layer") else str(item)
+        is_selected = (item.status.value == "selected" if hasattr(item.status, "value") else item.status == "selected") if hasattr(item, "status") else True
+        if is_selected and layer_name not in rule_layers:
+            raise VerifierCompileError(
+                f"Selected layer '{layer_name}' has no associated rules; "
+                f"every selected layer must have at least one rule"
+            )
+
+    # ── Emit plan JSON ───────────────────────────────────────────────
 
     plan_path = target_dir / "verifier_plan.json"
     plan_path.write_text(json.dumps(plan.to_dict(), indent=2), encoding="utf-8")
 
-    verify_py_content = f'''"""Compiled verifier for CCBench case {plan.case_id}."""
+    # ── Emit compiled verify.py ──────────────────────────────────────
+
+    verify_py_content = f'''"""Compiled verifier for CCBench case {plan.case_id}.
+
+Security: unknown primitives cause exit(2); missing thresholds cause exit(2).
+"""
 
 from __future__ import annotations
 
 import json
 import math
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -77,15 +132,27 @@ def check_json_schema(target: str, params: dict[str, Any], submission_root: Path
 
 
 def check_mlp_metric(target: str, params: dict[str, Any], submission_root: Path) -> bool:
+    """Check MLP metric against a threshold.
+
+    The threshold MUST be explicitly provided in params; there is no default.
+    Missing threshold is a fatal configuration error (exit 2).
+    """
     p = submission_root / target
     if not p.is_file():
         return False
+    metric_name = params.get("metric", "rmse")
+    threshold = params.get("threshold")
+    if threshold is None:
+        print(
+            f"FATAL: no threshold for metric '{{metric_name}}' on target '{{target}}'. "
+            f"Thresholds must be explicitly defined in the verifier plan.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
     try:
         doc = json.loads(p.read_text(encoding="utf-8"))
-        metric_name = params.get("metric", "rmse")
         val = float(doc.get(metric_name, math.nan))
-        threshold = float(params.get("threshold", 0.05))
-        return not math.isnan(val) and val <= threshold
+        return not math.isnan(val) and val <= float(threshold)
     except Exception:
         return False
 
@@ -107,7 +174,13 @@ def main() -> int:
 
     results = {{}}
     all_passed = True
-    layer_results: dict[str, bool] = {{layer: True for layer in plan_doc.get("layers", [])}}
+    raw_layers = plan_doc.get("layers", [])
+    declared_layers = [
+        l["layer"] if isinstance(l, dict) else str(l)
+        for l in raw_layers
+        if (l.get("status") == "selected" if isinstance(l, dict) else True)
+    ]
+    layer_results: dict[str, bool] = {{layer: True for layer in declared_layers}}
 
     for rule in plan_doc.get("rules", []):
         prim = rule["primitive"]
@@ -116,16 +189,32 @@ def main() -> int:
         layer = rule.get("layer", "V1")
 
         handler = PRIMITIVE_HANDLERS.get(prim)
-        passed = False
-        if handler:
-            passed = handler(target, params, submission_root)
-        else:
-            passed = (submission_root / target).exists()
+        if handler is None:
+            print(
+                f"FATAL: unknown verifier primitive '{{prim}}'. "
+                f"Known primitives: {{sorted(PRIMITIVE_HANDLERS.keys())}}. Aborting.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
 
+        passed = handler(target, params, submission_root)
         results[f"{{layer}}:{{prim}}:{{target}}"] = passed
         if not passed:
             all_passed = False
             layer_results[layer] = False
+
+    # Enforce mandatory layers: every declared layer must have results.
+    layers_with_rules = set()
+    for rule in plan_doc.get("rules", []):
+        layers_with_rules.add(rule.get("layer", "V1"))
+    for layer in declared_layers:
+        if layer not in layers_with_rules:
+            print(
+                f"FATAL: declared layer '{{layer}}' has no associated rules. "
+                f"Mandatory layers must not be silently dropped.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
 
     result_payload = {{
         "passed": all_passed,

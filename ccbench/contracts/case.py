@@ -164,6 +164,15 @@ class CoverageTags:
     computation_type: str = ""
     paradigm: str = "standard"
 
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "scientific_domain": self.scientific_domain,
+            "method_family": self.method_family,
+            "material_class": self.material_class,
+            "computation_type": self.computation_type,
+            "paradigm": self.paradigm,
+        }
+
 
 def _reject_infra_owned_fields(raw: dict[str, Any]) -> None:
     """Reject case manifests that contain infra-owned fields.
