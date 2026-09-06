@@ -115,11 +115,10 @@ def test_cleanup_sentinels_reports_leftover(monkeypatch):
 def _load_ai2kit_lock() -> dict:
     import json as _json
 
-    return _json.loads(
-        (ROOT / "reference/runtime/ai2kit-runtime.lock.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    p = ROOT / "runtimes/locks/ai2kit-runtime.lock.json"
+    if not p.is_file():
+        p = ROOT / "reference/runtime/ai2kit-runtime.lock.json"
+    return _json.loads(p.read_text(encoding="utf-8"))
 
 
 def test_ai2kit_phase_is_wired_and_authorization_gated():

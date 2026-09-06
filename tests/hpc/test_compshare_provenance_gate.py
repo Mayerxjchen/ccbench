@@ -24,7 +24,7 @@ from dftworld_bench.hpc.site_profile import HpcSiteProfile
 from dftworld_bench.hpc.trust_store import QualificationTrustStore
 
 ROOT = Path(__file__).resolve().parents[2]
-PROD_LOCK_DIR = ROOT / "reference" / "runtime"
+PROD_LOCK_DIR = ROOT / "runtimes" / "locks" if (ROOT / "runtimes" / "locks").is_dir() else ROOT / "reference" / "runtime"
 SITE_PROFILE_PATH = Path.home() / ".config" / "mlffbench" / "sites" / "compshare-gpu-production.json"
 TRUST_STORE_PATH = Path.home() / ".config" / "mlffbench" / "trust" / "qualification-trust.toml"
 KEY_PATH = Path.home() / ".config" / "mlffbench" / "keys" / "compshare-site-v1.priv"
@@ -315,3 +315,73 @@ def test_tampered_recipe_digest_fails(site_context):
 
         assert res["derived"]["qualification_status"] == "INVALID"
         assert any("recipe_digest mismatch" in p for p in res["problems"])
+
+
+def test_missing_recipe_digest_in_receipt_fails(site_context):
+    """Verifies that a receipt omitting runtime_lock.recipe_digest fails closed."""
+    clean_image_id = "compshareImage-1uyaneriamfz"
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        receipt_dir = _create_mock_receipt_dir(tmp_path, image_id=clean_image_id)
+
+        lock_doc = json.loads((PROD_LOCK_DIR / "jax-runtime.lock.json").read_text(encoding="utf-8"))
+        lock_doc["artifact"]["image_id"] = clean_image_id
+
+        recipe_rel = lock_doc["provenance"]["recipe_path"]
+        (tmp_path / recipe_rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / recipe_rel).write_text((ROOT / recipe_rel).read_text(encoding="utf-8"), encoding="utf-8")
+
+        mock_lock_path = tmp_path / "jax-runtime.lock.json"
+        mock_lock_path.write_text(json.dumps(lock_doc), encoding="utf-8")
+
+        from dftworld_bench.hpc.runtime_resolution import canonical_lock_digest
+        lock_digest = canonical_lock_digest(lock_doc)
+
+        from dftworld_bench.hpc.audit import GatewayAudit
+        ledger = GatewayAudit(receipt_dir / "audit_events.jsonl")
+        tail_digest = ledger.tail_digest()
+
+        evidence = {
+            "credential_isolation": {"verified": True},
+            "instance_lifecycle": {
+                "instance_id": "mock-inst",
+                "image_id": clean_image_id,
+                "stop_confirmed": True,
+                "delete_confirmed": True,
+            },
+            "jobs": [
+                {"probe_class": "gpu", "job_id": "job-01", "image_id": clean_image_id, "accounting": {"state": "COMPLETED", "exit_code": 0}}
+            ],
+            "fetch": {"artifacts": [{"path": "canary_report.json", "sha256": f"sha256:{hashlib_sha(receipt_dir / 'canary_report.json')}", "size_bytes": (receipt_dir / 'canary_report.json').stat().st_size}]},
+            "settlement": {"report_path": "settlement_report.json", "digest": f"sha256:{hashlib_sha(receipt_dir / 'settlement_report.json')}", "terminated": True},
+            "orphan_check": {"method": "mock", "active_total": 0},
+        }
+
+        receipt = build_compshare_site_qualification_receipt(
+            run_id="mock-missing-rd",
+            site_profile_id=site_context["site_obj"].site_id,
+            site_profile_digest=site_context["site_obj"].digest,
+            source_commit="0a6cafa9808d47788f9f2c55e040ffbfef932b79",
+            code_identity={"dftworld_bench/hpc/dispatcher.py": "sha256:dc508211ba3cd82da220101f583712e93f5572d8cdc1f195c3b793c263c93269"},
+            runtime_lock={
+                "path": "jax-runtime.lock.json",
+                "digest": lock_digest,
+                "image_id": clean_image_id,
+            },
+            evidence=evidence,
+            audit_log="audit_events.jsonl",
+            audit_tail_digest=tail_digest,
+            private_key_hex=site_context["key_hex"],
+        )
+
+        res = verify_site_receipt(
+            receipt,
+            root=tmp_path,
+            receipt_dir=receipt_dir,
+            scheduler="compshare",
+            trusted_site_profile=site_context["site_doc"],
+            trust_store=site_context["trust_store"],
+        )
+
+        assert res["derived"]["qualification_status"] == "INVALID"
+        assert any("recipe_digest" in p for p in res["problems"])

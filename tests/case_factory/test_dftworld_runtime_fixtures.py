@@ -21,8 +21,11 @@ from dftworld_bench.case_factory.dftworld_target import DftworldTargetAdapter
 from dftworld_bench.contracts.case import CaseSpec
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+_SUPPORT = Path(__file__).resolve().parent / "support"
 PORTABLE_COMMON = (
-    Path(__file__).resolve().parents[2]
+    _SUPPORT
+    if _SUPPORT.is_dir()
+    else Path(__file__).resolve().parents[2]
     / "scientific-benchmark-case-builder-portable"
     / "skills" / "build-scientific-benchmark-case" / "scripts" / "common"
 )

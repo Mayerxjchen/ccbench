@@ -28,7 +28,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["dftworld_bench*"]
+include = ["dftworld_bench*", "ccbench*"]
 
 [tool.pytest.ini_options]
 # testpaths restricts collection to the real suite, so root-level data dirs

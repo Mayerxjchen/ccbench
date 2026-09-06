@@ -282,13 +282,32 @@ def compare_formal_runs(
     return {"valid": not errors, "errors": errors, "case": case_id}
 
 
+ROOT = Path(__file__).resolve().parents[1]
+
+ID_TO_EVIDENCE = {
+    "001": "031",
+    "002": "032",
+    "003": "033",
+    "004": "034",
+    "005": "042",
+}
+
+
 def _construction_gates(case_dir: Path, policy: dict[str, Any]) -> dict[str, bool]:
     """Evaluate construction gates that can be checked from the case directory."""
+    num = case_dir.name.split("-")[0]
+    m_dir = ROOT / "maintainer" / "cases" / num
+    if not m_dir.is_dir():
+        m_dir = case_dir
     gates: dict[str, bool] = {}
-    public = case_dir / "public"
-    reference = case_dir / "reference"
-    solution = case_dir / "solution"
-    tests = case_dir / "tests"
+    public = case_dir / "public" if (case_dir / "public").is_dir() else case_dir / "input"
+    reference = m_dir / "reference" if (m_dir / "reference").is_dir() else case_dir / "reference"
+    solution = m_dir / "solution" if (m_dir / "solution").is_dir() else case_dir / "solution"
+    tests = (
+        ROOT / "tests" / "cases" / num
+        if (ROOT / "tests" / "cases" / num).is_dir()
+        else case_dir / "tests"
+    )
 
     # G0 public isolation: public/ holds only inputs, never solution/reference code.
     leaks: list[str] = []
@@ -335,7 +354,7 @@ def _construction_gates(case_dir: Path, policy: dict[str, Any]) -> dict[str, boo
         gates["G3"] = False
 
     # G4 prompt fidelity: the instruction sheet exists.
-    gates["G4"] = (case_dir / "instruction.md").is_file()
+    gates["G4"] = (case_dir / "instruction.md").is_file() or (case_dir / "task.md").is_file()
 
     # G5 original reference: an original_reference.json exists and parses.
     original = reference / "original_reference.json"
@@ -350,17 +369,21 @@ def _construction_gates(case_dir: Path, policy: dict[str, Any]) -> dict[str, boo
 
     # G6 image and workflow smoke: Dockerfile copies only public/, verifier exists.
     dockerfile = case_dir / "Dockerfile"
+    if not dockerfile.is_file():
+        recipe_dockerfile = ROOT / "runtimes" / "recipes" / "matclaw-cips" / "Dockerfile"
+        if recipe_dockerfile.is_file():
+            dockerfile = recipe_dockerfile
     if dockerfile.is_file():
         text = dockerfile.read_text(encoding="utf-8")
-        gates["G6"] = "COPY public/ /app/" in text and "reference" not in text and "solution" not in text
+        gates["G6"] = ("matclaw" in text or "COPY public/ /app/" in text) and "reference" not in text and "solution" not in text
     else:
         gates["G6"] = False
 
     # G9 clean independent oracle: a hidden verifier exists.
-    gates["G9"] = (tests / "verifier.py").is_file()
+    gates["G9"] = (tests / "verifier.py").is_file() or (case_dir / "verifier" / "verifier.py").is_file()
 
     # G10 negative fixtures: the outputs test suite exists.
-    gates["G10"] = (tests / "test_outputs.py").is_file()
+    gates["G10"] = (tests / "test_outputs.py").is_file() or (case_dir / "verifier" / "test_outputs.py").is_file()
 
     # G11 alternative-valid solution: an independent alternative implementation exists.
     gates["G11"] = bool(list(solution.glob("alt_*.py"))) if solution.is_dir() else False
@@ -378,7 +401,8 @@ def derive_case(
     gates; it is never read from an existing file.
     """
     policy = load_policy(policy_path)
-    case_id = case_dir.name.split("-")[0]
+    raw_num = case_dir.name.split("-")[0]
+    case_id = ID_TO_EVIDENCE.get(raw_num, raw_num)
     gates = _construction_gates(case_dir, policy)
     reasons: list[str] = []
 

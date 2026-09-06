@@ -96,10 +96,20 @@ def audit_image_recipe(
     if "image_id" in doc:
         raise RecipeAuditError("Recipe must not specify image_id while UNBUILT")
 
+    def _resolve_recipe_rel(rel_str: str) -> Path:
+        p_cand = root / rel_str
+        if p_cand.is_file():
+            return p_cand
+        if rel_str.startswith("base-env-build/"):
+            alt = root / "runtimes" / "recipes" / rel_str.removeprefix("base-env-build/")
+            if alt.is_file():
+                return alt
+        return p_cand
+
     # 5. Requirements lock verification
     req_meta = doc.get("requirements_lock", {})
     req_rel = req_meta.get("path")
-    req_path = root / req_rel
+    req_path = _resolve_recipe_rel(req_rel)
     if not req_path.is_file():
         raise RecipeAuditError(f"requirements_lock file not found: {req_path}")
     
@@ -125,7 +135,7 @@ def audit_image_recipe(
     assets = doc.get("assets", [])
     for asset in assets:
         rel = asset.get("path")
-        asset_file = root / rel
+        asset_file = _resolve_recipe_rel(rel)
         if not asset_file.is_file():
             raise RecipeAuditError(f"Asset file not found: {asset_file}")
         actual_sha = hashlib.sha256(asset_file.read_bytes()).hexdigest()
@@ -138,7 +148,7 @@ def audit_image_recipe(
     probes = doc.get("probes", [])
     for probe in probes:
         rel = probe.get("path")
-        probe_file = root / rel
+        probe_file = _resolve_recipe_rel(rel)
         if not probe_file.is_file():
             raise RecipeAuditError(f"Probe file not found: {probe_file}")
         actual_sha = hashlib.sha256(probe_file.read_bytes()).hexdigest()

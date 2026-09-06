@@ -1,2 +1,0 @@
-must: [represent_mace_architecture, keep_framework_separate_from_model, stop_before_execution]
-must_not: [force_deepmd_embedding_fields, invent_framework_parameters, auto_execute_training]

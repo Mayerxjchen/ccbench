@@ -46,7 +46,10 @@ def _setup(report_only: bool = False) -> int:
     try:
         from dftworld_bench.hpc.runtime_resolution import RuntimeResolver
 
-        resolver = RuntimeResolver.from_lock_dir(ROOT / "reference" / "runtime")
+        lock_dir = ROOT / "runtimes" / "locks"
+        if not lock_dir.is_dir():
+            lock_dir = ROOT / "reference" / "runtime"
+        resolver = RuntimeResolver.from_lock_dir(lock_dir)
         checks["runtime_locks"] = resolver.all_capabilities()
         checks["qualified_runtimes"] = resolver.qualified_capabilities()
     except Exception as exc:  # fail closed with the reason, not a traceback

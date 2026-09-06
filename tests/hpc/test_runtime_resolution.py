@@ -580,7 +580,8 @@ def test_render_runtime_wrapper_with_resolved_runtime():
 def test_frozen_compshare_gpu_locks_parse():
     from dftworld_bench.hpc.runtime_resolution import RuntimeLockEntry, RuntimeStatus
 
-    ref_dir = Path(__file__).resolve().parent.parent.parent / "reference" / "runtime"
+    root = Path(__file__).resolve().parent.parent.parent
+    ref_dir = root / "runtimes" / "locks" if (root / "runtimes" / "locks").is_dir() else root / "reference" / "runtime"
     deepmd_lock = ref_dir / "deepmd-runtime.lock.json"
     jax_lock = ref_dir / "jax-runtime.lock.json"
 

@@ -40,7 +40,8 @@ def discover_numbered_cases(root: Path = ROOT) -> list[Path]:
 
 
 def find_hpc_case(prefix: str, root: Path = ROOT) -> Path:
-    matches = sorted(p for p in root.iterdir() if p.name.startswith(prefix))
+    search_dir = root / "cases" if (root / "cases").is_dir() else root
+    matches = sorted(p for p in search_dir.iterdir() if p.name.startswith(prefix))
     assert len(matches) == 1, f"expected exactly one {prefix}* case, got {matches}"
     return matches[0]
 

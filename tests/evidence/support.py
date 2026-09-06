@@ -13,15 +13,27 @@ from scripts.evidence.resolve_required_artifacts import resolve_required_artifac
 
 ROOT = Path(__file__).resolve().parents[2]
 CASES = {
-    "001": ROOT / "001-matclaw-cips-active-distillation",
-    "002": ROOT / "002-matclaw-cips-curie-temperature",
-    "003": ROOT / "003-matclaw-cips-domain-wall-search",
-    "031": ROOT / "001-matclaw-cips-active-distillation",
-    "032": ROOT / "002-matclaw-cips-curie-temperature",
-    "033": ROOT / "003-matclaw-cips-domain-wall-search",
+    "001": ROOT / "cases" / "001-matclaw-cips-active-distillation" if (ROOT / "cases" / "001-matclaw-cips-active-distillation").is_dir() else ROOT / "001-matclaw-cips-active-distillation",
+    "002": ROOT / "cases" / "002-matclaw-cips-curie-temperature" if (ROOT / "cases" / "002-matclaw-cips-curie-temperature").is_dir() else ROOT / "002-matclaw-cips-curie-temperature",
+    "003": ROOT / "cases" / "003-matclaw-cips-domain-wall-search" if (ROOT / "cases" / "003-matclaw-cips-domain-wall-search").is_dir() else ROOT / "003-matclaw-cips-domain-wall-search",
+    "031": ROOT / "cases" / "001-matclaw-cips-active-distillation" if (ROOT / "cases" / "001-matclaw-cips-active-distillation").is_dir() else ROOT / "001-matclaw-cips-active-distillation",
+    "032": ROOT / "cases" / "002-matclaw-cips-curie-temperature" if (ROOT / "cases" / "002-matclaw-cips-curie-temperature").is_dir() else ROOT / "002-matclaw-cips-curie-temperature",
+    "033": ROOT / "cases" / "003-matclaw-cips-domain-wall-search" if (ROOT / "cases" / "003-matclaw-cips-domain-wall-search").is_dir() else ROOT / "003-matclaw-cips-domain-wall-search",
 }
+
+
+def _find_evidence_policy(case_key: str) -> Path:
+    num = {"031": "001", "032": "002", "033": "003"}.get(case_key, case_key)
+    cands = [
+        ROOT / "maintainer" / "cases" / num / "reference" / "evidence-policy.json",
+        ROOT / "maintainer" / "cases" / num / "baseline" / "evidence-policy.json",
+        CASES[case_key] / "reference" / "evidence-policy.json",
+    ]
+    return next((c for c in cands if c.is_file()), cands[0])
+
+
 POLICY = {
-    case: json.loads((CASES[case] / "reference" / "evidence-policy.json").read_text())
+    case: json.loads(_find_evidence_policy(case).read_text())
     for case in CASES
 }
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -151,16 +152,19 @@ def load_run_config(path: Path) -> RunConfig:
                 deployment_id = "default"
                 identity_strength = "alias-only"
 
-            endpoint_env = f"{provider.upper()}_BASE_URL"
-            credential_env = f"{provider.upper()}_API_KEY"
-            if provider == "deepseek":
+            endpoint_env = "CCBENCH_BASE_URL" if os.getenv("CCBENCH_BASE_URL") else f"{provider.upper()}_BASE_URL"
+            credential_env = "CCBENCH_API_KEY" if os.getenv("CCBENCH_API_KEY") else f"{provider.upper()}_API_KEY"
+            if not os.getenv("CCBENCH_BASE_URL") and provider == "deepseek":
                 endpoint_env = "DEEPSEEK_BASE_URL"
+            if not os.getenv("CCBENCH_API_KEY") and provider == "deepseek":
                 credential_env = "DEEPSEEK_API_KEY"
-            elif provider == "openai":
+            elif not os.getenv("CCBENCH_BASE_URL") and provider == "openai":
                 endpoint_env = "OPENAI_BASE_URL"
+            elif not os.getenv("CCBENCH_API_KEY") and provider == "openai":
                 credential_env = "OPENAI_API_KEY"
-            elif provider == "anthropic":
+            elif not os.getenv("CCBENCH_BASE_URL") and provider == "anthropic":
                 endpoint_env = "ANTHROPIC_BASE_URL"
+            elif not os.getenv("CCBENCH_API_KEY") and provider == "anthropic":
                 credential_env = "ANTHROPIC_API_KEY"
 
             adapted = {

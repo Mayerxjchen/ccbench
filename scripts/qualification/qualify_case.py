@@ -80,6 +80,11 @@ def site_root(site_name: str) -> Path:
 def case_dir_for(name: str) -> Path:
     """Resolve ``--case``: exact directory, benchmark_id, or id shorthand."""
     alias_map = {
+        "001": "001-matclaw-cips-active-distillation",
+        "002": "002-matclaw-cips-curie-temperature",
+        "003": "003-matclaw-cips-domain-wall-search",
+        "004": "004-ai2kit-water64-end-to-end-potential",
+        "005": "005-go-water-dpmp",
         "031": "001-matclaw-cips-active-distillation",
         "032": "002-matclaw-cips-curie-temperature",
         "033": "003-matclaw-cips-domain-wall-search",
@@ -91,18 +96,26 @@ def case_dir_for(name: str) -> Path:
         "034-ai2kit-water64-end-to-end-potential": "004-ai2kit-water64-end-to-end-potential",
         "042-go-water-dpmp": "005-go-water-dpmp",
     }
-    if name in alias_map:
-        return ROOT / alias_map[name]
-    direct = ROOT / name
-    if direct.is_dir() and (direct / "task.toml").is_file():
-        return direct
+    target_name = alias_map.get(name, name)
+    cases_dir = ROOT / "cases"
+    for candidate_dir in (cases_dir / target_name, ROOT / target_name):
+        if candidate_dir.is_dir() and ((candidate_dir / "task.toml").is_file() or (candidate_dir / "case.toml").is_file()):
+            return candidate_dir
+
     candidates = []
-    for path in sorted(p for p in ROOT.iterdir() if p.is_dir()):
-        if not (path / "task.toml").is_file():
-            continue
-        benchmark_id = _benchmark_id(path)
-        if benchmark_id == name or benchmark_id.startswith(name + "-"):
-            candidates.append(path)
+    search_dirs = [cases_dir] if cases_dir.is_dir() else [ROOT]
+    for parent in search_dirs:
+        for path in sorted(p for p in parent.iterdir() if p.is_dir()):
+            if not ((path / "task.toml").is_file() or (path / "case.toml").is_file()):
+                continue
+            benchmark_id = _benchmark_id(path)
+            if (
+                benchmark_id == name
+                or benchmark_id.startswith(name + "-")
+                or path.name == name
+                or path.name.startswith(name + "-")
+            ):
+                candidates.append(path)
     if len(candidates) == 1:
         return candidates[0]
     raise QualifyPlanError(

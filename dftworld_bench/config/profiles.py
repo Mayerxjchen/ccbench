@@ -52,6 +52,8 @@ class ProfileRegistry:
         merged: dict[str, dict[str, dict[str, Any]]] = {}
         # Track (kind, name) → source file for duplicate detection
         source_map: dict[tuple[str, str], str] = {}
+        if not root.is_dir():
+            return cls(merged)
         for path in sorted(root.glob("*-profiles.toml")):
             data = tomllib.loads(path.read_text(encoding="utf-8"))
             for kind, values in data.items():

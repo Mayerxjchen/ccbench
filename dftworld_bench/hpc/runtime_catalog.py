@@ -227,12 +227,14 @@ class TrustedRuntimeCatalog:
                         raise ValueError(
                             "receipt runtime_lock.path is not safely relative"
                         )
-                    receipt_path_norm = Path(str(receipt_lock["path"])).as_posix()
-                    if receipt_path_norm.startswith("reference/production-runtime/"):
-                        receipt_path_norm = "reference/runtime/" + receipt_path_norm.removeprefix(
-                            "reference/production-runtime/"
-                        )
-                    if receipt_path_norm != expected_lock_rel:
+                    def _norm_lock_path(p_str: str) -> str:
+                        p_norm = Path(str(p_str)).as_posix()
+                        for prefix in ("reference/production-runtime/", "reference/runtime/"):
+                            if p_norm.startswith(prefix):
+                                return "runtimes/locks/" + p_norm.removeprefix(prefix)
+                        return p_norm
+
+                    if _norm_lock_path(receipt_lock["path"]) != _norm_lock_path(expected_lock_rel):
                         raise ValueError(
                             f"receipt runtime_lock.path {receipt_lock.get('path')!r} "
                             f"does not name {expected_lock_rel!r}"

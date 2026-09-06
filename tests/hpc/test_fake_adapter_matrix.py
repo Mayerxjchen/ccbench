@@ -32,7 +32,8 @@ HPC_CASE_PREFIXES = ("001-", "002-", "003-", "004-", "005-")
 
 
 def _find_case(prefix: str) -> Path:
-    matches = sorted(p for p in ROOT.iterdir() if p.name.startswith(prefix))
+    search_dir = ROOT / "cases" if (ROOT / "cases").is_dir() else ROOT
+    matches = sorted(p for p in search_dir.iterdir() if p.name.startswith(prefix))
     assert len(matches) == 1, f"expected exactly one {prefix}* case, got {matches}"
     return matches[0]
 

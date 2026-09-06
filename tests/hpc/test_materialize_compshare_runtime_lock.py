@@ -22,7 +22,11 @@ from scripts.infra.materialize_compshare_runtime_lock import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
-RECIPE_PATH = ROOT / "base-env-build" / "matclaw-cips-gpu" / "recipe.lock.json"
+RECIPE_PATH = (
+    ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "recipe.lock.json"
+    if (ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "recipe.lock.json").is_file()
+    else ROOT / "base-env-build" / "matclaw-cips-gpu" / "recipe.lock.json"
+)
 SCHEMA_PATH = ROOT / "schemas" / "compshare-runtime-lock.schema.json"
 
 
@@ -31,6 +35,30 @@ def test_schema_file_exists_and_is_valid():
     assert SCHEMA_PATH.is_file()
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     jsonschema.Draft202012Validator.check_schema(schema)
+
+
+def test_build_runtime_lock_doc_structure():
+    """Verify build_runtime_lock_doc creates a compliant structure without executing probes."""
+    recipe_doc = json.loads(RECIPE_PATH.read_text(encoding="utf-8"))
+    doc = build_runtime_lock_doc(
+        recipe_doc,
+        recipe_relpath=str(RECIPE_PATH.relative_to(ROOT)),
+        capability="matclaw-cips",
+        image_id=None,
+    )
+    assert doc["schema"] == "dispatcher-compshare-runtime-lock/v2"
+    assert doc["capability"] == "matclaw-cips"
+    assert doc["image_name"] == "mlff-matclaw-cips-gpu-v1"
+    assert doc["provenance"]["recipe_path"] in (
+        "runtimes/recipes/matclaw-cips-gpu/recipe.lock.json",
+        "base-env-build/matclaw-cips-gpu/recipe.lock.json",
+    )
+    assert doc["artifact"]["image_id"] is None
+    assert doc["qualification"]["status"] == "UNBUILT"
+    assert doc["provenance"]["recipe_digest"].startswith("sha256:")
+
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(schema).validate(doc)
 
 
 def test_materialize_default_success(tmp_path: Path):
@@ -50,7 +78,7 @@ def test_materialize_default_success(tmp_path: Path):
     assert doc["artifact"]["kind"] == "compshare_image"
     assert doc["artifact"]["image_id"] is None
     assert doc["qualification"]["status"] == "UNBUILT"
-    assert doc["provenance"]["recipe_path"] == "base-env-build/matclaw-cips-gpu/recipe.lock.json"
+    assert doc["provenance"]["recipe_path"].endswith("recipe.lock.json")
     assert doc["provenance"]["recipe_digest"].startswith("sha256:")
 
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -164,7 +192,11 @@ def test_materialize_rejects_corrupted_recipe(tmp_path: Path):
 
 def test_reference_runtime_matclaw_cips_in_repo():
     """Verify the repo's reference/runtime/matclaw-cips-runtime.lock.json is valid."""
-    lock_path = ROOT / "reference" / "runtime" / "matclaw-cips-runtime.lock.json"
+    lock_path = (
+        ROOT / "runtimes" / "locks" / "matclaw-cips-runtime.lock.json"
+        if (ROOT / "runtimes" / "locks" / "matclaw-cips-runtime.lock.json").is_file()
+        else ROOT / "reference" / "runtime" / "matclaw-cips-runtime.lock.json"
+    )
     assert lock_path.is_file()
 
     # Must pass check mode against current recipe
@@ -185,7 +217,7 @@ def test_reference_runtime_matclaw_cips_in_repo():
 
 def test_runtime_resolver_loads_matclaw_cips():
     """Verify RuntimeResolver correctly loads and reports matclaw-cips."""
-    ref_dir = ROOT / "reference" / "runtime"
+    ref_dir = ROOT / "runtimes" / "locks" if (ROOT / "runtimes" / "locks").is_dir() else ROOT / "reference" / "runtime"
     resolver = RuntimeResolver.from_lock_dir(ref_dir)
     assert "matclaw-cips" in resolver.all_capabilities()
     entry = resolver.get("matclaw-cips")

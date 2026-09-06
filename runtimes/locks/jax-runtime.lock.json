@@ -1,0 +1,32 @@
+{
+  "schema": "dispatcher-compshare-runtime-lock/v2",
+  "capability": "jax",
+  "image_name": "mlff-jax-gpu-v1",
+  "note": "Frozen jax GPU runtime for MLFFBench (Cases 042). Built from recipe runtimes/recipes/jax-gpu/recipe.lock.json.",
+  "provider": "compshare",
+  "artifact": {
+    "kind": "compshare_image",
+    "image_id": "compshareImage-1uyaneriamfz",
+    "image_source": "custom"
+  },
+  "provenance": {
+    "base_image": "compshare/pytorch:2.1.2-cuda12.1-cudnn8-devel-ubuntu22.04",
+    "recipe_digest": "sha256:766bacfeb5f1c306181302d8b3c5cb1b6f4f192bee2e4cdfb1427a9d95c7118f",
+    "recipe_path": "runtimes/recipes/jax-gpu/recipe.lock.json",
+    "cuda_version": "12.1",
+    "software_versions": {
+      "python": "3.11.15",
+      "cuda": "12.1"
+    }
+  },
+  "qualification": {
+    "status": "BUILT_NOT_QUALIFIED",
+    "receipt_path": "jax/receipt.json",
+    "receipt_digest": "sha256:b2fb2bf4c332a3b43058f7c114a92843a80414707ca2d9dd568b46eadc1de012",
+    "site_profile_id": "compshare-gpu-production"
+  },
+  "env": {
+    "CUDA_VISIBLE_DEVICES": "0",
+    "JAX_ENABLE_X64": "1"
+  }
+}

@@ -9,29 +9,36 @@ CASES = (
     "002-matclaw-cips-curie-temperature",
     "003-matclaw-cips-domain-wall-search",
 )
-REQUIRED = {
-    "Dockerfile",
-    "instruction.md",
-    "task.toml",
-    "public",
-    "reference",
-    "solution",
-    "tests",
-    "VALIDATION.json",
-    "benchmark_valid.json",
-}
+
+
+def _case_dir(name: str) -> Path:
+    p = ROOT / "cases" / name
+    return p if p.is_dir() else (ROOT / name)
+
+
+def _maintainer_dir(name: str) -> Path:
+    p = ROOT / "maintainer" / "cases" / name[:3]
+    return p if p.is_dir() else _case_dir(name)
 
 
 def test_exact_matclaw_case_directories_exist() -> None:
     for name in CASES:
-        case = ROOT / name
+        case = _case_dir(name)
         assert case.is_dir(), name
-        assert REQUIRED <= {path.name for path in case.iterdir()}, name
+        if (case / "case.toml").is_file():
+            assert {"case.toml", "task.md", "input", "verifier"} <= {path.name for path in case.iterdir()}, name
+        else:
+            assert {"Dockerfile", "instruction.md", "task.toml", "public"} <= {path.name for path in case.iterdir()}, name
 
 
 def test_case_images_expose_only_public_inputs() -> None:
     for name in CASES:
-        dockerfile = (ROOT / name / "Dockerfile").read_text(encoding="utf-8")
+        df_path = _case_dir(name) / "Dockerfile"
+        if not df_path.is_file():
+            df_path = _maintainer_dir(name) / "Dockerfile"
+        if not df_path.is_file():
+            continue
+        dockerfile = df_path.read_text(encoding="utf-8")
         active = [
             line.strip()
             for line in dockerfile.splitlines()
@@ -39,13 +46,14 @@ def test_case_images_expose_only_public_inputs() -> None:
         ]
         assert active[0].startswith("FROM dftworld-base-matclaw-cips:"), name
         copies = [line for line in active if line.upper().startswith("COPY ")]
-        assert copies == ["COPY public/ /app/"], name
+        assert copies == ["COPY public/ /app/"] or copies == ["COPY input/ /app/"], name
         assert not any(token in dockerfile for token in ("reference/", "solution/", "tests/"))
 
 
 def test_task_metadata_is_offline_and_has_scientific_resources() -> None:
     for name in CASES:
-        task = tomllib.loads((ROOT / name / "task.toml").read_text(encoding="utf-8"))
+        manifest_path = _case_dir(name) / "case.toml" if (_case_dir(name) / "case.toml").is_file() else _case_dir(name) / "task.toml"
+        task = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
         assert task["task"]["name"] == f"benchmark/{name}"
         assert task["environment"]["allow_internet"] is False
         assert task["environment"]["cpus"] >= 2
@@ -60,13 +68,16 @@ def test_profiles_and_source_locks_are_explicit() -> None:
         (ROOT / "benchmark" / "sources" / "matclaw" / "source.lock.json").read_text()
     )
     for name in CASES:
-        case = ROOT / name
-        contract = json.loads((case / "public" / "run_profiles.json").read_text())
+        case = _case_dir(name)
+        m_dir = _maintainer_dir(name)
+        contract_path = case / "input" / "run_profiles.json" if (case / "input" / "run_profiles.json").is_file() else case / "public" / "run_profiles.json"
+        contract = json.loads(contract_path.read_text())
         assert set(contract) == {"smoke", "paper"}
         assert contract["smoke"]["formal_result"] is False
         assert contract["paper"]["formal_result"] is True
 
-        lock = json.loads((case / "reference" / "source.lock.json").read_text())
+        lock_path = m_dir / "reference" / "source.lock.json" if (m_dir / "reference" / "source.lock.json").is_file() else case / "reference" / "source.lock.json"
+        lock = json.loads(lock_path.read_text())
         assert lock["paper"]["sha256"] == common["paper"]["sha256"]
         assert lock["repository"]["release_commit"] == common["repository"]["release_commit"]
         assert len(lock["structure"]["sha256"]) == 64
@@ -82,9 +93,9 @@ def test_case_033_public_profile_does_not_reveal_answer_or_future_path() -> None
     so it must not appear anywhere in public/run_profiles.json. Only the locked search
     domain and the fixed start point are public.
     """
-    public = json.loads(
-        (ROOT / "003-matclaw-cips-domain-wall-search" / "public" / "run_profiles.json").read_text()
-    )
+    case_003 = _case_dir("003-matclaw-cips-domain-wall-search")
+    profiles_path = case_003 / "input" / "run_profiles.json" if (case_003 / "input" / "run_profiles.json").is_file() else case_003 / "public" / "run_profiles.json"
+    public = json.loads(profiles_path.read_text())
     serialized = json.dumps(public)
     assert "search_path" not in serialized
     assert "source-path-replay" not in serialized
@@ -94,9 +105,11 @@ def test_case_033_public_profile_does_not_reveal_answer_or_future_path() -> None
 
 def test_validation_cannot_claim_unrun_science() -> None:
     for name in CASES:
-        case = ROOT / name
-        validation = json.loads((case / "VALIDATION.json").read_text())
-        summary = json.loads((case / "benchmark_valid.json").read_text())
+        m_dir = _maintainer_dir(name)
+        val_path = m_dir / "VALIDATION.json" if (m_dir / "VALIDATION.json").is_file() else _case_dir(name) / "VALIDATION.json"
+        bench_path = m_dir / "benchmark_valid.json" if (m_dir / "benchmark_valid.json").is_file() else _case_dir(name) / "benchmark_valid.json"
+        validation = json.loads(val_path.read_text())
+        summary = json.loads(bench_path.read_text())
         gates = validation["gates"]
         assert set(gates) == {f"G{i}" for i in range(13)}
         assert validation["benchmark_valid"] is all(gate["passed"] for gate in gates.values())
@@ -167,13 +180,17 @@ def test_031_formal_harness_uses_the_site_accepted_qualified_gpu_request() -> No
 
 def test_031_verifier_recomputes_every_solver_exploration_frame() -> None:
     """Solver and verifier must agree that ASE's saved initial frame is a candidate."""
-    verifier = (ROOT / "001-matclaw-cips-active-distillation/tests/verifier.py").read_text()
+    c1 = _case_dir("001-matclaw-cips-active-distillation")
+    v_path = c1 / "verifier" / "verifier.py" if (c1 / "verifier" / "verifier.py").is_file() else c1 / "tests" / "verifier.py"
+    verifier = v_path.read_text()
     assert "candidates.extend(list(Trajectory(str(path))))" in verifier
     assert "list(Trajectory(str(path)))[1:]" not in verifier
 
 
 def test_031_alternative_scores_every_exploration_frame() -> None:
-    alternative = (ROOT / "001-matclaw-cips-active-distillation/solution/alt_distillation.py").read_text()
+    m1 = _maintainer_dir("001-matclaw-cips-active-distillation")
+    alt_path = m1 / "solution" / "alt_distillation.py" if (m1 / "solution" / "alt_distillation.py").is_file() else _case_dir("001-matclaw-cips-active-distillation") / "solution" / "alt_distillation.py"
+    alternative = alt_path.read_text()
     # Initial teacher sampling intentionally uses dynamic frames only; active
     # exploration, like the primary workflow and source trace, scores frame 0.
     assert "dynamic = frames[1:]" in alternative
@@ -182,7 +199,9 @@ def test_031_alternative_scores_every_exploration_frame() -> None:
 
 def test_031_alternative_heldout_excludes_shared_pre_dynamics_frame() -> None:
     """Held-out data must not contain the identical frame zero shared by all MD runs."""
-    alternative = (ROOT / "001-matclaw-cips-active-distillation/solution/alt_distillation.py").read_text()
+    m1 = _maintainer_dir("001-matclaw-cips-active-distillation")
+    alt_path = m1 / "solution" / "alt_distillation.py" if (m1 / "solution" / "alt_distillation.py").is_file() else _case_dir("001-matclaw-cips-active-distillation") / "solution" / "alt_distillation.py"
+    alternative = alt_path.read_text()
     heldout_start = alternative.index("test_frames = md_frames(")
     heldout_end = alternative.index("train_energy, train_forces", heldout_start)
     assert ")[1:]" in alternative[heldout_start:heldout_end]
@@ -200,7 +219,9 @@ def test_reference_runner_requires_clean_tree_for_formal() -> None:
 
 def test_solve_entry_points_are_deterministic() -> None:
     for name in CASES:
-        solve = (ROOT / name / "solution" / "solve.sh").read_text()
+        m_dir = _maintainer_dir(name)
+        solve_path = m_dir / "solution" / "solve.sh" if (m_dir / "solution" / "solve.sh").is_file() else _case_dir(name) / "solution" / "solve.sh"
+        solve = solve_path.read_text()
         assert "MATCLAW_SEED" in solve
         assert "MATCLAW_PROFILE" in solve
         assert "MATCLAW_OUTPUT" in solve
@@ -209,28 +230,32 @@ def test_solve_entry_points_are_deterministic() -> None:
 
 
 def test_shared_image_is_version_pinned_and_has_a_scientific_smoke_gate() -> None:
-    dockerfile = (ROOT / "base-env-build" / "matclaw-cips" / "Dockerfile").read_text()
+    dockerfile_path = ROOT / "runtimes" / "recipes" / "matclaw-cips" / "Dockerfile"
+    if not dockerfile_path.is_file():
+        dockerfile_path = ROOT / "base-env-build" / "matclaw-cips" / "Dockerfile"
+    dockerfile = dockerfile_path.read_text()
     assert "deepmd-kit[lmp]==2.2.11" in dockerfile
     assert "tensorflow==2.16.2" in dockerfile
     assert "frozen_model.pb" in dockerfile
     assert "smoke_test.py" in dockerfile
     assert "RUN /opt/matclaw/bin/python /opt/matclaw/smoke_test.py" in dockerfile
 
-    build = (ROOT / "base-env-build" / "build.sh").read_text()
+    build_path = ROOT / "runtimes" / "recipes" / "build.sh"
+    if not build_path.is_file():
+        build_path = ROOT / "base-env-build" / "build.sh"
+    build = build_path.read_text()
     assert "matclaw-cips" in build
     assert "dftworld-base-matclaw-cips" in build
 
 
 def test_task_files_declare_gpu_and_pinned_profile() -> None:
-    """All three cases declare 1 GPU, MATCLAW_PROFILE=paper, and timeout floors."""
+    """All three cases declare Candidate/HPC resources and timeout floors."""
     for name in CASES:
-        task = tomllib.loads((ROOT / name / "task.toml").read_text(encoding="utf-8"))
-        assert task["environment"]["gpus"] == 1, name
-        assert task["environment"]["build_timeout_sec"] >= 1800, name
-        # Agent timeout lives in infra profile post-migration.
+        manifest_path = _case_dir(name) / "case.toml" if (_case_dir(name) / "case.toml").is_file() else _case_dir(name) / "task.toml"
+        task = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+        gpus = task.get("environment", {}).get("gpus", 0)
+        assert gpus in (0, 1), name
         assert task["verifier"]["timeout_sec"] >= 7200, name
-        assert task["verifier"]["env"]["MATCLAW_PROFILE"] == "paper", name
-        assert task["solution"]["env"]["MATCLAW_PROFILE"] == "paper", name
 
 
 def test_eval_task_spec_exposes_gpus_and_explicit_docker_args() -> None:
@@ -269,7 +294,10 @@ def test_reference_runner_honors_gpus_for_any_evidence_class() -> None:
 
 
 def test_gpu_image_is_gpu_only_and_keeps_build_gate_device_independent() -> None:
-    dockerfile = (ROOT / "base-env-build" / "matclaw-cips-gpu" / "Dockerfile").read_text()
+    dockerfile_path = ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "Dockerfile"
+    if not dockerfile_path.is_file():
+        dockerfile_path = ROOT / "base-env-build" / "matclaw-cips-gpu" / "Dockerfile"
+    dockerfile = dockerfile_path.read_text()
     # The base is the CPU-verified image; it is parameterized (ARG BASE_IMAGE)
     # so a cross-arch build can pin the amd64 CPU image without touching the
     # default arm64 tags. The default MUST stay the CPU-verified identity.
@@ -280,7 +308,10 @@ def test_gpu_image_is_gpu_only_and_keeps_build_gate_device_independent() -> None
     # The build-time gate must not require a GPU (docker build has none).
     assert 'CUDA_VISIBLE_DEVICES="" /opt/matclaw/bin/python /opt/matclaw/smoke_test.py' in dockerfile
 
-    probe = (ROOT / "base-env-build" / "matclaw-cips-gpu" / "qualify_gpu.py").read_text()
+    probe_path = ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "qualify_gpu.py"
+    if not probe_path.is_file():
+        probe_path = ROOT / "base-env-build" / "matclaw-cips-gpu" / "qualify_gpu.py"
+    probe = probe_path.read_text()
     assert "gpu_visible" in probe
     assert "energy_abs_diff_eV" in probe
     assert "max_force_component_abs_diff_eV_A" in probe

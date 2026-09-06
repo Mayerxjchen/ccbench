@@ -123,7 +123,12 @@ DEFAULT_EXPERIMENT = ROOT / "experiments" / "main.toml"
 DEFAULT_RUN_CONFIG = DEFAULT_EXPERIMENT
 DEFAULT_JOBS = ROOT / "jobs"
 # skill bundle 镜像锁定的 manifest;eval 只读它决定 immutable tag
-SKILL_MANIFEST = ROOT / "base-env-build" / ".skill-image.json"
+_skill_lock = ROOT / "runtimes" / "recipes" / "skills" / ".skill-image.json"
+if not _skill_lock.is_file():
+    _skill_lock = ROOT / "runtimes" / "locks" / ".skill-image.json"
+if not _skill_lock.is_file():
+    _skill_lock = ROOT / "base-env-build" / ".skill-image.json"
+SKILL_MANIFEST = _skill_lock
 # frozen ablation release 目录;存在时 run-record 的 benchmark_commit 钉到其 source_commit
 RELEASES_DIR = ROOT / "releases"
 FROZEN_RELEASE_SCHEMA = "ablation-ready-release/v1"
@@ -437,12 +442,17 @@ class TaskResult:
 
 
 def discover_tasks(root: Path = ROOT) -> list[Path]:
+    cases_dir = root / "cases"
+    if cases_dir.is_dir():
+        found = sorted(p for p in cases_dir.iterdir() if p.is_dir() and re.fullmatch(r"\d{3}-.+", p.name))
+        if found:
+            return found
     return sorted(
         p for p in root.iterdir() if p.is_dir() and re.fullmatch(r"\d{3}-.+", p.name)
     )
 
 
-def task_dockerfile(task_dir: Path) -> Path:
+def task_dockerfile(task_dir: Path) -> Path | None:
     """任务 Dockerfile：root 布局（v2 ``public/``）优先，environment/（001-024）回退。"""
     root_df = task_dir / "Dockerfile"
     if root_df.is_file():
@@ -450,23 +460,42 @@ def task_dockerfile(task_dir: Path) -> Path:
     legacy_df = task_dir / "environment" / "Dockerfile"
     if legacy_df.is_file():
         return legacy_df
-    raise FileNotFoundError(f"{task_dir}: 没有任务 Dockerfile（root 或 environment/ 均无）")
+    return None
 
 
 def load_task(task_dir: Path) -> TaskSpec:
-    dockerfile = task_dockerfile(task_dir).read_text()
-    match = FROM_RE.search(dockerfile)
-    if not match:
-        raise ValueError(f"{task_dir}: Dockerfile missing FROM")
-    with (task_dir / "task.toml").open("rb") as f:
+    task_dir = Path(task_dir)
+    if not task_dir.is_dir() and (task_dir.parent / "cases" / task_dir.name).is_dir():
+        task_dir = task_dir.parent / "cases" / task_dir.name
+    manifest_path = task_dir / "case.toml" if (task_dir / "case.toml").is_file() else task_dir / "task.toml"
+    with manifest_path.open("rb") as f:
         meta = tomllib.load(f)
-    instruction = (task_dir / "instruction.md").read_text().strip()
+
+    candidate = meta.get("candidate", {})
+    image = candidate.get("image")
+    if not image:
+        df = task_dockerfile(task_dir)
+        if df is not None:
+            match = FROM_RE.search(df.read_text())
+            if match:
+                image = match.group(1)
+    if not image:
+        image = "dftworld-base:latest"
+
+    task_md = task_dir / "task.md"
+    inst_md = task_dir / "instruction.md"
+    if task_md.is_file():
+        instruction = task_md.read_text().strip()
+    elif inst_md.is_file():
+        instruction = inst_md.read_text().strip()
+    else:
+        instruction = ""
+
     gpus = int(meta.get("environment", {}).get("gpus", 0))
     if gpus < 0:
         raise ValueError(f"{task_dir.name}: environment.gpus must be >= 0, got {gpus}")
     agent_timeout_sec = float(meta.get("agent", {}).get("timeout_sec", 600.0))
     verifier = meta.get("verifier", {})
-    candidate = meta.get("candidate", {})
     explicit_class = (meta.get("execution") or {}).get("class")
     legacy_value = (meta.get("task") or {}).get("execution_backend")
     if explicit_class is not None and legacy_value is not None:
@@ -485,10 +514,15 @@ def load_task(task_dir: Path) -> TaskSpec:
                 f"expected one of {sorted(EXECUTION_CLASSES)}"
             )
         execution_class = normalized
+
+    is_case_v2 = (task_dir / "case.toml").is_file()
+    submission_root = str(candidate.get("submission_root", "final" if is_case_v2 else "."))
+    legacy_submission_layout = bool(candidate.get("legacy_submission_layout", not is_case_v2))
+
     return TaskSpec(
         name=task_dir.name,
         path=task_dir,
-        image=match.group(1),
+        image=image,
         instruction=instruction,
         agent_timeout_sec=agent_timeout_sec,
         description=str(meta.get("task", {}).get("description", "")),
@@ -497,10 +531,8 @@ def load_task(task_dir: Path) -> TaskSpec:
         verifier_env={
             str(k): str(v) for k, v in (verifier.get("env") or {}).items()
         },
-        submission_root=str(candidate.get("submission_root", ".")),
-        legacy_submission_layout=bool(
-            candidate.get("legacy_submission_layout", True)
-        ),
+        submission_root=submission_root,
+        legacy_submission_layout=legacy_submission_layout,
         execution_class=execution_class,
         legacy_execution_value=str(raw_value) if raw_value is not None else None,
     )
@@ -1507,6 +1539,11 @@ async def amain(argv: list[str] | None = None) -> int:
         return entry
 
     def _resolve_provider_credentials(provider: str) -> tuple[str | None, str | None, str, str]:
+        gen_key = os.getenv("CCBENCH_API_KEY")
+        gen_ep = os.getenv("CCBENCH_BASE_URL")
+        if gen_key:
+            return gen_ep, gen_key, "CCBENCH_BASE_URL", "CCBENCH_API_KEY"
+
         if provider == "anthropic":
             ep_env = "ANTHROPIC_BASE_URL"
             cr_env = "ANTHROPIC_API_KEY"
@@ -1539,10 +1576,16 @@ async def amain(argv: list[str] | None = None) -> int:
             if task_filter and case_key not in task_filter and CASE_ALIASES.get(case_key) not in task_filter:
                 continue
             mapped_name = CASE_ALIASES.get(case_key, case_key)
-            p = Path(mapped_name) if Path(mapped_name).is_dir() else ROOT / mapped_name
-            if not p.is_dir():
-                p = Path(case_key) if Path(case_key).is_dir() else ROOT / case_key
-            if not p.is_dir():
+            cands = [
+                Path(mapped_name),
+                ROOT / "cases" / mapped_name,
+                ROOT / mapped_name,
+                Path(case_key),
+                ROOT / "cases" / case_key,
+                ROOT / case_key,
+            ]
+            p = next((c for c in cands if c.is_dir()), None)
+            if not p:
                 raise SystemExit(f"matrix case directory not found: {case_key}")
             run_plan.append({
                 "path": p,
@@ -1558,16 +1601,23 @@ async def amain(argv: list[str] | None = None) -> int:
             task_dirs = []
             for name in args.tasks:
                 mapped_name = CASE_ALIASES.get(name, name)
-                path = Path(mapped_name) if Path(mapped_name).is_dir() else ROOT / mapped_name
-                if not path.is_dir():
-                    path = Path(name) if Path(name).is_dir() else ROOT / name
-                if not path.is_dir():
+                cands = [
+                    Path(mapped_name),
+                    ROOT / "cases" / mapped_name,
+                    ROOT / mapped_name,
+                    Path(name),
+                    ROOT / "cases" / name,
+                    ROOT / name,
+                ]
+                path = next((c for c in cands if c.is_dir()), None)
+                if not path:
                     raise SystemExit(f"task not found: {name}")
                 task_dirs.append(path)
         else:
             raise SystemExit("请指定任务名，或加 --all，或加 --matrix")
 
-        target_model = args.model or (exp_v2_spec.models[0] if exp_v2_spec and exp_v2_spec.models else base_run_config.model.model_id)
+        smoke_model_override = os.getenv("CCBENCH_MODEL") if not is_formal_run else None
+        target_model = args.model or smoke_model_override or (exp_v2_spec.models[0] if exp_v2_spec and exp_v2_spec.models else base_run_config.model.model_id)
         target_skill = "with-skill" if args.skills_enabled else "no-skill"
         for p in task_dirs:
             run_plan.append({

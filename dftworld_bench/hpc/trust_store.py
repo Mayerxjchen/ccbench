@@ -7,8 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TRUST_STORE_PATH = (
-    Path(__file__).resolve().parents[2] / "infra" / "config" / "qualification-trust.toml"
+    _ROOT / "runtimes" / "trust.toml"
+    if (_ROOT / "runtimes" / "trust.toml").is_file()
+    else _ROOT / "infra" / "config" / "qualification-trust.toml"
 )
 
 

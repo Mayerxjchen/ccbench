@@ -213,14 +213,15 @@ def test_check_release_still_blocked_after_smoke(tmp_path):
     """Even with runtime/smoke gates set, benchmark_valid stays false."""
     case_dir = _smoke_case(tmp_path)
     run_smoke(case_dir, run_id=SMOKE_RUN_ID, runner="audit")
-    sys.path.insert(
-        0,
-        str(
-            Path(__file__).resolve().parents[2]
-            / "scientific-benchmark-case-builder-portable"
-            / "skills" / "build-scientific-benchmark-case" / "scripts" / "common"
-        ),
+    _support = Path(__file__).resolve().parent / "support"
+    _portable = (
+        _support
+        if _support.is_dir()
+        else Path(__file__).resolve().parents[2]
+        / "scientific-benchmark-case-builder-portable"
+        / "skills" / "build-scientific-benchmark-case" / "scripts" / "common"
     )
+    sys.path.insert(0, str(_portable))
     from check_release import check_release  # noqa: E402
 
     bv = json.loads((case_dir / "benchmark_valid.json").read_text(encoding="utf-8"))
@@ -433,7 +434,12 @@ def test_031_production_entry_calls_verify_not_pytest():
     entry directly — the same gate the HPC finalize path runs — never the
     development pytest retraining suites (which rewrite fixtures and do not
     belong in the read-only Verifier container)."""
-    test_sh = ROOT / "001-matclaw-cips-active-distillation" / "tests" / "test.sh"
+    cands = [
+        ROOT / "cases" / "001-matclaw-cips-active-distillation" / "verifier" / "test.sh",
+        ROOT / "001-matclaw-cips-active-distillation" / "verifier" / "test.sh",
+        ROOT / "001-matclaw-cips-active-distillation" / "tests" / "test.sh",
+    ]
+    test_sh = next((c for c in cands if c.is_file()), cands[0])
     content = test_sh.read_text(encoding="utf-8")
     assert "from verifier import verify" in content
     assert "verify(" in content

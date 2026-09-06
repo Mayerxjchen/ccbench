@@ -563,8 +563,14 @@ def _trusted_profile_digest(profile: Any) -> str:
     """Use the immutable HpcSiteProfile digest, never a receipt-supplied hash."""
     if hasattr(profile, "digest") and getattr(profile, "digest"):
         return str(getattr(profile, "digest"))
-    if isinstance(profile, Mapping) and profile.get("digest"):
-        return str(profile["digest"])
+    if isinstance(profile, Mapping):
+        if profile.get("digest"):
+            return str(profile["digest"])
+        try:
+            from dftworld_bench.hpc.site_profile import HpcSiteProfile
+            return HpcSiteProfile.from_dict(dict(profile)).digest
+        except Exception:
+            pass
     from dftworld_bench.experiments.qualification_receipt import canonical_digest
 
     return canonical_digest(dict(profile)) if isinstance(profile, Mapping) else ""
@@ -841,14 +847,20 @@ def verify_site_receipt(
                 lock_root = root if strict_trusted_profile else receipt_dir
                 rl_path = check_evidence_containment(lock_root, rl_rel)
 
-                if not rl_path.is_file() and str(rl_rel).startswith("reference/production-runtime/"):
-                    alt_rel = "reference/runtime/" + str(rl_rel).removeprefix("reference/production-runtime/")
-                    try:
-                        alt_path = check_evidence_containment(lock_root, alt_rel)
-                        if alt_path.is_file():
-                            rl_path = alt_path
-                    except Exception:
-                        pass
+                if not rl_path.is_file():
+                    for prefix in ("reference/production-runtime/", "reference/runtime/"):
+                        if str(rl_rel).startswith(prefix):
+                            for candidate_base in ("runtimes/locks/", "reference/runtime/"):
+                                alt_rel = candidate_base + str(rl_rel).removeprefix(prefix)
+                                try:
+                                    alt_path = check_evidence_containment(lock_root, alt_rel)
+                                    if alt_path.is_file():
+                                        rl_path = alt_path
+                                        break
+                                except Exception:
+                                    pass
+                            if rl_path.is_file():
+                                break
 
                 if not rl_path.is_file():
                     problem("runtime_lock", f"runtime_lock file missing: {rl_rel}")
@@ -888,6 +900,10 @@ def verify_site_receipt(
                                 problem("recipe_provenance", "runtime_lock has recipe_digest but missing recipe_path")
                             else:
                                 recipe_path = root / recipe_rel
+                                if not recipe_path.is_file() and str(recipe_rel).startswith("base-env-build/"):
+                                    alt_recipe = root / "runtimes" / "recipes" / str(recipe_rel).removeprefix("base-env-build/")
+                                    if alt_recipe.is_file():
+                                        recipe_path = alt_recipe
                                 if not recipe_path.is_file():
                                     problem("recipe_provenance", f"recipe file missing: {recipe_rel}")
                                 else:
@@ -899,14 +915,20 @@ def verify_site_receipt(
                                             "recipe_provenance",
                                             f"recipe_digest mismatch: lock claims {lock_recipe_digest} != canonical {canonical_rd}",
                                         )
-                                    if receipt_rd and receipt_rd != lock_recipe_digest:
+                                    if "jax" in str(recipe_rel) and not receipt_rd:
+                                        problem("recipe_provenance", "receipt missing mandatory runtime_lock.recipe_digest")
+                                    elif receipt_rd and receipt_rd != lock_recipe_digest:
                                         problem(
                                             "recipe_provenance",
                                             f"receipt recipe_digest mismatch: receipt has {receipt_rd} != lock {lock_recipe_digest}",
                                         )
 
-                                    # Build evidence linkage
-                                    build_ev_path = root / "base-env-build" / "jax-gpu" / "build_evidence.json" if "jax" in recipe_rel else None
+                                    # Build evidence linkage (image_id ↔ recipe_digest ↔ archive SHA)
+                                    cand_b_paths = [
+                                        root / "runtimes" / "recipes" / "jax-gpu" / "build_evidence.json",
+                                        root / "base-env-build" / "jax-gpu" / "build_evidence.json",
+                                    ]
+                                    build_ev_path = next((p for p in cand_b_paths if p.is_file()), None) if "jax" in str(recipe_rel) else None
                                     if build_ev_path and build_ev_path.is_file():
                                         try:
                                             build_ev = json.loads(build_ev_path.read_text(encoding="utf-8"))

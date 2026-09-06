@@ -43,14 +43,27 @@ from dftworld_bench.hpc.drivers.slurm import SlurmDriver
 from dftworld_bench.hpc.runtime_resolution import RuntimeResolver
 
 ROOT = Path(__file__).resolve().parents[2]
+REF_RUNTIME = (
+    ROOT / "runtimes" / "locks"
+    if (ROOT / "runtimes" / "locks").is_dir()
+    else ROOT / "reference" / "runtime"
+)
+
+
+def _get_case_dir(case_num: str) -> Path:
+    cases_dir = ROOT / "cases" if (ROOT / "cases").is_dir() else ROOT
+    matches = list(cases_dir.glob(f"{case_num}-*"))
+    if not matches:
+        matches = list(ROOT.glob(f"{case_num}-*"))
+    assert len(matches) == 1, f"Expected 1 match for {case_num}, got {matches}"
+    return matches[0]
 
 
 def test_g0_public_isolation():
     """G0: Verify public surface contains no private credentials or internal host keys."""
     for case_num in ("001", "002", "003", "004", "005"):
-        matches = list(ROOT.glob(f"{case_num}-*"))
-        assert len(matches) == 1
-        pub_dir = matches[0] / "public"
+        case_dir = _get_case_dir(case_num)
+        pub_dir = case_dir / "public"
         if pub_dir.is_dir():
             for f in pub_dir.rglob("*"):
                 if f.is_file():
@@ -63,21 +76,20 @@ def test_g1_repo_provenance():
     """G1: Verify repo root and release structure integrity."""
     assert (ROOT / "pyproject.toml").is_file()
     assert (ROOT / "schemas").is_dir()
-    assert (ROOT / "reference" / "runtime").is_dir()
+    assert REF_RUNTIME.is_dir()
 
 
 def test_g2_clean_executor_contract():
     """G2: All 5 cases resolve to HpcExecutor under hpc_controller class."""
     for case_num in ("001", "002", "003", "004", "005"):
-        matches = list(ROOT.glob(f"{case_num}-*"))
-        assert len(matches) == 1
-        spec = CaseSpec.load(matches[0])
+        case_dir = _get_case_dir(case_num)
+        spec = CaseSpec.load(case_dir)
         assert spec.execution_class == "hpc_controller"
 
 
 def test_g3_runtime_locks_valid():
     """G3: Runtime locks exist and parse cleanly, and unbuilt runtimes are not qualified."""
-    ref_runtime = ROOT / "reference" / "runtime"
+    ref_runtime = REF_RUNTIME
     resolver = RuntimeResolver.from_lock_dir(ref_runtime)
     all_caps = resolver.all_capabilities()
     for cap in ("cp2k", "ai2kit", "deepmd", "jax"):
@@ -88,15 +100,16 @@ def test_g3_runtime_locks_valid():
 def test_g4_prompt_fidelity():
     """G4: Instructions describe provider-neutral execution."""
     for case_num in ("001", "002", "003", "004", "005"):
-        matches = list(ROOT.glob(f"{case_num}-*"))
-        instr = (matches[0] / "instruction.md").read_text()
+        case_dir = _get_case_dir(case_num)
+        instr_file = case_dir / "instruction.md" if (case_dir / "instruction.md").is_file() else case_dir / "task.md"
+        instr = instr_file.read_text()
         assert "A remote HPC capability exists" in instr or "remote scheduler" in instr
         assert "compshare" not in instr.lower()
 
 
 def test_g5_structure_and_model_hashes():
     """G5: Source and runtime assets define sha256 or immutable image IDs."""
-    locks = list((ROOT / "reference" / "runtime").glob("*.lock.json"))
+    locks = list(REF_RUNTIME.glob("*.lock.json"))
     assert len(locks) >= 4
     for lk in locks:
         data = json.loads(lk.read_text())
@@ -115,7 +128,7 @@ def test_g7_route_aware_resolver():
     """G7: Resolver distinguishes SIF and CompShare image targets and fails closed when unbuilt."""
     from dftworld_bench.hpc.runtime_resolution import RuntimeResolutionError
 
-    resolver = RuntimeResolver.from_lock_dir(ROOT / "reference" / "runtime")
+    resolver = RuntimeResolver.from_lock_dir(REF_RUNTIME)
     # Gate A1 requirement: unbuilt runtimes without qualification fail closed
     with pytest.raises(RuntimeResolutionError, match="UNBUILT|BUILT_NOT_QUALIFIED"):
         resolver.resolve("deepmd")
@@ -258,15 +271,17 @@ def test_g11_zero_orphan_gate(tmp_path: Path):
 def test_g12_case_validation_states():
     """G12: Cases 031-033 are verified baseline valid; 034/042 reflect actual construction status."""
     for case_num in ("001", "002", "003"):
-        matches = list(ROOT.glob(f"{case_num}-*"))
-        assert len(matches) == 1
-        data = json.loads((matches[0] / "benchmark_valid.json").read_text())
+        val_file = ROOT / "maintainer" / "cases" / case_num / "benchmark_valid.json"
+        if not val_file.is_file():
+            val_file = _get_case_dir(case_num) / "benchmark_valid.json"
+        data = json.loads(val_file.read_text())
         assert data.get("benchmark_valid") is True
 
     for case_num in ("004", "005"):
-        matches = list(ROOT.glob(f"{case_num}-*"))
-        assert len(matches) == 1
-        data = json.loads((matches[0] / "benchmark_valid.json").read_text())
+        val_file = ROOT / "maintainer" / "cases" / case_num / "benchmark_valid.json"
+        if not val_file.is_file():
+            val_file = _get_case_dir(case_num) / "benchmark_valid.json"
+        data = json.loads(val_file.read_text())
         assert data.get("benchmark_valid") is False
 
 

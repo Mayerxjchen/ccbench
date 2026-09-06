@@ -12,8 +12,13 @@ import subprocess
 from pathlib import Path
 import pytest
 
+_ROOT = Path(__file__).resolve().parents[2]
+LOCK_FILE = (
+    _ROOT / "runtimes" / "recipes" / "agent-claude-code" / "claude-code.lock.json"
+    if (_ROOT / "runtimes" / "recipes" / "agent-claude-code" / "claude-code.lock.json").is_file()
+    else _ROOT / "base-env-build" / "agent-claude-code" / "claude-code.lock.json"
+)
 AGENT_IMAGE = "mlffbench-candidate-claude-code-sandbox:v1"
-LOCK_FILE = Path(__file__).resolve().parents[2] / "base-env-build" / "agent-claude-code" / "claude-code.lock.json"
 
 
 def _docker_and_image_available() -> bool:

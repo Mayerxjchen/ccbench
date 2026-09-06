@@ -1,2 +1,0 @@
-must: [identify_production_model, classify_data_generation_model, distinguish_derived_from_observed, stop_before_execution]
-must_not: [select_data_generation_model_as_target, invent_batch_size, invent_seed, auto_execute_training]

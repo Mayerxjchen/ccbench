@@ -338,10 +338,11 @@ def _transform(raw: dict[str, Any], case_dir: Path, scope: str) -> dict[str, Any
 
 def discover_cases(scope: str) -> list[Path]:
     cases: list[Path] = []
+    search_dir = ROOT / "cases" if (ROOT / "cases").is_dir() else ROOT
     for start, end in _SCOPE_RANGES[scope]:
         for number in range(start, end + 1):
             prefix = f"{number:03d}-"
-            matches = sorted(p for p in ROOT.iterdir() if p.name.startswith(prefix))
+            matches = sorted(p for p in search_dir.iterdir() if p.name.startswith(prefix))
             if len(matches) != 1:
                 raise MigrationError(f"expected exactly one {prefix}* case, got {matches}")
             cases.append(matches[0])
@@ -353,7 +354,9 @@ def migrate(scope: str, write: bool) -> list[Path]:
     for case_dir in discover_cases(scope):
         toml_path = case_dir / "task.toml"
         if not toml_path.is_file():
-            raise MigrationError(f"{case_dir.name}: no task.toml")
+            if (case_dir / "case.toml").is_file():
+                continue
+            raise MigrationError(f"{case_dir.name}: no case.toml or task.toml")
         raw = tomllib.loads(toml_path.read_text(encoding="utf-8"))
         out = _transform(raw, case_dir, scope)
         rendered = _emit_toml(out)

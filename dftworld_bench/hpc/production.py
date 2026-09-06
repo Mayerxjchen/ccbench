@@ -45,9 +45,13 @@ def build_slurm_stack(
     site = HpcSiteProfile.from_cluster_config(raw)
     ssh = raw["ssh"]
     resolved = site.resolve_workload(workload)
-    lock_dir = Path(
-        site.runtime_policy.get("runtime_lock_dir", "reference/runtime")
-    )
+    raw_lock_dir = site.runtime_policy.get("runtime_lock_dir", "runtimes/locks")
+    lock_dir = Path(raw_lock_dir)
+    if not lock_dir.is_dir():
+        for fallback in ("runtimes/locks", "reference/runtime"):
+            if Path(fallback).is_dir():
+                lock_dir = Path(fallback)
+                break
     if not lock_dir.is_dir():
         raise RuntimeError(
             f"configured runtime lock directory does not exist: {lock_dir}"
@@ -132,7 +136,7 @@ def build_hybrid_stack(
     case_id: str,
     audit_path: Path,
     token_ttl_sec: float = 7200.0,
-    runtime_lock_dir: Path | str = "reference/runtime",
+    runtime_lock_dir: Path | str = "runtimes/locks",
     qualification_root: Path | str | None = None,
     trust_store: Any | None = None,
     repo_root: Path | str | None = None,
@@ -155,6 +159,11 @@ def build_hybrid_stack(
     from dftworld_bench.hpc.drivers.slurm import SlurmDriver
 
     compute_profile = ComputeProfile.from_file(Path(compute_profile_path))
+    if not Path(runtime_lock_dir).is_dir():
+        for fb in ("runtimes/locks", "reference/runtime"):
+            if Path(fb).is_dir():
+                runtime_lock_dir = fb
+                break
     site_profiles: dict[str, HpcSiteProfile] = {}
     drivers: dict[str, Any] = {}
 

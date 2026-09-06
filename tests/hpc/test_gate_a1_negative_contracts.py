@@ -122,7 +122,9 @@ class TestGateA1NegativeContracts:
     def test_contract_2_unbuilt_runtime_rejected_at_resolution(self, tmp_path: Path):
         """Contract 2: Unbuilt runtime (UNBUILT) fails resolution and is filtered out."""
         repo_root = Path(__file__).resolve().parents[2]
-        runtime_dir = repo_root / "reference" / "runtime"
+        runtime_dir = repo_root / "runtimes" / "locks"
+        if not runtime_dir.is_dir():
+            runtime_dir = repo_root / "reference" / "runtime"
 
         resolver = RuntimeResolver.from_lock_dir(runtime_dir)
         # Deepmd and JAX are currently unverified and must not be in qualified capabilities

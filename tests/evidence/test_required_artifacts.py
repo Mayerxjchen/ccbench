@@ -31,7 +31,14 @@ CASE_POLICIES = {
 
 
 def _policy(case: str) -> dict:
-    return json.loads(CASE_POLICIES[case].read_text(encoding="utf-8"))
+    num = {"031": "001", "032": "002", "033": "003", "034": "004"}.get(case, case)
+    cands = [
+        ROOT / "maintainer" / "cases" / num / "reference" / "evidence-policy.json",
+        ROOT / "maintainer" / "cases" / num / "baseline" / "evidence-policy.json",
+        CASE_POLICIES[case],
+    ]
+    p = next((c for c in cands if c.is_file()), cands[-1])
+    return json.loads(p.read_text(encoding="utf-8"))
 
 
 def _mk(workspace: Path, rel: str, data: str = "x") -> None:

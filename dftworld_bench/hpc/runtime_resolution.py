@@ -644,7 +644,9 @@ class RuntimeResolver:
 
 
 def default_resolver(lock_dir: Path | None = None) -> RuntimeResolver:
-    """Return resolver initialized from reference/runtime directory."""
+    """Return resolver initialized from runtimes/locks (or legacy reference/runtime) directory."""
     if lock_dir is None:
-        lock_dir = Path(__file__).resolve().parents[2] / "reference" / "runtime"
+        root = Path(__file__).resolve().parents[2]
+        runtimes_lock = root / "runtimes" / "locks"
+        lock_dir = runtimes_lock if runtimes_lock.is_dir() else (root / "reference" / "runtime")
     return RuntimeResolver.from_lock_dir(lock_dir)

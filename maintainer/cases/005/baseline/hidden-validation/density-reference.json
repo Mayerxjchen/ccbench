@@ -1,0 +1,13 @@
+{
+  "interface": "graphene-water",
+  "cell_Lz_angstrom": 28.0,
+  "cell_area_angstrom2": 188.67708,
+  "graphite_plane_z_angstrom": 26.026591510940772,
+  "first_peak_position_angstrom": 3.3500000000000005,
+  "depletion_width_angstrom": 2.6500000000000004,
+  "nearest_oxygen_angstrom": 1.6208905109407716,
+  "bin_width_angstrom": 0.1,
+  "n_frames": 848,
+  "n_oxygen": 139,
+  "density_units": "oxygen number density (nm^-3) vs minimum-image distance from graphite plane (angstrom)"
+}

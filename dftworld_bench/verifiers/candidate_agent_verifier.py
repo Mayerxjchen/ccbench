@@ -82,12 +82,20 @@ class CandidateAgentVerifier:
 
     def __init__(self, workspace_root: Path | None = None) -> None:
         self.workspace_root = workspace_root or Path(__file__).resolve().parents[2]
-        self.lock_file = self.workspace_root / "base-env-build" / "agent-claude-code" / "claude-code.lock.json"
-        self.policy_file = self.workspace_root / "base-env-build" / "agent-claude-code" / "tool-policy.json"
-        self.dockerfile = self.workspace_root / "base-env-build" / "agent-claude-code" / "Dockerfile"
-        self.probe_file = self.workspace_root / "base-env-build" / "agent-claude-code" / "probes" / "qualify_agent.sh"
+        agent_dir = self.workspace_root / "runtimes" / "recipes" / "agent-claude-code"
+        if not agent_dir.is_dir():
+            agent_dir = self.workspace_root / "base-env-build" / "agent-claude-code"
+        self.lock_file = agent_dir / "claude-code.lock.json"
+        self.policy_file = agent_dir / "tool-policy.json"
+        self.dockerfile = agent_dir / "Dockerfile"
+        self.probe_file = agent_dir / "probes" / "qualify_agent.sh"
         self.agent_profiles = self.workspace_root / "infra" / "config" / "agent-profiles.toml"
-        self.skill_image_lock = self.workspace_root / "base-env-build" / ".skill-image.json"
+        skill_lock = self.workspace_root / "runtimes" / "recipes" / "skills" / ".skill-image.json"
+        if not skill_lock.is_file():
+            skill_lock = self.workspace_root / "runtimes" / "locks" / ".skill-image.json"
+        if not skill_lock.is_file():
+            skill_lock = self.workspace_root / "base-env-build" / ".skill-image.json"
+        self.skill_image_lock = skill_lock
 
     def compute_code_identity(self) -> Dict[str, str]:
         """Compute sha256 hashes of critical trusted codebase modules."""
