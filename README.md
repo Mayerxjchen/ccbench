@@ -1,8 +1,8 @@
 # MLFFBench (dftworld)
 
-AI agent benchmark for computational chemistry and machine learning potential tasks.
+AI agent benchmark for computational chemistry.
 
-Tasks focus on **5 long-horizon scientific benchmark cases** (`031-matclaw-cips-active-distillation`, `032-matclaw-cips-curie-temperature`, `033-matclaw-cips-domain-wall-search`, `034-ai2kit-water64-end-to-end-potential`, `042-go-water-dpmp`). Directory names are `NNN-slug`. `eval.py` scans root-level `NNN-slug` directories to discover benchmark cases.
+Tasks focus on **scientific benchmark cases** (`031-matclaw-cips-active-distillation`, `032-matclaw-cips-curie-temperature`, `033-matclaw-cips-domain-wall-search`, `034-ai2kit-water64-end-to-end-potential`, `042-go-water-dpmp`). Directory names are `NNN-slug`. `eval.py` scans root-level `NNN-slug` directories to discover benchmark cases.
 
 ## Repository Map
 
@@ -13,8 +13,8 @@ dftworld/
 ├── 031-matclaw-cips-active-distillation   # 核心案例：MatClaw CIPS 势能主动学习蒸馏
 ├── 032-matclaw-cips-curie-temperature     # 核心案例：MatClaw CIPS 居里温度分子动力学
 ├── 033-matclaw-cips-domain-wall-search    # 核心案例：MatClaw CIPS 畴壁搜索
-├── 034-ai2kit-water64-…/                  # 构造中区：water64 端到端势（hidden lineage 在 reference/ 下）
-├── 042-go-water-dpmp/                     # 构造中区：GO-water DeePMD 势（Runnable Draft）
+├── 034-ai2kit-water64-…/                  # 构造中区：ai2kit训练水的MLFF
+├── 042-go-water-dpmp/                     # 构造中区：石墨烯氧化程度如何改变界面水的分子组织与振动响应
 │
 ├── active-work/                           # 活跃工作区：不参与评测扫描的工作内容
 │   └── ai2kit/                            #   water64 专家流水线工作目录
@@ -48,8 +48,6 @@ dftworld/
 > 并记账到 decision ledger。`ai2kit/` 是用户明确要求恢复的工作目录，未经指示不得再删。
 
 ## Setup
-
-新机器从零到能跑，四步。
 
 ### 第 1 步：克隆 + Python 环境
 
@@ -89,8 +87,8 @@ Provider/模型策略在 Run Config（`infra/runs/skill-ablation-v2.yaml`），
 `.env` 只放它要求的变量值：
 
 ```bash
-MIMO_API_KEY=...
-MIMO_BASE_URL=https://...
+API_KEY=...
+BASE_URL=https://...
 ```
 
 自检：`uv run python -m dftworld_bench.config.cli doctor --run-config infra/runs/skill-ablation-v2.yaml`
