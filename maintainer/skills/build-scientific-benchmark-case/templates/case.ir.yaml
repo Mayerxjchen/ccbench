@@ -1,0 +1,60 @@
+schema_version: 1
+
+identity:
+  title: "Example Benchmark Case"
+  category: "mlp"
+  version: "1.0"
+
+scientific_target:
+  system: "Cu-Au Alloy System"
+  objective: "Train a message-passing machine learning interatomic potential"
+  observable: "Formation energy and phonon dispersion"
+
+selection:
+  paradigm: "standard"
+
+candidate:
+  instruction: "Train an MLP model on provided trajectory data to predict formation energies accurately."
+  inputs:
+    - path: "train.xyz"
+      description: "DFT training structures"
+
+submission:
+  root: "final"
+  artifacts:
+    - path: "model.pt"
+      kind: "checkpoint"
+      required: true
+    - path: "metrics.json"
+      kind: "metrics"
+      required: true
+
+runtime:
+  execution_class: "local_sandbox"
+  candidate_image: "ccbench-agent:v1"
+  verifier_image: "ccbench-agent:v1"
+  timeout_sec: 1800.0
+  gpus: 0
+
+coverage:
+  scientific_domain: "materials"
+  method_family: "machine_learning_potential"
+  material_class: "alloy"
+  computation_type: "training"
+  paradigm: "standard"
+
+verification:
+  layers:
+    - "V0"
+    - "V1"
+    - "V2"
+    - "V4"
+  primitives:
+    - primitive: "mlp.energy_rmse"
+      target: "metrics.json"
+      params:
+        metric: "rmse"
+        threshold: 0.05
+  thresholds:
+    energy_rmse_max: 0.05
+    force_rmse_max: 0.15

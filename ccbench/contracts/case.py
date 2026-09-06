@@ -326,7 +326,7 @@ class CaseSpec:
             raise CaseContractError("[hpc] is not allowed for local_sandbox execution")
 
         contract_doc: dict[str, Any] = {}
-        for key in ("execution", "candidate", "hpc", "runtime", "coverage", "submission_contract"):
+        for key in ("execution", "candidate", "hpc", "runtime", "coverage", "submission_contract", "selection"):
             if key in raw:
                 contract_doc[key] = raw[key]
         if explicit_class is not None:
@@ -473,7 +473,7 @@ class CaseSpec:
                     )
 
         return cls(
-            case_id=str((raw.get("task") or {}).get("name", "")),
+            case_id=str((raw.get("task") or {}).get("name") or raw.get("case_id") or case_dir.name),
             case_version=str(raw.get("case_version", "1.0")),
             schema_version=str(raw.get("schema_version", "1")),
             execution_class=execution_class,

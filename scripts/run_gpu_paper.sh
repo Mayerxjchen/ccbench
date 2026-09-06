@@ -39,7 +39,7 @@ done
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 gpu_image="dftworld-base-matclaw-cips:2.2.11-gpu"
-gpu_build_dir="$repo_root/base-env-build/matclaw-cips-gpu"
+gpu_build_dir="$repo_root/runtimes/recipes/matclaw-cips-gpu"
 
 case "$case_id" in
   031) case_slug="active-distillation" ;;

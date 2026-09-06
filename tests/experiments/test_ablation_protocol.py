@@ -93,7 +93,7 @@ def _release(**over) -> dict:
             "schemas": [{"path": "schemas/run-record.schema.json", "sha256": "ab" * 32}],
             "site_adapter": [{"path": "ccbench/hpc/adapters/slurm.py", "sha256": "ab" * 32}],
             "cases": [{"case_id": "032-matclaw-cips-curie-temperature", "instruction_sha256": "ab" * 32}],
-            "skills": [{"path": "base-env-build/skills/deepmd", "sha256": "ab" * 32}],
+            "skills": [{"path": "runtimes/recipes/skills/deepmd", "sha256": "ab" * 32}],
             "resource_profiles": [{"path": "032-matclaw-cips-curie-temperature/profiles/resource.yaml", "sha256": "ab" * 32}],
             "platform_profiles": [{"path": "032-matclaw-cips-curie-temperature/profiles/platform.yaml", "sha256": "ab" * 32}],
             "compute_runtimes": [{"path": "032-matclaw-cips-curie-temperature/reference/compute-runtime.lock.json", "sha256": "ab" * 32}],

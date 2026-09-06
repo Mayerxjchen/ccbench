@@ -421,34 +421,18 @@ def test_transport_attempt_metadata_never_contains_credentials(tmp_path):
 
 
 def test_candidate_env_rejects_api_secret_names():
-    """PagentAdapter 构造时拒绝把 api-profile credential env 名转发进容器。
+    """ClaudeCodeAdapter 构造时拒绝把 api-profile credential env 名转发进容器。
 
     模型 endpoint/credential 只存在于可信 Harness 进程；Candidate 容器环境
     即使有人显式传 `DFTWORLD_API_KEY` 也必须 fail-fast。run-scoped 的
     controller env（BENCH_HPC_*）不是 api credential 名，不受影响。
     """
     from ccbench.agents import ClaudeCodeAdapter
-    from ccbench.legacy.pagent_compat import PagentAdapter
     from ccbench.core.model_transport import credential_env_names
 
     forbidden = credential_env_names(
         {"endpoint_env": "DFTWORLD_API_ENDPOINT", "credential_env": "DFTWORLD_API_KEY"}
     )
-    with pytest.raises(ValueError, match="trusted API secrets"):
-        PagentAdapter(
-            model="deepseek/deepseek-chat",
-            max_turns=8,
-            threads_root=Path("/tmp/t"),
-            task_name="001-hello",
-            image="dftworld-base:latest",
-            case_dir=Path("/tmp/c"),
-            container_env={
-                "DFTWORLD_API_KEY": "sk-fake",
-                "DFTWORLD_API_ENDPOINT": "https://fake",
-            },
-            forbidden_env_names=forbidden,
-        )
-
     with pytest.raises(ValueError, match="trusted API secrets"):
         ClaudeCodeAdapter(
             model="claude-3-7-sonnet-20250219",
@@ -465,12 +449,12 @@ def test_candidate_env_rejects_api_secret_names():
         )
 
     # run-scoped controller env (gateway URL/token) is NOT an api credential
-    adapter = PagentAdapter(
-        model="deepseek/deepseek-chat",
+    adapter = ClaudeCodeAdapter(
+        model="claude-3-7-sonnet-20250219",
         max_turns=8,
         threads_root=Path("/tmp/t"),
         task_name="001-hello",
-        image="dftworld-base:latest",
+        image="mlffbench-candidate-claude-code-sandbox:v1",
         case_dir=Path("/tmp/c"),
         container_env={
             "BENCH_HPC_GATEWAY_URL": "http://host.docker.internal:9000",

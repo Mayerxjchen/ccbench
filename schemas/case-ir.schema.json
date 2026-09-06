@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ccbench.example/schemas/case-ir.schema.json",
+  "title": "CCBench Case Intermediate Representation (Case IR)",
+  "description": "Single source of truth for benchmark case specification, compiling down to task.md, case.toml, verifier-plan, and candidate manifests.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "identity",
+    "scientific_target",
+    "selection",
+    "candidate",
+    "submission",
+    "runtime",
+    "coverage",
+    "verification"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "identity": {
+      "type": "object",
+      "required": ["title", "category"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "case_id": { "type": "string" },
+        "category": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "default": "1.0" }
+      }
+    },
+    "scientific_target": {
+      "type": "object",
+      "required": ["system", "objective"],
+      "additionalProperties": false,
+      "properties": {
+        "system": { "type": "string", "minLength": 1 },
+        "objective": { "type": "string", "minLength": 1 },
+        "observable": { "type": "string" },
+        "paper": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "doi": { "type": "string" },
+            "year": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "required": ["paradigm"],
+      "additionalProperties": false,
+      "properties": {
+        "paradigm": {
+          "type": "string",
+          "enum": ["standard", "research_question"]
+        },
+        "hypothesis": { "type": "string" },
+        "counterfactual_rationale": { "type": "string" }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "required": ["instruction"],
+      "additionalProperties": false,
+      "properties": {
+        "instruction": { "type": "string", "minLength": 1 },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string" },
+              "description": { "type": "string" },
+              "sha256": { "type": "string" }
+            }
+          }
+        },
+        "allowed_tools": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "submission": {
+      "type": "object",
+      "required": ["root", "artifacts"],
+      "additionalProperties": false,
+      "properties": {
+        "root": { "type": "string", "default": "final" },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "kind"],
+            "properties": {
+              "path": { "type": "string" },
+              "kind": { "type": "string" },
+              "required": { "type": "boolean", "default": true },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": ["execution_class", "candidate_image"],
+      "additionalProperties": false,
+      "properties": {
+        "execution_class": {
+          "type": "string",
+          "enum": ["local_sandbox", "local_container", "hpc_batch"]
+        },
+        "candidate_image": { "type": "string" },
+        "verifier_image": { "type": "string" },
+        "timeout_sec": { "type": "number", "default": 1800.0 },
+        "gpus": { "type": "integer", "default": 0 }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "scientific_domain",
+        "method_family",
+        "material_class",
+        "computation_type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scientific_domain": { "type": "string" },
+        "method_family": { "type": "string" },
+        "material_class": { "type": "string" },
+        "computation_type": { "type": "string" },
+        "paradigm": { "type": "string" }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": ["layers"],
+      "additionalProperties": false,
+      "properties": {
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8"]
+          }
+        },
+        "primitives": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["primitive"],
+            "properties": {
+              "primitive": { "type": "string" },
+              "target": { "type": "string" },
+              "params": { "type": "object" }
+            }
+          }
+        },
+        "thresholds": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        }
+      }
+    }
+  }
+}

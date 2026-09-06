@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MLP Category Case IR Extension",
+  "type": "object",
+  "properties": {
+    "model_family": {
+      "type": "string",
+      "enum": ["mace", "deepmd", "nequip", "allegro", "chgnet", "generic"]
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "energy_rmse_threshold_mev": { "type": "number" },
+        "force_rmse_threshold_mev_a": { "type": "number" }
+      }
+    }
+  }
+}

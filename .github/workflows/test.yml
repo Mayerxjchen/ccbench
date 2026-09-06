@@ -50,3 +50,25 @@ jobs:
       - name: Verify release provenance & digest integrity
         run: |
           uv run python3 scripts/ablation/build_release.py --verify
+
+  namespace-gate:
+    name: Namespace SSOT Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install project dependencies
+        run: uv sync --frozen --extra dev || uv sync --extra dev
+
+      - name: Run Namespace SSOT Gate
+        run: uv run pytest tests/repo/test_namespace_ssot.py -v

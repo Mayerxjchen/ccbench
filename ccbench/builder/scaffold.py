@@ -1,0 +1,84 @@
+"""Scaffold compiler — Compiles Case IR into canonical case artifacts."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+
+def compile_case_ir_to_draft(
+    case_ir: dict[str, Any],
+    draft_dir: Path,
+) -> dict[str, Path]:
+    """Compile Case IR into task.md, case.toml, and input/ directory."""
+    draft_dir = Path(draft_dir)
+    draft_dir.mkdir(parents=True, exist_ok=True)
+    input_dir = draft_dir / "input"
+    input_dir.mkdir(parents=True, exist_ok=True)
+
+    artifacts: dict[str, Path] = {}
+
+    # 1. Compile task.md
+    cand = case_ir["candidate"]
+    target = case_ir["scientific_target"]
+    task_content = f"""# {case_ir['identity']['title']}
+
+## Scientific Objective
+Target System: {target['system']}
+Objective: {target['objective']}
+
+## Task Instructions
+{cand['instruction']}
+
+## Submission Requirements
+Submit your final solution under `{case_ir['submission']['root']}/`.
+"""
+    task_file = draft_dir / "task.md"
+    task_file.write_text(task_content, encoding="utf-8")
+    artifacts["task_md"] = task_file
+
+    # 2. Compile case.toml
+    runtime = case_ir["runtime"]
+    coverage = case_ir["coverage"]
+    identity = case_ir["identity"]
+    case_id = identity.get("case_id", "draft-case")
+
+    case_toml_lines = [
+        'schema_version = "1.2"',
+        f'case_version = "{identity.get("version", "1.0.0")}"',
+        "",
+        "[execution]",
+        f'class = "{runtime["execution_class"]}"',
+        "",
+        "[candidate]",
+        'instruction = "task.md"',
+        f'submission_root = "{case_ir["submission"]["root"]}"',
+        f'image = "{runtime["candidate_image"]}"',
+        f'max_agent_seconds = {float(runtime.get("timeout_sec", 1800.0))}',
+        "",
+        "[selection]",
+        f'paradigm = "{case_ir["selection"]["paradigm"]}"',
+        "",
+        "[coverage]",
+        f'scientific_domain = "{coverage["scientific_domain"]}"',
+        f'method_family = "{coverage["method_family"]}"',
+        f'material_class = "{coverage["material_class"]}"',
+        f'computation_type = "{coverage["computation_type"]}"',
+        f'paradigm = "{case_ir["selection"]["paradigm"]}"',
+        "",
+    ]
+    toml_file = draft_dir / "case.toml"
+    toml_file.write_text("\n".join(case_toml_lines), encoding="utf-8")
+    artifacts["case_toml"] = toml_file
+
+    # 3. Create submission-contract
+    sub_contract = {
+        "root": case_ir["submission"]["root"],
+        "artifacts": case_ir["submission"]["artifacts"],
+    }
+    sub_file = draft_dir / "submission-contract.json"
+    sub_file.write_text(json.dumps(sub_contract, indent=2), encoding="utf-8")
+    artifacts["submission_contract"] = sub_file
+
+    return artifacts

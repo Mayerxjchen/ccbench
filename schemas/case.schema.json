@@ -93,6 +93,20 @@
       },
       "additionalProperties": false
     },
+    "selection": {
+      "type": "object",
+      "description": "Case selection and research paradigm specification (SSOT).",
+      "properties": {
+        "paradigm": {
+          "type": "string",
+          "enum": ["standard", "research_question"],
+          "description": "Selection paradigm."
+        },
+        "hypothesis": { "type": "string" },
+        "counterfactual_rationale": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
     "coverage": {
       "type": "object",
       "description": "Portfolio coverage dimensions for representativeness analysis. Optional — cases without coverage tags are valid but excluded from portfolio reports.",
