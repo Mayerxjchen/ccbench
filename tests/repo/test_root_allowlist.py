@@ -87,6 +87,9 @@ def test_root_entries_adhere_strictly_to_allowlist():
     unexpected_files = []
 
     for name, p in actual_entries.items():
+        if name == ".git":
+            # In git worktrees, .git is a file referencing the main worktree; in standard clones it's a directory.
+            continue
         if p.is_dir():
             if name not in ALLOWED_ROOT_DIRS:
                 unexpected_dirs.append(name)

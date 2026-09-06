@@ -18,7 +18,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA = ROOT / "schemas" / "evidence-manifest-v2.schema.json"
 
-from scripts.reference.write_evidence_manifest import main  # noqa: E402
+from scripts.evidence.write_evidence_manifest import main  # noqa: E402
 
 
 def _sha256(path: Path) -> str:
