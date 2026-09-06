@@ -2,7 +2,7 @@
   "schema": "ablation-ready-release/v1",
   "name": "ablation-ready-benchmark-v0",
   "status": "frozen",
-  "source_commit": "88ee9e14c2308b9164b69cd41a5143e0189cddd3",
+  "source_commit": "0a6cafa9808d47788f9f2c55e040ffbfef932b79",
   "generated_at": "2026-08-19T00:00:00Z",
   "agent_model": "deepseek/deepseek-chat",
   "note": "Frozen at git source_commit. Scope: formal validated cases 031-033 (034 is in construction and 042 is draft, both excluded from v0). Per-run run-record.json carries the exact agent_model of each trial; this field records the benchmark default agent identity. Component digests are deterministic and recomputable from disk via dftworld_bench.experiments.release_builder (file sha256 / tree digest excluding __pycache__).",
@@ -292,5 +292,5 @@
       }
     ]
   },
-  "release_digest": "sha256:6136f2ef283bb104d58c389acc1d9ab92c53bb6a6bfd68f33787f586aedb0508"
+  "release_digest": "sha256:728d9c3ed68d97879655b361111059f68356c80a444612785cedd74dd8d983eb"
 }
