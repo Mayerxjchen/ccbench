@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mlip-bench.example/schemas/dispatcher-qualification-receipt.schema.json",
   "title": "HPC dispatcher qualification receipt",
-  "description": "Content-addressed evidence bundle from a real-site dispatcher canary. The receipt carries NO verdict fields: qualification_status, formal_qualified and per-gate labels are derived by the verifier from the bound evidence (dftworld_bench.experiments.qualification_receipt). Every security-relevant claim must be anchored to something independently recomputable offline: on-disk runtime lock, rebuilt SiteProfile digest, code-identity digests, the append-only audit chain, settlement report digests, artifact bytes, or internal cross-consistency.",
+  "description": "Content-addressed evidence bundle from a real-site dispatcher canary. The receipt carries NO verdict fields: qualification_status, formal_qualified and per-gate labels are derived by the verifier from the bound evidence (ccbench.experiments.qualification_receipt). Every security-relevant claim must be anchored to something independently recomputable offline: on-disk runtime lock, rebuilt SiteProfile digest, code-identity digests, the append-only audit chain, settlement report digests, artifact bytes, or internal cross-consistency.",
   "type": "object",
   "additionalProperties": false,
   "required": [

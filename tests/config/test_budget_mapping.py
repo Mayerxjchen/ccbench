@@ -9,9 +9,9 @@ from unittest import mock
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from dftworld_bench.core.budgets import BudgetPolicy, BudgetExceeded
-from dftworld_bench.verifiers.candidate_agent_verifier import CandidateAgentVerifier, canonical_json, digest_bytes, sign_ed25519
-from dftworld_bench.hpc.trust_store import QualificationTrustStore
+from ccbench.core.budgets import BudgetPolicy, BudgetExceeded
+from ccbench.verifiers.candidate_agent_verifier import CandidateAgentVerifier, canonical_json, digest_bytes, sign_ed25519
+from ccbench.hpc.trust_store import QualificationTrustStore
 from eval import _resolved_budget_limits, _verify_candidate_agent_gate, TaskSpec, CaseSpec, ProfileRegistry
 
 
@@ -179,7 +179,7 @@ def test_candidate_agent_gate_promoted_admitted():
     pub_hex = priv.public_key().public_bytes_raw().hex()
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        from dftworld_bench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
+        from ccbench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
         import hashlib
         verifier = CandidateAgentVerifier()
         current_commit = verifier.get_source_commit()

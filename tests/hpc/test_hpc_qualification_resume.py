@@ -29,15 +29,15 @@ if str(ROOT / "scripts" / "infra") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts" / "infra"))
 
 import qualify_hpc_dispatcher as q  # noqa: E402
-from dftworld_bench.experiments.qualification_receipt import (  # noqa: E402
+from ccbench.experiments.qualification_receipt import (  # noqa: E402
     CODE_IDENTITY_PATHS,
     MARKER_CONTAINMENT,
     MARKER_GPU,
 )
-from dftworld_bench.hpc.adapters.process_test import ProcessTestAdapter  # noqa: E402
-from dftworld_bench.hpc.audit import GatewayAudit  # noqa: E402
-from dftworld_bench.hpc.dispatcher import DispatcherSession  # noqa: E402
-from dftworld_bench.hpc.gateway import ALL_OPS, Gateway  # noqa: E402
+from ccbench.hpc.adapters.process_test import ProcessTestAdapter  # noqa: E402
+from ccbench.hpc.audit import GatewayAudit  # noqa: E402
+from ccbench.hpc.dispatcher import DispatcherSession  # noqa: E402
+from ccbench.hpc.gateway import ALL_OPS, Gateway  # noqa: E402
 
 STAMP = "3d8dc664"
 RUN_GPU_ID = f"run-gpu-nvidia-probe-containment-{STAMP}"

@@ -48,7 +48,7 @@ def test_condition_must_match_skills_flag() -> None:
 
 def test_experiment_spec_and_run_lock_v2_generation(tmp_path: Path) -> None:
     from pathlib import Path
-    from dftworld_bench.contracts.experiment_v2 import (
+    from ccbench.contracts.experiment_v2 import (
         ExperimentBudget,
         ModelEntry,
         build_run_lock_v2,

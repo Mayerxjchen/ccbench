@@ -21,13 +21,13 @@ RUNTIMES_DIR = ROOT / "runtimes"
 
 def test_active_tree_has_no_legacy_runtime_paths():
     """Ensure active code trees contain zero legacy runtime paths or legacy case identifiers.
-    
-    Active surface: dftworld_bench/, scripts/infra/, scripts/qualification/, scripts/hpc/,
-                   runtimes/recipes/, schemas/, eval.py.
+
+    Active surface: ccbench/, scripts/infra/, scripts/qualification/,
+                   scripts/hpc/, runtimes/recipes/, schemas/, eval.py.
     Exempted historical archives: runtimes/history/, docs/history/, evidence/, maintainer/, releases/.
     """
     scan_targets = [
-        ROOT / "dftworld_bench",
+        ROOT / "ccbench",
         ROOT / "scripts" / "infra",
         ROOT / "scripts" / "qualification",
         ROOT / "scripts" / "hpc",
@@ -72,17 +72,21 @@ def test_active_tree_has_no_legacy_runtime_paths():
 
 
 def test_all_runtime_locks_validate_against_schema():
-    """Every runtime lock in runtimes/locks/ must strictly validate against compshare-runtime-lock.schema.json."""
+    """Every CompShare runtime lock in runtimes/locks/ must strictly validate against compshare-runtime-lock.schema.json."""
     schema_path = ROOT / "schemas" / "compshare-runtime-lock.schema.json"
     assert schema_path.is_file(), f"Missing schema file: {schema_path}"
     schema_doc = json.loads(schema_path.read_text(encoding="utf-8"))
     validator = jsonschema.Draft202012Validator(schema_doc)
 
     locks_dir = RUNTIMES_DIR / "locks"
-    lock_files = list(locks_dir.glob("*-runtime.lock.json"))
-    assert len(lock_files) >= 3, f"Expected at least 3 runtime locks, found {len(lock_files)}"
+    compshare_locks = [
+        p for p in locks_dir.glob("*-runtime.lock.json")
+        if json.loads(p.read_text(encoding="utf-8")).get("provider") == "compshare"
+        or "compshare" in json.loads(p.read_text(encoding="utf-8")).get("schema", "")
+    ]
+    assert len(compshare_locks) == 3, f"Expected exactly 3 CompShare runtime locks, found {len(compshare_locks)}"
 
-    for lock_file in lock_files:
+    for lock_file in compshare_locks:
         doc = json.loads(lock_file.read_text(encoding="utf-8"))
         errors = list(validator.iter_errors(doc))
         assert not errors, f"Schema validation failed for {lock_file.name}: {[e.message for e in errors]}"

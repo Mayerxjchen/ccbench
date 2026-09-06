@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.hpc import production
-from dftworld_bench.hpc.trust_store import QualificationTrustStore
+from ccbench.hpc import production
+from ccbench.hpc.trust_store import QualificationTrustStore
 
 
 def _cluster_with_runtime_lock(tmp_path: Path) -> tuple[Path, Path]:

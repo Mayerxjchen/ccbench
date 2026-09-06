@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.contracts.case import CaseSpec
-from dftworld_bench.core.packager import PackageError, package_candidate
+from ccbench.contracts.case import CaseSpec
+from ccbench.core.packager import PackageError, package_candidate
 
 
 def _write_manifest(case: Path) -> None:

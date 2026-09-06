@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.contracts.case import CaseContractError, CaseSpec, CoverageTags
+from ccbench.contracts.case import CaseContractError, CaseSpec, CoverageTags
 
 CASES_DIR = Path(__file__).resolve().parents[2] / "cases"
 

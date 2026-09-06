@@ -25,7 +25,7 @@ input.json 继续写 ``/app/...``。
         verifier-logs/      # 独立 Verifier 的输出(result.json / reward.txt)
     jobs/<ts>__<task>/run-record.json   # canonical 不可变 RunRecord(Task 7)
 
-编排由 ``dftworld_bench.core.harness.TrustedHarness`` 拥有（固定阶段顺序 +
+编排由 ``ccbench.core.harness.TrustedHarness`` 拥有（固定阶段顺序 +
 独立 Verifier + 不可变 run record）；agent 侧由 ``ClaudeCodeAdapter`` 提供
 （Claude Code + 独立 Agent 沙箱）。本文件只做参数解析、任务加载、skill
 快照、调用 harness、写兼容 summary。
@@ -71,7 +71,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-from dftworld_bench.agents import (
+from ccbench.agents import (
     AGENT_HOME,  # noqa: F401
     BENCH_SANDBOX_TOOLS,  # noqa: F401
     SYSTEM,  # noqa: F401
@@ -79,18 +79,18 @@ from dftworld_bench.agents import (
     apply_dockerfile_copies,  # noqa: F401  (re-exported for tests)
     ensure_image,  # noqa: F401
 )
-from dftworld_bench.config.resolver import (
+from ccbench.config.resolver import (
     construct_experiment,
     resolve_formal,
     FrozenExperiment,
 )
-from dftworld_bench.config.profiles import (
+from ccbench.config.profiles import (
     ProfileRegistry,
     canonical_json,
     digest_bytes,
 )
-from dftworld_bench.contracts.case import CaseSpec, EXECUTION_ALIASES, EXECUTION_CLASSES
-from dftworld_bench.contracts.experiment_v2 import (
+from ccbench.contracts.case import CaseSpec, EXECUTION_ALIASES, EXECUTION_CLASSES
+from ccbench.contracts.experiment_v2 import (
     ExperimentBudget,
     ExperimentError,
     ExperimentSpecV2,
@@ -100,22 +100,22 @@ from dftworld_bench.contracts.experiment_v2 import (
     build_run_lock_v2,
     canonical_run_lock_digest,
 )
-from dftworld_bench.contracts.resolved_lock import ResolvedRunLock
-from dftworld_bench.contracts.result import FailureCode
-from dftworld_bench.core.event_store import EventStore
-from dftworld_bench.core.coordinator import RunCoordinator
-from dftworld_bench.core.model_transport import RetryingModelClient
-from dftworld_bench.executors import ExecutionContext, resolve
-from dftworld_bench.core.harness import (
+from ccbench.contracts.resolved_lock import ResolvedRunLock
+from ccbench.contracts.result import FailureCode
+from ccbench.core.event_store import EventStore
+from ccbench.core.coordinator import RunCoordinator
+from ccbench.core.model_transport import RetryingModelClient
+from ccbench.executors import ExecutionContext, resolve
+from ccbench.core.harness import (
     HarnessSpec,
     Profile,
     RunMode,
     Treatment,
     TrustedHarness,
 )
-from dftworld_bench.core.run_store import RunStore
-from dftworld_bench.runtime.registry import RuntimeRegistry, RuntimeRegistryError
-from dftworld_bench.runtime.qualify import qualify_runtime
+from ccbench.core.run_store import RunStore
+from ccbench.runtime.registry import RuntimeRegistry, RuntimeRegistryError
+from ccbench.runtime.qualify import qualify_runtime
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_DIR = ROOT / "infra" / "config"
@@ -160,7 +160,7 @@ class CandidateModelTransport:
         request: dict[str, Any],
         timeout_sec: float,
     ) -> Any:
-        from dftworld_bench.core.model_transport import ModelResponse, HttpFailure
+        from ccbench.core.model_transport import ModelResponse, HttpFailure
 
         if self._provider is not None and hasattr(self._provider, "complete"):
             try:
@@ -469,7 +469,7 @@ def load_task(task_dir: Path) -> TaskSpec:
             if match:
                 image = match.group(1)
     if not image:
-        image = "dftworld-base:latest"
+        image = "ccbench-agent:v1"
 
     task_md = task_dir / "task.md"
     inst_md = task_dir / "instruction.md"
@@ -576,7 +576,7 @@ def _load_site_profile(profile_path: Path | None = None) -> "HpcSiteProfile | No
     import json
     import tomllib
 
-    from dftworld_bench.hpc.site_profile import HpcSiteProfile
+    from ccbench.hpc.site_profile import HpcSiteProfile
 
     config_path = profile_path or Path("scripts/hpc/cluster_profile.toml")
     if not config_path.is_file():
@@ -608,10 +608,10 @@ def _executor_deps(
     """
     if task.execution_class != "hpc_controller":
         return {}
-    from dftworld_bench.hpc.dispatcher import HpcDispatcher
-    from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
-    from dftworld_bench.hpc.production import build_hybrid_stack, build_slurm_stack
-    from dftworld_bench.hpc.trust_store import QualificationTrustStore
+    from ccbench.hpc.dispatcher import HpcDispatcher
+    from ccbench.hpc.gateway_runtime import GatewayRuntime
+    from ccbench.hpc.production import build_hybrid_stack, build_slurm_stack
+    from ccbench.hpc.trust_store import QualificationTrustStore
 
     effective_cluster = cluster_profile_path or site_profile_path or Path("scripts/hpc/cluster_profile.toml")
     # These are explicit composition-root inputs.  The checked-in trust store
@@ -987,7 +987,7 @@ def resolve_harness_provenance(
                 f"runtime identity {role_name!r} lacks a locked digest; "
                 "run qualify_runtimes.py before attempting a run"
             )
-        from dftworld_bench.runtime.registry import RuntimeIdentity as _RI
+        from ccbench.runtime.registry import RuntimeIdentity as _RI
         runtime_obj = _RI(
             role=identity["role"],
             profile=identity["profile"],
@@ -1070,8 +1070,8 @@ def _verify_candidate_agent_gate(
             "Run 'python scripts/qualification/qualify_claude_code_agent.py' first."
         )
 
-    from dftworld_bench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
-    from dftworld_bench.hpc.trust_store import QualificationTrustStore
+    from ccbench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
+    from ccbench.hpc.trust_store import QualificationTrustStore
 
     verifier = CandidateAgentVerifier(workspace_root=ROOT)
     trust_store = QualificationTrustStore.load_default()
@@ -1414,7 +1414,7 @@ def resolve_task_run_settings(
     cell_skill_enabled: bool | None = None,
 ) -> TaskRunSettings:
     """Resolve the one policy object used by runtime, budgets, and lock."""
-    from dftworld_bench.config.run_config import load_run_config
+    from ccbench.config.run_config import load_run_config
 
     cfg_path = _resolve_run_config_path(args)
     config = load_run_config(cfg_path)
@@ -1455,7 +1455,7 @@ async def amain(argv: list[str] | None = None) -> int:
     # .env contains values only; policy selection comes from Run Config.
     load_dotenv()
     args = parse_args(argv)
-    from dftworld_bench.config.run_config import load_run_config
+    from ccbench.config.run_config import load_run_config
 
     cfg_path = _resolve_run_config_path(args)
     base_run_config = load_run_config(cfg_path)
@@ -1546,8 +1546,9 @@ async def amain(argv: list[str] | None = None) -> int:
         else:
             ep_env = base_run_config.api.endpoint_env
             cr_env = base_run_config.api.credential_env
-            ep = os.getenv(ep_env, os.getenv("DFTWORLD_API_ENDPOINT"))
-            cr = os.getenv(cr_env, os.getenv("DFTWORLD_API_KEY"))
+            from ccbench.config.legacy_env import get_env
+            ep = get_env(ep_env, get_env("CCBENCH_BASE_URL"))
+            cr = get_env(cr_env, get_env("CCBENCH_API_KEY"))
         return ep, cr, ep_env, cr_env
 
     experiment_id = (
@@ -1791,7 +1792,7 @@ async def amain(argv: list[str] | None = None) -> int:
                 },
                 engine="claude-code",
             )
-            from dftworld_bench.core.budgets import BudgetPolicy
+            from ccbench.core.budgets import BudgetPolicy
             budget_policy = BudgetPolicy.from_lock({"budgets": provenance.budgets})
             resolved_tokens = budget_policy.require("tokens")
             resolved_turns = budget_policy.require("model_turns")

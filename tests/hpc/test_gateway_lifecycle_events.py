@@ -9,9 +9,9 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from dftworld_bench.hpc.adapters.process_test import ProcessTestAdapter
-from dftworld_bench.hpc.audit import GatewayAudit
-from dftworld_bench.hpc.gateway import ALL_OPS, Gateway
+from ccbench.hpc.adapters.process_test import ProcessTestAdapter
+from ccbench.hpc.audit import GatewayAudit
+from ccbench.hpc.gateway import ALL_OPS, Gateway
 
 
 DIGEST = "img@sha256:" + "a" * 64

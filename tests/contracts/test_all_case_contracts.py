@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from dftworld_bench.contracts.case import CaseSpec
+from ccbench.contracts.case import CaseSpec
 
 ROOT = Path(__file__).resolve().parents[2]
 

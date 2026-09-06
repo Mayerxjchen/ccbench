@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-import dftworld_bench.experiments.ablation as ablation
+import ccbench.experiments.ablation as ablation
 
 ROOT = Path(__file__).resolve().parents[2]
 RELEASE_FILE = ROOT / "releases" / "ablation-ready-v0.json"
@@ -91,7 +91,7 @@ def _release(**over) -> dict:
         "source_commit": "frozen-sha",
         "components": {
             "schemas": [{"path": "schemas/run-record.schema.json", "sha256": "ab" * 32}],
-            "site_adapter": [{"path": "dftworld_bench/hpc/adapters/slurm.py", "sha256": "ab" * 32}],
+            "site_adapter": [{"path": "ccbench/hpc/adapters/slurm.py", "sha256": "ab" * 32}],
             "cases": [{"case_id": "032-matclaw-cips-curie-temperature", "instruction_sha256": "ab" * 32}],
             "skills": [{"path": "base-env-build/skills/deepmd", "sha256": "ab" * 32}],
             "resource_profiles": [{"path": "032-matclaw-cips-curie-temperature/profiles/resource.yaml", "sha256": "ab" * 32}],
@@ -315,7 +315,7 @@ def test_protocol_with_skill_sha_matches_canonical_bundle_digest() -> None:
     When D11 is blocked (skill bundle changed during infra work), the
     mismatch is expected — the protocol will be re-frozen at release time.
     """
-    from dftworld_bench.experiments.release_builder import check_qualification_receipt
+    from ccbench.experiments.release_builder import check_qualification_receipt
 
     sys.path.insert(0, str(ROOT))
     import skills_sha

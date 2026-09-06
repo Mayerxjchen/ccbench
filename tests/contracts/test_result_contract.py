@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from dftworld_bench.contracts.result import (
+from ccbench.contracts.result import (
     BenchmarkResult,
     FailureCode,
     ResultClass,

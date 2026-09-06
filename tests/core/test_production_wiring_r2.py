@@ -18,9 +18,9 @@ from pathlib import Path
 import pytest
 
 import eval as eval_mod
-from dftworld_bench.contracts.resolved_lock import ResolvedRunLock
-from dftworld_bench.core.harness import HarnessSpec
-from dftworld_bench.runtime.registry import RuntimeRegistryError
+from ccbench.contracts.resolved_lock import ResolvedRunLock
+from ccbench.core.harness import HarnessSpec
+from ccbench.runtime.registry import RuntimeRegistryError
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -84,7 +84,7 @@ def test_eval_harness_provenance_uses_runtime_registry(local_task):
     `RuntimeRegistry.resolve()`.  The registry is the only owner of runtime
     identity; an inline dict can drift from the registry's capability rules.
     """
-    import dftworld_bench.runtime.registry as registry_mod
+    import ccbench.runtime.registry as registry_mod
 
     # Mock runner that passes qualification without Docker. The file listing
     # must be non-empty: I7 made _check_no_ssh_or_keys fail-closed on an
@@ -170,7 +170,7 @@ def test_docker_exec_is_watchdog_owned():
     never imports or calls `core.tool_watchdog.ToolWatchdog`; there is no
     durable event / budget charge / coordinator handoff on timeout.
     """
-    from dftworld_bench import agents as agents_mod
+    from ccbench import agents as agents_mod
     src = inspect.getsource(agents_mod)
     assert "ToolWatchdog(" in src
 
@@ -181,6 +181,6 @@ def test_tool_timeout_records_operation_event():
     RED: docker_exec's timeout returns a synthetic CompletedProcess and emits
     nothing durable; the event store and budget ledger never learn of the kill.
     """
-    from dftworld_bench import agents as agents_mod
+    from ccbench import agents as agents_mod
     src = inspect.getsource(agents_mod)
     assert "events" in src  # production tool path is event-linked

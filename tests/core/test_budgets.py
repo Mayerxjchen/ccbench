@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from dftworld_bench.core.budgets import (
+from ccbench.core.budgets import (
     BUDGET_DOMAINS,
     BudgetExceeded,
     BudgetLedger,

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from dftworld_bench.runtime.registry import (
+from ccbench.runtime.registry import (
     RuntimeProfile,
     RuntimeRegistry,
     RuntimeRegistryError,

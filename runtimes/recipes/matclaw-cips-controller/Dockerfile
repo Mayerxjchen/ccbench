@@ -26,10 +26,10 @@ COPY scripts/hpc/032_matclaw_gpu.slurm /opt/dftworld/controller/hpc/032_matclaw_
 COPY scripts/hpc/033_matclaw_gpu.slurm /opt/dftworld/controller/hpc/033_matclaw_gpu.slurm
 
 # bench-hpc CLI (Task 12): the trusted HTTP job client that replaces the
-# remote-shell transport.  The whole dftworld_bench package + schemas are
+# remote-shell transport.  The whole ccbench package + schemas are
 # copied so the controller can later resolve runtime requirements from the
 # registry; PYTHONPATH points the interpreter at that surface.
-COPY dftworld_bench /opt/dftworld/controller/dftworld_bench
+COPY ccbench /opt/dftworld/controller/ccbench
 COPY schemas /opt/dftworld/controller/schemas
 ENV PYTHONPATH=/opt/dftworld/controller
 
@@ -38,7 +38,7 @@ ENV PYTHONPATH=/opt/dftworld/controller
 # the CLI callable as `bench-hpc` regardless of PATH.
 RUN uv pip install --python /opt/matclaw/bin/python --no-cache-dir \
         pyyaml jsonschema referencing && \
-    printf '#!/bin/sh\nexec /opt/matclaw/bin/python -m dftworld_bench.hpc "$@"\n' \
+    printf '#!/bin/sh\nexec /opt/matclaw/bin/python -m ccbench.hpc "$@"\n' \
         > /usr/local/bin/bench-hpc && \
     chmod +x /usr/local/bin/bench-hpc
 

@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from dftworld_bench.hpc.drivers.compshare.cli import (
+from ccbench.hpc.drivers.compshare.cli import (
     PINNED_COMPSHARE_CLI_VERSION,
     CliResult,
     CompShareCli,
@@ -17,7 +17,7 @@ from dftworld_bench.hpc.drivers.compshare.cli import (
     CompShareCliJsonError,
     FakeCompShareCliRunner,
 )
-from dftworld_bench.hpc.drivers.compshare.policy import make_ownership_marker
+from ccbench.hpc.drivers.compshare.policy import make_ownership_marker
 
 
 def test_cli_version_pinned():

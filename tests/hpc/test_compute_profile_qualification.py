@@ -10,12 +10,12 @@ from unittest.mock import patch
 
 import pytest
 
-from dftworld_bench.experiments.compute_profile_qualification import (
+from ccbench.experiments.compute_profile_qualification import (
     ComputeProfileQualificationError,
     compute_receipt_digest,
     verify_and_derive_qualification,
 )
-from dftworld_bench.hpc.compute_profile import ComputeProfile
+from ccbench.hpc.compute_profile import ComputeProfile
 
 
 def _mock_verify_receipt_ok(receipt, *, scheduler=None, root, receipt_dir, **kwargs):
@@ -107,7 +107,7 @@ def test_missing_site_receipts_dir_fails_closed():
     assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
-@patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+@patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
 def test_legacy_compute_profile_qualification_is_not_eligible(tmp_path: Path):
     receipts_dir, hashes = _setup_disk_receipts(tmp_path)
     receipt = _valid_receipt(site_receipts=hashes)
@@ -116,7 +116,7 @@ def test_legacy_compute_profile_qualification_is_not_eligible(tmp_path: Path):
     assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
-@patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+@patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
 def test_active_instances_remaining_fails_zero_orphan_gate(tmp_path: Path):
     receipts_dir, hashes = _setup_disk_receipts(tmp_path)
     receipt = _valid_receipt(site_receipts=hashes)
@@ -129,7 +129,7 @@ def test_active_instances_remaining_fails_zero_orphan_gate(tmp_path: Path):
     assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
-@patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+@patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
 def test_orphan_instance_fails_gate(tmp_path: Path):
     receipts_dir, hashes = _setup_disk_receipts(tmp_path)
     receipt = _valid_receipt(site_receipts=hashes)
@@ -142,7 +142,7 @@ def test_orphan_instance_fails_gate(tmp_path: Path):
     assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
-@patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+@patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
 def test_unsettled_termination_fails_gate(tmp_path: Path):
     receipts_dir, hashes = _setup_disk_receipts(tmp_path)
     receipt = _valid_receipt(site_receipts=hashes)
@@ -155,7 +155,7 @@ def test_unsettled_termination_fails_gate(tmp_path: Path):
     assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
-@patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+@patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
 def test_live_active_instances_checker_catches_running_cloud_instance(tmp_path: Path):
     receipts_dir, hashes = _setup_disk_receipts(tmp_path)
     receipt = _valid_receipt(site_receipts=hashes)
@@ -176,7 +176,7 @@ def test_tampered_digest_fails_closed(tmp_path: Path):
         verify_and_derive_qualification(receipt, site_receipts_dir=receipts_dir)
 
 
-@patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+@patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
 def test_unqualified_site_fails_closed(tmp_path: Path):
     receipts_dir, hashes = _setup_disk_receipts(tmp_path)
     receipt = _valid_receipt(site_receipts=hashes)
@@ -189,7 +189,7 @@ def test_unqualified_site_fails_closed(tmp_path: Path):
     assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
-@patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+@patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
 def test_false_evidence_fails_qualification(tmp_path: Path):
     receipts_dir, hashes = _setup_disk_receipts(tmp_path)
     for false_field in ("stock_checked", "task_executed", "fetch_verified", "credentials_isolated"):
@@ -210,7 +210,7 @@ def test_missing_digest_raises():
         verify_and_derive_qualification(receipt)
 
 
-@patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+@patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
 def test_expected_profile_mismatch_fails_closed(tmp_path: Path):
     receipts_dir, hashes = _setup_disk_receipts(tmp_path)
     prof = ComputeProfile.from_dict({
@@ -223,7 +223,7 @@ def test_expected_profile_mismatch_fails_closed(tmp_path: Path):
         verify_and_derive_qualification(receipt, expected_profile=prof, site_receipts_dir=receipts_dir)
 
 
-@patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+@patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
 def test_legacy_on_disk_site_receipt_is_not_eligible(tmp_path: Path):
     prof = ComputeProfile.from_dict({
         "schema_version": 1,
@@ -252,7 +252,7 @@ def test_legacy_on_disk_site_receipt_is_not_eligible(tmp_path: Path):
     assert verdict_bad.gpu_site_qualified is False
 
 
-@patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_fail)
+@patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_fail)
 def test_self_authored_receipt_fails_full_verification(tmp_path: Path):
     """A self-authored minimal receipt must fail the full provenance verification."""
     receipts_dir, hashes = _setup_disk_receipts(tmp_path)
@@ -271,7 +271,7 @@ class TestGatewayTwoPhaseSettlement:
 
     def test_token_expired_still_executes_teardown(self, tmp_path: Path):
         """TOKEN_EXPIRED must still execute trusted teardown_resources."""
-        from dftworld_bench.hpc.gateway import Gateway, GatewayError, GatewayErrorCode
+        from ccbench.hpc.gateway import Gateway, GatewayError, GatewayErrorCode
 
         class FakeAdapter:
             def __init__(self):
@@ -299,7 +299,7 @@ class TestGatewayTwoPhaseSettlement:
 
     def test_token_revoked_skips_teardown(self, tmp_path: Path):
         """TOKEN_REVOKED means token was explicitly revoked — teardown may be skipped."""
-        from dftworld_bench.hpc.gateway import Gateway, GatewayError, GatewayErrorCode
+        from ccbench.hpc.gateway import Gateway, GatewayError, GatewayErrorCode
 
         class FakeAdapter:
             def __init__(self):
@@ -326,7 +326,7 @@ class TestCompShareReceiptTrustContract:
 
     def test_minimal_self_authored_receipt_fails(self, tmp_path: Path):
         """A minimal self-authored CompShare receipt must FAIL verification."""
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
 
         # Write a minimal self-authored receipt
         receipt = {
@@ -350,7 +350,7 @@ class TestCompShareReceiptTrustContract:
 
     def test_missing_job_terminal_status_fails(self, tmp_path: Path):
         """CompShare receipt without job terminal status must FAIL."""
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
 
         receipt = {
             "kind": "compshare-gpu-site",
@@ -372,7 +372,7 @@ class TestCompShareReceiptTrustContract:
 
     def test_missing_fetched_artifact_digest_fails(self, tmp_path: Path):
         """CompShare receipt without fetched artifact digest must FAIL."""
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
 
         receipt = {
             "kind": "compshare-gpu-site",
@@ -395,7 +395,7 @@ class TestCompShareReceiptTrustContract:
 
     def test_stop_success_but_delete_failure_fails(self, tmp_path: Path):
         """stop_confirmed=True but delete_confirmed=False must FAIL."""
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
 
         receipt = {
             "kind": "compshare-gpu-site",
@@ -418,7 +418,7 @@ class TestCompShareReceiptTrustContract:
 
     def test_live_instance_list_nonzero_fails(self, tmp_path: Path):
         """active_total > 0 means orphan instances — must FAIL."""
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
 
         receipt = {
             "kind": "compshare-gpu-site",
@@ -449,7 +449,7 @@ class TestSlurmReceiptTrustContract:
 
     def test_slurm_verification_returns_dict_with_problems(self, tmp_path: Path):
         """Slurm verification returns dict with 'problems' key."""
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
 
         # Write a minimal Slurm receipt
         receipt = {
@@ -494,7 +494,7 @@ class TestCompShareNoSIFRequired:
 
     def test_compshare_receipt_no_sif_field(self, tmp_path: Path):
         """CompShare receipt with no SIF fields should not fail for missing SIF."""
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
 
         receipt = {
             "kind": "compshare-gpu-site",
@@ -527,7 +527,7 @@ class TestSchedulerMismatch:
 
     def test_scheduler_mismatch_fails(self, tmp_path: Path):
         """Receipt with scheduler='slurm' but kind='compshare-gpu-site' must FAIL."""
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
 
         receipt = {
             "kind": "compshare-gpu-site",  # CompShare kind
@@ -555,7 +555,7 @@ class TestVerifyReceiptReturnStructure:
 
     def test_verify_receipt_returns_dict_with_problems_list(self, tmp_path: Path):
         """verify_receipt() must return dict with 'problems' as list[str]."""
-        from dftworld_bench.experiments.qualification_receipt import verify_receipt
+        from ccbench.experiments.qualification_receipt import verify_receipt
 
         # Write a minimal receipt that will fail verification
         receipt = {
@@ -584,7 +584,7 @@ class TestVerifyReceiptReturnStructure:
 class TestZeroOrphanFaultMatrix:
     """Matrix tests for Zero-Orphan cloud recycling gate (Gate A1)."""
 
-    @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+    @patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
     def test_matrix_legacy_receipt_is_not_eligible(self, tmp_path: Path):
         """A clean legacy bundle still cannot become a formal attestation."""
         receipts_dir, hashes = _setup_disk_receipts(tmp_path)
@@ -599,7 +599,7 @@ class TestZeroOrphanFaultMatrix:
         assert verdict.active_instances_count == 0
         assert verdict.orphan_instances_count == 0
 
-    @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+    @patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
     def test_matrix_active_mlffbench_instance_fails(self, tmp_path: Path):
         """Case B: lingering active instance detected by live query -> FAIL."""
         receipts_dir, hashes = _setup_disk_receipts(tmp_path)
@@ -613,7 +613,7 @@ class TestZeroOrphanFaultMatrix:
         assert verdict.cloud_recycling_passed is False
         assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
-    @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+    @patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
     def test_matrix_orphan_count_in_receipt_fails(self, tmp_path: Path):
         """Case C: orphan ledger entry recorded in receipt evidence -> FAIL."""
         receipts_dir, hashes = _setup_disk_receipts(tmp_path)
@@ -629,7 +629,7 @@ class TestZeroOrphanFaultMatrix:
         assert verdict.cloud_recycling_passed is False
         assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
-    @patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+    @patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
     def test_matrix_live_checker_error_fails_closed(self, tmp_path: Path):
         """Case D: live query failure must fail closed."""
         receipts_dir, hashes = _setup_disk_receipts(tmp_path)
@@ -673,9 +673,9 @@ class TestCpuOnlySlurmQualificationContract:
 
     def test_verify_site_receipt_slurm_cpu_only_passes_required_classes(self, tmp_path: Path):
         """When receipt evidence jobs only have probe_class='cpu', required_probe_classes={'cpu'}."""
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
 
-        with patch("dftworld_bench.experiments.qualification_receipt.verify_receipt") as mock_vr:
+        with patch("ccbench.experiments.qualification_receipt.verify_receipt") as mock_vr:
             mock_vr.return_value = {
                 "receipt_dir": str(tmp_path),
                 "digest_ok": True,
@@ -713,14 +713,14 @@ class TestCompShareReceiptAuditLineage:
     ) -> dict[str, Any]:
         import hashlib
         import json
-        from dftworld_bench.experiments.compute_profile_qualification import (
+        from ccbench.experiments.compute_profile_qualification import (
             build_compshare_site_qualification_receipt,
             generate_ed25519_key_pair,
         )
-        from dftworld_bench.experiments.qualification_receipt import canonical_digest, sha256_file
-        from dftworld_bench.hpc.audit import GatewayAudit
-        from dftworld_bench.hpc.site_profile import HpcSiteProfile
-        from dftworld_bench.hpc.trust_store import QualificationTrustStore, TrustKey
+        from ccbench.experiments.qualification_receipt import canonical_digest, sha256_file
+        from ccbench.hpc.audit import GatewayAudit
+        from ccbench.hpc.site_profile import HpcSiteProfile
+        from ccbench.hpc.trust_store import QualificationTrustStore, TrustKey
 
         code_file = tmp_path / "mod.py"
         code_file.write_text("# module code\n", encoding="utf-8")
@@ -735,7 +735,7 @@ class TestCompShareReceiptAuditLineage:
             "qualification": {"status": "BUILT_NOT_QUALIFIED"},
         }
         lock_file.write_text(json.dumps(lock_doc), encoding="utf-8")
-        from dftworld_bench.hpc.runtime_resolution import canonical_lock_digest
+        from ccbench.hpc.runtime_resolution import canonical_lock_digest
         lock_sha = canonical_lock_digest(lock_doc)
 
         art_dir = tmp_path / "outputs"
@@ -848,8 +848,8 @@ class TestCompShareReceiptAuditLineage:
 
     def test_compshare_receipt_with_sound_audit_log_passes(self, tmp_path: Path):
         """Sound GatewayAudit ledger allows CompShare receipt to PASS."""
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
-        from dftworld_bench.hpc.audit import GatewayAudit
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.hpc.audit import GatewayAudit
 
         audit_path = tmp_path / "audit.jsonl"
         audit = GatewayAudit(audit_path)
@@ -893,8 +893,8 @@ class TestCompShareReceiptAuditLineage:
 
     def test_compshare_receipt_with_tampered_audit_log_fails(self, tmp_path: Path):
         """Tampered GatewayAudit ledger causes CompShare receipt to FAIL."""
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
-        from dftworld_bench.hpc.audit import GatewayAudit
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.hpc.audit import GatewayAudit
 
         audit_path = tmp_path / "audit.jsonl"
         audit = GatewayAudit(audit_path)
@@ -916,7 +916,7 @@ class TestCompShareReceiptAuditLineage:
 
     def test_compshare_receipt_with_missing_audit_log_fails(self, tmp_path: Path):
         """Missing GatewayAudit ledger causes CompShare receipt to FAIL."""
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
 
         missing_path = tmp_path / "nonexistent_audit.jsonl"
         receipt = self._make_compshare_receipt(tmp_path, audit_path=missing_path)
@@ -930,7 +930,7 @@ class TestP4Ed25519AndEvidenceIntegrity:
     """P4: Ed25519 signing, evidence containment, and audit log verification."""
 
     def test_ed25519_legacy_signature_is_readable_but_not_eligible(self, tmp_path: Path):
-        from dftworld_bench.experiments.compute_profile_qualification import (
+        from ccbench.experiments.compute_profile_qualification import (
             build_compute_profile_qualification_receipt,
             generate_ed25519_key_pair,
             verify_and_derive_qualification,
@@ -955,7 +955,7 @@ class TestP4Ed25519AndEvidenceIntegrity:
         assert doc["signature"]["public_key"] == pub_hex
         assert verify_receipt_signature(doc, expected_public_key_hex=pub_hex) is True
 
-        from dftworld_bench.hpc.trust_store import QualificationTrustStore, TrustKey
+        from ccbench.hpc.trust_store import QualificationTrustStore, TrustKey
         store = QualificationTrustStore(
             {
                 "compshare-site-v1": TrustKey(
@@ -967,13 +967,13 @@ class TestP4Ed25519AndEvidenceIntegrity:
             }
         )
 
-        with patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok):
+        with patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok):
             verdict = verify_and_derive_qualification(doc, site_receipts_dir=receipts_dir, trust_store=store)
             assert verdict.passed is False
             assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
     def test_ed25519_tampered_receipt_fails(self, tmp_path: Path):
-        from dftworld_bench.experiments.compute_profile_qualification import (
+        from ccbench.experiments.compute_profile_qualification import (
             build_compute_profile_qualification_receipt,
             compute_receipt_digest,
             generate_ed25519_key_pair,
@@ -999,13 +999,13 @@ class TestP4Ed25519AndEvidenceIntegrity:
         doc["digest"] = compute_receipt_digest(doc)
 
         assert verify_receipt_signature(doc) is False
-        with patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok):
+        with patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok):
             verdict = verify_and_derive_qualification(doc, site_receipts_dir=receipts_dir)
             assert verdict.passed is False
             assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
     def test_legacy_evidence_bundle_is_not_eligible(self, tmp_path: Path):
-        from dftworld_bench.experiments.compute_profile_qualification import (
+        from ccbench.experiments.compute_profile_qualification import (
             build_compute_profile_qualification_receipt,
             verify_and_derive_qualification,
         )
@@ -1028,14 +1028,14 @@ class TestP4Ed25519AndEvidenceIntegrity:
             evidence_files=["trace.log", "../escape.txt"],
         )
 
-        with patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok):
+        with patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok):
             verdict = verify_and_derive_qualification(doc, site_receipts_dir=receipts_dir)
             assert verdict.passed is False
             assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
     def test_compshare_receipt_image_id_mismatch_fails(self, tmp_path: Path):
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
-        from dftworld_bench.hpc.audit import GatewayAudit
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.hpc.audit import GatewayAudit
 
         audit_path = tmp_path / "audit.jsonl"
         audit = GatewayAudit(audit_path)
@@ -1052,8 +1052,8 @@ class TestP4Ed25519AndEvidenceIntegrity:
         assert result["derived"]["qualification_status"] == "INVALID"
 
     def test_compshare_receipt_invalid_kind_fails(self, tmp_path: Path):
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
-        from dftworld_bench.hpc.audit import GatewayAudit
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.hpc.audit import GatewayAudit
 
         audit_path = tmp_path / "audit.jsonl"
         audit = GatewayAudit(audit_path)
@@ -1070,8 +1070,8 @@ class TestP4Ed25519AndEvidenceIntegrity:
         assert result["derived"]["qualification_status"] == "INVALID"
 
     def test_compshare_receipt_artifact_path_traversal_fails(self, tmp_path: Path):
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
-        from dftworld_bench.hpc.audit import GatewayAudit
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.hpc.audit import GatewayAudit
 
         audit_path = tmp_path / "audit.jsonl"
         audit = GatewayAudit(audit_path)
@@ -1094,9 +1094,9 @@ class TestP5P6OwnershipSafeStatesAndPolicy:
     """P5 & P6: Ownership marker, safe states (deleted/terminated only), and SiteProfile policy."""
 
     def test_ownership_marker_injected_on_create(self, tmp_path: Path):
-        from dftworld_bench.hpc.drivers.compshare import CompShareCli, FakeCompShareCliRunner
-        from dftworld_bench.hpc.drivers.compshare import make_ownership_marker
-        from dftworld_bench.hpc.drivers.compshare.instance_manager import RunScopedInstanceManager
+        from ccbench.hpc.drivers.compshare import CompShareCli, FakeCompShareCliRunner
+        from ccbench.hpc.drivers.compshare import make_ownership_marker
+        from ccbench.hpc.drivers.compshare.instance_manager import RunScopedInstanceManager
 
         runner = FakeCompShareCliRunner()
         cli = CompShareCli(runner=runner)
@@ -1117,8 +1117,8 @@ class TestP5P6OwnershipSafeStatesAndPolicy:
 
     def test_stopped_instance_is_unsafe_and_terminated(self, tmp_path: Path):
         """Instances in STOPPED status are not in safe final state and must be recovered."""
-        from dftworld_bench.hpc.drivers.compshare import CompShareCli, FakeCompShareCliRunner
-        from dftworld_bench.hpc.drivers.compshare.instance_manager import RunScopedInstanceManager
+        from ccbench.hpc.drivers.compshare import CompShareCli, FakeCompShareCliRunner
+        from ccbench.hpc.drivers.compshare.instance_manager import RunScopedInstanceManager
 
         runner = FakeCompShareCliRunner()
         cli = CompShareCli(runner=runner)
@@ -1143,8 +1143,8 @@ class TestP5P6OwnershipSafeStatesAndPolicy:
 
     def test_cloud_list_error_fails_closed(self, tmp_path: Path):
         """If cloud instance listing throws error, reconcile_and_recover must fail closed."""
-        from dftworld_bench.hpc.drivers.compshare.cli import CompShareCli
-        from dftworld_bench.hpc.drivers.compshare.instance_manager import RunScopedInstanceManager
+        from ccbench.hpc.drivers.compshare.cli import CompShareCli
+        from ccbench.hpc.drivers.compshare.instance_manager import RunScopedInstanceManager
 
         class ErrorCli(CompShareCli):
             def instance_list(self, **kwargs):
@@ -1160,7 +1160,7 @@ class TestP5P6OwnershipSafeStatesAndPolicy:
         assert report.clean is False
 
     def test_site_profile_driven_qualification_policy(self, tmp_path: Path):
-        from dftworld_bench.experiments.compute_profile_qualification import verify_site_receipt
+        from ccbench.experiments.compute_profile_qualification import verify_site_receipt
 
         # Dummy receipt with only cpu probe
         receipt = {
@@ -1172,7 +1172,7 @@ class TestP5P6OwnershipSafeStatesAndPolicy:
                 "jobs": [{"probe_class": "cpu", "state": "COMPLETED", "exit_code": 0}],
             },
         }
-        from dftworld_bench.experiments.qualification_receipt import canonical_digest
+        from ccbench.experiments.qualification_receipt import canonical_digest
         receipt["digest"] = canonical_digest({k: v for k, v in receipt.items() if k != "digest"})
 
         # SiteProfile policy requires only cpu -> should not complain about missing gpu canary
@@ -1182,7 +1182,7 @@ class TestP5P6OwnershipSafeStatesAndPolicy:
             "qualification_policy": {"required_probe_classes": ["cpu"]},
         }
 
-        with patch("dftworld_bench.experiments.qualification_receipt.verify_receipt") as mock_vr:
+        with patch("ccbench.experiments.qualification_receipt.verify_receipt") as mock_vr:
             mock_vr.return_value = {"problems": [], "derived": {"qualification_status": "PASS"}}
             verify_site_receipt(
                 receipt,

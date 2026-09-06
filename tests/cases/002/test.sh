@@ -1,5 +1,5 @@
 #!/bin/bash
-# Common verifier launcher: python -m dftworld_bench.verifiers.launcher
+# Common verifier launcher: python -m ccbench.verifiers.launcher
 # ============================================================================
 # 032 verifier entry (harness contract: /tests/test.sh -> result.json).
 #

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.core.event_store import CheckpointError, EventStore
+from ccbench.core.event_store import CheckpointError, EventStore
 
 
 def _store(tmp_path: Path) -> EventStore:

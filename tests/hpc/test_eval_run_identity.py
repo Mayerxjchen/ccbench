@@ -10,7 +10,7 @@ Gate mapping (Task 14 pilot prerequisite):
 - [execution].class -> TaskSpec.execution_class, normalized via
   EXECUTION_ALIASES (real_hpc_controller -> hpc_controller).
 - legacy task.execution_backend accepted only when [execution].class is
-  absent (mirrors dftworld_bench.contracts.case.CaseSpec).
+  absent (mirrors ccbench.contracts.case.CaseSpec).
 - both present -> ambiguous -> reject.
 - hpc_controller Profile carries the case platform-profile name (gpu-slurm),
   never local_docker.
@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 import eval as E  # noqa: E402
-from dftworld_bench.core.budgets import BUDGET_DOMAINS
+from ccbench.core.budgets import BUDGET_DOMAINS
 
 HPC_TOML = """\
 schema_version = "1.2"
@@ -154,7 +154,7 @@ def test_eval_resolves_complete_local_harness_provenance(tmp_path: Path) -> None
     # provenance.budgets is the LOCK dialect: it must satisfy the lock schema
     # (max_model_turns/max_total_tokens present) and map through
     # BudgetPolicy.from_lock onto all fourteen ledger domains.
-    from dftworld_bench.core.budgets import BudgetPolicy
+    from ccbench.core.budgets import BudgetPolicy
 
     assert {"max_model_turns", "max_total_tokens"} <= set(provenance.budgets)
     policy = BudgetPolicy.from_lock({"budgets": provenance.budgets})
@@ -230,8 +230,8 @@ def test_controller_gateway_env_uses_host_docker_internal() -> None:
     A ProcessTestAdapter is injected so the test proves the HTTP plumbing
     without a live SSH round-trip to the cluster.
     """
-    from dftworld_bench.executors.base import ExecutionContext
-    from dftworld_bench.executors.hpc import HpcExecutor
+    from ccbench.executors.base import ExecutionContext
+    from ccbench.executors.hpc import HpcExecutor
 
     spec = E.load_task(ROOT / "002-matclaw-cips-curie-temperature")
     workspace = ROOT / ".test-gateway-workspace"
@@ -254,8 +254,8 @@ def test_controller_gateway_env_uses_host_docker_internal() -> None:
         run_id="test-host-docker-internal",
         workspace=workspace,
     )
-    from dftworld_bench.hpc.dispatcher import HpcDispatcher
-    from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
+    from ccbench.hpc.dispatcher import HpcDispatcher
+    from ccbench.hpc.gateway_runtime import GatewayRuntime
     executor = HpcExecutor(
         dispatcher=HpcDispatcher(GatewayRuntime(), {})
     )
@@ -288,7 +288,7 @@ def test_controller_docker_args_reach_host_gateway() -> None:
     automatically; the flag is harmless there and verified working).  Dispatch
     is by execution class (Task 11), so the flag key is the class, not the case
     name."""
-    from dftworld_bench.agents import controller_docker_args
+    from ccbench.agents import controller_docker_args
 
     assert controller_docker_args("local_sandbox") == []
     args = controller_docker_args("hpc_controller")
@@ -298,11 +298,11 @@ def test_controller_docker_args_reach_host_gateway() -> None:
 
 def test_controller_image_copies_bench_hpc_package() -> None:
     """The controller container carries the unified bench-hpc gateway client
-    and dftworld_bench package under /opt/dftworld/controller."""
+    and ccbench package under /opt/dftworld/controller."""
     df_path = ROOT / "runtimes" / "recipes" / "matclaw-cips-controller" / "Dockerfile"
     df = df_path.read_text(encoding="utf-8")
     assert (
-        "COPY dftworld_bench /opt/dftworld/controller/dftworld_bench"
+        "COPY ccbench /opt/dftworld/controller/ccbench"
         in df
     )
 
@@ -310,7 +310,7 @@ def test_controller_image_copies_bench_hpc_package() -> None:
 def test_durable_session_created_under_run_dir(tmp_path: Path) -> None:
     """Task 9: eval.py attaches a durable session per attempt; events survive
     and a checkpoint pointer is written at the harness boundaries."""
-    from dftworld_bench.core.event_store import EventStore
+    from ccbench.core.event_store import EventStore
 
     session = E.durable_session_for_run(tmp_path, "001-hello")
     assert isinstance(session, EventStore)

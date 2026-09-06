@@ -25,10 +25,10 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.contracts.case import CaseContractError, CaseSpec
-from dftworld_bench.experiments import qualification_receipt as qr
-from dftworld_bench.experiments.release_builder import check_qualification_receipt
-from dftworld_bench.hpc.dispatcher import HpcDispatcher
+from ccbench.contracts.case import CaseContractError, CaseSpec
+from ccbench.experiments import qualification_receipt as qr
+from ccbench.experiments.release_builder import check_qualification_receipt
+from ccbench.hpc.dispatcher import HpcDispatcher
 
 GPU_NAME = "NVIDIA A100-SXM4-80GB"
 SIF_SHA = "99aefeff8f457cd6b4f57e1592db511f167ab493730f970bfd7baa68993250c3"
@@ -296,7 +296,7 @@ def _build_golden(base: Path) -> dict:
     config = tomllib.loads(
         (base / qr.DEFAULT_PROFILE_RELPATH).read_text(encoding="utf-8")
     )
-    from dftworld_bench.hpc.site_profile import HpcSiteProfile
+    from ccbench.hpc.site_profile import HpcSiteProfile
 
     site = HpcSiteProfile.from_cluster_config(config)
 

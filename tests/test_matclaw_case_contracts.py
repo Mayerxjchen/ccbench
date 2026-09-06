@@ -262,7 +262,7 @@ def test_eval_task_spec_exposes_gpus_and_explicit_docker_args() -> None:
     assert "gpus must be >= 0" in eval_src  # negative values rejected
     assert "requested_gpus" in eval_src  # recorded in TaskResult -> summary.json
     # GPU 显式分配逻辑由 agents.py 中的 docker_gpu_args 统一实现
-    agents_src = (ROOT / "dftworld_bench" / "agents.py").read_text(encoding="utf-8")
+    agents_src = (ROOT / "ccbench" / "agents.py").read_text(encoding="utf-8")
     assert "def docker_gpu_args" in agents_src
     assert '"--gpus", "device=0"' in agents_src  # explicit device, never default runtime
 

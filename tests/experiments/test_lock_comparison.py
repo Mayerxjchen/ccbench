@@ -6,7 +6,7 @@ import copy
 
 import pytest
 
-from dftworld_bench.experiments.comparison import TREATMENTS, compare_lock
+from ccbench.experiments.comparison import TREATMENTS, compare_lock
 
 
 @pytest.fixture

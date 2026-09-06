@@ -16,7 +16,7 @@ recorded `runnable_draft` in `VALIDATION.json`.
 ## Launch (smoke profile)
 
 1. Package the Candidate bundle with the real packager
-   (`dftworld_bench.core.packager.package_candidate`) from this case root.
+   (`ccbench.core.packager.package_candidate`) from this case root.
 2. Materialize a Candidate sandbox containing the bundle
    (`instruction.md` + `public/**`) and nothing else.
 3. Run the Agent against `instruction.md` under `profiles/smoke.yaml`

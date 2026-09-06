@@ -17,7 +17,7 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-CLI = [sys.executable, "-m", "dftworld_bench.case_factory"]
+CLI = [sys.executable, "-m", "ccbench.case_factory"]
 
 DESIGN = {
     "schema_version": 1,
@@ -165,7 +165,7 @@ def test_render_force_generated_overwrites_drift(case_dir):
 
 def test_render_rolls_back_on_commit_failure(case_dir, monkeypatch):
     """A failure mid-commit restores every generated file whole."""
-    import dftworld_bench.case_factory.cli as cli
+    import ccbench.case_factory.cli as cli
 
     _run(case_dir, "render")
     original = {
@@ -197,7 +197,7 @@ def test_render_rolls_back_created_files_on_fresh_commit_failure(case_dir, monke
     Only existing files were backed up before; newly created files must be
     deleted on rollback so no partial generated set survives.
     """
-    import dftworld_bench.case_factory.cli as cli
+    import ccbench.case_factory.cli as cli
 
     calls = {"n": 0}
     real_replace = cli._replace_file
@@ -220,7 +220,7 @@ def test_render_rolls_back_created_files_on_fresh_commit_failure(case_dir, monke
 
 def test_render_lock_committed_last(tmp_path, monkeypatch):
     """The lock is the last file replaced — its digest covers the siblings."""
-    import dftworld_bench.case_factory.cli as cli
+    import ccbench.case_factory.cli as cli
 
     case_dir = tmp_path / "042-example"
     (case_dir / "public").mkdir(parents=True)

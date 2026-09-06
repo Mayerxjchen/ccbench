@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 import jsonschema
 import pytest
 
-from dftworld_bench.hpc.drivers.compshare.driver import SUPPORTED_GPU_RUNTIMES, CompShareDriver
-from dftworld_bench.hpc.runtime_resolution import (
+from ccbench.hpc.drivers.compshare.driver import SUPPORTED_GPU_RUNTIMES, CompShareDriver
+from ccbench.hpc.runtime_resolution import (
     RuntimeLockEntry,
     RuntimeResolver,
     RuntimeStatus,

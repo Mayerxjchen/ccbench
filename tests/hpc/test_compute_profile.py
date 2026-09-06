@@ -12,18 +12,18 @@ import copy
 
 import pytest
 
-from dftworld_bench.hpc.compute_profile import (
+from ccbench.hpc.compute_profile import (
     ComputeProfile,
     ComputeProfileError,
     ComputeRouter,
 )
-from dftworld_bench.hpc.job import JobResources
-from dftworld_bench.hpc.request import (
+from ccbench.hpc.job import JobResources
+from ccbench.hpc.request import (
     ExecutionRequestV2,
     RequestError,
     request_from_legacy_v1_spec,
 )
-from dftworld_bench.hpc.site_profile import HpcSiteProfile
+from ccbench.hpc.site_profile import HpcSiteProfile
 
 
 def _site(partition: str, *, cpu_partition: str | None) -> HpcSiteProfile:

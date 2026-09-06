@@ -12,7 +12,7 @@ The first real attempt uses the **smoke-class** Discovery profile, never
 1. Confirm the runtime/site is separately authorized. Runnable files being
    complete is **not** permission to run; runtime authorization is outside L1.
 2. Package the Candidate bundle with the real packager:
-   `dftworld_bench.core.packager.package_candidate(CaseSpec.load(CASE), dest)`.
+   `ccbench.core.packager.package_candidate(CaseSpec.load(CASE), dest)`.
 3. Launch the Agent against the packaged bundle under the smoke profile
    (`profiles/smoke.yaml`), `local_sandbox` class.
 4. Seal the submission, then run the hidden verifier mount:

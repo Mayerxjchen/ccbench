@@ -9,9 +9,9 @@ FROM python:3.12-slim
 WORKDIR /opt/mlip-bench
 
 COPY pyproject.toml ./
-COPY dftworld_bench ./dftworld_bench
+COPY ccbench ./ccbench
 COPY schemas ./schemas
 
 RUN pip install --no-cache-dir .
 
-CMD ["python", "-c", "import dftworld_bench.hpc.gateway_runtime as r; print('hpc-gateway runtime installed:', r.__file__)"]
+CMD ["python", "-c", "import ccbench.hpc.gateway_runtime as r; print('hpc-gateway runtime installed:', r.__file__)"]

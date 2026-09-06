@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 from eval import git_head_commit
-from dftworld_bench.contracts.experiment_v2 import (
+from ccbench.contracts.experiment_v2 import (
     ExperimentBudget,
     ExperimentError,
     ExperimentSpecV2,

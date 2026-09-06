@@ -7,17 +7,17 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.hpc.drivers.compshare.cli import (
+from ccbench.hpc.drivers.compshare.cli import (
     CliResult,
     CompShareCli,
     CompShareCliJsonError,
     FakeCompShareCliRunner,
 )
-from dftworld_bench.hpc.drivers.compshare.instance_manager import (
+from ccbench.hpc.drivers.compshare.instance_manager import (
     CompShareOrphanError,
     RunScopedInstanceManager,
 )
-from dftworld_bench.hpc.drivers.compshare.policy import (
+from ccbench.hpc.drivers.compshare.policy import (
     make_ownership_marker,
     matches_ownership_marker,
 )

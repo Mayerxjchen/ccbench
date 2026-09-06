@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dftworld_bench.contracts.events import (
+from ccbench.contracts.events import (
     EventChainError,
     RunEvent,
     next_event,

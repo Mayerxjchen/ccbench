@@ -16,9 +16,9 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.hpc.audit import GatewayAudit
-from dftworld_bench.hpc.gateway import ALL_OPS, Gateway, GatewayError
-from dftworld_bench.hpc.http_server import HttpGatewayServer
+from ccbench.hpc.audit import GatewayAudit
+from ccbench.hpc.gateway import ALL_OPS, Gateway, GatewayError
+from ccbench.hpc.http_server import HttpGatewayServer
 
 DIGEST = "img@sha256:" + "a" * 64
 

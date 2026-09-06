@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.experiments.release_builder import check_qualification_receipt
+from ccbench.experiments.release_builder import check_qualification_receipt
 
 import scripts.ablation.readiness_audit as audit
 

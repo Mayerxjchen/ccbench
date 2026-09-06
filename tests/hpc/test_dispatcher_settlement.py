@@ -15,15 +15,15 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.hpc.adapters.process_test import ProcessTestAdapter
-from dftworld_bench.hpc.dispatcher import (
+from ccbench.hpc.adapters.process_test import ProcessTestAdapter
+from ccbench.hpc.dispatcher import (
     DispatcherClosedError,
     HpcDispatcher,
     SettlementError,
     SettlementReport,
 )
-from dftworld_bench.hpc.audit import GatewayAudit
-from dftworld_bench.hpc.gateway import ALL_OPS, Gateway, GatewayError
+from ccbench.hpc.audit import GatewayAudit
+from ccbench.hpc.gateway import ALL_OPS, Gateway, GatewayError
 
 DIGEST = "img@sha256:" + "a" * 64
 
@@ -72,7 +72,7 @@ def _session_with_outputs(tmp_path, outputs: dict[str, str]):
     audit = GatewayAudit(tmp_path / "audit.jsonl")
     gateway = Gateway(adapter, audit=audit, workspace_root=tmp_path / "ws")
     token = gateway.issue("run-s", ALL_OPS)
-    from dftworld_bench.hpc.dispatcher import DispatcherSession
+    from ccbench.hpc.dispatcher import DispatcherSession
 
     session = DispatcherSession.__new__(DispatcherSession)
     session._lease = type(
@@ -213,7 +213,7 @@ def test_revoked_token_does_not_skip_teardown_on_close(tmp_path: Path):
     site_root = tmp_path / "site"
     site_root.mkdir(parents=True, exist_ok=True)
     adapter = SettleTrackingAdapter(site_root)
-    from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
+    from ccbench.hpc.gateway_runtime import GatewayRuntime
 
     runtime = GatewayRuntime(audit=GatewayAudit(site_root / "audit.jsonl"))
     dispatcher = HpcDispatcher(
@@ -247,7 +247,7 @@ def test_open_run_same_run_replacement_teardown(tmp_path: Path):
     site_root = tmp_path / "site"
     site_root.mkdir(parents=True, exist_ok=True)
     adapter = SettleTrackingAdapter(site_root)
-    from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
+    from ccbench.hpc.gateway_runtime import GatewayRuntime
 
     runtime = GatewayRuntime(audit=GatewayAudit(site_root / "audit.jsonl"))
     dispatcher = HpcDispatcher(
@@ -276,7 +276,7 @@ def test_teardown_failure_sets_teardown_failed_and_records_orphan(tmp_path: Path
     site_root = tmp_path / "site"
     site_root.mkdir(parents=True, exist_ok=True)
     adapter = FailingAdapter(site_root)
-    from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
+    from ccbench.hpc.gateway_runtime import GatewayRuntime
 
     runtime = GatewayRuntime(audit=GatewayAudit(site_root / "audit.jsonl"))
     dispatcher = HpcDispatcher(

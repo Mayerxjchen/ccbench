@@ -22,10 +22,10 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.contracts.case import CaseSpec
-from dftworld_bench.executors import HpcExecutor, resolve
-from dftworld_bench.executors.base import ExecutionContext
-from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
+from ccbench.contracts.case import CaseSpec
+from ccbench.executors import HpcExecutor, resolve
+from ccbench.executors.base import ExecutionContext
+from ccbench.hpc.gateway_runtime import GatewayRuntime
 
 ROOT = Path(__file__).resolve().parents[2]
 HPC_CASE_PREFIXES = ("001-", "002-", "003-", "004-", "005-")
@@ -40,8 +40,8 @@ def _find_case(prefix: str) -> Path:
 
 def _dispatcher():
     """A process-test dispatcher as the composition root would inject."""
-    from dftworld_bench.hpc.dispatcher import HpcDispatcher
-    from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
+    from ccbench.hpc.dispatcher import HpcDispatcher
+    from ccbench.hpc.gateway_runtime import GatewayRuntime
 
     return HpcDispatcher(GatewayRuntime(), {})
 
@@ -252,7 +252,7 @@ def test_two_executors_are_independent(tmp_path):
 
 def test_no_docker_no_ssh_no_slurm(tmp_path):
     """The fake adapter path never imports Docker, SSH, or Slurm modules."""
-    import dftworld_bench.hpc.adapters.process_test as mod
+    import ccbench.hpc.adapters.process_test as mod
     src = mod.__file__
     content = Path(src).read_text(encoding="utf-8")
     assert "import docker" not in content
@@ -263,7 +263,7 @@ def test_no_docker_no_ssh_no_slurm(tmp_path):
 def test_no_case_policies_in_gateway_runtime():
     """GatewayRuntime never references CASE_POLICIES."""
     import inspect
-    from dftworld_bench.hpc import gateway_runtime as mod
+    from ccbench.hpc import gateway_runtime as mod
     src = inspect.getsource(mod)
     assert "CASE_POLICIES" not in src
     assert "case_policies" not in src.lower()
@@ -272,7 +272,7 @@ def test_no_case_policies_in_gateway_runtime():
 def test_no_hidden_solution_in_adapter():
     """ProcessTestAdapter never stages or references hidden solution/."""
     import inspect
-    from dftworld_bench.hpc.adapters import process_test as mod
+    from ccbench.hpc.adapters import process_test as mod
     src = inspect.getsource(mod)
     assert "solution/" not in src
     assert "hidden" not in src.lower()

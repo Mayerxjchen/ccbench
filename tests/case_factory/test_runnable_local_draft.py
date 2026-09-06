@@ -21,8 +21,8 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.case_factory.state import read_factory_state
-from dftworld_bench.case_factory.smoke import (
+from ccbench.case_factory.state import read_factory_state
+from ccbench.case_factory.smoke import (
     AuditVerifierRunner,
     DECLARED_CONTENT,
     VERIFIER_ISOLATION,
@@ -32,13 +32,13 @@ from dftworld_bench.case_factory.smoke import (
     audit_verifier,
     run_smoke,
 )
-from dftworld_bench.contracts.result import FailureCode
-from dftworld_bench.core.harness import HarnessSpec, Profile, Treatment, TrustedHarness
-from dftworld_bench.core.run_store import RunStore
+from ccbench.contracts.result import FailureCode
+from ccbench.core.harness import HarnessSpec, Profile, Treatment, TrustedHarness
+from ccbench.core.run_store import RunStore
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "mlp-local-final-retraining"
 ROOT = Path(__file__).resolve().parents[2]
-CLI = [sys.executable, "-m", "dftworld_bench.case_factory"]
+CLI = [sys.executable, "-m", "ccbench.case_factory"]
 
 SMOKE_RUN_ID = "042-local-final-retraining-case-construction-smoke-0001"
 
@@ -105,9 +105,9 @@ def test_harness_smoke_validates_declared_output(tmp_path):
     store = RunStore(tmp_path / "runs")
     agent = IsolatedScriptedCandidate(case_dir, tmp_path / "threads")
 
-    from dftworld_bench.case_factory.smoke import smoke_identity
-    from dftworld_bench.core.event_store import EventStore
-    from dftworld_bench.core.harness import RunMode
+    from ccbench.case_factory.smoke import smoke_identity
+    from ccbench.core.event_store import EventStore
+    from ccbench.core.harness import RunMode
 
     import asyncio
 
@@ -196,14 +196,14 @@ def test_smoke_record_excluded_from_formal_statistics(tmp_path):
     """The smoke run is tagged; formal statistics must filter it out."""
     case_dir = _smoke_case(tmp_path)
     run_smoke(case_dir, run_id=SMOKE_RUN_ID, runner="audit")
-    from dftworld_bench.experiments.ablation import (
+    from ccbench.experiments.ablation import (
         FORMAL_EXPERIMENT_ID,
         PILOT_EXPERIMENT_ID,
     )
 
     # The smoke writes gates, so the run itself lives in a temp RunStore inside
     # run_smoke; assert the experiment id is the smoke tag, not formal/pilot.
-    from dftworld_bench.case_factory.smoke import SMOKE_EXPERIMENT
+    from ccbench.case_factory.smoke import SMOKE_EXPERIMENT
 
     assert SMOKE_EXPERIMENT == "case-construction-smoke"
     assert SMOKE_EXPERIMENT not in (FORMAL_EXPERIMENT_ID, PILOT_EXPERIMENT_ID)
@@ -336,7 +336,7 @@ def test_docker_candidate_command_isolation(tmp_path):
 
 def test_gate_updates_require_real_containers():
     """Full runtime gates promote ONLY when both sides ran as real containers."""
-    from dftworld_bench.contracts.result import BenchmarkResult
+    from ccbench.contracts.result import BenchmarkResult
 
     passed = BenchmarkResult.valid("r1", passed=True)
     sci_fail = BenchmarkResult.valid("r2", passed=False)
@@ -364,8 +364,8 @@ def test_smoke_cli_scientific_fail_exits_nonzero(tmp_path, monkeypatch):
     CLI must gate its own valid/exit on FailureCode.PASS — never report a
     scientifically-failed smoke as valid with exit 0.
     """
-    import dftworld_bench.case_factory.cli as cli
-    from dftworld_bench.contracts.result import BenchmarkResult
+    import ccbench.case_factory.cli as cli
+    from ccbench.contracts.result import BenchmarkResult
 
     case_dir = _smoke_case(tmp_path)
     calls = {"n": 0}

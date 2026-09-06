@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.hpc.drivers.compshare import (
+from ccbench.hpc.drivers.compshare import (
     CliResult,
     CompShareCli,
     CompShareCreateUncertainError,
@@ -316,7 +316,7 @@ def test_reconcile_and_create_are_serialized_on_same_scope_lock(tmp_path: Path):
 
 
 def _formal_profile(*, state_root: Path | None = None):
-    from dftworld_bench.hpc.site_profile import HpcSiteProfile
+    from ccbench.hpc.site_profile import HpcSiteProfile
 
     runtime_policy = {
         "requires_apptainer": False,

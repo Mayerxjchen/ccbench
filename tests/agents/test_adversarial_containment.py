@@ -163,7 +163,7 @@ def test_settings_json_read_only_protection(tmp_path: Path):
 
 def test_quarantine_check_blocks_injected_claude_settings(tmp_path: Path):
     """Quarantine must reject tasks that attempt to supply pre-baked .claude settings."""
-    from dftworld_bench.agents import ClaudeCodeAdapter
+    from ccbench.agents import ClaudeCodeAdapter
     import asyncio
 
     ws = tmp_path / "threads" / "probe_task" / "workspace"

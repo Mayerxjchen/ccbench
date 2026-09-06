@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.core.budgets import BudgetLedger, BudgetPolicy
-from dftworld_bench.core.coordinator import (
+from ccbench.core.budgets import BudgetLedger, BudgetPolicy
+from ccbench.core.coordinator import (
     ACTIVITY_ORDER,
     ExternalWait,
     FormalToolPolicyError,
@@ -17,7 +17,7 @@ from dftworld_bench.core.coordinator import (
     SimulatedCrash,
     validate_formal_tool_call,
 )
-from dftworld_bench.core.event_store import CheckpointError, EventStore
+from ccbench.core.event_store import CheckpointError, EventStore
 
 
 class ScriptedExecutor:
@@ -283,7 +283,7 @@ def test_case_executor_lifecycle_wraps_drive(tmp_path):
     """Task 11: the coordinator owns prepare/settle around the drive and close
     at teardown — execution semantics come from the case executor (resolved by
     execution class), never from a case name inside this machine."""
-    from dftworld_bench.executors import ExecutionContext
+    from ccbench.executors import ExecutionContext
 
     store = _store(tmp_path)
     case_exec = RecordingCaseExecutor()

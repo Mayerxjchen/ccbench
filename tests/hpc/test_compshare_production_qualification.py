@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.hpc.runtime_catalog import TrustedRuntimeCatalog
-from dftworld_bench.hpc.runtime_resolution import RuntimeStatus
-from dftworld_bench.hpc.site_profile import HpcSiteProfile
-from dftworld_bench.hpc.trust_store import QualificationTrustStore
+from ccbench.hpc.runtime_catalog import TrustedRuntimeCatalog
+from ccbench.hpc.runtime_resolution import RuntimeStatus
+from ccbench.hpc.site_profile import HpcSiteProfile
+from ccbench.hpc.trust_store import QualificationTrustStore
 
 ROOT = Path(__file__).resolve().parents[2]
 PROD_LOCK_DIR = ROOT / "runtimes" / "locks"
@@ -47,7 +47,7 @@ def test_production_runtime_locks_exist_and_conform():
 )
 def test_production_catalog_promotes_all_capabilities():
     """Verify TrustedRuntimeCatalog verifies formal receipts and promotes qualified runtimes."""
-    from dftworld_bench.hpc.runtime_resolution import UnqualifiedRuntimeError
+    from ccbench.hpc.runtime_resolution import UnqualifiedRuntimeError
 
     site_doc = json.loads(SITE_PROFILE_PATH.read_text(encoding="utf-8"))
     site_obj = HpcSiteProfile.from_dict(site_doc)

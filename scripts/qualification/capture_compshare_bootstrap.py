@@ -32,7 +32,7 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from dftworld_bench.hpc.drivers.compshare.bootstrap_evidence import (
+from ccbench.hpc.drivers.compshare.bootstrap_evidence import (
     EXPECTED_CLI_VERSION,
     BootstrapEvidenceError,
     build_allowlisted_probes,

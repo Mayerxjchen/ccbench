@@ -7,7 +7,7 @@
 
 ## 三层缺陷
 
-### #1 verifier 相对路径 volume（已修 `dftworld_bench/core/verifier.py`）
+### #1 verifier 相对路径 volume（已修 `ccbench/core/verifier.py`）
 
 `build_verifier_command` 用 `--volume jobs/...`（相对路径）挂载。
 **docker CLI 的 `--volume` 不解析相对路径** —— 把它当命名卷名，报

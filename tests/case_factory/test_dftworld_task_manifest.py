@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.case_factory.dftworld_target import DftworldTargetAdapter
+from ccbench.case_factory.dftworld_target import DftworldTargetAdapter
 
 ADAPTER = DftworldTargetAdapter()
 
@@ -127,7 +127,7 @@ def test_casespec_load_agrees_with_eval(rendered_local):
     """CaseSpec.load and eval.load_task agree on the rendered manifest."""
     import sys
 
-    from dftworld_bench.contracts.case import CaseSpec
+    from ccbench.contracts.case import CaseSpec
 
     case_dir, _ = rendered_local
     spec = CaseSpec.load(case_dir)
@@ -153,7 +153,7 @@ def test_casespec_load_agrees_with_eval(rendered_local):
 
 
 def test_hpc_casespec_load(rendered_hpc):
-    from dftworld_bench.contracts.case import CaseSpec
+    from ccbench.contracts.case import CaseSpec
 
     case_dir, _ = rendered_hpc
     spec = CaseSpec.load(case_dir)

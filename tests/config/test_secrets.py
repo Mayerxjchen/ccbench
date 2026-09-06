@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from dftworld_bench.config.secrets import EnvSecretProvider, SecretValue
+from ccbench.config.secrets import EnvSecretProvider, SecretValue
 
 
 def test_secret_never_serializes(monkeypatch):

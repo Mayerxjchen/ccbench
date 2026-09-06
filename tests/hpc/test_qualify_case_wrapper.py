@@ -67,7 +67,7 @@ def test_site_root_validates_site_name():
 
 
 def test_plan_034_fresh_site_runs_canary_then_runtime_gates():
-    from dftworld_bench.experiments.release_builder import (  # noqa: PLC2701
+    from ccbench.experiments.release_builder import (  # noqa: PLC2701
         _case_qualification_requires,
     )
     requires = list(_case_qualification_requires(

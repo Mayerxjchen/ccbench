@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import pytest
 
-from dftworld_bench.contracts.experiment_v2 import (
+from ccbench.contracts.experiment_v2 import (
     ExperimentError,
     ExperimentSpecV2,
     build_experiment_lock,
@@ -138,7 +138,7 @@ def test_invalid_experiment_spec_rejects():
 
 
 def test_models_registry_loads_models_toml():
-    from dftworld_bench.contracts.experiment_v2 import ModelRegistry
+    from ccbench.contracts.experiment_v2 import ModelRegistry
 
     path = ROOT / "experiments" / "models.toml"
     assert path.is_file()
@@ -161,7 +161,7 @@ def test_models_registry_loads_models_toml():
 
 
 def test_build_run_lock_v2():
-    from dftworld_bench.contracts.experiment_v2 import (
+    from ccbench.contracts.experiment_v2 import (
         ExperimentBudget,
         ModelEntry,
         build_run_lock_v2,
@@ -199,7 +199,7 @@ def test_build_run_lock_v2():
 
 def test_build_run_lock_rejects_zero_placeholder():
     import pytest
-    from dftworld_bench.contracts.experiment_v2 import (
+    from ccbench.contracts.experiment_v2 import (
         ExperimentBudget,
         ExperimentError,
         ModelEntry,

@@ -19,21 +19,21 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from dftworld_bench.experiments.compute_profile_qualification import (
+from ccbench.experiments.compute_profile_qualification import (
     build_compshare_site_qualification_receipt,
     verify_site_receipt,
 )
-from dftworld_bench.experiments.qualification_receipt import (
+from ccbench.experiments.qualification_receipt import (
     canonical_digest,
     code_identity,
     sha256_file,
     source_commit,
 )
-from dftworld_bench.hpc.audit import GatewayAudit
-from dftworld_bench.hpc.runtime_catalog import TrustedRuntimeCatalog
-from dftworld_bench.hpc.runtime_resolution import canonical_lock_digest
-from dftworld_bench.hpc.site_profile import HpcSiteProfile
-from dftworld_bench.hpc.trust_store import QualificationTrustStore
+from ccbench.hpc.audit import GatewayAudit
+from ccbench.hpc.runtime_catalog import TrustedRuntimeCatalog
+from ccbench.hpc.runtime_resolution import canonical_lock_digest
+from ccbench.hpc.site_profile import HpcSiteProfile
+from ccbench.hpc.trust_store import QualificationTrustStore
 
 DEFAULT_SITE_PROFILE_PATH = Path.home() / ".config" / "mlffbench" / "sites" / "compshare-gpu-production.json"
 PRIVATE_KEY_PATH = Path.home() / ".config" / "mlffbench" / "keys" / "compshare-site-v1.priv"
@@ -304,7 +304,7 @@ export LAMMPS_PLUGIN_PATH="/opt/matclaw/lib/python3.11/site-packages/deepmd/lib"
         ledger.append({"kind": "SETTLEMENT_COMPLETE", "run_id": run_id, "settlement_digest": settlement_digest, "timestamp": time.time()})
 
     print("[5/5] Assembling and signing formal Gate C qualification receipts...")
-    from dftworld_bench.hpc.runtime_catalog import TrustedRuntimeCatalog
+    from ccbench.hpc.runtime_catalog import TrustedRuntimeCatalog
 
     tail_digest = ledger.tail_digest()
     commit = source_commit(_ROOT)

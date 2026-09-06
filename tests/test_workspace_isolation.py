@@ -25,8 +25,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import eval as E  # noqa: E402
-from dftworld_bench.contracts.case import CaseSpec  # noqa: E402
-from dftworld_bench.core.packager import package_candidate  # noqa: E402
+from ccbench.contracts.case import CaseSpec  # noqa: E402
+from ccbench.core.packager import package_candidate  # noqa: E402
 
 LEGACY_IMAGE = "dftworld-base-cp2k"
 
@@ -397,8 +397,8 @@ def test_transport_attempt_metadata_never_contains_credentials(tmp_path):
     Api profile 只引用 env 名；如果 profile 里被塞进了字面 endpoint/token，
     transport 构造必须拒绝，而不是把它写进公共记录。
     """
-    from dftworld_bench.core.event_store import EventStore
-    from dftworld_bench.core.model_transport import (
+    from ccbench.core.event_store import EventStore
+    from ccbench.core.model_transport import (
         HttpFailure,
         RetryingModelClient,
         TerminalApiError,
@@ -427,9 +427,9 @@ def test_candidate_env_rejects_api_secret_names():
     即使有人显式传 `DFTWORLD_API_KEY` 也必须 fail-fast。run-scoped 的
     controller env（BENCH_HPC_*）不是 api credential 名，不受影响。
     """
-    from dftworld_bench.agents import ClaudeCodeAdapter
-    from dftworld_bench.legacy.pagent_compat import PagentAdapter
-    from dftworld_bench.core.model_transport import credential_env_names
+    from ccbench.agents import ClaudeCodeAdapter
+    from ccbench.legacy.pagent_compat import PagentAdapter
+    from ccbench.core.model_transport import credential_env_names
 
     forbidden = credential_env_names(
         {"endpoint_env": "DFTWORLD_API_ENDPOINT", "credential_env": "DFTWORLD_API_KEY"}

@@ -7,8 +7,8 @@ import os
 from dataclasses import replace
 from pathlib import Path
 
-from dftworld_bench.contracts.result import FailureCode, ResultClass
-from dftworld_bench.core.verifier import (
+from ccbench.contracts.result import FailureCode, ResultClass
+from ccbench.core.verifier import (
     VerifierSpec,
     _parse_verifier_output,
     build_verifier_command,

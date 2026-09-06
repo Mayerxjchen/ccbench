@@ -18,7 +18,7 @@ executed — all runtime statements below are planned.
    `/Users/xjchen/bench/mlffbench/.venv/bin/python <skill>/scripts/common/check_discovery_runnable.py . --repo-root /Users/xjchen/bench/mlffbench --output MVP-READINESS.json --derive-state`
 3. Confirm packaging works from the repo root: `CaseSpec` load +
    `package_candidate()` (the gate's bundle-agreement check already
-   exercises this with the dftworld_bench package at
+   exercises this with the ccbench package at
    `/Users/xjchen/bench/mlffbench`).
 
 ## First run: smoke profile (planned)

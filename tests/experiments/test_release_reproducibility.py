@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-import dftworld_bench.experiments.release_builder as builder
+import ccbench.experiments.release_builder as builder
 import scripts.ablation.build_release as build_release
 
 ROOT = Path(__file__).resolve().parents[2]

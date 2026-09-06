@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.case_factory.dftworld_target import (
+from ccbench.case_factory.dftworld_target import (
     DftworldTargetAdapter,
     DOCKERIGNORE_ENTRIES,
     RenderError,

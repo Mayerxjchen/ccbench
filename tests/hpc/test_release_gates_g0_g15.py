@@ -29,18 +29,18 @@ def _mock_verify_receipt_ok(receipt, *, scheduler=None, root, receipt_dir, **kwa
     }
 import pytest
 
-from dftworld_bench.contracts.case import CaseSpec
-from dftworld_bench.executors import HpcExecutor, resolve
-from dftworld_bench.hpc.compute_profile import ComputeProfile, ComputeRouter
-from dftworld_bench.hpc.drivers.base import HpcDriver
-from dftworld_bench.hpc.drivers.compshare import (
+from ccbench.contracts.case import CaseSpec
+from ccbench.executors import HpcExecutor, resolve
+from ccbench.hpc.compute_profile import ComputeProfile, ComputeRouter
+from ccbench.hpc.drivers.base import HpcDriver
+from ccbench.hpc.drivers.compshare import (
     CompShareCli,
     CompShareDriver,
     FakeCompShareCliRunner,
 )
-from dftworld_bench.hpc.drivers.process import ProcessDriver
-from dftworld_bench.hpc.drivers.slurm import SlurmDriver
-from dftworld_bench.hpc.runtime_resolution import RuntimeResolver
+from ccbench.hpc.drivers.process import ProcessDriver
+from ccbench.hpc.drivers.slurm import SlurmDriver
+from ccbench.hpc.runtime_resolution import RuntimeResolver
 
 ROOT = Path(__file__).resolve().parents[2]
 REF_RUNTIME = (
@@ -126,7 +126,7 @@ def test_g6_clean_schema_validation():
 
 def test_g7_route_aware_resolver():
     """G7: Resolver distinguishes SIF and CompShare image targets and fails closed when unbuilt."""
-    from dftworld_bench.hpc.runtime_resolution import RuntimeResolutionError
+    from ccbench.hpc.runtime_resolution import RuntimeResolutionError
 
     resolver = RuntimeResolver.from_lock_dir(REF_RUNTIME)
     # Gate A1 requirement: unbuilt runtimes without qualification fail closed
@@ -145,10 +145,10 @@ def test_g8_driver_conformance():
 
 def test_g9_containment_and_sandboxing(tmp_path: Path):
     """G9: Runtime wrapper enforces container isolation."""
-    from dftworld_bench.hpc.request import ExecutionRequestV2
-    from dftworld_bench.hpc.runtime_resolution import ResolvedRuntime
-    from dftworld_bench.hpc.runtime_wrapper import render_runtime_wrapper
-    from dftworld_bench.hpc.site_profile import HpcSiteProfile
+    from ccbench.hpc.request import ExecutionRequestV2
+    from ccbench.hpc.runtime_resolution import ResolvedRuntime
+    from ccbench.hpc.runtime_wrapper import render_runtime_wrapper
+    from ccbench.hpc.site_profile import HpcSiteProfile
 
     req = ExecutionRequestV2.from_dict({
         "schema_version": 2,
@@ -188,10 +188,10 @@ def _mock_site_receipts_dir(tmp_path: Path) -> tuple[Path, str, str]:
     return site_dir, f"sha256:{hashlib.sha256(cpu_b).hexdigest()}", f"sha256:{hashlib.sha256(gpu_b).hexdigest()}"
 
 
-@patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+@patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
 def test_g10_two_layer_qualification(tmp_path: Path):
     """G10: ComputeProfile qualification verifies both routes."""
-    from dftworld_bench.experiments.compute_profile_qualification import (
+    from ccbench.experiments.compute_profile_qualification import (
         compute_receipt_digest,
         verify_and_derive_qualification,
     )
@@ -230,10 +230,10 @@ def test_g10_two_layer_qualification(tmp_path: Path):
     assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
-@patch("dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+@patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
 def test_g11_zero_orphan_gate(tmp_path: Path):
     """G11: Zero-orphan gate rejects receipts with active billing instances."""
-    from dftworld_bench.experiments.compute_profile_qualification import (
+    from ccbench.experiments.compute_profile_qualification import (
         compute_receipt_digest,
         verify_and_derive_qualification,
     )
@@ -287,7 +287,7 @@ def test_g12_case_validation_states():
 
 def test_g13_user_cli_compute():
     """G13: User CLI mlffbench compute commands validate profiles."""
-    import dftworld_bench.cli as cli
+    import ccbench.cli as cli
 
     example_profile = ROOT / "examples" / "hpc" / "generic-slurm-compute-profile.json"
     code = cli.main(["compute", "validate", "--profile", str(example_profile)])

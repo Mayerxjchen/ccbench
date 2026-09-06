@@ -36,8 +36,8 @@ Skill package under test (worktree), read:
 - `assets/case-template/` (common + categories/mlp) — templates and fixtures
 
 dftworld runtime code imported by the gate (via `--repo-root`, inspected for
-contract only): `dftworld_bench.contracts.case.CaseSpec`,
-`dftworld_bench.core.packager` (package_candidate, leak-scan, dest rules).
+contract only): `ccbench.contracts.case.CaseSpec`,
+`ccbench.core.packager` (package_candidate, leak-scan, dest rules).
 
 `repo/README.md` references `expected.json` as grader-side; that file is absent
 from `materials-clean/` (excluded by construction) and was never read. The

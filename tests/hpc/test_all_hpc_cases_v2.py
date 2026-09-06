@@ -22,8 +22,8 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.contracts.case import CaseSpec
-from dftworld_bench.executors import HpcExecutor, resolve
+from ccbench.contracts.case import CaseSpec
+from ccbench.executors import HpcExecutor, resolve
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -55,8 +55,8 @@ def test_all_hpc_cases_resolve_same_executor_different_requirements(hpc_cases) -
     """Every HPC case declares the same execution class and resolves through the
     case-agnostic registry to the same HpcExecutor — no per-case executor."""
     assert {spec.execution_class for spec in hpc_cases} == {"hpc_controller"}
-    from dftworld_bench.hpc.dispatcher import HpcDispatcher
-    from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
+    from ccbench.hpc.dispatcher import HpcDispatcher
+    from ccbench.hpc.gateway_runtime import GatewayRuntime
 
     for spec in hpc_cases:
         executor = resolve(

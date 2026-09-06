@@ -41,13 +41,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from dftworld_bench.contracts.run_record import RunRecord  # noqa: E402
-from dftworld_bench.contracts.result import BenchmarkResult  # noqa: E402
-from dftworld_bench.experiments import ablation  # noqa: E402
-from dftworld_bench.experiments.comparison import compare_lock  # noqa: E402
+from ccbench.contracts.run_record import RunRecord  # noqa: E402
+from ccbench.contracts.result import BenchmarkResult  # noqa: E402
+from ccbench.experiments import ablation  # noqa: E402
+from ccbench.experiments.comparison import compare_lock  # noqa: E402
 
 TERMINAL_PHASES = frozenset({
-    # harness lifecycle terminal phases (dftworld_bench/core/harness.py)
+    # harness lifecycle terminal phases (ccbench/core/harness.py)
     "COMPLETED", "FAILED_AGENT", "INVALID_INFRA",
     # legacy / per-case terminal phase names
     "PASS", "FAIL", "AGENT_FAILURE", "INFRA_INVALID", "TIMEOUT", "CANCELLED",

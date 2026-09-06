@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator, FormatChecker
 
-from dftworld_bench.hpc.drivers.compshare.bootstrap_evidence import (
+from ccbench.hpc.drivers.compshare.bootstrap_evidence import (
     BootstrapEvidenceError,
     EXPECTED_CLI_VERSION,
     INCOMPLETE_NOT_REPLAYABLE,

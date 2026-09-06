@@ -6,10 +6,10 @@ import json
 
 import pytest
 
-from dftworld_bench.contracts.events import next_event
-from dftworld_bench.contracts.result import BenchmarkResult
-from dftworld_bench.contracts.run_record import RunRecord, RunRecordError, RunRecordV2
-from dftworld_bench.core.run_store import RunStore
+from ccbench.contracts.events import next_event
+from ccbench.contracts.result import BenchmarkResult
+from ccbench.contracts.run_record import RunRecord, RunRecordError, RunRecordV2
+from ccbench.core.run_store import RunStore
 
 
 def _event_chain() -> list[dict]:

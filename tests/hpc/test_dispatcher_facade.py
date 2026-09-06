@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from dftworld_bench.hpc import (
+from ccbench.hpc import (
     DispatcherClosedError,
     DispatcherSession,
     HpcDispatcher,

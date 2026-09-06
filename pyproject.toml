@@ -19,16 +19,16 @@ dev = [
 ]
 
 [project.scripts]
-ccbench = "dftworld_bench.cli:main"
-mlffbench = "dftworld_bench.cli:main"
-dftworld-config = "dftworld_bench.config.cli:main"
+ccbench = "ccbench.cli:main"
+mlffbench = "ccbench.cli:main"
+dftworld-config = "ccbench.config.cli:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["dftworld_bench*", "ccbench*"]
+include = ["ccbench*"]
 
 [tool.pytest.ini_options]
 # testpaths restricts collection to the real suite, so root-level data dirs

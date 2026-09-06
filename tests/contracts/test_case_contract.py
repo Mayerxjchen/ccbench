@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.contracts.case import CaseContractError, CaseSpec
+from ccbench.contracts.case import CaseContractError, CaseSpec
 
 
 @pytest.fixture

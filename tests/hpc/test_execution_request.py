@@ -11,7 +11,7 @@ import hashlib
 
 import pytest
 
-from dftworld_bench.hpc.request import (
+from ccbench.hpc.request import (
     AttemptLedger,
     ExecutionRequestV2,
     RequestError,

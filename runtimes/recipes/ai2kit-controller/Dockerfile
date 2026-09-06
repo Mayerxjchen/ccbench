@@ -19,11 +19,11 @@ COPY scripts/cluster_profile.py /opt/dftworld/controller/cluster_profile.py
 COPY scripts/matclaw_runtime_lock.py /opt/dftworld/controller/matclaw_runtime_lock.py
 
 # bench-hpc CLI (Task 12): the trusted HTTP job client.  The whole
-# dftworld_bench package + schemas are copied so the controller can later
+# ccbench package + schemas are copied so the controller can later
 # resolve runtime requirements from the registry; PYTHONPATH points the
 # interpreter at that surface, and /opt/ai2kit/bin is first on PATH so a bare
 # `python` inside the image is the venv interpreter.
-COPY dftworld_bench /opt/dftworld/controller/dftworld_bench
+COPY ccbench /opt/dftworld/controller/ccbench
 COPY schemas /opt/dftworld/controller/schemas
 ENV PYTHONPATH=/opt/dftworld/controller \
     PATH="/opt/ai2kit/bin:${PATH}"
@@ -33,7 +33,7 @@ ENV PYTHONPATH=/opt/dftworld/controller \
 RUN /opt/ai2kit/bin/python -m ensurepip && \
     /opt/ai2kit/bin/python -m pip install --no-cache-dir \
         pyyaml jsonschema referencing && \
-    printf '#!/bin/sh\nexec /opt/ai2kit/bin/python -m dftworld_bench.hpc "$@"\n' \
+    printf '#!/bin/sh\nexec /opt/ai2kit/bin/python -m ccbench.hpc "$@"\n' \
         > /usr/local/bin/bench-hpc && \
     chmod +x /usr/local/bin/bench-hpc
 

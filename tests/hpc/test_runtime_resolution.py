@@ -15,10 +15,10 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.hpc.adapters.process_test import ProcessTestAdapter
-from dftworld_bench.hpc.adapters.slurm import SlurmAdapter, SlurmAdapterError
-from dftworld_bench.hpc.gateway import Gateway, GatewayError
-from dftworld_bench.hpc.runtime_resolution import (
+from ccbench.hpc.adapters.process_test import ProcessTestAdapter
+from ccbench.hpc.adapters.slurm import SlurmAdapter, SlurmAdapterError
+from ccbench.hpc.gateway import Gateway, GatewayError
+from ccbench.hpc.runtime_resolution import (
     RuntimeResolutionError,
     RuntimeResolver,
     RuntimeStatus,
@@ -247,7 +247,7 @@ def test_gateway_resolves_capability_before_adapter(tmp_path):
 
 
 def test_gateway_audit_records_resolution(tmp_path):
-    from dftworld_bench.hpc.audit import GatewayAudit
+    from ccbench.hpc.audit import GatewayAudit
 
     audit = GatewayAudit(tmp_path / "audit.jsonl")
     gw = _gateway(ProcessTestAdapter(tmp_path / "jobs"), _attested_resolver(tmp_path), audit)
@@ -262,7 +262,7 @@ def test_gateway_audit_records_resolution(tmp_path):
 
 
 def test_gateway_v2_resolves_on_attempt_path(tmp_path):
-    from dftworld_bench.hpc.audit import GatewayAudit
+    from ccbench.hpc.audit import GatewayAudit
 
     audit = GatewayAudit(tmp_path / "audit.jsonl")
     gw = _gateway(ProcessTestAdapter(tmp_path / "jobs"), _attested_resolver(tmp_path), audit)
@@ -520,7 +520,7 @@ def test_from_site_profile_images():
             },
         },
     }
-    from dftworld_bench.hpc.site_profile import HpcSiteProfile
+    from ccbench.hpc.site_profile import HpcSiteProfile
 
     site = HpcSiteProfile.from_dict(site_dict)
     resolver = RuntimeResolver.from_site_profile(site)
@@ -533,9 +533,9 @@ def test_from_site_profile_images():
 
 
 def test_render_runtime_wrapper_with_resolved_runtime():
-    from dftworld_bench.hpc.request import ExecutionRequestV2
-    from dftworld_bench.hpc.runtime_resolution import ResolvedRuntime
-    from dftworld_bench.hpc.runtime_wrapper import (
+    from ccbench.hpc.request import ExecutionRequestV2
+    from ccbench.hpc.runtime_resolution import ResolvedRuntime
+    from ccbench.hpc.runtime_wrapper import (
         RuntimeWrapperError,
         render_runtime_wrapper,
     )
@@ -578,7 +578,7 @@ def test_render_runtime_wrapper_with_resolved_runtime():
 
 
 def test_frozen_compshare_gpu_locks_parse():
-    from dftworld_bench.hpc.runtime_resolution import RuntimeLockEntry, RuntimeStatus
+    from ccbench.hpc.runtime_resolution import RuntimeLockEntry, RuntimeStatus
 
     root = Path(__file__).resolve().parent.parent.parent
     ref_dir = root / "runtimes" / "locks" if (root / "runtimes" / "locks").is_dir() else root / "reference" / "runtime"

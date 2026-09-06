@@ -45,9 +45,9 @@ usage() {
 EOF
 }
 
-BASE_IMAGE="${CCBENCH_BASE_IMAGE:-${DFTWORLD_BASE_IMAGE:-ubuntu:24.04}}"
-PY="${CCBENCH_PYTHON:-${DFTWORLD_PYTHON:-$ROOT/.venv/bin/python}}"
-[ -x "$PY" ] || PY="${CCBENCH_PYTHON:-${DFTWORLD_PYTHON:-python3}}"
+BASE_IMAGE="${CCBENCH_BASE_IMAGE:-ubuntu:24.04}"
+PY="${CCBENCH_PYTHON:-$ROOT/.venv/bin/python}"
+[ -x "$PY" ] || PY="${CCBENCH_PYTHON:-python3}"
 
 while getopts "fh" opt; do
     case $opt in
@@ -93,7 +93,7 @@ resolve_task_steps() {
     "$PY" - "$case_dir" <<'PY' || return 1
 import sys
 from pathlib import Path
-from dftworld_bench.contracts.case import CaseSpec
+from ccbench.contracts.case import CaseSpec
 
 case_dir = Path(sys.argv[1])
 spec = CaseSpec.load(case_dir)

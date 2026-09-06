@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 import jsonschema
 
-from dftworld_bench.contracts.case import (
+from ccbench.contracts.case import (
     CaseSpec,
     KNOWN_RUNTIME_FAMILIES,
     RUNTIME_FAMILY_CAPABILITIES,

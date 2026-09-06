@@ -50,7 +50,7 @@ def skill_root() -> Path:
 def _find_dftworld_root(start: Path) -> Path | None:
     """Walk up from the case dir to the dftworld repository root."""
     for parent in (Path(start).resolve(), *Path(start).resolve().parents):
-        if (parent / "dftworld_bench").is_dir():
+        if (parent / "ccbench").is_dir():
             return parent
     return None
 
@@ -67,11 +67,11 @@ def run_dftworld_target(out: Path) -> None:
     root = _find_dftworld_root(out)
     if root is None:
         fail(
-            "target dftworld requires the dftworld repository (dftworld_bench "
+            "target dftworld requires the dftworld repository (ccbench "
             "not found); rerun without --target for the portable scaffold"
         )
     proc = subprocess.run(
-        [sys.executable, "-m", "dftworld_bench.case_factory", "render",
+        [sys.executable, "-m", "ccbench.case_factory", "render",
          str(out), "--target", "dftworld", "--force-generated"],
         cwd=root,
         text=True,

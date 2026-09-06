@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from dftworld_bench.contracts.case import CoverageTags, load_coverage_vocabularies
+from ccbench.contracts.case import CoverageTags, load_coverage_vocabularies
 
 DIMENSIONS = ("scientific_domain", "method_family", "material_class", "computation_type")
 

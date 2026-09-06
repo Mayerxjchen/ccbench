@@ -12,10 +12,10 @@ from pathlib import Path
 from typing import Any
 import pytest
 
-from dftworld_bench.agents import ClaudeCodeAdapter
-from dftworld_bench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPolicy
-from dftworld_bench.core.model_proxy import ModelGatewayProxy
-from dftworld_bench.core.sidecar_topology import (
+from ccbench.agents import ClaudeCodeAdapter
+from ccbench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPolicy
+from ccbench.core.model_proxy import ModelGatewayProxy
+from ccbench.core.sidecar_topology import (
     SidecarTopologyManager,
     TopologyCleanupError,
     TopologyError,

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.contracts.resolved_lock import (
+from ccbench.contracts.resolved_lock import (
     FrozenExperimentOverrideError,
     ResolvedRunLock,
 )

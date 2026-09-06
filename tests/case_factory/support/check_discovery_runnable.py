@@ -143,9 +143,9 @@ def _run_script(script: Path, *args: str) -> tuple[int, str, str]:
 
 def find_repo_root(case_dir: Path, explicit: Path | None) -> Path | None:
     if explicit is not None:
-        return explicit if (explicit / "dftworld_bench").is_dir() else None
+        return explicit if (explicit / "ccbench").is_dir() else None
     for parent in (case_dir.resolve(), *case_dir.resolve().parents):
-        if (parent / "dftworld_bench").is_dir():
+        if (parent / "ccbench").is_dir():
             return parent
     return None
 
@@ -290,7 +290,7 @@ def check_real_packaging(case_dir: Path, repo_root: Path | None,
     """Load the actual CaseSpec and run the real packager. No fallback linter."""
     if repo_root is None:
         verdict.record("real_packaging", [
-            "dftworld repository root not found (dftworld_bench missing on the path from "
+            "dftworld repository root not found (ccbench missing on the path from "
             "the case directory); the runnable gate must use the real packager, never a "
             "substitute — pass --repo-root"
         ])
@@ -300,8 +300,8 @@ def check_real_packaging(case_dir: Path, repo_root: Path | None,
     try:
         if str(repo_root) not in sys.path:
             sys.path.insert(0, str(repo_root))
-        from dftworld_bench.contracts.case import CaseContractError, CaseSpec
-        from dftworld_bench.core.packager import PackageError, package_candidate
+        from ccbench.contracts.case import CaseContractError, CaseSpec
+        from ccbench.core.packager import PackageError, package_candidate
         spec = CaseSpec.load(case_dir)
         bundle_dir = workdir / "candidate-bundle"
         manifest = package_candidate(spec, bundle_dir)

@@ -17,18 +17,18 @@ import time
 
 import pytest
 
-from dftworld_bench.hpc.adapters.base import TransportUnknown
-from dftworld_bench.hpc.adapters.process_test import AdapterError, ProcessTestAdapter
-from dftworld_bench.hpc.audit import GatewayAudit
-from dftworld_bench.hpc.dispatcher import (
+from ccbench.hpc.adapters.base import TransportUnknown
+from ccbench.hpc.adapters.process_test import AdapterError, ProcessTestAdapter
+from ccbench.hpc.audit import GatewayAudit
+from ccbench.hpc.dispatcher import (
     DispatcherClosedError,
     HpcDispatcher,
     SettlementError,
 )
-from dftworld_bench.hpc.drivers.slurm import SlurmDriver
-from dftworld_bench.hpc.gateway import ALL_OPS, Gateway, GatewayError
-from dftworld_bench.hpc.request import ExecutionRequestV2, RequestError
-from dftworld_bench.hpc.staging import StagingError, seal_inputs
+from ccbench.hpc.drivers.slurm import SlurmDriver
+from ccbench.hpc.gateway import ALL_OPS, Gateway, GatewayError
+from ccbench.hpc.request import ExecutionRequestV2, RequestError
+from ccbench.hpc.staging import StagingError, seal_inputs
 from scripts.ablation.transport.slurm_transport import JobState
 
 DIGEST = "img@sha256:" + "a" * 64
@@ -107,7 +107,7 @@ class FlakyTransport:
 
 def _slurm_gateway(tmp_path, transport):
     audit = GatewayAudit(tmp_path / "audit.jsonl")
-    from dftworld_bench.hpc.adapters.slurm import SlurmAdapter
+    from ccbench.hpc.adapters.slurm import SlurmAdapter
 
     adapter = SlurmAdapter(SITE, transport, case_id="water64")
     gateway = Gateway(adapter, audit=audit, workspace_root=tmp_path / "ws")
@@ -119,7 +119,7 @@ def test_transient_submit_failure_surfaces_then_recovers(tmp_path):
     transport = FlakyTransport()
     transport._fail_next_submit = True
     gateway, token = _slurm_gateway(tmp_path, transport)
-    from dftworld_bench.hpc.adapters.slurm import SlurmAdapterError
+    from ccbench.hpc.adapters.slurm import SlurmAdapterError
 
     with pytest.raises(SlurmAdapterError, match="sbatch rejected"):
         gateway.submit(token, "run-f", _spec("k1"), operation_id="op", attempt=1)
@@ -265,7 +265,7 @@ def test_settlement_cancellation_and_token_revocation(tmp_path):
 
 
 def test_formal_construction_rejects_process_driver():
-    from dftworld_bench.hpc.drivers import DriverSelectionError, resolve_driver
+    from ccbench.hpc.drivers import DriverSelectionError, resolve_driver
 
     with pytest.raises(DriverSelectionError):
         resolve_driver(mode="formal", kind="process_test")

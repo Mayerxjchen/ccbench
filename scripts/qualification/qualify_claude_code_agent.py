@@ -34,18 +34,18 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from dftworld_bench.agents import ClaudeCodeAdapter
-from dftworld_bench.config.profiles import ProfileRegistry
-from dftworld_bench.config.resolver import construct_experiment, resolve_formal
-from dftworld_bench.contracts.case import CaseSpec
-from dftworld_bench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPolicy
-from dftworld_bench.core.model_proxy import ModelGatewayProxy
-from dftworld_bench.core.sidecar_topology import (
+from ccbench.agents import ClaudeCodeAdapter
+from ccbench.config.profiles import ProfileRegistry
+from ccbench.config.resolver import construct_experiment, resolve_formal
+from ccbench.contracts.case import CaseSpec
+from ccbench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPolicy
+from ccbench.core.model_proxy import ModelGatewayProxy
+from ccbench.core.sidecar_topology import (
     NETWORK_ROLE_LABEL,
     SIDECAR_ROLE_LABEL,
     SidecarTopologyManager,
 )
-from dftworld_bench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
+from ccbench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
 
 AGENT_IMAGE = "mlffbench-candidate-claude-code-sandbox:v1"
 

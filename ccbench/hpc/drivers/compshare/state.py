@@ -1,0 +1,678 @@
+"""Account-scoped coordination primitives for the CompShare provider.
+
+The provider account is a shared resource even when every benchmark run has
+its own local manager object.  This module contains the small, dependency-free
+coordination layer used by those managers:
+
+* :func:`account_scope_hash` derives a stable, non-sensitive lock namespace;
+* :class:`AccountScopeLock` combines a process-local ``RLock`` with a durable
+  ``flock`` so threads and separate manager processes serialize the same
+  account scope; and
+* :class:`CompSharePolicyError` plus
+  :func:`assert_account_capacity` provide one strict inventory/policy check.
+
+The lock file is deliberately the only state created by this module.  A
+caller supplies the state root explicitly; no credentials, provider command,
+or network operation is inferred here.
+"""
+
+from __future__ import annotations
+
+import errno
+import fcntl
+import hashlib
+import json
+import math
+import os
+import threading
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Mapping
+
+from ccbench.hpc.drivers.compshare.policy import (
+    SAFE_DELETED_STATES,
+    extract_verified_instance_id,
+    instance_requires_cleanup,
+    is_canonical_ownership_marker,
+    matches_ownership_marker,
+)
+
+
+class CompShareStateError(RuntimeError):
+    """The durable account-scoped coordination state is unusable."""
+
+
+class AccountScopeLockTimeout(CompShareStateError):
+    """The account lock could not be acquired before its deadline."""
+
+
+# A descriptive alias makes the failure mode easy to discover for callers
+# which use the more conventional ``...Error`` suffix.
+AccountScopeLockTimeoutError = AccountScopeLockTimeout
+
+
+class CompSharePolicyError(CompShareStateError):
+    """Provider inventory or ownership policy cannot be proven safe."""
+
+
+@dataclass(frozen=True)
+class ManagedInstanceView:
+    """Validated provider projection used by all account-wide policy checks."""
+
+    instance_id: str
+    status: str
+    item: Mapping[str, Any]
+
+
+def _require_scope_string(name: str, value: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string")
+    return value.strip()
+
+
+def account_scope_material(
+    provider: str,
+    target_binding: str,
+    account: str,
+    managed_account_scope_id: str | None = None,
+) -> dict[str, str | None]:
+    """Return the canonical non-secret identity used for account locking.
+
+    ``managed_account_scope_id`` is an optional operator-defined account
+    boundary.  It is included alongside the profile account (rather than
+    replacing it silently), so changing either binding changes the lock
+    namespace.  The resulting object contains only policy identity strings,
+    never credential material.
+    """
+
+    provider = _require_scope_string("provider", provider)
+    target_binding = _require_scope_string("target_binding", target_binding)
+    account = _require_scope_string("account", account)
+    if managed_account_scope_id is not None:
+        managed_account_scope_id = _require_scope_string(
+            "managed_account_scope_id", managed_account_scope_id
+        )
+    return {
+        "provider": provider,
+        "target_binding": target_binding,
+        "account": account,
+        "managed_account_scope_id": managed_account_scope_id,
+        # The effective scope is useful in diagnostics while still being
+        # included in the digest as an explicit policy decision.
+        "effective_scope": managed_account_scope_id or account,
+    }
+
+
+def account_scope_hash(
+    provider: str,
+    target_binding: str,
+    account: str,
+    managed_account_scope_id: str | None = None,
+) -> str:
+    """Return the stable SHA-256 digest for one provider account scope."""
+
+    encoded = json.dumps(
+        account_scope_material(
+            provider,
+            target_binding,
+            account,
+            managed_account_scope_id,
+        ),
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def lineage_id_for(scope_hash: str, run_id: str, image_id: str) -> str:
+    """Return a deterministic identifier for one create request lineage."""
+
+    if not isinstance(scope_hash, str) or not scope_hash:
+        raise ValueError("scope_hash must be a non-empty string")
+    if not isinstance(run_id, str) or not run_id:
+        raise ValueError("run_id must be a non-empty string")
+    if not isinstance(image_id, str) or not image_id:
+        raise ValueError("image_id must be a non-empty string")
+    encoded = json.dumps(
+        {"scope_hash": scope_hash, "run_id": run_id, "image_id": image_id},
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return "lineage-" + hashlib.sha256(encoded).hexdigest()[:32]
+
+
+# Short aliases keep the public vocabulary flexible without introducing a
+# second implementation of the hash contract.
+stable_account_scope_hash = account_scope_hash
+account_scope_digest = account_scope_hash
+
+
+_THREAD_LOCKS_GUARD = threading.Lock()
+_THREAD_LOCKS: dict[str, threading.RLock] = {}
+
+
+def _thread_lock_for(path: Path) -> threading.RLock:
+    key = str(path)
+    with _THREAD_LOCKS_GUARD:
+        lock = _THREAD_LOCKS.get(key)
+        if lock is None:
+            lock = threading.RLock()
+            _THREAD_LOCKS[key] = lock
+        return lock
+
+
+class AccountScopeLock:
+    """Re-entrant lock for one provider/target/account scope.
+
+    The process-local lock prevents two threads in the same Python process
+    from racing before ``flock`` is reached.  The adjacent lock file extends
+    the same critical section across independent manager processes.  Nested
+    acquisition by one manager is supported: only the outermost acquisition
+    owns the file descriptor and calls ``flock``/unlock.
+    """
+
+    def __init__(
+        self,
+        state_root: str | os.PathLike[str],
+        *,
+        provider: str,
+        target_binding: str,
+        account: str,
+        managed_account_scope_id: str | None = None,
+        timeout_sec: float | None = 30.0,
+    ) -> None:
+        if isinstance(state_root, (str, os.PathLike)) and not str(state_root).strip():
+            raise ValueError("state_root must be a non-empty path")
+        root = Path(state_root)
+        if timeout_sec is not None:
+            if isinstance(timeout_sec, bool) or not isinstance(
+                timeout_sec, (int, float)
+            ) or not math.isfinite(float(timeout_sec)):
+                raise ValueError("timeout_sec must be a finite non-negative number")
+            if timeout_sec < 0:
+                raise ValueError("timeout_sec must be a finite non-negative number")
+        self.state_root = root
+        self.scope_hash = account_scope_hash(
+            provider,
+            target_binding,
+            account,
+            managed_account_scope_id,
+        )
+        self.lock_path = (
+            self.state_root / "locks" / f"account-{self.scope_hash}.lock"
+        )
+        self.timeout_sec = float(timeout_sec) if timeout_sec is not None else None
+        self._thread_lock = _thread_lock_for(self.lock_path)
+        self._handle: Any | None = None
+        self._depth = 0
+
+    @property
+    def locked(self) -> bool:
+        """Whether this lock object owns the account lock in this thread."""
+
+        return self._depth > 0
+
+    @property
+    def depth(self) -> int:
+        """Current nested acquisition depth (primarily useful in tests)."""
+
+        return self._depth
+
+    def _remaining(self, deadline: float | None) -> float | None:
+        if deadline is None:
+            return None
+        return max(0.0, deadline - time.monotonic())
+
+    def acquire(self, timeout_sec: float | None = None) -> "AccountScopeLock":
+        """Acquire the account lock or raise :class:`AccountScopeLockTimeout`.
+
+        ``timeout_sec=None`` means use the timeout configured at construction;
+        passing a value overrides it for this acquisition.  A zero timeout
+        performs a single non-blocking attempt, which makes lock-timeout
+        behavior deterministic in tests and operator probes.
+        """
+
+        timeout = self.timeout_sec if timeout_sec is None else timeout_sec
+        if timeout is not None:
+            if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+                raise ValueError("timeout_sec must be a finite non-negative number")
+            if not math.isfinite(float(timeout)) or timeout < 0:
+                raise ValueError("timeout_sec must be a finite non-negative number")
+            timeout = float(timeout)
+
+        # RLock is intentionally acquired first: without this, two local
+        # threads could both reach flock and rely on platform-specific
+        # same-process flock semantics.
+        if timeout is None:
+            acquired = self._thread_lock.acquire()
+        else:
+            acquired = self._thread_lock.acquire(timeout=timeout)
+        if not acquired:
+            raise AccountScopeLockTimeout(
+                f"timed out acquiring account scope lock {self.lock_path}"
+            )
+
+        # Re-entry by the same manager/thread does not open a second fd or
+        # release the outer flock prematurely.
+        if self._depth:
+            self._depth += 1
+            return self
+
+        deadline = None if timeout is None else time.monotonic() + timeout
+        handle: Any | None = None
+        try:
+            self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+            handle = open(self.lock_path, "a+", encoding="utf-8")
+            while True:
+                try:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except OSError as exc:
+                    if exc.errno not in (errno.EACCES, errno.EAGAIN):
+                        raise CompShareStateError(
+                            f"failed to acquire account lock {self.lock_path}: {exc}"
+                        ) from exc
+                    remaining = self._remaining(deadline)
+                    if remaining is not None and remaining <= 0:
+                        raise AccountScopeLockTimeout(
+                            f"timed out acquiring account scope lock {self.lock_path}"
+                        )
+                    time.sleep(
+                        0.01
+                        if remaining is None
+                        else min(0.01, max(0.001, remaining))
+                    )
+            self._handle = handle
+            self._depth = 1
+            return self
+        except Exception:
+            if handle is not None:
+                handle.close()
+            self._thread_lock.release()
+            raise
+
+    def release(self) -> None:
+        """Release one nested acquisition."""
+
+        if self._depth <= 0:
+            raise RuntimeError("cannot release an unheld account scope lock")
+        if self._depth > 1:
+            self._depth -= 1
+            self._thread_lock.release()
+            return
+
+        handle = self._handle
+        self._handle = None
+        self._depth = 0
+        try:
+            if handle is not None:
+                try:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                finally:
+                    handle.close()
+        finally:
+            self._thread_lock.release()
+
+    def __enter__(self) -> "AccountScopeLock":
+        return self.acquire()
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        self.release()
+
+
+# A descriptive class alias for callers that want to emphasize persistence.
+PersistentAccountScopeLock = AccountScopeLock
+
+
+STATE_SCHEMA_VERSION = 1
+"""Version for the append-only account-scope lifecycle journal."""
+
+CREATE_INTENT = "CREATE_INTENT"
+CREATE_UNCERTAIN = "CREATE_UNCERTAIN"
+PROVISIONING = "PROVISIONING"
+READY = "READY"
+TEARDOWN_INTENT = "TEARDOWN_INTENT"
+TEARDOWN_FAILED = "TEARDOWN_FAILED"
+TERMINATED = "TERMINATED"
+
+SAFE_LIFECYCLE_STATES = frozenset({TERMINATED})
+UNCERTAIN_LIFECYCLE_STATES = frozenset(
+    {CREATE_INTENT, CREATE_UNCERTAIN, TEARDOWN_INTENT, TEARDOWN_FAILED}
+)
+LIFECYCLE_STATES = frozenset(
+    {
+        CREATE_INTENT,
+        CREATE_UNCERTAIN,
+        PROVISIONING,
+        READY,
+        TEARDOWN_INTENT,
+        TEARDOWN_FAILED,
+        TERMINATED,
+    }
+)
+
+
+class CompShareStateStore:
+    """Durable append-only journal for one hashed account scope.
+
+    The store intentionally contains lineage metadata and provider IDs only;
+    credential values never enter the state path.  Every append is flushed and
+    fsynced while holding a file lock, and :meth:`latest` rejects malformed
+    records instead of returning a partial view that could authorize a second
+    create.
+    """
+
+    def __init__(self, state_root: str | os.PathLike[str], scope_hash: str) -> None:
+        if not isinstance(scope_hash, str) or not scope_hash:
+            raise ValueError("scope_hash must be a non-empty string")
+        if isinstance(state_root, (str, os.PathLike)) and not str(state_root).strip():
+            raise ValueError("state_root must be a non-empty path")
+        self.state_root = Path(state_root)
+        self.scope_hash = scope_hash
+        self.path = self.state_root / "scopes" / f"account-{scope_hash}.jsonl"
+
+    def append_event(self, event: Mapping[str, Any]) -> dict[str, Any]:
+        """Append one fsynced lifecycle event and return its detached copy."""
+
+        if not isinstance(event, Mapping):
+            raise CompShareStateError("state event must be a mapping")
+        status = event.get("status")
+        lineage_id = event.get("lineage_id")
+        run_id = event.get("run_id")
+        if not isinstance(status, str) or not status:
+            raise CompShareStateError("state event requires a non-empty status")
+        if status not in LIFECYCLE_STATES:
+            raise CompShareStateError(f"unknown CompShare lifecycle status: {status!r}")
+        if not isinstance(lineage_id, str) or not lineage_id:
+            raise CompShareStateError("state event requires a non-empty lineage_id")
+        if not isinstance(run_id, str) or not run_id:
+            raise CompShareStateError("state event requires a non-empty run_id")
+        record = dict(event)
+        record["schema_version"] = STATE_SCHEMA_VERSION
+        record.setdefault("ts", time.time())
+        try:
+            encoded = json.dumps(
+                record, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+            )
+        except (TypeError, ValueError) as exc:
+            raise CompShareStateError(f"state event is not JSON serializable: {exc}") from exc
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(self.path, "a", encoding="utf-8") as handle:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+                try:
+                    handle.write(encoded + "\n")
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                finally:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        except OSError as exc:
+            raise CompShareStateError(f"failed to append state journal {self.path}: {exc}") from exc
+        return json.loads(encoded)
+
+    # Friendly short spelling for lifecycle call sites.
+    append = append_event
+
+    def latest(self) -> dict[str, dict[str, Any]]:
+        """Load the latest event for every lineage, failing closed on corruption."""
+
+        if not self.path.is_file():
+            return {}
+        latest: dict[str, dict[str, Any]] = {}
+        try:
+            with open(self.path, "r", encoding="utf-8") as handle:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
+                try:
+                    for line_number, line in enumerate(handle, start=1):
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            record = json.loads(line)
+                        except json.JSONDecodeError as exc:
+                            raise CompShareStateError(
+                                f"state journal {self.path} line {line_number} is not JSON"
+                            ) from exc
+                        if not isinstance(record, dict):
+                            raise CompShareStateError(
+                                f"state journal {self.path} line {line_number} is not an object"
+                            )
+                        if record.get("schema_version") != STATE_SCHEMA_VERSION:
+                            raise CompShareStateError(
+                                f"state journal {self.path} line {line_number} has unsupported schema"
+                            )
+                        lineage_id = record.get("lineage_id")
+                        status = record.get("status")
+                        run_id = record.get("run_id")
+                        if not all(
+                            isinstance(value, str) and value
+                            for value in (lineage_id, status, run_id)
+                        ):
+                            raise CompShareStateError(
+                                f"state journal {self.path} line {line_number} is missing identity"
+                            )
+                        if status not in LIFECYCLE_STATES:
+                            raise CompShareStateError(
+                                f"state journal {self.path} line {line_number} "
+                                "has unknown lifecycle status"
+                            )
+                        latest[lineage_id] = record
+                finally:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        except CompShareStateError:
+            raise
+        except OSError as exc:
+            raise CompShareStateError(f"failed to read state journal {self.path}: {exc}") from exc
+        return latest
+
+    def latest_for_run(self, run_id: str) -> list[dict[str, Any]]:
+        """Return latest lifecycle records for one run in deterministic order."""
+
+        return sorted(
+            (
+                record
+                for record in self.latest().values()
+                if record.get("run_id") == run_id
+            ),
+            key=lambda record: str(record.get("lineage_id")),
+        )
+
+
+def _marker_like(instance: Mapping[str, Any]) -> bool:
+    """Return whether an item claims an MLFFBench ownership namespace."""
+
+    return any(
+        isinstance(instance.get(key), str)
+        and (
+            instance[key].startswith("mlffbench-")
+            or instance[key].startswith("mlffbench:")
+        )
+        for key in ("name", "remark")
+    )
+
+
+def _validate_managed_item(item: Mapping[str, Any]) -> tuple[str, str] | None:
+    """Normalize one provider item or raise on an ambiguous managed record."""
+
+    if not _marker_like(item):
+        return None
+    if not matches_ownership_marker(item):
+        raise CompSharePolicyError(
+            "provider instance has a malformed or ambiguous MLFFBench ownership marker"
+        )
+
+    supplied_ids = {
+        key: item.get(key)
+        for key in ("instance_id", "id")
+        if item.get(key) is not None
+    }
+    if any(not isinstance(value, str) for value in supplied_ids.values()):
+        raise CompSharePolicyError("managed provider record has a malformed instance_id")
+    if (
+        isinstance(supplied_ids.get("instance_id"), str)
+        and isinstance(supplied_ids.get("id"), str)
+        and supplied_ids["instance_id"].strip()
+        != supplied_ids["id"].strip()
+    ):
+        raise CompSharePolicyError(
+            "managed provider record has conflicting instance_id and id fields"
+        )
+
+    # The current marker must be a complete pair.  Legacy markers remain
+    # discoverable for cleanup, but are not silently upgraded to current
+    # ownership.
+    name = item.get("name")
+    remark = item.get("remark")
+    canonical_namespace = (
+        isinstance(name, str)
+        and name.startswith("mlffbench-")
+        and not name.endswith("-worker")
+    ) or (
+        isinstance(remark, str)
+        and remark.startswith("mlffbench:run:")
+        and not remark.endswith(":worker")
+    )
+    if canonical_namespace and not is_canonical_ownership_marker(name, remark):
+        raise CompSharePolicyError(
+            "provider instance has an incomplete canonical ownership marker"
+        )
+
+    try:
+        instance_id = extract_verified_instance_id(item)
+    except Exception as exc:
+        raise CompSharePolicyError(
+            "managed provider record has no verified instance_id"
+        ) from exc
+    if not instance_id:
+        raise CompSharePolicyError(
+            "managed provider record has no verified instance_id"
+        )
+    status = item.get("status")
+    if not isinstance(status, str) or not status.strip():
+        raise CompSharePolicyError(
+            f"managed provider record {instance_id!r} has malformed status"
+        )
+    return instance_id, status.strip().lower()
+
+
+def assert_account_capacity(
+    cli: Any,
+    *,
+    max_instances: int = 1,
+    inventory: list[ManagedInstanceView] | None = None,
+) -> list[str]:
+    """Fail closed unless the complete account inventory is below capacity.
+
+    The helper owns the provider-list contract used by create, reconcile, and
+    zero-orphan code.  It always requests ``instance_list(all=True)`` so the
+    CLI consumes every page.  Unmanaged records are ignored, while a malformed
+    managed marker/ID/status or any provider query failure raises
+    :class:`CompSharePolicyError`.  Active means every state other than the
+    two explicit safe terminal states (``DELETED`` and ``TERMINATED``).
+
+    Returns the verified active managed IDs when capacity is available (thus
+    normally ``[]`` for ``max_instances=1``).  A caller that wants to allow a
+    known existing instance should perform that decision separately; this
+    helper intentionally models *create* capacity only.
+    """
+
+    if isinstance(max_instances, bool) or not isinstance(max_instances, int):
+        raise CompSharePolicyError("max_instances must be a positive integer")
+    if max_instances < 1:
+        raise CompSharePolicyError("max_instances must be a positive integer")
+    managed = list_managed_instances(cli) if inventory is None else inventory
+    if not isinstance(managed, list) or any(
+        not isinstance(view, ManagedInstanceView) for view in managed
+    ):
+        raise CompSharePolicyError("managed inventory projection is malformed")
+    active = [
+        view.instance_id
+        for view in managed
+        if view.status not in SAFE_DELETED_STATES
+        and instance_requires_cleanup(view.status)
+    ]
+
+    active = sorted(set(active))
+    if len(active) >= max_instances:
+        raise CompSharePolicyError(
+            f"managed CompShare account capacity exhausted: active={active}, "
+            f"max_instances={max_instances}"
+        )
+    return active
+
+
+def list_managed_instances(cli: Any) -> list[ManagedInstanceView]:
+    """Return every validated managed record from the complete account list.
+
+    This is the shared inventory primitive for capacity, reconciliation, and
+    zero-orphan checks.  It makes one ``instance_list(all=True)`` call and
+    delegates pagination/response-envelope validation to the CLI wrapper.
+    """
+
+    try:
+        items = cli.instance_list(all=True)
+    except Exception as exc:
+        raise CompSharePolicyError(
+            f"provider instance_list(all=True) failed: {exc}"
+        ) from exc
+    if not isinstance(items, list):
+        raise CompSharePolicyError(
+            "provider instance_list(all=True) returned a non-list"
+        )
+
+    managed: list[ManagedInstanceView] = []
+    seen_ids: set[str] = set()
+    for item in items:
+        if not isinstance(item, Mapping):
+            raise CompSharePolicyError(
+                "provider instance_list(all=True) contained a non-object"
+            )
+        normalized = _validate_managed_item(item)
+        if normalized is None:
+            continue
+        instance_id, status = normalized
+        if instance_id in seen_ids:
+            raise CompSharePolicyError(
+                f"provider instance_list(all=True) repeated instance_id {instance_id!r}"
+            )
+        seen_ids.add(instance_id)
+        managed.append(
+            ManagedInstanceView(
+                instance_id=instance_id,
+                status=status,
+                item=dict(item),
+            )
+        )
+    return managed
+
+
+__all__ = [
+    "AccountScopeLock",
+    "AccountScopeLockTimeout",
+    "AccountScopeLockTimeoutError",
+    "CompSharePolicyError",
+    "ManagedInstanceView",
+    "CompShareStateStore",
+    "CompShareStateError",
+    "CREATE_INTENT",
+    "CREATE_UNCERTAIN",
+    "PROVISIONING",
+    "READY",
+    "SAFE_LIFECYCLE_STATES",
+    "STATE_SCHEMA_VERSION",
+    "TEARDOWN_FAILED",
+    "TEARDOWN_INTENT",
+    "TERMINATED",
+    "UNCERTAIN_LIFECYCLE_STATES",
+    "LIFECYCLE_STATES",
+    "PersistentAccountScopeLock",
+    "account_scope_digest",
+    "account_scope_hash",
+    "account_scope_material",
+    "assert_account_capacity",
+    "lineage_id_for",
+    "list_managed_instances",
+    "stable_account_scope_hash",
+]

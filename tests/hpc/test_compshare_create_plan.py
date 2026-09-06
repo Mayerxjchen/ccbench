@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.hpc.drivers.compshare import (
+from ccbench.hpc.drivers.compshare import (
     BudgetConfig,
     CompShareCli,
     CompShareCliError,

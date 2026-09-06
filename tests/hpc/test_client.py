@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.hpc.client import HpcClient, HpcClientError
+from ccbench.hpc.client import HpcClient, HpcClientError
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -145,7 +145,7 @@ class _capture:
 
 
 def _run(argv: list[str], records: list) -> tuple[int, _capture]:
-    from dftworld_bench.hpc.__main__ import main
+    from ccbench.hpc.__main__ import main
     with _capture() as cap:
         rc = main(argv, transport=_fake_transport(records))
     return rc, cap
@@ -233,7 +233,7 @@ def test_cli_reports_client_errors_on_stderr(cli_env) -> None:
     def transport(method, path, payload, headers):
         return 502, b'{"error": "gateway unreachable"}'
 
-    from dftworld_bench.hpc.__main__ import main
+    from ccbench.hpc.__main__ import main
     with _capture() as cap:
         rc = main(["status", "job-1"], transport=transport)
     assert rc == 1
@@ -243,11 +243,11 @@ def test_cli_reports_client_errors_on_stderr(cli_env) -> None:
 
 def test_job_values_never_reach_local_shell() -> None:
     """The client speaks HTTP only; no job field is interpolated into a command."""
-    src = (ROOT / "dftworld_bench" / "hpc" / "client.py").read_text(encoding="utf-8")
+    src = (ROOT / "ccbench" / "hpc" / "client.py").read_text(encoding="utf-8")
     assert "subprocess" not in src
     assert "os.system" not in src
     assert "shlex" not in src
-    main_src = (ROOT / "dftworld_bench" / "hpc" / "__main__.py").read_text(encoding="utf-8")
+    main_src = (ROOT / "ccbench" / "hpc" / "__main__.py").read_text(encoding="utf-8")
     assert "subprocess" not in main_src
     assert "os.system" not in main_src
 
@@ -320,7 +320,7 @@ def test_cli_v2_submit_requires_run_env(cli_env, tmp_path, monkeypatch) -> None:
     import io
     import sys as _sys
 
-    from dftworld_bench.hpc.__main__ import main
+    from ccbench.hpc.__main__ import main
 
     job = tmp_path / "job.yaml"
     job.write_text(

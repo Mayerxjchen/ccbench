@@ -72,7 +72,7 @@ def _run_pytest(targets: list[str]) -> tuple[str, str]:
 
 def _check_d11_receipt() -> dict:
     """Check D11 qualification receipt and return gate result."""
-    from dftworld_bench.experiments.release_builder import check_qualification_receipt
+    from ccbench.experiments.release_builder import check_qualification_receipt
 
     result = check_qualification_receipt(ROOT)
     status = result["status"]

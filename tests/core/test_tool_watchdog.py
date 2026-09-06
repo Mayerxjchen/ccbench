@@ -12,7 +12,7 @@ import sys
 
 import pytest
 
-from dftworld_bench.core.tool_watchdog import ToolResult, ToolWatchdog
+from ccbench.core.tool_watchdog import ToolResult, ToolWatchdog
 
 
 def _run(coro):

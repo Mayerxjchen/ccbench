@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from dftworld_bench.core.submission_contract import (
+from ccbench.core.submission_contract import (
     StructuralError,
     validate_submission,
 )

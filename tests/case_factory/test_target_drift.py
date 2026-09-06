@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.case_factory.dftworld_target import DftworldTargetAdapter
-from dftworld_bench.case_factory.state import LOCK_RELPATH, read_factory_state
+from ccbench.case_factory.dftworld_target import DftworldTargetAdapter
+from ccbench.case_factory.state import LOCK_RELPATH, read_factory_state
 
 ADAPTER = DftworldTargetAdapter()
 

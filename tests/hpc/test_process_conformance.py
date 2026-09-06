@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.hpc.adapters.process_test import AdapterError, ProcessTestAdapter
-from dftworld_bench.hpc.conformance import run_conformance
+from ccbench.hpc.adapters.process_test import AdapterError, ProcessTestAdapter
+from ccbench.hpc.conformance import run_conformance
 
 DIGEST = "img@sha256:" + "a" * 64
 

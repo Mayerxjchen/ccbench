@@ -24,7 +24,7 @@ def test_slurm_adapter_status_verifies_gpu_allocation():
     (or zero GPUs) after requesting a full GPU is reported as SUCCEEDED.
     """
     import inspect
-    from dftworld_bench.hpc.adapters import slurm as mod
+    from ccbench.hpc.adapters import slurm as mod
 
     src = inspect.getsource(mod)
     assert "verify_full_gpu(" in src
@@ -39,7 +39,7 @@ def test_runtime_qualification_checks_scheduler_gpu_identity():
     would admit an allocation that cannot run a full-GPU job.
     """
     import inspect
-    from dftworld_bench.runtime import qualify as mod
+    from ccbench.runtime import qualify as mod
 
     src = inspect.getsource(mod)
     assert "MIG" in src or "mig" in src
@@ -52,7 +52,7 @@ def test_full_gpu_profile_rejects_mig_alloc():
     production caller passes site-profile `require_full`; a MIG allocation can
     therefore never be rejected by the admission path.
     """
-    from dftworld_bench.hpc.tres import verify_full_gpu
+    from ccbench.hpc.tres import verify_full_gpu
 
     ok, reason = verify_full_gpu(
         req_tres="gpu:tesla=1", alloc_tres="gpu:tesla:1g.5g=1",

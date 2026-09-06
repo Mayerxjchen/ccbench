@@ -8,8 +8,8 @@ import urllib.error
 import urllib.request
 import pytest
 
-from dftworld_bench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPolicy
-from dftworld_bench.core.model_proxy import ModelGatewayProxy
+from ccbench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPolicy
+from ccbench.core.model_proxy import ModelGatewayProxy
 
 
 class DummyUpstreamServer:

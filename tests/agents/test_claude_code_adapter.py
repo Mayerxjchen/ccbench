@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import pytest
 
-from dftworld_bench.agents import (
+from ccbench.agents import (
     AgentAdapter,
     ClaudeCodeAdapter,
     parse_claude_code_event,
@@ -127,7 +127,7 @@ def test_adapter_startup_failure_rollback_retains_topology_and_retry_close_succe
     """When container startup fails and topology rollback fails, Adapter retains
     _topology and resource handles, proxy is closed, and subsequent close() retries topology cleanup."""
     from unittest import mock
-    from dftworld_bench.core.sidecar_topology import SidecarTopologyManager, TopologyRollbackError
+    from ccbench.core.sidecar_topology import SidecarTopologyManager, TopologyRollbackError
 
     async def _test():
         threads_root = tmp_path / "threads"
@@ -159,8 +159,8 @@ def test_adapter_startup_failure_rollback_retains_topology_and_retry_close_succe
             api_endpoint="http://fake-upstream",
         )
 
-        with mock.patch("dftworld_bench.agents.SidecarTopologyManager", return_value=mock_topology), \
-             mock.patch("dftworld_bench.agents.ModelGatewayProxy", return_value=mock_proxy), \
+        with mock.patch("ccbench.agents.SidecarTopologyManager", return_value=mock_topology), \
+             mock.patch("ccbench.agents.ModelGatewayProxy", return_value=mock_proxy), \
              mock.patch.object(adapter, "_start_container", new_callable=mock.AsyncMock, side_effect=RuntimeError("container launch error")):
 
             with pytest.raises(TopologyRollbackError, match="simulated rollback failure"):

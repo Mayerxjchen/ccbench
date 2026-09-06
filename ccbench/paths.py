@@ -1,0 +1,19 @@
+"""ccbench paths — Single source of truth for canonical repository paths."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+# Repository root (parent of the ccbench/ package directory)
+ROOT: Path = Path(__file__).resolve().parents[1]
+
+CASES_DIR: Path = ROOT / "cases"
+MAINTAINER_DIR: Path = ROOT / "maintainer"
+RUNTIMES_DIR: Path = ROOT / "runtimes"
+RUNTIME_RECIPES_DIR: Path = RUNTIMES_DIR / "recipes"
+RUNTIME_LOCKS_DIR: Path = RUNTIMES_DIR / "locks"
+RUNTIME_PROVENANCE_DIR: Path = RUNTIMES_DIR / "provenance"
+SCHEMAS_DIR: Path = ROOT / "schemas"
+EXPERIMENTS_DIR: Path = ROOT / "experiments"
+SCRIPTS_DIR: Path = ROOT / "scripts"
+TESTS_DIR: Path = ROOT / "tests"

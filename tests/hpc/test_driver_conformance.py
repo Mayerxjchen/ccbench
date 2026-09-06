@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import pytest
 
-from dftworld_bench.hpc.adapters.process_test import ProcessTestAdapter
-from dftworld_bench.hpc.adapters.slurm import SlurmAdapter
-from dftworld_bench.hpc.drivers import (
+from ccbench.hpc.adapters.process_test import ProcessTestAdapter
+from ccbench.hpc.adapters.slurm import SlurmAdapter
+from ccbench.hpc.drivers import (
     DriverSelectionError,
     ProcessDriver,
     SlurmDriver,
@@ -130,7 +130,7 @@ def test_formal_rejects_process_driver_and_accepts_slurm():
 
 
 def test_runtime_builds_process_driver_from_config(tmp_path):
-    from dftworld_bench.hpc.gateway_runtime import build_driver
+    from ccbench.hpc.gateway_runtime import build_driver
 
     driver = build_driver(
         {"adapter": "process_test", "root": str(tmp_path / "site"), "timeout_sec": 5.0}
@@ -139,7 +139,7 @@ def test_runtime_builds_process_driver_from_config(tmp_path):
 
 
 def test_runtime_slurm_driver_requires_adapter_instance():
-    from dftworld_bench.hpc.gateway_runtime import build_driver, GatewayRuntimeError
+    from ccbench.hpc.gateway_runtime import build_driver, GatewayRuntimeError
 
     with pytest.raises(GatewayRuntimeError, match="adapter_instance"):
         build_driver({"adapter": "slurm"})

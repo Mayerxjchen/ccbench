@@ -14,14 +14,14 @@ from pathlib import Path
 import jsonschema
 import pytest
 
-from dftworld_bench.case_factory.target import (
+from ccbench.case_factory.target import (
     SCHEMA_PATH,
     GeneratedFile,
     TargetAdapter,
     TargetVerdict,
     load_target_schema,
 )
-from dftworld_bench.case_factory.state import FactoryGates
+from ccbench.case_factory.state import FactoryGates
 
 VALID_DESIGN = {
     "identity": {

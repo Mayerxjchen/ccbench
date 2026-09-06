@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.core.quarantine import (
+from ccbench.core.quarantine import (
     QuarantineError,
     QuarantineLimits,
     collect_raw_submission,

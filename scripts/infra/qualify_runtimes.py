@@ -23,8 +23,8 @@ from typing import Any
 # Make the repo importable when run as a loose script.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from dftworld_bench.runtime.qualify import checks_for_role, qualify_runtime
-from dftworld_bench.runtime.registry import (
+from ccbench.runtime.qualify import checks_for_role, qualify_runtime
+from ccbench.runtime.registry import (
     RuntimeIdentity,
     RuntimeProfile,
     default_profiles,

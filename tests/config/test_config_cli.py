@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from dftworld_bench.config.cli import main
+from ccbench.config.cli import main
 
 
 import pytest

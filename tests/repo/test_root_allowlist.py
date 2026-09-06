@@ -36,7 +36,7 @@ ALLOWED_ROOT_DIRS = {
     "cases",
     "ccbench",
     "ccbench.egg-info",
-    "dftworld_bench",
+    "ccbench",
     "docs",
     "evidence",
     "examples",

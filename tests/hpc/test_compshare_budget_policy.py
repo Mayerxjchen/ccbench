@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from dftworld_bench.hpc.site_profile import (
+from ccbench.hpc.site_profile import (
     CompShareBudgetPolicy,
     HpcSiteProfile,
     SiteProfileError,

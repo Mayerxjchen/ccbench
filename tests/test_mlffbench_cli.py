@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 
-import dftworld_bench.cli as cli
+import ccbench.cli as cli
 
 
 def test_setup_reports_environment_and_runtime_locks(capsys):
@@ -120,10 +120,10 @@ def test_compute_configure_refuses_inside_repo(capsys):
 
 def test_compute_qualify_cli(tmp_path, capsys, monkeypatch):
     import json
-    from dftworld_bench.experiments.compute_profile_qualification import (
+    from ccbench.experiments.compute_profile_qualification import (
         build_compute_profile_qualification_receipt,
     )
-    from dftworld_bench.hpc.compute_profile import ComputeProfile
+    from ccbench.hpc.compute_profile import ComputeProfile
 
     out = tmp_path / "hybrid.json"
     cli.main(["compute", "configure", "--template", "maintainer-hybrid", "--out", str(out)])
@@ -180,7 +180,7 @@ def test_compute_qualify_cli(tmp_path, capsys, monkeypatch):
     rcpt_file.write_text(json.dumps(receipt_doc, indent=2))
 
     # Mock live cloud instance_list to return 0 active instances
-    from dftworld_bench.hpc.drivers.compshare.cli import CompShareCli
+    from ccbench.hpc.drivers.compshare.cli import CompShareCli
     monkeypatch.setattr(CompShareCli, "instance_list", lambda self, **kw: [])
 
     # Mock verify_site_receipt to return successful derivation
@@ -196,7 +196,7 @@ def test_compute_qualify_cli(tmp_path, capsys, monkeypatch):
                 "gates": {},
             },
         }
-    from dftworld_bench.experiments import compute_profile_qualification
+    from ccbench.experiments import compute_profile_qualification
     monkeypatch.setattr(compute_profile_qualification, "verify_site_receipt", _mock_verify_site_receipt)
 
     code = cli.main([

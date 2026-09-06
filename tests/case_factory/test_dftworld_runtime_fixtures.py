@@ -17,8 +17,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from dftworld_bench.case_factory.dftworld_target import DftworldTargetAdapter
-from dftworld_bench.contracts.case import CaseSpec
+from ccbench.case_factory.dftworld_target import DftworldTargetAdapter
+from ccbench.contracts.case import CaseSpec
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 _SUPPORT = Path(__file__).resolve().parent / "support"
@@ -135,7 +135,7 @@ def test_eval_load_task(fixture, expect):
     ids=["local", "hpc"],
 )
 def test_package_candidate_deterministic(fixture, expect, tmp_path):
-    from dftworld_bench.core.packager import package_candidate
+    from ccbench.core.packager import package_candidate
 
     spec = CaseSpec.load(fixture)
     bundle_a = package_candidate(spec, tmp_path / "a")

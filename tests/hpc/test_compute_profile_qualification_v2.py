@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.experiments import compute_profile_qualification as cpq
-from dftworld_bench.hpc.audit import GatewayAudit
-from dftworld_bench.hpc.site_profile import HpcSiteProfile
-from dftworld_bench.hpc.trust_store import QualificationTrustStore, TrustKey
+from ccbench.experiments import compute_profile_qualification as cpq
+from ccbench.hpc.audit import GatewayAudit
+from ccbench.hpc.site_profile import HpcSiteProfile
+from ccbench.hpc.trust_store import QualificationTrustStore, TrustKey
 
 
 def _profiles() -> dict[str, HpcSiteProfile]:
@@ -253,7 +253,7 @@ def test_cli_requires_explicit_trust_store_and_site_registry(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
     """The public compute-qualify entry point may not use repository defaults."""
-    from dftworld_bench import cli
+    from ccbench import cli
 
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(

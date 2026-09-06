@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.hpc.drivers.compshare import (
+from ccbench.hpc.drivers.compshare import (
     AccountScopeLock,
     AccountScopeLockTimeout,
     CompShareCli,
@@ -18,7 +18,7 @@ from dftworld_bench.hpc.drivers.compshare import (
     assert_account_capacity,
     make_ownership_marker,
 )
-from dftworld_bench.hpc.drivers.compshare.cli import CliResult
+from ccbench.hpc.drivers.compshare.cli import CliResult
 
 
 def _scope_lock(root: Path, *, timeout_sec: float | None = 1.0) -> AccountScopeLock:

@@ -26,8 +26,8 @@ all `references/categories/mlp/*.md`, all `scripts/common/*.py` and
 `scripts/categories/mlp/*.py`, and the `assets/case-template/` tree
 (common + local-sandbox + mlp overlays, including every fixture manifest).
 Repository code read for the real packager contract:
-`/Users/xjchen/bench/mlffbench/dftworld_bench/contracts/case.py`,
-`/Users/xjchen/bench/mlffbench/dftworld_bench/core/packager.py`.
+`/Users/xjchen/bench/mlffbench/ccbench/contracts/case.py`,
+`/Users/xjchen/bench/mlffbench/ccbench/core/packager.py`.
 
 **Planted answer files never opened:** `materials/paper/acceptance.json` and
 `materials/repo/expected.json` were listed by directory enumeration but never

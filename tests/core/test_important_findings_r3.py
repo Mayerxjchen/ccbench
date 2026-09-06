@@ -32,8 +32,8 @@ class TestI1MutableDictExposure:
 
     def test_to_dict_returns_mutable_reference(self):
         """RED: to_dict() returns a dict that, when mutated, corrupts verify()."""
-        from dftworld_bench.contracts.resolved_lock import ResolvedRunLock
-        from dftworld_bench.config.profiles import canonical_json, digest_bytes
+        from ccbench.contracts.resolved_lock import ResolvedRunLock
+        from ccbench.config.profiles import canonical_json, digest_bytes
 
         payload = {
             "case": {"case_id": "031", "case_version": "1.0", "schema_version": "1.0"},
@@ -68,8 +68,8 @@ class TestI1MutableDictExposure:
     def test_create_copies_input_payload(self):
         """RED: create() stores a reference to the input dict; caller mutation
         after create() corrupts the lock."""
-        from dftworld_bench.contracts.resolved_lock import ResolvedRunLock
-        from dftworld_bench.config.profiles import canonical_json, digest_bytes
+        from ccbench.contracts.resolved_lock import ResolvedRunLock
+        from ccbench.config.profiles import canonical_json, digest_bytes
 
         payload = {
             "case": {"case_id": "031", "case_version": "1.0", "schema_version": "1.0"},
@@ -111,7 +111,7 @@ class TestI2ComparatorLockDigest:
     def test_lock_digest_not_flagged_as_unexpected(self):
         """RED: Two valid skill-ablation locks differing only in treatment +
         lock_digest should be valid. Currently lock_digest is flagged."""
-        from dftworld_bench.experiments.comparison import compare_lock
+        from ccbench.experiments.comparison import compare_lock
 
         left = {
             "case": {"case_id": "032", "case_version": "1.0"},
@@ -139,7 +139,7 @@ class TestI2ComparatorLockDigest:
     def test_missing_vs_null_detected(self):
         """RED: compare_lock conflates 'key absent' with 'key present = None'.
         Two locks with different missing/null patterns should be flagged."""
-        from dftworld_bench.experiments.comparison import compare_lock
+        from ccbench.experiments.comparison import compare_lock
 
         left = {
             "case": {"case_id": "032"},
@@ -179,12 +179,12 @@ class TestI3BudgetWiring:
         driving it, so charging flows through the production call path."""
         import asyncio
 
-        from dftworld_bench.core.budgets import (
+        from ccbench.core.budgets import (
             BUDGET_DOMAINS,
             BudgetLedger,
         )
-        from dftworld_bench.core.event_store import EventStore
-        from dftworld_bench.core.harness import (
+        from ccbench.core.event_store import EventStore
+        from ccbench.core.harness import (
             HarnessSpec,
             Profile,
             Treatment,
@@ -279,7 +279,7 @@ class TestI3BudgetWiring:
         def fake_quarantiner(raw, clean, limits):
             from datetime import datetime, timezone
 
-            from dftworld_bench.core.quarantine import SubmissionSeal
+            from ccbench.core.quarantine import SubmissionSeal
 
             Path(clean).mkdir(parents=True, exist_ok=True)
             return SubmissionSeal(
@@ -291,8 +291,8 @@ class TestI3BudgetWiring:
                 exclusions=(),
             )
 
-        from dftworld_bench.contracts.result import BenchmarkResult
-        from dftworld_bench.core.run_store import RunStore
+        from ccbench.contracts.result import BenchmarkResult
+        from ccbench.core.run_store import RunStore
 
         def fake_verifier(spec, sealed, logs, run_id=None, runner=None):
             return BenchmarkResult.valid(run_id or "r", passed=True, reason="fake")
@@ -315,8 +315,8 @@ class TestI3BudgetWiring:
     def test_candidate_adapter_telemetry_and_budget_wiring(self, tmp_path):
         """Verify ClaudeCodeAdapter records telemetry and delegates ledger charging
         exclusively to ModelGatewayProxy (preventing double-charging)."""
-        from dftworld_bench.agents import ClaudeCodeAdapter, TurnResult
-        from dftworld_bench.core.budgets import (
+        from ccbench.agents import ClaudeCodeAdapter, TurnResult
+        from ccbench.core.budgets import (
             BUDGET_DOMAINS,
             BudgetLedger,
             BudgetPolicy,
@@ -349,7 +349,7 @@ class TestI4EventStoreCheckpoint:
 
     def test_checkpoint_fsyncs_before_replace(self):
         """RED: write_checkpoint does not fsync the tmp file before os.replace."""
-        from dftworld_bench.core.event_store import EventStore
+        from ccbench.core.event_store import EventStore
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "events.jsonl"
@@ -362,7 +362,7 @@ class TestI4EventStoreCheckpoint:
                 fsync_calls.append(fd)
                 return original_fsync(fd)
 
-            with patch("dftworld_bench.core.event_store.os.fsync", tracking_fsync):
+            with patch("ccbench.core.event_store.os.fsync", tracking_fsync):
                 checkpoint = store.write_checkpoint({"phase": "test"})
 
             # Check that at least 2 fsync calls were made (checkpoint file + pointer)
@@ -376,7 +376,7 @@ class TestI4EventStoreCheckpoint:
     def test_load_handles_truncated_last_line(self):
         """RED: If the last line of events.jsonl is truncated, _last_event
         should handle it gracefully instead of crashing."""
-        from dftworld_bench.core.event_store import EventStore
+        from ccbench.core.event_store import EventStore
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "events.jsonl"
@@ -407,8 +407,8 @@ class TestI5EffectBeforeCommit:
 
     def test_crash_resume_skips_committed_activities(self):
         """GREEN: After crash+resume, committed activities are not re-executed."""
-        from dftworld_bench.core.coordinator import RunCoordinator, SimulatedCrash
-        from dftworld_bench.core.event_store import EventStore
+        from ccbench.core.coordinator import RunCoordinator, SimulatedCrash
+        from ccbench.core.event_store import EventStore
 
         with tempfile.TemporaryDirectory() as tmpdir:
             events = EventStore(Path(tmpdir) / "events.jsonl")
@@ -464,7 +464,7 @@ class TestI6ExternalWaitReplay:
     wait, it should NOT re-execute the wait or re-charge scheduler_wait_ms."""
 
     def _coordinator(self, events, waiter):
-        from dftworld_bench.core.coordinator import RunCoordinator
+        from ccbench.core.coordinator import RunCoordinator
 
         return RunCoordinator(
             run_id="run-1",
@@ -480,7 +480,7 @@ class TestI6ExternalWaitReplay:
         waiter (or re-charging) again."""
         import asyncio
 
-        from dftworld_bench.core.event_store import EventStore
+        from ccbench.core.event_store import EventStore
 
         with tempfile.TemporaryDirectory() as tmpdir:
             events = EventStore(Path(tmpdir) / "events.jsonl")
@@ -523,7 +523,7 @@ class TestI6ExternalWaitReplay:
         wait that must reach the scheduler again."""
         import asyncio
 
-        from dftworld_bench.core.event_store import EventStore
+        from ccbench.core.event_store import EventStore
 
         with tempfile.TemporaryDirectory() as tmpdir:
             events = EventStore(Path(tmpdir) / "events.jsonl")
@@ -562,8 +562,8 @@ class TestI7FailClosedScan:
     def test_empty_file_listing_fails_for_control(self):
         """RED: When inspect() returns no files, _check_no_ssh_or_keys passes
         for control images. It should fail-closed."""
-        from dftworld_bench.runtime.qualify import _check_no_ssh_or_keys
-        from dftworld_bench.runtime.registry import RuntimeIdentity
+        from ccbench.runtime.qualify import _check_no_ssh_or_keys
+        from ccbench.runtime.registry import RuntimeIdentity
 
         identity = RuntimeIdentity(
             role="control", profile="test", image="test@sha256:" + "a" * 64,
@@ -584,8 +584,8 @@ class TestI7FailClosedScan:
     def test_qualification_report_has_digest(self):
         """RED: QualificationReport has no content-addressed digest.
         An untrusted receipt can be forged."""
-        from dftworld_bench.runtime.qualify import QualificationReport, CheckResult
-        from dftworld_bench.runtime.registry import RuntimeIdentity
+        from ccbench.runtime.qualify import QualificationReport, CheckResult
+        from ccbench.runtime.registry import RuntimeIdentity
 
         identity = RuntimeIdentity(
             role="candidate", profile="test", image="test", digest="a" * 64,
@@ -616,7 +616,7 @@ class TestI8StaleRawMerge:
 
     def test_stale_bytes_not_merged(self):
         """RED: Pre-existing files in raw dir survive collect_raw_submission."""
-        from dftworld_bench.core.quarantine import collect_raw_submission
+        from ccbench.core.quarantine import collect_raw_submission
 
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace = Path(tmpdir) / "workspace" / "final"
@@ -654,7 +654,7 @@ class TestI9ProfileLoader:
     def test_duplicate_profile_name_raises(self):
         """RED: Two TOML files with the same profile name silently overwrite.
         After fix, load should raise on duplicate names."""
-        from dftworld_bench.config.profiles import ProfileRegistry
+        from ccbench.config.profiles import ProfileRegistry
 
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -688,7 +688,7 @@ class TestI9ProfileLoader:
         """RED: ProfileRegistry.load accepts profiles with invalid data
         (missing required fields, wrong types) without validation.
         After fix, load should validate against schema."""
-        from dftworld_bench.config.profiles import ProfileRegistry
+        from ccbench.config.profiles import ProfileRegistry
 
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

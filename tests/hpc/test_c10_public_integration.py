@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from dftworld_bench.experiments.compute_profile_qualification import (
+from ccbench.experiments.compute_profile_qualification import (
     build_compshare_site_qualification_receipt,
     build_compute_profile_qualification_receipt_v2,
     compute_receipt_digest,
@@ -23,19 +23,19 @@ from dftworld_bench.experiments.compute_profile_qualification import (
     verify_and_derive_qualification,
     verify_site_receipt,
 )
-from dftworld_bench.experiments.qualification_receipt import _check_audit
-from dftworld_bench.hpc.audit import GatewayAudit
-from dftworld_bench.hpc.compute_profile import ComputeProfile
-from dftworld_bench.hpc.drivers.compshare import (
+from ccbench.experiments.qualification_receipt import _check_audit
+from ccbench.hpc.audit import GatewayAudit
+from ccbench.hpc.compute_profile import ComputeProfile
+from ccbench.hpc.drivers.compshare import (
     CompShareCli,
     CompShareDriver,
     FakeCompShareCliRunner,
     RunScopedInstanceManager,
 )
-from dftworld_bench.hpc.gateway import ALL_OPS, Gateway
-from dftworld_bench.hpc.production import build_hybrid_stack
-from dftworld_bench.hpc.site_profile import HpcSiteProfile
-from dftworld_bench.hpc.trust_store import QualificationTrustStore, TrustKey
+from ccbench.hpc.gateway import ALL_OPS, Gateway
+from ccbench.hpc.production import build_hybrid_stack
+from ccbench.hpc.site_profile import HpcSiteProfile
+from ccbench.hpc.trust_store import QualificationTrustStore, TrustKey
 
 
 IMAGE_ID = "img-c10-deepmd"
@@ -190,9 +190,9 @@ def _site_receipt(
     ]
     assert all(kind in kinds for kind in required)
 
-    marker = root / "dftworld_bench" / "qualification_marker.py"
+    marker = root / "ccbench" / "qualification_marker.py"
     identity = {
-        "dftworld_bench/qualification_marker.py":
+        "ccbench/qualification_marker.py":
             f"sha256:{hashlib.sha256(marker.read_bytes()).hexdigest()}"
     }
     receipt = build_compshare_site_qualification_receipt(
@@ -276,8 +276,8 @@ def _site_receipt(
 def run_public_c10_lifecycle(tmp_path: Path) -> dict[str, Any]:
     """Run the complete offline public lifecycle and formal v2 verification."""
     root = Path(tmp_path)
-    (root / "dftworld_bench").mkdir(parents=True)
-    marker = root / "dftworld_bench" / "qualification_marker.py"
+    (root / "ccbench").mkdir(parents=True)
+    marker = root / "ccbench" / "qualification_marker.py"
     marker.write_text("# immutable offline qualification identity\n", encoding="utf-8")
     runtime_dir = root / "runtime"
     runtime_dir.mkdir()
@@ -334,7 +334,7 @@ def run_public_c10_lifecycle(tmp_path: Path) -> dict[str, Any]:
     }
     lock_path = runtime_dir / "deepmd-runtime.lock.json"
     _write_json(lock_path, lock_doc)
-    from dftworld_bench.hpc.runtime_resolution import canonical_lock_digest
+    from ccbench.hpc.runtime_resolution import canonical_lock_digest
 
     lock_digest = canonical_lock_digest(lock_doc)
     site_private, site_public = generate_ed25519_key_pair()

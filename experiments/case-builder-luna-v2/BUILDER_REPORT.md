@@ -42,9 +42,9 @@ the package's `tests/fixtures/` was inspected for shape.
   (task.toml conventions: [hpc] contract_version hpc-execution/v1,
   qualification requires, [runtime] family matclaw-cips ==2.2.11).
 - Portable Skill package (code, templates, references, tests/fixtures).
-- Repo contracts needed for real packaging: `dftworld_bench/contracts/case.py`,
-  `dftworld_bench/core/packager.py`, `/Users/xjchen/bench/mlffbench/schemas/case.schema.json`,
-  repo `README.md`, `python -m dftworld_bench.hpc help` (runbook commands).
+- Repo contracts needed for real packaging: `ccbench/contracts/case.py`,
+  `ccbench/core/packager.py`, `/Users/xjchen/bench/mlffbench/schemas/case.schema.json`,
+  repo `README.md`, `python -m ccbench.hpc help` (runbook commands).
 
 ## 3. Disclosure — borderline source content
 

@@ -31,13 +31,13 @@ def _src(relative: str) -> str:
 
 
 def test_executor_builds_no_runtime_stack():
-    src = _src("dftworld_bench/executors/hpc.py")
+    src = _src("ccbench/executors/hpc.py")
     for forbidden in _FORBIDDEN_STRICT:
         assert forbidden not in src, f"executor constructs {forbidden!r}"
 
 
 def test_coordinator_never_imports_gateway_or_adapters():
-    src = _src("dftworld_bench/core/coordinator.py")
+    src = _src("ccbench/core/coordinator.py")
     for marker in ("gateway", "adapters", "site_profile", "transport"):
         assert f"hpc.{marker}" not in src
     for forbidden in _FORBIDDEN_STRICT:
@@ -57,10 +57,10 @@ def test_eval_composition_root_constructs_only_dispatcher_and_runtime():
 def test_registry_injects_dispatcher_into_hpc_executor(tmp_path):
     import asyncio
 
-    from dftworld_bench.executors.registry import resolve
-    from dftworld_bench.executors.base import ExecutionContext
-    from dftworld_bench.hpc.dispatcher import HpcDispatcher
-    from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
+    from ccbench.executors.registry import resolve
+    from ccbench.executors.base import ExecutionContext
+    from ccbench.hpc.dispatcher import HpcDispatcher
+    from ccbench.hpc.gateway_runtime import GatewayRuntime
 
     dispatcher = HpcDispatcher(
         GatewayRuntime(),
@@ -93,9 +93,9 @@ def test_queue_wait_charges_no_model_turns(tmp_path):
     """The durable external wait charges scheduler_wait_ms — never turns."""
     import asyncio
 
-    from dftworld_bench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPolicy
-    from dftworld_bench.core.coordinator import RunCoordinator
-    from dftworld_bench.core.event_store import EventStore
+    from ccbench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPolicy
+    from ccbench.core.coordinator import RunCoordinator
+    from ccbench.core.event_store import EventStore
 
     ledger = BudgetLedger(
         BudgetPolicy(

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from dftworld_bench.contracts.case import CoverageTags
+from ccbench.contracts.case import CoverageTags
 from scripts.portfolio.marginal_coverage import (
     coverage_gaps,
     marginal_coverage_value,

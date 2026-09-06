@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 import pytest
 
-from dftworld_bench.verifiers.candidate_agent_verifier import (
+from ccbench.verifiers.candidate_agent_verifier import (
     CandidateAgentVerifier,
     VerificationVerdict,
     generate_ed25519_key_pair,
@@ -213,7 +213,7 @@ def test_verifier_rejects_self_signed_forgery_without_external_trust_root(valid_
     assert verifier.verify_receipt_file(receipt_file) is False
 
     # 2. When the operator trust store actively registers this key, verification passes
-    from dftworld_bench.hpc.trust_store import QualificationTrustStore
+    from ccbench.hpc.trust_store import QualificationTrustStore
     store = QualificationTrustStore()
     store.register_key("candidate-agent-v2", pub_hex, purpose="candidate-agent-qualification")
     assert verifier.verify_receipt_file(receipt_file, trust_store=store) is True

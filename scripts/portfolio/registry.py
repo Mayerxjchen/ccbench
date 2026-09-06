@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from dftworld_bench.contracts.case import (
+from ccbench.contracts.case import (
     CaseSpec,
     CoverageTags,
     load_coverage_vocabularies,

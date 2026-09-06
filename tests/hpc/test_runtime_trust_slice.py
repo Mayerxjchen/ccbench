@@ -7,14 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.hpc.gateway import Gateway, GatewayError
-from dftworld_bench.hpc.runtime_catalog import TrustedRuntimeCatalog
-from dftworld_bench.hpc.runtime_resolution import (
+from ccbench.hpc.gateway import Gateway, GatewayError
+from ccbench.hpc.runtime_catalog import TrustedRuntimeCatalog
+from ccbench.hpc.runtime_resolution import (
     RuntimeResolutionError,
     RuntimeResolver,
     RuntimeStatus,
 )
-from dftworld_bench.hpc.site_profile import HpcSiteProfile, TrustedSiteProfileRegistry
+from ccbench.hpc.site_profile import HpcSiteProfile, TrustedSiteProfileRegistry
 
 
 def _profile() -> HpcSiteProfile:
@@ -126,8 +126,8 @@ def test_catalog_has_no_provider_receipt_fallback(tmp_path: Path):
 
 
 def test_catalog_promotes_only_exactly_bound_receipt(tmp_path: Path, monkeypatch):
-    from dftworld_bench.experiments.qualification_receipt import canonical_digest
-    from dftworld_bench.hpc.runtime_resolution import canonical_lock_digest
+    from ccbench.experiments.qualification_receipt import canonical_digest
+    from ccbench.hpc.runtime_resolution import canonical_lock_digest
 
     lock_dir = tmp_path / "reference" / "runtime"
     lock_dir.mkdir(parents=True)
@@ -161,7 +161,7 @@ def test_catalog_promotes_only_exactly_bound_receipt(tmp_path: Path, monkeypatch
     lock_path.write_text(json.dumps(lock_doc), encoding="utf-8")
 
     monkeypatch.setattr(
-        "dftworld_bench.hpc.runtime_catalog.verify_site_receipt",
+        "ccbench.hpc.runtime_catalog.verify_site_receipt",
         lambda *args, **kwargs: {
             "problems": [],
             "derived": {"qualification_status": "PASS"},
@@ -171,7 +171,7 @@ def test_catalog_promotes_only_exactly_bound_receipt(tmp_path: Path, monkeypatch
     # The catalog imports the verifier inside _load, so patch the defining
     # module as well as the optional module attribute above.
     monkeypatch.setattr(
-        "dftworld_bench.experiments.compute_profile_qualification.verify_site_receipt",
+        "ccbench.experiments.compute_profile_qualification.verify_site_receipt",
         lambda *args, **kwargs: {
             "problems": [],
             "derived": {"qualification_status": "PASS"},
@@ -189,7 +189,7 @@ def test_catalog_promotes_only_exactly_bound_receipt(tmp_path: Path, monkeypatch
 
 
 def test_gateway_does_not_take_resolver_from_adapter(tmp_path: Path):
-    from dftworld_bench.hpc.adapters.process_test import ProcessTestAdapter
+    from ccbench.hpc.adapters.process_test import ProcessTestAdapter
 
     adapter = ProcessTestAdapter(tmp_path / "jobs")
     adapter.runtime_resolver = object()  # type: ignore[attr-defined]
