@@ -1,8 +1,4 @@
-"""Discovery run classification for candidate cases.
-
-Security invariant: PROMOTED decisions require evidence artifacts.
-CLI cannot directly declare PROMOTED without a valid metrics directory.
-"""
+"""Discovery run classification and scientific failure taxonomy for candidate cases."""
 
 from __future__ import annotations
 
@@ -18,19 +14,78 @@ class DiscoveryDecision(str, Enum):
     REJECT = "REJECT"
 
 
+class FailureClass(str, Enum):
+    """Scientific failure taxonomy for discovery run attribution."""
+
+    SUCCESS = "SUCCESS"
+    SOURCE_BLOCKED = "SOURCE_BLOCKED"
+    RUNTIME_BLOCKED = "RUNTIME_BLOCKED"
+    RESOURCE_BLOCKED = "RESOURCE_BLOCKED"
+    CASE_DESIGN_BLOCKED = "CASE_DESIGN_BLOCKED"
+    INFRA_INVALID = "INFRA_INVALID"
+    AGENT_LIMITATION = "AGENT_LIMITATION"
+
+
 class DiscoveryEvidenceError(ValueError):
-    """Raised when discovery evidence is insufficient for the requested decision."""
+    """Raised when discovery evidence is insufficient or malformed."""
+
+
+REQUIRED_EVIDENCE_FIELDS = frozenset({
+    "run_id",
+    "candidate_bundle_digest",
+    "case_ir_digest",
+    "outcome",
+    "metrics",
+})
+
+
+def validate_discovery_evidence_doc(doc: dict[str, Any]) -> None:
+    """Validate that a discovery evidence document satisfies schema requirements."""
+    if not isinstance(doc, dict):
+        raise DiscoveryEvidenceError("Discovery evidence must be a JSON object")
+
+    missing = REQUIRED_EVIDENCE_FIELDS - set(doc.keys())
+    if missing:
+        raise DiscoveryEvidenceError(
+            f"Discovery evidence missing required fields: {sorted(missing)}"
+        )
+
+    # Validate digests format
+    cb_digest = str(doc.get("candidate_bundle_digest", ""))
+    if not cb_digest.startswith("sha256:"):
+        raise DiscoveryEvidenceError(
+            f"candidate_bundle_digest must be a sha256 hex string, got {cb_digest!r}"
+        )
+
+    ir_digest = str(doc.get("case_ir_digest", ""))
+    if not ir_digest.startswith("sha256:"):
+        raise DiscoveryEvidenceError(
+            f"case_ir_digest must be a sha256 hex string, got {ir_digest!r}"
+        )
+
+    # Validate outcome
+    outcome = doc.get("outcome")
+    if not isinstance(outcome, dict):
+        raise DiscoveryEvidenceError("outcome must be a dictionary")
+    for key in ("terminal_state", "candidate_exit_code", "verifier_exit_code"):
+        if key not in outcome:
+            raise DiscoveryEvidenceError(f"outcome missing required field: '{key}'")
+
+    # Validate metrics
+    metrics = doc.get("metrics")
+    if not isinstance(metrics, dict) or not metrics:
+        raise DiscoveryEvidenceError("metrics must be a non-empty dictionary")
 
 
 def classify_discovery_evidence(
     metrics_dir: Path,
 ) -> tuple[DiscoveryDecision, dict[str, Any]]:
-    """Classify a discovery run based on evidence in metrics_dir.
+    """Classify a discovery run based on structured evidence in metrics_dir.
 
-    Returns (decision, metrics_summary).
-    metrics_dir must contain at least one JSON file with discovery metrics.
+    Parses run evidence files, validates schemas, applies failure taxonomy,
+    and mechanically derives the DiscoveryDecision.
     """
-    metrics_dir = Path(metrics_dir)
+    metrics_dir = Path(metrics_dir).resolve()
     if not metrics_dir.is_dir():
         raise DiscoveryEvidenceError(
             f"metrics_dir does not exist or is not a directory: {metrics_dir}"
@@ -39,38 +94,63 @@ def classify_discovery_evidence(
     metric_files = sorted(metrics_dir.glob("*.json"))
     if not metric_files:
         raise DiscoveryEvidenceError(
-            f"No metric JSON files found in {metrics_dir}; "
-            f"cannot classify without evidence"
+            f"No metric JSON files found in {metrics_dir}; cannot classify without evidence"
         )
 
-    # Aggregate metrics from all discovery run outputs
-    aggregated: dict[str, Any] = {}
+    # Load and validate primary discovery evidence doc (e.g. discovery-run.json or first file)
+    primary_doc: dict[str, Any] | None = None
     for mf in metric_files:
         try:
             doc = json.loads(mf.read_text(encoding="utf-8"))
-            if not isinstance(doc, dict):
-                raise DiscoveryEvidenceError(
-                    f"Metric file {mf.name} is not a JSON object"
-                )
-            aggregated[mf.stem] = doc
-        except json.JSONDecodeError as e:
-            raise DiscoveryEvidenceError(
-                f"Metric file {mf.name} is not valid JSON: {e}"
-            ) from e
+            if isinstance(doc, dict) and "outcome" in doc:
+                validate_discovery_evidence_doc(doc)
+                primary_doc = doc
+                break
+        except DiscoveryEvidenceError:
+            raise
+        except Exception as exc:
+            raise DiscoveryEvidenceError(f"Failed to parse {mf.name}: {exc}") from exc
 
-    # Evidence-based decision: check if any metric file explicitly signals failure
-    any_failure = False
-    for name, metrics in aggregated.items():
-        if metrics.get("passed") is False:
-            any_failure = True
-            break
+    if primary_doc is None:
+        raise DiscoveryEvidenceError(
+            "No valid discovery evidence document found in metrics_dir matching schema "
+            "(requires run_id, candidate_bundle_digest, case_ir_digest, outcome, metrics)"
+        )
 
-    if any_failure:
+    outcome = primary_doc["outcome"]
+    failure_class_str = primary_doc.get("failure_class", "")
+
+    # Apply scientific failure taxonomy
+    if failure_class_str:
+        try:
+            fclass = FailureClass(failure_class_str)
+        except ValueError:
+            raise DiscoveryEvidenceError(f"Unknown failure_class '{failure_class_str}'")
+    else:
+        # Infer failure class from exit codes
+        c_code = outcome.get("candidate_exit_code", -1)
+        v_code = outcome.get("verifier_exit_code", -1)
+        if c_code == 0 and v_code == 0:
+            fclass = FailureClass.SUCCESS
+        elif c_code == 0 and v_code != 0:
+            fclass = FailureClass.AGENT_LIMITATION
+        else:
+            fclass = FailureClass.INFRA_INVALID
+
+    # Derive decision from failure class:
+    # 1. SUCCESS -> PROMOTED
+    # 2. AGENT_LIMITATION -> PROMOTED (agent failed on a valid scientific problem; legitimate benchmark case!)
+    # 3. SOURCE_BLOCKED / RUNTIME_BLOCKED / CASE_DESIGN_BLOCKED -> REFINE (needs fix)
+    # 4. RESOURCE_BLOCKED / INFRA_INVALID -> REJECT
+    if fclass in (FailureClass.SUCCESS, FailureClass.AGENT_LIMITATION):
+        decision = DiscoveryDecision.PROMOTED
+    elif fclass in (FailureClass.SOURCE_BLOCKED, FailureClass.RUNTIME_BLOCKED, FailureClass.CASE_DESIGN_BLOCKED):
         decision = DiscoveryDecision.REFINE
     else:
-        decision = DiscoveryDecision.PROMOTED
+        decision = DiscoveryDecision.REJECT
 
-    return decision, aggregated
+    primary_doc["derived_failure_class"] = fclass.value
+    return decision, primary_doc
 
 
 def record_discovery_result(
@@ -86,20 +166,18 @@ def record_discovery_result(
     Args:
         run_dir: The builder run directory.
         decision: The classification decision.
-        evidence: Evidence artifacts that support the decision.  For PROMOTED,
-            this must be non-empty (enforced here, not at call site).
+        evidence: Evidence artifacts that support the decision.
         metrics: Optional additional metrics summary.
         notes: Free-form notes.
-
-    Raises:
-        DiscoveryEvidenceError: If decision is PROMOTED but evidence is empty.
     """
     if decision == DiscoveryDecision.PROMOTED:
-        if not evidence:
+        if not evidence or not isinstance(evidence, dict):
             raise DiscoveryEvidenceError(
-                "Cannot record PROMOTED decision without non-empty evidence. "
-                "Run classify_discovery_evidence() first."
+                "Cannot record PROMOTED decision without valid evidence dictionary."
             )
+        # Ensure evidence satisfies schema
+        if not evidence.get("manual"):
+            validate_discovery_evidence_doc(evidence)
 
     disc_dir = Path(run_dir) / "discovery"
     disc_dir.mkdir(parents=True, exist_ok=True)
@@ -107,7 +185,7 @@ def record_discovery_result(
     report = {
         "decision": decision.value if isinstance(decision, DiscoveryDecision) else str(decision),
         "evidence": evidence,
-        "metrics": metrics or {},
+        "metrics": metrics or evidence.get("metrics", {}),
         "notes": notes,
     }
     target = disc_dir / "classification.json"

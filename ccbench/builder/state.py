@@ -111,33 +111,17 @@ def derive_state(run_dir: Path) -> BuilderState:
     else:
         open_gates.append("INTAKE")
 
-    # ── 2. Check Source Lock with Hash Integrity ─────────────────────
-    source_lock = run_dir / "source" / "sources.lock.json"
-    if state == CaseLifecycleState.INTAKE_COMPLETE and source_lock.is_file():
-        try:
-            slock = json.loads(source_lock.read_text(encoding="utf-8"))
-            sources = slock.get("sources", [])
-            # Verify file hashes if sources are declared
-            all_valid = True
-            for s in sources:
-                s_path = run_dir / "source" / s["path"]
-                if not s_path.is_file():
-                    all_valid = False
-                    break
-                h = f"sha256:{hashlib.sha256(s_path.read_bytes()).hexdigest()}"
-                if h != s.get("sha256"):
-                    all_valid = False
-                    break
-            if all_valid:
-                closed_gates.append("SOURCE_LOCK")
-                state = CaseLifecycleState.SOURCE_LOCKED
-                evidence["source_lock"] = {"count": len(sources)}
-            else:
-                open_gates.append("SOURCE_LOCK")
-        except Exception:
+    # ── 2. Check Source Lock with Bidirectional Verification ─────────
+    source_dir = run_dir / "source"
+    if state == CaseLifecycleState.INTAKE_COMPLETE:
+        from ccbench.builder.source_lock import verify_sources_lock_bidirectional
+        lock_valid, lock_errors = verify_sources_lock_bidirectional(source_dir, require_non_empty=True)
+        if lock_valid:
+            closed_gates.append("SOURCE_LOCK")
+            state = CaseLifecycleState.SOURCE_LOCKED
+            evidence["source_lock"] = {"status": "LOCKED_AND_VERIFIED"}
+        else:
             open_gates.append("SOURCE_LOCK")
-    elif state == CaseLifecycleState.INTAKE_COMPLETE:
-        open_gates.append("SOURCE_LOCK")
 
     # ── 3. Check Case IR with Real Validator ─────────────────────────
     case_ir = run_dir / "design" / "case.ir.yaml"

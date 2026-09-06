@@ -169,8 +169,15 @@ PRIMITIVE_HANDLERS = {{
 
 
 def main() -> int:
+    import argparse
+    parser = argparse.ArgumentParser(description="CCBench verifier entrypoint")
+    parser.add_argument("submission_root", nargs="?", default=".", help="Path to submission root")
+    parser.add_argument("--profile", choices=["structural", "formal"], default="formal", help="Verification profile")
+    args = parser.parse_args()
+
     plan_doc = json.loads(PLAN_FILE.read_text(encoding="utf-8"))
-    submission_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
+    submission_root = Path(args.submission_root)
+    profile = args.profile
 
     results = {{}}
     all_passed = True
@@ -188,6 +195,11 @@ def main() -> int:
         params = rule.get("params", {{}})
         layer = rule.get("layer", "V1")
 
+        # Under structural profile, defer scientific benchmark layers (V4, V5, V6)
+        if profile == "structural" and layer in ("V4", "V5", "V6"):
+            results[f"{{layer}}:{{prim}}:{{target}}"] = {{"passed": True, "deferred": True}}
+            continue
+
         handler = PRIMITIVE_HANDLERS.get(prim)
         if handler is None:
             print(
@@ -203,20 +215,23 @@ def main() -> int:
             all_passed = False
             layer_results[layer] = False
 
-    # Enforce mandatory layers: every declared layer must have results.
-    layers_with_rules = set()
-    for rule in plan_doc.get("rules", []):
-        layers_with_rules.add(rule.get("layer", "V1"))
-    for layer in declared_layers:
-        if layer not in layers_with_rules:
-            print(
-                f"FATAL: declared layer '{{layer}}' has no associated rules. "
-                f"Mandatory layers must not be silently dropped.",
-                file=sys.stderr,
-            )
-            sys.exit(2)
+    # Enforce mandatory layers under formal profile
+    if profile == "formal":
+        layers_with_rules = set()
+        for rule in plan_doc.get("rules", []):
+            layers_with_rules.add(rule.get("layer", "V1"))
+        for layer in declared_layers:
+            if layer not in layers_with_rules:
+                print(
+                    f"FATAL: declared layer '{{layer}}' has no associated rules. "
+                    f"Mandatory layers must not be silently dropped.",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
 
     result_payload = {{
+        "case_id": plan_doc.get("case_id"),
+        "profile": profile,
         "passed": all_passed,
         "layers": layer_results,
         "details": results,

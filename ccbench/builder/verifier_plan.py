@@ -164,6 +164,18 @@ class VerifierPlan:
                     )
                 )
 
+        # Enforce category mandatory layers
+        from ccbench.builder.design import get_category_plugin
+        cat = case_ir.get("identity", {}).get("category", "")
+        plugin = get_category_plugin(cat)
+        if plugin:
+            category_required = plugin.derive_verifier_layers(case_ir)
+            for req in category_required:
+                if req not in selected_set:
+                    raise VerifierPlanError(
+                        f"Category '{cat}' requires layer '{req}'; cannot be omitted or dropped from verifier plan."
+                    )
+
         rules: list[VerifierRule] = []
         root = case_ir.get("submission", {}).get("root", "final")
 
@@ -193,12 +205,11 @@ class VerifierPlan:
             threshold_ref = prim.get("threshold_ref")
             params = dict(prim.get("params", {}))
 
-            # If threshold_ref is specified, resolve it; otherwise if threshold is in params, ensure consistency
-            if not threshold_ref and "threshold" in params:
-                # Find matching threshold key or register inline
-                key = f"{prim['primitive']}_threshold"
-                thresholds[key] = params["threshold"]
-                threshold_ref = key
+            if "threshold" in params:
+                raise VerifierPlanError(
+                    f"Inline 'threshold' in primitive '{prim['primitive']}' is forbidden; "
+                    "use 'threshold_ref' pointing to [verification.thresholds] as single source of truth."
+                )
 
             rules.append(
                 VerifierRule(

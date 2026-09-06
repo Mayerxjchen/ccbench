@@ -1,7 +1,12 @@
-"""Atomic case publisher from builder workspace to canonical cases/ release directory.
+"""Atomic case publish transaction from builder workspace to canonical cases/ release directory.
 
-Security invariant: publication is atomic via staging directory + os.rename().
-Partial failures never leave orphan directories in the target.
+Invariants:
+1. Target case ID MUST strictly match Case IR case_id and CaseSpec case_id.
+2. Publish is a dual-stage atomic transaction:
+   - Staging public release package (task.md, case.toml, input/, verifier/).
+   - Staging maintainer archive (source/, design/, discovery/, reports/, fixtures/).
+3. Safe replacement: if destination exists, it is preserved in backup until the transaction commits.
+4. If any error occurs, automatic rollback restores previous state and cleans up stagings.
 """
 
 from __future__ import annotations
@@ -18,7 +23,7 @@ from ccbench.paths import CASES_DIR, MAINTAINER_DIR
 
 
 class PublishError(RuntimeError):
-    """Raised when publishing a case fails."""
+    """Raised when publishing a case fails or violates invariants."""
 
 
 def publish_case(
@@ -32,23 +37,43 @@ def publish_case(
     """Atomically publish a benchmark case from a validated run directory.
 
     Strict rules:
-    1. Case run state MUST be BENCHMARK_VALID (unless force=True).
-    2. Published directory cases/<target_case_id> MUST contain ONLY the 4 canonical objects:
+    1. Case run state MUST be BENCHMARK_VALID (no force bypass allowed).
+    2. Identity binding: target_case_id == Case IR case_id == CaseSpec case_id.
+    3. Published directory cases/<target_case_id> MUST contain ONLY the 4 canonical objects:
        - task.md
        - input/
        - verifier/
        - case.toml
-    3. Maintainer-only assets (source, design, discovery, reports) are archived into
-       maintainer/cases/<target_case_id>/ and NEVER leaked into cases/.
-
-    Atomicity: All files are staged to a temporary directory first.  Only after
-    all checks pass is the staging directory renamed to the final location via
-    os.rename() (atomic on the same filesystem).  Any error triggers cleanup.
+    4. Maintainer assets are archived into maintainer/cases/<target_case_id>/ atomically.
+    5. Safe replace: old cases are preserved until new staging commits cleanly.
     """
-    run_dir = Path(run_dir)
-    target_cases_dir = cases_dir or CASES_DIR
-    target_maint_dir = maintainer_dir or MAINTAINER_DIR
+    run_dir = Path(run_dir).resolve()
+    draft_dir = run_dir / "draft"
+    target_cases_dir = Path(cases_dir or CASES_DIR).resolve()
+    target_maint_dir = Path(maintainer_dir or MAINTAINER_DIR).resolve()
 
+    # 1. Identity binding check
+    case_ir_path = run_dir / "design" / "case.ir.yaml"
+    if not case_ir_path.is_file():
+        case_ir_path = run_dir / "design" / "case.ir.json"
+    if case_ir_path.is_file():
+        try:
+            import yaml
+            raw_text = case_ir_path.read_text(encoding="utf-8")
+            ir_doc = yaml.safe_load(raw_text) if case_ir_path.suffix in (".yaml", ".yml") else json.loads(raw_text)
+            if isinstance(ir_doc, dict):
+                ir_case_id = (ir_doc.get("identity") or {}).get("case_id")
+                if ir_case_id and ir_case_id != target_case_id:
+                    raise PublishError(
+                        f"Identity binding mismatch: target_case_id '{target_case_id}' != "
+                        f"Case IR identity.case_id '{ir_case_id}'"
+                    )
+        except PublishError:
+            raise
+        except Exception as exc:
+            raise PublishError(f"Failed to read Case IR identity: {exc}") from exc
+
+    # 2. State check
     state = derive_state(run_dir)
     if state.current_state != CaseLifecycleState.BENCHMARK_VALID:
         raise PublishError(
@@ -58,77 +83,105 @@ def publish_case(
         )
 
     dest_case_dir = target_cases_dir / target_case_id
-    if dest_case_dir.exists():
-        if not force:
-            raise PublishError(f"Case destination already exists: {dest_case_dir}")
-        shutil.rmtree(dest_case_dir)
+    dest_maint_dir = target_maint_dir / "cases" / target_case_id
 
-    # ── Stage to temporary directory ─────────────────────────────────
-    staging_id = uuid.uuid4().hex[:8]
-    staging_dir = target_cases_dir / f".staging-{target_case_id}-{staging_id}"
+    if dest_case_dir.exists() and not force:
+        raise PublishError(f"Case destination already exists: {dest_case_dir}. Use force=True to safely replace.")
+
+    # ── Transaction staging ──────────────────────────────────────────
+    staging_token = uuid.uuid4().hex[:8]
+    staging_public = target_cases_dir / f".staging-cases-{target_case_id}-{staging_token}"
+    staging_maint = target_maint_dir / "cases" / f".staging-maint-{target_case_id}-{staging_token}"
+
+    backup_public = target_cases_dir / f".backup-cases-{target_case_id}-{staging_token}"
+    backup_maint = target_maint_dir / "cases" / f".backup-maint-{target_case_id}-{staging_token}"
 
     try:
-        staging_dir.mkdir(parents=True, exist_ok=True)
+        staging_public.mkdir(parents=True, exist_ok=True)
+        staging_maint.mkdir(parents=True, exist_ok=True)
 
-        draft_dir = run_dir / "draft"
         verifier_dir = run_dir / "verifier" if (run_dir / "verifier").is_dir() else draft_dir / "verifier"
         input_dir = draft_dir / "input"
 
-        # 1. Copy task.md
+        # Stage 1: Public Release Package
         src_task = draft_dir / "task.md"
         if not src_task.is_file():
             raise PublishError(f"Draft missing task.md: {src_task}")
-        shutil.copy2(src_task, staging_dir / "task.md")
+        shutil.copy2(src_task, staging_public / "task.md")
 
-        # 2. Copy case.toml
         src_toml = draft_dir / "case.toml"
         if not src_toml.is_file():
             raise PublishError(f"Draft missing case.toml: {src_toml}")
-        shutil.copy2(src_toml, staging_dir / "case.toml")
+        shutil.copy2(src_toml, staging_public / "case.toml")
 
-        # 3. Copy input/
-        dest_input = staging_dir / "input"
+        dest_input = staging_public / "input"
         if input_dir.is_dir():
             shutil.copytree(input_dir, dest_input)
         else:
             dest_input.mkdir(exist_ok=True)
 
-        # 4. Copy verifier/
-        dest_verifier = staging_dir / "verifier"
+        dest_verifier = staging_public / "verifier"
         if verifier_dir.is_dir():
             shutil.copytree(verifier_dir, dest_verifier)
         else:
             raise PublishError(f"Verifier directory missing at {verifier_dir}")
 
-        # ── Verify exactly the 4 canonical objects ───────────────────
+        # Verify exactly the 4 canonical objects in staging
         allowed_names = {"task.md", "case.toml", "input", "verifier"}
-        actual_names = {p.name for p in staging_dir.iterdir()}
+        actual_names = {p.name for p in staging_public.iterdir()}
         unexpected = actual_names - allowed_names
         if unexpected:
             raise PublishError(f"Published case contains non-canonical objects: {unexpected}")
 
-        # ── Atomic rename: staging → final ───────────────────────────
-        os.rename(str(staging_dir), str(dest_case_dir))
+        # Stage 2: Maintainer Private Archive
+        for subdir in ("source", "design", "discovery", "reports", "fixtures", "evidence"):
+            sdir = run_dir / subdir
+            if sdir.is_dir():
+                shutil.copytree(sdir, staging_maint / subdir)
 
-    except Exception:
-        # Clean up staging on ANY failure
-        if staging_dir.exists():
-            shutil.rmtree(staging_dir, ignore_errors=True)
-        raise
+        # ── Commit Phase ─────────────────────────────────────────────
+        # 1. Backup existing public case if replacing
+        if dest_case_dir.exists():
+            os.rename(str(dest_case_dir), str(backup_public))
 
-    # ── Archive maintainer assets (non-critical, after atomic publish) ─
-    maint_case_dir = target_maint_dir / "cases" / target_case_id
-    maint_case_dir.mkdir(parents=True, exist_ok=True)
+        # 2. Atomic rename of staging -> final public
+        os.rename(str(staging_public), str(dest_case_dir))
 
-    for subdir in ("source", "design", "discovery", "reports", "fixtures", "evidence"):
-        sdir = run_dir / subdir
-        if sdir.is_dir():
-            dest_sdir = maint_case_dir / subdir
-            if dest_sdir.exists():
-                shutil.rmtree(dest_sdir)
-            shutil.copytree(sdir, dest_sdir)
+        # 3. Backup existing maintainer archive if replacing
+        if dest_maint_dir.exists():
+            os.rename(str(dest_maint_dir), str(backup_maint))
 
-    # Record publish completion in run_dir
+        # 4. Atomic rename of staging -> final maintainer
+        os.rename(str(staging_maint), str(dest_maint_dir))
+
+        # 5. Remove temporary backups
+        if backup_public.exists():
+            shutil.rmtree(backup_public, ignore_errors=True)
+        if backup_maint.exists():
+            shutil.rmtree(backup_maint, ignore_errors=True)
+
+    except Exception as exc:
+        # ── Rollback Phase ───────────────────────────────────────────
+        if staging_public.exists():
+            shutil.rmtree(staging_public, ignore_errors=True)
+        if staging_maint.exists():
+            shutil.rmtree(staging_maint, ignore_errors=True)
+
+        # Restore public backup if it was moved
+        if backup_public.exists():
+            if dest_case_dir.exists():
+                shutil.rmtree(dest_case_dir, ignore_errors=True)
+            os.rename(str(backup_public), str(dest_case_dir))
+
+        # Restore maintainer backup if it was moved
+        if backup_maint.exists():
+            if dest_maint_dir.exists():
+                shutil.rmtree(dest_maint_dir, ignore_errors=True)
+            os.rename(str(backup_maint), str(dest_maint_dir))
+
+        raise PublishError(f"Publish transaction aborted and rolled back: {exc}") from exc
+
+    # ── Record completion ────────────────────────────────────────────
     pub_marker = run_dir / "reports" / "published.json"
     pub_marker.parent.mkdir(parents=True, exist_ok=True)
     pub_marker.write_text(
@@ -136,6 +189,7 @@ def publish_case(
             "published": True,
             "target_case_id": target_case_id,
             "path": str(dest_case_dir),
+            "maintainer_path": str(dest_maint_dir),
         }, indent=2),
         encoding="utf-8",
     )

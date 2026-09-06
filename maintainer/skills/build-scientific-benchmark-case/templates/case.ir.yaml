@@ -37,13 +37,14 @@ runtime:
   gpus: 0
 
 coverage:
-  scientific_domain: "materials"
-  method_family: "machine_learning_potential"
-  material_class: "alloy"
-  computation_type: "training"
+  scientific_domain: "metal_alloys"
+  method_family: "end_to_end_potential"
+  material_class: "metallic_alloy"
+  computation_type: "iterative_training"
   paradigm: "standard"
 
 verification:
+  layer_model: "ccbench-verifier/v2"
   layers:
     - "V0"
     - "V1"
@@ -51,10 +52,10 @@ verification:
     - "V4"
   primitives:
     - primitive: "mlp.energy_rmse"
-      target: "metrics.json"
+      target: "final/metrics.json"
+      threshold_ref: "energy_rmse_max"
       params:
-        metric: "rmse"
-        threshold: 0.05
+        metric: "energy_rmse"
   thresholds:
     energy_rmse_max: 0.05
     force_rmse_max: 0.15

@@ -122,3 +122,35 @@ def test_unresolved_threshold_ref_rejected():
             ],
             thresholds={"other_ref": 0.05},
         )
+
+
+def test_inline_threshold_forbidden_in_from_case_ir():
+    case_ir = {
+        "identity": {"case_id": "toy-005", "category": "mlp"},
+        "verification": {
+            "layers": ["V0", "V1", "V2", "V4"],
+            "primitives": [
+                {
+                    "primitive": "mlp.energy_rmse",
+                    "target": "final/metrics.json",
+                    "params": {"threshold": 0.05},  # Forbidden inline!
+                }
+            ],
+            "thresholds": {"t": 0.05},
+        },
+    }
+    with pytest.raises(VerifierPlanError, match="Inline 'threshold' in primitive 'mlp.energy_rmse' is forbidden"):
+        VerifierPlan.from_case_ir(case_ir)
+
+
+def test_category_mandatory_layer_omission_rejected():
+    # MLP requires V0, V1, V2, V4. If V4 is omitted from layers:
+    case_ir = {
+        "identity": {"case_id": "toy-006", "category": "mlp"},
+        "verification": {
+            "layers": ["V0", "V1"],  # Missing V2 and V4!
+            "thresholds": {"t": 0.05},
+        },
+    }
+    with pytest.raises(VerifierPlanError, match="Category 'mlp' requires layer 'V2'"):
+        VerifierPlan.from_case_ir(case_ir)

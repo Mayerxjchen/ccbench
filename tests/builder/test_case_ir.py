@@ -64,7 +64,8 @@ def valid_case_ir_doc() -> dict:
                 {
                     "primitive": "mlp.energy_rmse",
                     "target": "metrics.json",
-                    "params": {"metric": "energy_rmse", "threshold": 0.05},
+                    "threshold_ref": "energy_rmse_max",
+                    "params": {"metric": "energy_rmse"},
                 }
             ],
             "thresholds": {

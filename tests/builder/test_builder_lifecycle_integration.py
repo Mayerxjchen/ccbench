@@ -35,7 +35,15 @@ def test_full_builder_lifecycle_end_to_end(tmp_path: Path):
     assert (run_dir / "source" / "admission-report.json").is_file()
 
     state1 = derive_state(run_dir)
-    assert state1.current_state == CaseLifecycleState.SOURCE_LOCKED
+    assert state1.current_state == CaseLifecycleState.INTAKE_COMPLETE
+
+    # Add real scientific source file and lock it
+    from ccbench.builder.source_lock import build_sources_lock, SourceTier
+    (run_dir / "source" / "train.xyz").write_text("dummy-xyz-data", encoding="utf-8")
+    build_sources_lock(run_dir / "source", {"train.xyz": SourceTier.PUBLIC_SOURCE})
+
+    state1_locked = derive_state(run_dir)
+    assert state1_locked.current_state == CaseLifecycleState.SOURCE_LOCKED
 
     # ── 2. Design ────────────────────────────────────────────────────
     case_ir_file = tmp_path / "case.ir.yaml"
@@ -152,7 +160,15 @@ def test_full_builder_lifecycle_end_to_end(tmp_path: Path):
     # 5b. Evidence-based classification
     metrics_dir = tmp_path / "discovery_metrics"
     metrics_dir.mkdir()
-    (metrics_dir / "run-01.json").write_text(json.dumps({"passed": True, "energy_rmse": 0.03}), encoding="utf-8")
+    disc_doc = {
+        "run_id": "disc-001",
+        "candidate_bundle_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "case_ir_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "outcome": {"terminal_state": "COMPLETED", "candidate_exit_code": 0, "verifier_exit_code": 0},
+        "metrics": {"energy_rmse": 0.03},
+        "failure_class": "SUCCESS",
+    }
+    (metrics_dir / "run-01.json").write_text(json.dumps(disc_doc), encoding="utf-8")
 
     rc = cli_main([
         "case", "discovery",

@@ -10,8 +10,11 @@ from typing import Any
 def compile_case_ir_to_draft(
     case_ir: dict[str, Any],
     draft_dir: Path,
+    *,
+    source_dir: Path | None = None,
 ) -> dict[str, Path]:
     """Compile Case IR into task.md, case.toml, and input/ directory."""
+    import shutil
     draft_dir = Path(draft_dir)
     draft_dir.mkdir(parents=True, exist_ok=True)
     input_dir = draft_dir / "input"
@@ -22,6 +25,20 @@ def compile_case_ir_to_draft(
     # 1. Compile task.md
     cand = case_ir["candidate"]
     target = case_ir["scientific_target"]
+
+    # Materialize candidate inputs from source_dir if provided
+    if source_dir:
+        source_dir = Path(source_dir)
+        for inp in cand.get("inputs", []):
+            rel_cand_path = inp["path"].removeprefix("input/")
+            source_ref = inp.get("source_ref") or inp["path"].removeprefix("source/").removeprefix("input/")
+            src_candidate = source_dir / source_ref
+            if not src_candidate.is_file():
+                src_candidate = source_dir / Path(inp["path"]).name
+            if src_candidate.is_file():
+                dest_input = input_dir / rel_cand_path
+                dest_input.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src_candidate, dest_input)
     task_content = f"""# {case_ir['identity']['title']}
 
 ## Scientific Objective

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from ccbench.builder.source_lock import build_sources_lock, SourceTier
 from ccbench.builder.state import BuilderState, CaseLifecycleState, derive_state
 
 
@@ -35,7 +36,15 @@ def _write_valid_case_ir(path: Path):
             "computation_type": "iterative_training",
         },
         "verification": {
-            "layers": ["V0", "V1"],
+            "layers": ["V0", "V1", "V2", "V4"],
+            "primitives": [
+                {
+                    "primitive": "mlp.energy_rmse",
+                    "target": "final/metrics.json",
+                    "threshold_ref": "energy_rmse_max",
+                    "params": {"metric": "energy_rmse"},
+                }
+            ],
             "thresholds": {"energy_rmse_max": 0.05},
         },
     }
@@ -61,6 +70,13 @@ material_class = "inorganic_2d"
 computation_type = "iterative_training"
 """
     path.write_text(content, encoding="utf-8")
+
+
+def _setup_locked_source(source_dir: Path):
+    source_dir.mkdir(parents=True, exist_ok=True)
+    (source_dir / "intake.json").write_text(json.dumps({"category": "mlp", "title": "test"}), encoding="utf-8")
+    (source_dir / "train.xyz").write_text("lattice-data", encoding="utf-8")
+    build_sources_lock(source_dir, {"train.xyz": SourceTier.PUBLIC_SOURCE})
 
 
 def test_empty_workspace_is_new(tmp_path: Path):
@@ -103,10 +119,7 @@ def test_tampered_source_blocks_source_locked(tmp_path: Path):
 
 def test_source_locked_with_valid_hashes(tmp_path: Path):
     """Source lock with valid hashes advances to SOURCE_LOCKED."""
-    source_dir = tmp_path / "source"
-    source_dir.mkdir()
-    (source_dir / "intake.json").write_text(json.dumps({"category": "mlp", "title": "test"}), encoding="utf-8")
-    (source_dir / "sources.lock.json").write_text(json.dumps({"schema_version": 1, "sources": []}), encoding="utf-8")
+    _setup_locked_source(tmp_path / "source")
 
     state = derive_state(tmp_path)
     assert state.current_state == CaseLifecycleState.SOURCE_LOCKED
@@ -116,10 +129,7 @@ def test_source_locked_with_valid_hashes(tmp_path: Path):
 
 def test_malformed_case_ir_blocks_design_valid(tmp_path: Path):
     """Malformed or schema-violating Case IR stays at SOURCE_LOCKED."""
-    source_dir = tmp_path / "source"
-    source_dir.mkdir()
-    (source_dir / "intake.json").write_text(json.dumps({"category": "mlp", "title": "test"}), encoding="utf-8")
-    (source_dir / "sources.lock.json").write_text(json.dumps({"schema_version": 1, "sources": []}), encoding="utf-8")
+    _setup_locked_source(tmp_path / "source")
 
     design_dir = tmp_path / "design"
     design_dir.mkdir()
@@ -133,10 +143,7 @@ def test_malformed_case_ir_blocks_design_valid(tmp_path: Path):
 
 def test_valid_case_ir_advances_to_design_valid(tmp_path: Path):
     """Valid Case IR advances to DESIGN_VALID."""
-    source_dir = tmp_path / "source"
-    source_dir.mkdir()
-    (source_dir / "intake.json").write_text(json.dumps({"category": "mlp", "title": "test"}), encoding="utf-8")
-    (source_dir / "sources.lock.json").write_text(json.dumps({"schema_version": 1, "sources": []}), encoding="utf-8")
+    _setup_locked_source(tmp_path / "source")
 
     design_dir = tmp_path / "design"
     design_dir.mkdir()
@@ -150,10 +157,7 @@ def test_valid_case_ir_advances_to_design_valid(tmp_path: Path):
 
 def test_draft_and_runnable_derivation(tmp_path: Path):
     """Valid draft + passing smoke report advances to RUNNABLE_DRAFT."""
-    source_dir = tmp_path / "source"
-    source_dir.mkdir()
-    (source_dir / "intake.json").write_text(json.dumps({"category": "mlp", "title": "test"}), encoding="utf-8")
-    (source_dir / "sources.lock.json").write_text(json.dumps({"schema_version": 1, "sources": []}), encoding="utf-8")
+    _setup_locked_source(tmp_path / "source")
 
     design_dir = tmp_path / "design"
     design_dir.mkdir()
@@ -182,10 +186,7 @@ def test_draft_and_runnable_derivation(tmp_path: Path):
 
 def test_discovery_promoted_without_evidence_rejected(tmp_path: Path):
     """Discovery PROMOTED without non-empty evidence is rejected from advancing."""
-    source_dir = tmp_path / "source"
-    source_dir.mkdir()
-    (source_dir / "intake.json").write_text(json.dumps({"category": "mlp", "title": "test"}), encoding="utf-8")
-    (source_dir / "sources.lock.json").write_text(json.dumps({"schema_version": 1, "sources": []}), encoding="utf-8")
+    _setup_locked_source(tmp_path / "source")
 
     design_dir = tmp_path / "design"
     design_dir.mkdir()

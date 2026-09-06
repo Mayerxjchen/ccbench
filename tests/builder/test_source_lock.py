@@ -1,4 +1,4 @@
-"""Tests for source locking and transitive taint lineage propagation."""
+"""Tests for source locking, bidirectional verification, and transitive taint lineage propagation."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from ccbench.builder.source_lock import (
     build_sources_lock,
     check_gold_leakage,
     get_transitive_ancestors,
+    verify_sources_lock_bidirectional,
 )
 
 
@@ -26,6 +27,37 @@ def test_build_sources_lock_hashes_and_tiers(tmp_path: Path):
     lock = build_sources_lock(source_dir, manifest)
     assert len(lock["sources"]) == 2
     assert (source_dir / "sources.lock.json").is_file()
+
+    # Verify bidirectional check passes
+    valid, errors = verify_sources_lock_bidirectional(source_dir)
+    assert valid is True
+    assert len(errors) == 0
+
+
+def test_empty_sources_lock_rejected(tmp_path: Path):
+    """Empty sources lock must fail bidirectional verification."""
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    build_sources_lock(source_dir, {})
+
+    valid, errors = verify_sources_lock_bidirectional(source_dir, require_non_empty=True)
+    assert valid is False
+    assert any("0 sources" in e for e in errors)
+
+
+def test_untracked_source_added_after_lock_detected(tmp_path: Path):
+    """Adding an un-locked source file on disk breaks bidirectional integrity."""
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "locked.xyz").write_text("locked", encoding="utf-8")
+    build_sources_lock(source_dir, {"locked.xyz": SourceTier.PUBLIC_SOURCE})
+
+    # Add untracked source file afterwards
+    (source_dir / "untracked.xyz").write_text("sneaky", encoding="utf-8")
+
+    valid, errors = verify_sources_lock_bidirectional(source_dir)
+    assert valid is False
+    assert any("Untracked/unlocked source artifact on disk: 'untracked.xyz'" in e for e in errors)
 
 
 def test_direct_gold_leakage_detected():

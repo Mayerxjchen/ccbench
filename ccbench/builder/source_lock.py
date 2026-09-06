@@ -8,6 +8,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+METADATA_FILES = frozenset({
+    "intake.json",
+    "sources.lock.json",
+    "admission-report.json",
+    ".DS_Store",
+})
+
 
 class SourceTier(str, Enum):
     """Trust classification for source files."""
@@ -70,6 +77,67 @@ def build_sources_lock(
     return lock_doc
 
 
+def verify_sources_lock_bidirectional(
+    source_dir: Path,
+    require_non_empty: bool = True,
+) -> tuple[bool, list[str]]:
+    """Bidirectional verification between sources.lock.json and actual files on disk.
+
+    Invariants:
+    1. sources.lock.json exists and is valid JSON.
+    2. Locked sources must be non-empty if require_non_empty is True.
+    3. Lock -> Disk: Every locked file exists and has identical sha256.
+    4. Disk -> Lock: Every physical file in source/ (except metadata) must be locked.
+       Any untracked/unlocked file added after locking triggers a failure.
+    """
+    source_dir = Path(source_dir).resolve()
+    lock_file = source_dir / "sources.lock.json"
+    if not lock_file.is_file():
+        return False, ["Missing sources.lock.json"]
+
+    try:
+        lock_doc = json.loads(lock_file.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, [f"Failed to parse sources.lock.json: {exc}"]
+
+    sources = lock_doc.get("sources", [])
+    if require_non_empty and not sources:
+        return False, ["sources.lock.json contains 0 sources (non-empty source required)"]
+
+    errors: list[str] = []
+    locked_paths: set[str] = set()
+
+    # 1. Lock -> Disk check
+    for s in sources:
+        rel = s.get("path")
+        if not rel:
+            errors.append("Entry in sources.lock.json missing 'path'")
+            continue
+        locked_paths.add(rel)
+        disk_path = source_dir / rel
+        if not disk_path.is_file():
+            errors.append(f"Locked source missing on disk: {rel}")
+            continue
+        actual_sha = hash_file(disk_path)
+        expected_sha = s.get("sha256")
+        if actual_sha != expected_sha:
+            errors.append(
+                f"Source hash mismatch for '{rel}': disk={actual_sha} != lock={expected_sha}"
+            )
+
+    # 2. Disk -> Lock check (no untracked source files)
+    for p in source_dir.rglob("*"):
+        if not p.is_file():
+            continue
+        rel = p.relative_to(source_dir).as_posix()
+        if rel in METADATA_FILES or p.name.startswith("."):
+            continue
+        if rel not in locked_paths:
+            errors.append(f"Untracked/unlocked source artifact on disk: '{rel}'")
+
+    return len(errors) == 0, errors
+
+
 def get_transitive_ancestors(
     artifact: str,
     lineage: dict[str, list[str]],
@@ -95,11 +163,7 @@ def check_gold_leakage(
     source_manifest: dict[str, str],
     lineage: dict[str, list[str]] | None = None,
 ) -> list[str]:
-    """Verify that no candidate-visible artifacts are derived from GOLD_SOURCE.
-
-    Propagates taint transitively across lineage parents. If an artifact or any
-    of its transitive ancestors is classified as GOLD_SOURCE, it is flagged.
-    """
+    """Verify that no candidate-visible artifacts are derived from GOLD_SOURCE."""
     violations = []
     lineage_map = lineage or {}
 

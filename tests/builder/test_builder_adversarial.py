@@ -57,7 +57,18 @@ def test_gold_taint_blocks_runnable_gate(tmp_path: Path):
             "material_class": "inorganic_2d",
             "computation_type": "iterative_training",
         },
-        "verification": {"layers": ["V0", "V1"], "thresholds": {"t": 0.05}},
+        "verification": {
+            "layers": ["V0", "V1", "V2", "V4"],
+            "primitives": [
+                {
+                    "primitive": "mlp.energy_rmse",
+                    "target": "final/metrics.json",
+                    "threshold_ref": "t",
+                    "params": {"metric": "energy_rmse"},
+                }
+            ],
+            "thresholds": {"t": 0.05},
+        },
     }
     ir_path = tmp_path / "case.ir.yaml"
     ir_path.write_text(yaml.safe_dump(ir_doc), encoding="utf-8")
@@ -103,7 +114,18 @@ def test_empty_submission_fails_verifier_smoke(tmp_path: Path):
             "material_class": "inorganic_2d",
             "computation_type": "iterative_training",
         },
-        "verification": {"layers": ["V0", "V1"], "thresholds": {"t": 0.05}},
+        "verification": {
+            "layers": ["V0", "V1", "V2", "V4"],
+            "primitives": [
+                {
+                    "primitive": "mlp.energy_rmse",
+                    "target": "final/metrics.json",
+                    "threshold_ref": "t",
+                    "params": {"metric": "energy_rmse"},
+                }
+            ],
+            "thresholds": {"t": 0.05},
+        },
     }
     ir_path = tmp_path / "case.ir.yaml"
     ir_path.write_text(yaml.safe_dump(ir_doc), encoding="utf-8")

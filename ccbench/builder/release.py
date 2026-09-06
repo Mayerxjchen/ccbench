@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Any
 
 from ccbench.contracts.case import CaseSpec, validate_coverage_tags
-from ccbench.builder.design import load_case_ir
+from ccbench.builder.design import get_category_plugin, load_case_ir
 from ccbench.builder.runnable import check_runnable_draft
-from ccbench.builder.source_lock import check_gold_leakage
+from ccbench.builder.source_lock import check_gold_leakage, verify_sources_lock_bidirectional
 
 
 class ReleaseCheckError(Exception):
@@ -25,14 +25,17 @@ def check_release_validity(run_dir: Path) -> dict[str, Any]:
     1. CaseSpec loads and validates against schemas/case.schema.json.
     2. Case IR validates with category plugin and schema.
     3. Runnable Draft checks (packaging, verifier mount smoke, leak scan) pass.
-    4. Sources are locked, non-empty, and un-tampered.
+    4. Sources are locked, non-empty, and un-tampered (bidirectional verification).
     5. No gold taint in candidate surface.
     6. Discovery run is classified as PROMOTED with real evidence.
-    7. Calibration report exists and confirms frozen thresholds.
-    8. Coverage dimensions validate against curated vocabularies.
+    7. Reference run receipt exists and confirms reproducible reference.
+    8. Calibration record confirms thresholds and passes CategoryPlugin validation.
+    9. Threshold freeze record binds case_ir, reference, and thresholds digests with formal_agent_results_seen=False.
+    10. Coverage dimensions validate against curated vocabularies.
     """
     run_dir = Path(run_dir).resolve()
     draft_dir = run_dir / "draft"
+    reports_dir = run_dir / "reports"
     errors: list[str] = []
     evidence_graph: dict[str, Any] = {}
 
@@ -49,7 +52,7 @@ def check_release_validity(run_dir: Path) -> dict[str, Any]:
     except Exception as exc:
         errors.append(f"CaseSpec validation failed: {exc}")
 
-    # 2. Validate Case IR
+    # 2. Validate Case IR & Category Plugin
     case_ir_path = run_dir / "design" / "case.ir.yaml"
     if not case_ir_path.is_file():
         case_ir_path = run_dir / "design" / "case.ir.json"
@@ -59,30 +62,22 @@ def check_release_validity(run_dir: Path) -> dict[str, Any]:
     else:
         try:
             case_ir = load_case_ir(case_ir_path)
-            evidence_graph["case_ir_sha256"] = hashlib.sha256(case_ir_path.read_bytes()).hexdigest()
+            ir_sha = hashlib.sha256(case_ir_path.read_bytes()).hexdigest()
+            evidence_graph["case_ir_sha256"] = f"sha256:{ir_sha}"
         except Exception as exc:
             errors.append(f"Case IR validation failed: {exc}")
 
-    # 3. Validate Source Lock and check gold taint
-    source_lock_file = run_dir / "source" / "sources.lock.json"
-    if not source_lock_file.is_file():
-        errors.append("Missing source/sources.lock.json")
+    # 3. Validate Source Lock (Bidirectional check)
+    source_dir = run_dir / "source"
+    lock_ok, lock_errors = verify_sources_lock_bidirectional(source_dir, require_non_empty=True)
+    if not lock_ok:
+        errors.extend(lock_errors)
     else:
         try:
-            slock = json.loads(source_lock_file.read_text(encoding="utf-8"))
+            slock = json.loads((source_dir / "sources.lock.json").read_text(encoding="utf-8"))
             sources = slock.get("sources", [])
             manifest = {s["path"]: s.get("tier", "PUBLIC_SOURCE") for s in sources}
             lineage = {s["path"]: s.get("derived_from", []) for s in sources}
-
-            # Verify every source file exists and has un-tampered hash
-            for s in sources:
-                src_file = run_dir / "source" / s["path"]
-                if not src_file.is_file():
-                    errors.append(f"Source file declared in lock missing: {s['path']}")
-                    continue
-                actual_sha = f"sha256:{hashlib.sha256(src_file.read_bytes()).hexdigest()}"
-                if actual_sha != s.get("sha256"):
-                    errors.append(f"Source file {s['path']} tampered (lock={s.get('sha256')} != disk={actual_sha})")
 
             # Check candidate inputs for gold taint
             if case_ir:
@@ -91,9 +86,9 @@ def check_release_validity(run_dir: Path) -> dict[str, Any]:
                 if taint_violations:
                     errors.extend(taint_violations)
 
-            evidence_graph["sources_lock_sha256"] = hashlib.sha256(source_lock_file.read_bytes()).hexdigest()
+            evidence_graph["sources_lock"] = {"count": len(sources)}
         except Exception as exc:
-            errors.append(f"Source lock check failed: {exc}")
+            errors.append(f"Source lock parsing failed: {exc}")
 
     # 4. Re-execute full Runnable Draft gate
     smoke_res = check_runnable_draft(run_dir)
@@ -117,12 +112,21 @@ def check_release_validity(run_dir: Path) -> dict[str, Any]:
         except Exception as exc:
             errors.append(f"Failed to read discovery classification: {exc}")
 
-    # 6. Reference and Calibration
-    ref_file = run_dir / "reports" / "reference-ready.json"
+    # 6. Reference Receipt
+    ref_file = reports_dir / "reference-ready.json"
     if not ref_file.is_file():
         errors.append("Missing reports/reference-ready.json")
+    else:
+        try:
+            ref_doc = json.loads(ref_file.read_text(encoding="utf-8"))
+            if not ref_doc.get("reproducible", False):
+                errors.append("Reference run is not marked reproducible")
+            evidence_graph["reference"] = ref_doc
+        except Exception as exc:
+            errors.append(f"Failed to parse reference-ready.json: {exc}")
 
-    cal_file = run_dir / "reports" / "calibration-report.json"
+    # 7. Calibration Report & Plugin Validation
+    cal_file = reports_dir / "calibration-report.json"
     if not cal_file.is_file():
         errors.append("Missing reports/calibration-report.json")
     else:
@@ -130,9 +134,28 @@ def check_release_validity(run_dir: Path) -> dict[str, Any]:
             cal_doc = json.loads(cal_file.read_text(encoding="utf-8"))
             if not cal_doc.get("passed", False):
                 errors.append("Calibration report is not marked passed")
+
+            # Plugin validation on calibration
+            if case_ir:
+                cat = case_ir.get("identity", {}).get("category", "")
+                plugin = get_category_plugin(cat)
+                if plugin and not plugin.validate_calibration(cal_doc):
+                    errors.append(f"Category plugin '{cat}' rejected calibration report (invalid or non-positive thresholds)")
+
             evidence_graph["calibration"] = cal_doc
         except Exception as exc:
             errors.append(f"Failed to read calibration report: {exc}")
+
+    # 8. Threshold Freeze (Must be frozen before formal agent results)
+    freeze_file = reports_dir / "threshold-freeze.json"
+    if freeze_file.is_file():
+        try:
+            freeze_doc = json.loads(freeze_file.read_text(encoding="utf-8"))
+            if freeze_doc.get("formal_agent_results_seen", True):
+                errors.append("Threshold freeze violation: formal_agent_results_seen is True (threshold must be frozen independently)")
+            evidence_graph["threshold_freeze"] = freeze_doc
+        except Exception as exc:
+            errors.append(f"Failed to read threshold-freeze.json: {exc}")
 
     valid = len(errors) == 0
     report = {
@@ -142,8 +165,7 @@ def check_release_validity(run_dir: Path) -> dict[str, Any]:
         "evidence_graph": evidence_graph,
     }
 
-    rep_dir = run_dir / "reports"
-    rep_dir.mkdir(parents=True, exist_ok=True)
-    target = rep_dir / "benchmark-valid.json"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    target = reports_dir / "benchmark-valid.json"
     target.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report

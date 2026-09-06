@@ -128,11 +128,11 @@ def check_runnable_draft(run_dir: Path) -> dict[str, Any]:
         verify_script = verifier_dir / "verify.py"
         run_cmd = [sys.executable, str(verify_script)] if verify_script.is_file() else ["bash", str(verifier_dir / "test.sh")]
 
-        # 6a. Empty submission: MUST FAIL
+        # 6a. Negative fixture 1: Empty submission MUST FAIL
         empty_sub = tmp / "empty_submission"
         empty_sub.mkdir()
         proc_empty = subprocess.run(
-            run_cmd + [str(empty_sub)],
+            run_cmd + [str(empty_sub), "--profile", "structural"],
             cwd=tmp,
             capture_output=True,
             text=True,
@@ -142,7 +142,23 @@ def check_runnable_draft(run_dir: Path) -> dict[str, Any]:
             return _record_smoke_report(run_dir, False, errors, checks)
         checks["smoke_empty_submission_fails"] = True
 
-        # 6b. Minimal structural submission: MUST PASS V0/V1
+        # 6b. Negative fixture 2: Missing required artifact MUST FAIL
+        corrupted_sub = tmp / "corrupted_submission"
+        sub_root_c = corrupted_sub / spec.submission_root
+        sub_root_c.mkdir(parents=True, exist_ok=True)
+        # Empty root folder with no required artifacts
+        proc_corrupt = subprocess.run(
+            run_cmd + [str(corrupted_sub), "--profile", "structural"],
+            cwd=tmp,
+            capture_output=True,
+            text=True,
+        )
+        if proc_corrupt.returncode == 0:
+            errors.append("Verifier mount smoke failed: missing required artifacts passed (must fail closed)")
+            return _record_smoke_report(run_dir, False, errors, checks)
+        checks["smoke_negative_missing_artifact_fails"] = True
+
+        # 6c. Structural positive submission: MUST PASS V0/V1 under structural profile
         valid_sub = tmp / "valid_submission"
         sub_root = valid_sub / spec.submission_root
         sub_root.mkdir(parents=True, exist_ok=True)
@@ -155,38 +171,53 @@ def check_runnable_draft(run_dir: Path) -> dict[str, Any]:
                 for art in sub_contract.get("artifacts", []):
                     art_path = sub_root / art["path"]
                     art_path.parent.mkdir(parents=True, exist_ok=True)
-                    if art.get("kind") == "metrics" or art["path"].endswith(".json"):
-                        # Provide valid threshold metrics
-                        art_path.write_text(json.dumps({"energy_rmse": 0.01, "force_rmse": 0.01, "rmse": 0.01}), encoding="utf-8")
+                    if art["path"].endswith(".json"):
+                        art_path.write_text("{}", encoding="utf-8")
                     else:
-                        art_path.write_bytes(b"dummy-artifact-content\n")
+                        art_path.write_bytes(b"dummy-structural-artifact\n")
             except Exception:
                 pass
 
+        # Clear any old result.json before execution
+        old_res = tmp / "verifier_result.json"
+        if old_res.is_file():
+            old_res.unlink()
+
         proc_valid = subprocess.run(
-            run_cmd + [str(valid_sub)],
+            run_cmd + [str(valid_sub), "--profile", "structural"],
             cwd=tmp,
             capture_output=True,
             text=True,
         )
         if proc_valid.returncode != 0:
-            errors.append(f"Verifier mount smoke failed on valid structural submission (exit {proc_valid.returncode}): {proc_valid.stderr.strip()}")
+            errors.append(
+                f"Verifier mount smoke failed on valid structural submission (exit {proc_valid.returncode}): "
+                f"{proc_valid.stderr.strip()}"
+            )
             return _record_smoke_report(run_dir, False, errors, checks)
 
-        # 6c. Verify verifier_result.json was generated and valid
+        # 6d. Verify verifier_result.json existence and schema (FAIL-CLOSED)
         result_json_path = tmp / "verifier_result.json"
-        if not result_json_path.is_file() and (tmp / "result.json").is_file():
-            result_json_path = tmp / "result.json"
-        if result_json_path.is_file():
-            try:
-                res_doc = json.loads(result_json_path.read_text(encoding="utf-8"))
-                if not res_doc.get("passed", False):
-                    errors.append(f"Verifier result declared not passed on valid submission: {res_doc}")
-                    return _record_smoke_report(run_dir, False, errors, checks)
-                checks["verifier_result_valid"] = True
-            except Exception as exc:
-                errors.append(f"Failed to parse verifier_result.json: {exc}")
+        if not result_json_path.is_file():
+            errors.append("Verifier exited 0 but failed to produce verifier_result.json (hard fail)")
+            return _record_smoke_report(run_dir, False, errors, checks)
+
+        try:
+            res_doc = json.loads(result_json_path.read_text(encoding="utf-8"))
+            if not isinstance(res_doc, dict):
+                errors.append("verifier_result.json is not a valid JSON object")
                 return _record_smoke_report(run_dir, False, errors, checks)
+            if not res_doc.get("passed", False):
+                errors.append(f"Verifier result declared not passed on valid submission: {res_doc}")
+                return _record_smoke_report(run_dir, False, errors, checks)
+            layers = res_doc.get("layers", {})
+            if not layers.get("V0", False) or not layers.get("V1", False):
+                errors.append(f"Mandatory structural layers V0/V1 did not pass in verifier_result: {layers}")
+                return _record_smoke_report(run_dir, False, errors, checks)
+            checks["verifier_result_valid"] = True
+        except Exception as exc:
+            errors.append(f"Failed to parse verifier_result.json: {exc}")
+            return _record_smoke_report(run_dir, False, errors, checks)
 
     passed = len(errors) == 0
     return _record_smoke_report(run_dir, passed, errors, checks)

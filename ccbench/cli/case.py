@@ -146,9 +146,9 @@ def handle_case_cmd(args: argparse.Namespace) -> int:
             ir_file = run_dir / "design" / "case.ir.json"
         ir = load_case_ir(ir_file)
 
-        # 1. Compile draft files
+        # 1. Compile draft files and materialize candidate inputs from source
         draft_dir = run_dir / "draft"
-        artifacts = compile_case_ir_to_draft(ir, draft_dir)
+        artifacts = compile_case_ir_to_draft(ir, draft_dir, source_dir=run_dir / "source")
 
         # 2. Derive verifier plan and compile verifier
         verifier_plan = VerifierPlan.from_case_ir(ir)
