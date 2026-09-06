@@ -16,12 +16,14 @@ interpreter state, not benchmark identity.
 
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 
 import pytest
 
 import dftworld_bench.experiments.release_builder as builder
+import scripts.ablation.build_release as build_release
 
 ROOT = Path(__file__).resolve().parents[2]
 RELEASE_FILE = ROOT / "releases" / "ablation-ready-v0.json"
@@ -191,5 +193,37 @@ def test_validate_source_commit_accepts_valid_40char_sha() -> None:
     source_commit = release["source_commit"]
     # Existing source_commit must be accepted without error
     builder.validate_source_commit(source_commit, ROOT)
+
+
+@pytest.mark.parametrize(
+    "field,tampered_val",
+    [
+        ("release_digest", "sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+        ("note", "Tampered note text"),
+        ("agent_model", "tampered/agent-model-identity"),
+    ],
+)
+def test_build_release_verify_rejects_tampered_metadata(
+    field: str, tampered_val: str, tmp_path: Path
+) -> None:
+    """Tampering with release_digest, note, or agent_model must cause build_release --verify to FAIL."""
+    manifest = copy.deepcopy(_release())
+    manifest[field] = tampered_val
+    tampered_file = tmp_path / "tampered-release.json"
+    tampered_file.write_text(json.dumps(manifest), encoding="utf-8")
+
+    # CLI --verify must return 1
+    ret = build_release.main(["--release", str(tampered_file), "--verify"])
+    assert ret == 1, f"Expected verify to return 1 on tampered {field}"
+
+
+def test_build_release_rejects_disk_without_verify() -> None:
+    """Using --disk without --verify (e.g. --disk --apply or --disk alone) must be strictly rejected."""
+    ret_apply = build_release.main(["--disk", "--apply"])
+    assert ret_apply == 1
+
+    ret_dry = build_release.main(["--disk"])
+    assert ret_dry == 1
+
 
 

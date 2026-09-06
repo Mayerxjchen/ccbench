@@ -22,6 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from dftworld_bench.experiments.ablation import release_errors
 from dftworld_bench.experiments.release_builder import (  # noqa: E402
     regenerate_release,
     release_mismatches,
@@ -36,12 +37,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--commit", type=str, default=None,
                     help="40-character git commit SHA to verify against or regenerate from (defaults to release source_commit)")
     ap.add_argument("--disk", action="store_true",
-                    help="verify or regenerate directly against host disk instead of git tree")
+                    help="verify directly against host disk (diagnostic --verify only)")
     ap.add_argument("--apply", action="store_true",
                     help="rewrite the release file with regenerated digests")
     ap.add_argument("--verify", action="store_true",
                     help="exit nonzero if any digest does not recompute from target tree")
     args = ap.parse_args(argv)
+
+    if args.disk and not args.verify:
+        print("ERROR: --disk is only permitted for diagnostic --verify.", file=sys.stderr)
+        return 1
 
     release = json.loads(args.release.read_text(encoding="utf-8"))
     target_commit = "DISK" if args.disk else (args.commit or release.get("source_commit"))
@@ -53,11 +58,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {err}", file=sys.stderr)
         return 1
 
-    mismatches = release_mismatches(release, ROOT, commit=target_commit)
-
-    target_label = "host disk" if target_commit == "DISK" else f"git commit {target_commit}"
-
     if args.verify:
+        structural_errors = release_errors(release)
+        if structural_errors:
+            for err in structural_errors:
+                print(f"  [release_error] {err}", file=sys.stderr)
+            print(f"{len(structural_errors)} structural/integrity error(s) in release manifest", file=sys.stderr)
+            return 1
+
+        mismatches = release_mismatches(release, ROOT, commit=target_commit)
+        target_label = "host disk" if target_commit == "DISK" else f"git commit {target_commit}"
         if mismatches:
             for component, label, want, have in mismatches:
                 print(f"  [{component}] {label}: release={have} target={want}")
@@ -65,6 +75,9 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(f"all digests recompute from {target_label}")
         return 0
+
+    mismatches = release_mismatches(release, ROOT, commit=target_commit)
+    target_label = "host disk" if target_commit == "DISK" else f"git commit {target_commit}"
 
     regenerated = regenerate_release(release, ROOT, commit=target_commit)
     new_errors = release_mismatches(regenerated, ROOT, commit=target_commit)
