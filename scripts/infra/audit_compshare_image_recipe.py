@@ -112,17 +112,36 @@ def audit_image_recipe(
             f"requirements_lock sha256 mismatch: recorded {req_meta.get('sha256')} != actual {actual_req_sha}"
         )
     
-    # Check that requirements lines carry hashes
+    # Check that every pinned requirement in requirements.lock carries sha256 hashes
     req_text = req_path.read_text(encoding="utf-8")
-    for line in req_text.splitlines():
-        line = line.strip()
+    current_pkg: str | None = None
+    pkg_hashes: list[str] = []
+    packages_seen: dict[str, list[str]] = {}
+
+    for raw_line in req_text.splitlines():
+        line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
-        if "==" in line and not line.endswith("\\"):
-            # Check next line or inline for hash
-            pass
-    if "--hash=sha256:" not in req_text:
-        raise RecipeAuditError("requirements_lock contains unhashed packages (missing --hash=sha256:)")
+        if "==" in line:
+            if current_pkg is not None:
+                packages_seen[current_pkg] = list(pkg_hashes)
+            current_pkg = line.split("==")[0].strip()
+            pkg_hashes = []
+        hashes = re.findall(r"--hash=sha256:([0-9a-fA-F]{64})", line)
+        if hashes:
+            pkg_hashes.extend(hashes)
+
+    if current_pkg is not None:
+        packages_seen[current_pkg] = list(pkg_hashes)
+
+    if not packages_seen:
+        raise RecipeAuditError("requirements_lock contains no pinned packages")
+
+    unhashed_pkgs = [pkg for pkg, h_list in packages_seen.items() if not h_list]
+    if unhashed_pkgs:
+        raise RecipeAuditError(
+            f"requirements_lock contains unhashed packages (missing --hash=sha256:): {unhashed_pkgs}"
+        )
 
     # 6. Assets verification
     assets = doc.get("assets", [])

@@ -37,11 +37,7 @@ from dftworld_bench.hpc.trust_store import QualificationTrustStore
 
 DEFAULT_SITE_PROFILE_PATH = Path.home() / ".config" / "mlffbench" / "sites" / "compshare-gpu-production.json"
 PRIVATE_KEY_PATH = Path.home() / ".config" / "mlffbench" / "keys" / "compshare-site-v1.priv"
-RUNTIME_LOCK_REL = (
-    "runtimes/locks/jax-runtime.lock.json"
-    if (_ROOT / "runtimes" / "locks" / "jax-runtime.lock.json").is_file()
-    else "reference/runtime/jax-runtime.lock.json"
-)
+RUNTIME_LOCK_REL = "runtimes/locks/jax-runtime.lock.json"
 EXTERNAL_RUNTIME_DIR = Path.home() / ".config" / "mlffbench" / "runtime"
 DEFAULT_EVIDENCE_ROOT = Path.home() / ".config" / "mlffbench" / "evidence" / "gate_c" / "20260904T174600Z"
 

@@ -212,7 +212,7 @@ def ensure_image(image: str, expected_digest: str | None = None) -> str:
     if inspect_res.returncode != 0:
         raise RuntimeError(
             f"本地没有镜像 {image!r}。Docker image inspect failed: {inspect_res.stderr.strip()}。\n"
-            f"先构建：cd {Path(__file__).resolve().parents[1] / 'base-env-build'} && bash build.sh"
+            f"先构建：cd {Path(__file__).resolve().parents[1] / 'runtimes' / 'recipes'} && bash build.sh"
         )
     actual_digest = inspect_res.stdout.strip()
     if expected_digest:

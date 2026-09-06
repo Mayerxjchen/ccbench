@@ -1171,7 +1171,7 @@ def _ai2kit_script(ai2kit_lock: dict, probe: str) -> str:
     version_lit = json.dumps(version_raw)
     cfg_lit = json.dumps(
         {
-            "benchmark_id": "034-ai2kit-water64-end-to-end-potential",
+            "benchmark_id": "004-ai2kit-water64-end-to-end-potential",
             "software": ai2kit_lock.get("software") or {},
         },
         sort_keys=True,
@@ -2163,8 +2163,7 @@ def main() -> int:
                              "evidence/hpc-dispatcher/qualification/ "
                              "(receipt + per-run evidence land here)")
     parser.add_argument("--runtime-lock",
-                        default="033-matclaw-cips-domain-wall-search/reference/"
-                                "compute-runtime.lock.json")
+                        default="runtimes/locks/matclaw-cips-runtime.lock.json")
     parser.add_argument("--phase",
                         choices=("preflight", "canary", "cancel", "cp2k",
                                  "ai2kit", "verify", "resume"),
@@ -2184,7 +2183,7 @@ def main() -> int:
                              "--phase cp2k): runtime.{sif_path_remote,"
                              "sif_sha256} + cp2k.{binary,version}")
     parser.add_argument("--ai2kit-lock",
-                        default="reference/runtime/ai2kit-runtime.lock.json",
+                        default="runtimes/locks/ai2kit-runtime.lock.json",
                         help="runtime lock for the ai2kit stack (required by "
                              "--phase ai2kit): runtime.{sif_path_remote,"
                              "sif_sha256} + software.ai2_kit")

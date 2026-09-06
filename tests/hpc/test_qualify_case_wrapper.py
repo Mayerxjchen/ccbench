@@ -39,10 +39,6 @@ def test_case_dir_for_shorthand_and_full_id():
     assert full.name == "004-ai2kit-water64-end-to-end-potential"
     shorthand = qc.case_dir_for("004")
     assert shorthand == full
-    legacy_full = qc.case_dir_for("034-ai2kit-water64-end-to-end-potential")
-    assert legacy_full == full
-    legacy_short = qc.case_dir_for("034")
-    assert legacy_short == full
     with pytest.raises(qc.QualifyPlanError):
         qc.case_dir_for("no-such-case-999")
 
@@ -192,9 +188,9 @@ def test_state_roundtrip_and_canary_stamp_detection(tmp_path: Path):
 
 
 class TestQualifyCliDryRun:
-    def test_dry_run_034_plans_canary_ai2kit_cp2k(self, tmp_path: Path,
+    def test_dry_run_004_plans_canary_ai2kit_cp2k(self, tmp_path: Path,
                                                    capsys):
-        rc = qc.main(["--case", "034", "--site", "site-zz-" + tmp_path.name,
+        rc = qc.main(["--case", "004", "--site", "site-zz-" + tmp_path.name,
                       "--profile", "scripts/hpc/cluster_profile.toml",
                       "--dry-run", "--verbose"])
         out = capsys.readouterr().out
@@ -202,9 +198,9 @@ class TestQualifyCliDryRun:
         assert "['canary', 'ai2kit', 'cp2k']" in out
         assert "runtime.ai2kit" in out
 
-    def test_dry_run_031_plans_canary_without_authorization(self, tmp_path: Path,
+    def test_dry_run_001_plans_canary_without_authorization(self, tmp_path: Path,
                                                             capsys):
-        rc = qc.main(["--case", "031", "--site", "site-zz-" + tmp_path.name,
+        rc = qc.main(["--case", "001", "--site", "site-zz-" + tmp_path.name,
                       "--profile", "scripts/hpc/cluster_profile.toml",
                       "--dry-run"])
         out = capsys.readouterr().out
@@ -217,7 +213,7 @@ class TestQualifyCliDryRun:
         import scripts.qualification.qualify_case as qc_mod
 
         monkeypatch.setattr(qc_mod, "subprocess", _FakeSubprocess_runs())
-        rc = qc.main(["--case", "034", "--site", "site-zz-" + tmp_path.name,
+        rc = qc.main(["--case", "004", "--site", "site-zz-" + tmp_path.name,
                       "--profile", "scripts/hpc/cluster_profile.toml"])
         assert rc == 2  # authorized gate fires before any phase runs
 

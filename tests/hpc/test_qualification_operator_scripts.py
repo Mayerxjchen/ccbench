@@ -25,7 +25,7 @@ def test_operator_scripts_are_relocatable_and_do_not_cancel_user_jobs():
 
 def test_runtime_lock_paths_are_canonical():
     text = RUNNER.read_text()
-    assert "reference/runtime/cp2k-runtime.lock.json" in text
+    assert "runtimes/locks/cp2k-runtime.lock.json" in text
 
 
 def test_containment_probe_uses_profile_root_and_all_adversarial_sentinels():
@@ -116,8 +116,6 @@ def _load_ai2kit_lock() -> dict:
     import json as _json
 
     p = ROOT / "runtimes/locks/ai2kit-runtime.lock.json"
-    if not p.is_file():
-        p = ROOT / "reference/runtime/ai2kit-runtime.lock.json"
     return _json.loads(p.read_text(encoding="utf-8"))
 
 
@@ -128,7 +126,7 @@ def test_ai2kit_phase_is_wired_and_authorization_gated():
     text = QUALIFIER.read_text()
     assert '"ai2kit"' in text  # --phase choice
     assert "--ai2kit-lock" in text
-    assert "reference/runtime/ai2kit-runtime.lock.json" in text
+    assert "runtimes/locks/ai2kit-runtime.lock.json" in text
     assert 'args.phase == "ai2kit"' in text
     # the empty-digest guard stays BEFORE the receipt/preflight/network step
     body = text[text.index("def ai2kit_phase"):]

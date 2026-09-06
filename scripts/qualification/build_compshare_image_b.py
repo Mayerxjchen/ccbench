@@ -23,8 +23,8 @@ if str(_ROOT) not in sys.path:
 from scripts.infra.audit_compshare_image_recipe import audit_image_recipe
 from scripts.infra.materialize_compshare_runtime_lock import materialize_runtime_lock
 
-DEFAULT_RECIPE = _ROOT / "base-env-build" / "jax-gpu" / "recipe.lock.json"
-DEFAULT_RUNTIME_LOCK = _ROOT / "reference" / "runtime" / "jax-runtime.lock.json"
+DEFAULT_RECIPE = _ROOT / "runtimes" / "recipes" / "jax-gpu" / "recipe.lock.json"
+DEFAULT_RUNTIME_LOCK = _ROOT / "runtimes" / "locks" / "jax-runtime.lock.json"
 BASE_IMAGE_ID = "compshareImage-17bl978pmsju"  # Ubuntu-nvidia 22.04
 TARGET_IMAGE_NAME = "mlff-jax-gpu-v1"
 

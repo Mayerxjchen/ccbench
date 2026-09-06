@@ -219,7 +219,7 @@ except Exception as e:
 def run_canary_3_skills_topology(evidence: dict[str, Any]) -> None:
     """Canary 3: Skills installation topology into workspace /.claude/skills/."""
     print("--- [Canary 3/5] Skills Topology & Container Dynamic Mount ---")
-    skills_dir = ROOT / "base-env-build" / "skills"
+    skills_dir = ROOT / "runtimes" / "recipes" / "skills"
     hpc_submit = skills_dir / "hpc-submit" / "SKILL.md"
     assert hpc_submit.is_file(), f"Missing hpc-submit skill: {hpc_submit}"
 
@@ -543,7 +543,7 @@ def run_canary_5_run_lock_and_schema(evidence: dict[str, Any]) -> None:
     """Canary 5: Deterministic formal run lock generation and verification."""
     print("--- [Canary 5/5] Deterministic RunLock & Complete Schema Compliance ---")
     registry = ProfileRegistry.load(ROOT / "infra" / "config")
-    case = CaseSpec.load(ROOT / "031-matclaw-cips-active-distillation")
+    case = CaseSpec.load(ROOT / "cases" / "001-matclaw-cips-active-distillation")
     experiment = construct_experiment({"agent": "claude-code-formal", "api": "default"}, registry)
 
     c1_digest = evidence["canary_1_image_isolation"]["image_digest"]
@@ -583,7 +583,7 @@ async def _run_real_claude_code_async(api_key: str, api_endpoint: str) -> dict[s
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_p = Path(tmpdir)
         threads_root = tmp_p / "threads"
-        case_dir = ROOT / "031-matclaw-cips-active-distillation"
+        case_dir = ROOT / "cases" / "001-matclaw-cips-active-distillation"
         adapter = ClaudeCodeAdapter(
             model="claude-3-7-sonnet-20250219",
             threads_root=threads_root,

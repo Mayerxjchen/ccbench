@@ -308,7 +308,7 @@ class HpcSiteProfile:
                 "runtime_store": paths["remote_root"],
                 "apptainer_bin": paths["apptainer"],
                 "runtime_lock_dir": str(
-                    config.get("runtime", {}).get("lock_dir", "reference/runtime")
+                    config.get("runtime", {}).get("lock_dir", "runtimes/locks")
                 ),
             },
             "qualification_policy": {

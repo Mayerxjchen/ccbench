@@ -188,8 +188,8 @@ def test_candidate_agent_gate_promoted_admitted():
             "tool_policy_digest": "sha256:" + hashlib.sha256(verifier.policy_file.read_bytes()).hexdigest(),
             "dockerfile_digest": "sha256:" + hashlib.sha256(verifier.dockerfile.read_bytes()).hexdigest(),
             "probe_digest": "sha256:" + hashlib.sha256(verifier.probe_file.read_bytes()).hexdigest(),
-            "agent_profile_digest": "sha256:" + hashlib.sha256(verifier.agent_profiles.read_bytes()).hexdigest() if verifier.agent_profiles.is_file() else "missing",
-            "skill_bundle_digest": "sha256:" + hashlib.sha256(verifier.skill_image_lock.read_bytes()).hexdigest(),
+            "candidate_runtime_lock_digest": "sha256:" + hashlib.sha256(verifier.lock_file.read_bytes()).hexdigest() if verifier.lock_file.is_file() else "missing",
+            "skill_bundle_digest": "sha256:" + hashlib.sha256(verifier.skill_image_lock.read_bytes()).hexdigest() if verifier.skill_image_lock.is_file() else "missing",
         }
 
         receipt_path = Path(tmpdir) / "receipt.json"

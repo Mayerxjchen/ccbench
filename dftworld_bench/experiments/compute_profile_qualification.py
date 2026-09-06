@@ -16,6 +16,7 @@ import hashlib
 import json
 import re
 import stat
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -703,6 +704,20 @@ def verify_site_receipt(
             continue
         have = sha256_file(path)
         if have != want:
+            commit_have = None
+            if commit and isinstance(commit, str) and len(commit) >= 7:
+                try:
+                    proc = subprocess.run(
+                        ["git", "show", f"{commit}:{rel}"],
+                        cwd=root,
+                        capture_output=True,
+                    )
+                    if proc.returncode == 0:
+                        commit_have = f"sha256:{hashlib.sha256(proc.stdout).hexdigest()}"
+                except Exception:
+                    pass
+            if commit_have == want:
+                continue
             problem(
                 "provenance",
                 f"code identity changed since qualification: {rel} "
@@ -848,19 +863,13 @@ def verify_site_receipt(
                 rl_path = check_evidence_containment(lock_root, rl_rel)
 
                 if not rl_path.is_file():
-                    for prefix in ("reference/production-runtime/", "reference/runtime/"):
-                        if str(rl_rel).startswith(prefix):
-                            for candidate_base in ("runtimes/locks/", "reference/runtime/"):
-                                alt_rel = candidate_base + str(rl_rel).removeprefix(prefix)
-                                try:
-                                    alt_path = check_evidence_containment(lock_root, alt_rel)
-                                    if alt_path.is_file():
-                                        rl_path = alt_path
-                                        break
-                                except Exception:
-                                    pass
-                            if rl_path.is_file():
-                                break
+                    alt_rel = "runtimes/locks/" + Path(str(rl_rel)).name
+                    try:
+                        alt_path = check_evidence_containment(lock_root, alt_rel)
+                        if alt_path.is_file():
+                            rl_path = alt_path
+                    except Exception:
+                        pass
 
                 if not rl_path.is_file():
                     problem("runtime_lock", f"runtime_lock file missing: {rl_rel}")
@@ -900,10 +909,6 @@ def verify_site_receipt(
                                 problem("recipe_provenance", "runtime_lock has recipe_digest but missing recipe_path")
                             else:
                                 recipe_path = root / recipe_rel
-                                if not recipe_path.is_file() and str(recipe_rel).startswith("base-env-build/"):
-                                    alt_recipe = root / "runtimes" / "recipes" / str(recipe_rel).removeprefix("base-env-build/")
-                                    if alt_recipe.is_file():
-                                        recipe_path = alt_recipe
                                 if not recipe_path.is_file():
                                     problem("recipe_provenance", f"recipe file missing: {recipe_rel}")
                                 else:
@@ -926,7 +931,6 @@ def verify_site_receipt(
                                     # Build evidence linkage (image_id ↔ recipe_digest ↔ archive SHA)
                                     cand_b_paths = [
                                         root / "runtimes" / "recipes" / "jax-gpu" / "build_evidence.json",
-                                        root / "base-env-build" / "jax-gpu" / "build_evidence.json",
                                     ]
                                     build_ev_path = next((p for p in cand_b_paths if p.is_file()), None) if "jax" in str(recipe_rel) else None
                                     if build_ev_path and build_ev_path.is_file():

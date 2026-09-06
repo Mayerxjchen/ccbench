@@ -39,16 +39,8 @@ DEFAULT_SITE_PROFILE_PATH = Path.home() / ".config" / "mlffbench" / "sites" / "c
 PRIVATE_KEY_PATH = Path.home() / ".config" / "mlffbench" / "keys" / "compshare-site-v1.priv"
 TRUST_STORE_PATH = Path.home() / ".config" / "mlffbench" / "trust" / "qualification-trust.toml"
 IMAGE_ID = "compshareImage-1uw6sd44931i"  # mlff-deepmd-gpu-v1 (built in Gate B)
-RUNTIME_LOCK_REL = (
-    "runtimes/locks/deepmd-runtime.lock.json"
-    if (_ROOT / "runtimes" / "locks" / "deepmd-runtime.lock.json").is_file()
-    else "reference/runtime/deepmd-runtime.lock.json"
-)
-MATCLAW_RUNTIME_LOCK_REL = (
-    "runtimes/locks/matclaw-cips-runtime.lock.json"
-    if (_ROOT / "runtimes" / "locks" / "matclaw-cips-runtime.lock.json").is_file()
-    else "reference/runtime/matclaw-cips-runtime.lock.json"
-)
+RUNTIME_LOCK_REL = "runtimes/locks/deepmd-runtime.lock.json"
+MATCLAW_RUNTIME_LOCK_REL = "runtimes/locks/matclaw-cips-runtime.lock.json"
 EXTERNAL_RUNTIME_DIR = Path.home() / ".config" / "mlffbench" / "runtime"
 
 

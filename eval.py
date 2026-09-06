@@ -34,11 +34,11 @@ input.json 继续写 ``/app/...``。
 
     cp .env.example .env   # 填入 API key
     pytest                 # 跑测试
-    python eval.py 031-matclaw-cips-active-distillation   # 跑单任务
+    python eval.py 001-matclaw-cips-active-distillation   # 跑单任务
 
 CLI flags::
 
-    --task NAME            只跑一个任务（如 031-matclaw-cips-active-distillation）
+    --task NAME            只跑一个任务（如 001-matclaw-cips-active-distillation）
     --tasks-dir DIR        任务目录（默认 benchmark/）
     --model PROVIDER/MODEL 模型标识（默认 deepseek/deepseek-chat）
     --max-turns N          每个任务最多对话轮数（默认由 Run Config 决定：Formal 为 1024，Smoke 为 64）
@@ -135,23 +135,13 @@ SKILLS_IN_IMAGE = "/opt/electromind/skills"
 
 FROM_RE = re.compile(r"^\s*FROM\s+(\S+)", re.MULTILINE)
 
-# 案例短名与历史编号（031-034, 042）平滑兼容映射表
+# 案例短名规范映射表
 CASE_ALIASES: dict[str, str] = {
     "001": "001-matclaw-cips-active-distillation",
-    "031": "001-matclaw-cips-active-distillation",
-    "031-matclaw-cips-active-distillation": "001-matclaw-cips-active-distillation",
     "002": "002-matclaw-cips-curie-temperature",
-    "032": "002-matclaw-cips-curie-temperature",
-    "032-matclaw-cips-curie-temperature": "002-matclaw-cips-curie-temperature",
     "003": "003-matclaw-cips-domain-wall-search",
-    "033": "003-matclaw-cips-domain-wall-search",
-    "033-matclaw-cips-domain-wall-search": "003-matclaw-cips-domain-wall-search",
     "004": "004-ai2kit-water64-end-to-end-potential",
-    "034": "004-ai2kit-water64-end-to-end-potential",
-    "034-ai2kit-water64-end-to-end-potential": "004-ai2kit-water64-end-to-end-potential",
     "005": "005-go-water-dpmp",
-    "042": "005-go-water-dpmp",
-    "042-go-water-dpmp": "005-go-water-dpmp",
 }
 
 
@@ -1259,7 +1249,7 @@ def _verify_candidate_agent_gate(
         "tool_policy_digest": verifier.policy_file,
         "dockerfile_digest": verifier.dockerfile,
         "probe_digest": verifier.probe_file,
-        "agent_profile_digest": verifier.agent_profiles,
+        "candidate_runtime_lock_digest": verifier.lock_file,
         "skill_bundle_digest": verifier.skill_image_lock,
     }
     missing_anchors = [k for k in expected_anchors_map if k not in receipt_anchors]
@@ -1313,7 +1303,7 @@ def profile_for_task(task: TaskSpec) -> Profile:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="mlffbench eval with Claude Code Agent")
-    parser.add_argument("tasks", nargs="*", help="任务名，如 031-matclaw-cips-active-distillation")
+    parser.add_argument("tasks", nargs="*", help="任务名，如 001-matclaw-cips-active-distillation")
     parser.add_argument("--all", action="store_true", help="跑全部任务")
     parser.add_argument(
         "--model",

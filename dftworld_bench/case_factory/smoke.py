@@ -590,7 +590,7 @@ def run_smoke(
         # eval.load_task names the task after the case DIRECTORY, and the
         # harness collects from ``threads_root/<task_name>/workspace``; the
         # candidate writes into that same tree, so the harness case_id must be
-        # the directory name, not the full "benchmark/042-..." identity.
+        # the directory name, not the full "benchmark/005-..." identity.
         spec_h = HarnessSpec(
             case_id=case_dir.name,
             case_dir=case_dir,

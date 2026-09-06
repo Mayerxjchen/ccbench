@@ -7,7 +7,7 @@ authorized submit phases — cancel probe / runtime gates (each merges into
 the receipt) — and never reruns a capability that already derives PASS.
 
     python scripts/qualification/qualify_case.py \
-        --case 034-ai2kit-water64-end-to-end-potential \
+        --case 004-ai2kit-water64-end-to-end-potential \
         --site site-v1 --profile /path/to/cluster_profile.toml
 
 First version is a THIN wrapper (spec stage 3): every submission /
@@ -57,10 +57,10 @@ CAPABILITY_PHASE = {
 }
 
 DEFAULT_RUNTIME_LOCK = (
-    "033-matclaw-cips-domain-wall-search/reference/compute-runtime.lock.json"
+    "runtimes/locks/matclaw-cips-runtime.lock.json"
 )
-DEFAULT_AI2KIT_LOCK = "reference/runtime/ai2kit-runtime.lock.json"
-DEFAULT_CP2K_LOCK = "reference/runtime/cp2k-runtime.lock.json"
+DEFAULT_AI2KIT_LOCK = "runtimes/locks/ai2kit-runtime.lock.json"
+DEFAULT_CP2K_LOCK = "runtimes/locks/cp2k-runtime.lock.json"
 
 # First character must be alphanumeric: '.' and '..' are path components,
 # not site names (same hardening as the driver — both entry points reject).
@@ -85,16 +85,6 @@ def case_dir_for(name: str) -> Path:
         "003": "003-matclaw-cips-domain-wall-search",
         "004": "004-ai2kit-water64-end-to-end-potential",
         "005": "005-go-water-dpmp",
-        "031": "001-matclaw-cips-active-distillation",
-        "032": "002-matclaw-cips-curie-temperature",
-        "033": "003-matclaw-cips-domain-wall-search",
-        "034": "004-ai2kit-water64-end-to-end-potential",
-        "042": "005-go-water-dpmp",
-        "031-matclaw-cips-active-distillation": "001-matclaw-cips-active-distillation",
-        "032-matclaw-cips-curie-temperature": "002-matclaw-cips-curie-temperature",
-        "033-matclaw-cips-domain-wall-search": "003-matclaw-cips-domain-wall-search",
-        "034-ai2kit-water64-end-to-end-potential": "004-ai2kit-water64-end-to-end-potential",
-        "042-go-water-dpmp": "005-go-water-dpmp",
     }
     target_name = alias_map.get(name, name)
     cases_dir = ROOT / "cases"

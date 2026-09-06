@@ -241,7 +241,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--out",
-        default="reference/runtime/matclaw-cips-runtime.lock.json",
+        default="runtimes/locks/matclaw-cips-runtime.lock.json",
         help="Output runtime lock JSON path",
     )
     parser.add_argument(

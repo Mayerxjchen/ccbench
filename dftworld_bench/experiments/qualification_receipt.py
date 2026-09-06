@@ -122,7 +122,7 @@ _PROBE_KEYS = (
 # Its exact bytes are hashed into the receipt (input.sha256) and must equal
 # the staged artifact bytes, so this text is a frozen part of the contract
 # once a receipt exists.  Smoke-validated in the locked CP2K runtime SIF
-# (cp2k.psmp, 2025.2 — the ai2kit-stack base image; reference/runtime).
+# (cp2k.psmp, 2025.2 — the ai2kit-stack base image; runtimes/locks).
 CP2K_INPUT_NAME = "cp2k-energy.inp"
 CP2K_OUTPUT_NAME = "cp2k.out"
 CP2K_INPUT_TEXT = """\

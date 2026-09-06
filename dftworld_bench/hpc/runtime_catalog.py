@@ -229,10 +229,9 @@ class TrustedRuntimeCatalog:
                         )
                     def _norm_lock_path(p_str: str) -> str:
                         p_norm = Path(str(p_str)).as_posix()
-                        for prefix in ("reference/production-runtime/", "reference/runtime/"):
-                            if p_norm.startswith(prefix):
-                                return "runtimes/locks/" + p_norm.removeprefix(prefix)
-                        return p_norm
+                        if p_norm.startswith("runtimes/locks/"):
+                            return p_norm
+                        return "runtimes/locks/" + Path(p_norm).name
 
                     if _norm_lock_path(receipt_lock["path"]) != _norm_lock_path(expected_lock_rel):
                         raise ValueError(

@@ -186,12 +186,8 @@ def test_materialize_rejects_corrupted_recipe(tmp_path: Path):
 
 
 def test_reference_runtime_matclaw_cips_in_repo():
-    """Verify the repo's reference/runtime/matclaw-cips-runtime.lock.json is valid."""
-    lock_path = (
-        ROOT / "runtimes" / "locks" / "matclaw-cips-runtime.lock.json"
-        if (ROOT / "runtimes" / "locks" / "matclaw-cips-runtime.lock.json").is_file()
-        else ROOT / "reference" / "runtime" / "matclaw-cips-runtime.lock.json"
-    )
+    """Verify the repo's runtimes/locks/matclaw-cips-runtime.lock.json is valid."""
+    lock_path = ROOT / "runtimes" / "locks" / "matclaw-cips-runtime.lock.json"
     assert lock_path.is_file()
 
     existing_lock = json.loads(lock_path.read_text(encoding="utf-8"))

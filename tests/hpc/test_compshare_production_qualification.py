@@ -38,7 +38,7 @@ def test_production_runtime_locks_exist_and_conform():
     jax = json.loads((PROD_LOCK_DIR / "jax-runtime.lock.json").read_text(encoding="utf-8"))
     assert jax["artifact"]["image_id"] == "compshareImage-1uyaneriamfz"
     assert jax["qualification"]["status"] == "BUILT_NOT_QUALIFIED"
-    assert jax["qualification"]["receipt_digest"] == ""
+    assert jax["qualification"]["receipt_digest"] is None
 
 
 @pytest.mark.skipif(

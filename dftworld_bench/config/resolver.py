@@ -162,14 +162,13 @@ def resolve_formal(
         )
 
     # Resolve real tool-policy
-    policy_file = Path(__file__).resolve().parents[2] / "base-env-build" / "agent-claude-code" / "tool-policy.json"
-    if policy_file.is_file():
-        try:
-            tool_surface_payload = json.loads(policy_file.read_text(encoding="utf-8"))
-        except Exception:
-            tool_surface_payload = {"engine": "claude-code", "tools": ["Bash", "FileRead", "FileEdit"]}
-    else:
-        tool_surface_payload = {"engine": "claude-code", "tools": ["Bash", "FileRead", "FileEdit"]}
+    policy_file = Path(__file__).resolve().parents[2] / "runtimes" / "recipes" / "agent-claude-code" / "tool-policy.json"
+    if not policy_file.is_file():
+        raise RuntimeError(
+            f"Candidate tool policy missing at {policy_file}. "
+            "Formal run lock requires locked tool policy."
+        )
+    tool_surface_payload = json.loads(policy_file.read_text(encoding="utf-8"))
     tool_surface_digest = digest_bytes(canonical_json(tool_surface_payload))
 
     # Build the complete lock payload — every digest is real.

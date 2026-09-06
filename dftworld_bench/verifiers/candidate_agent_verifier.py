@@ -76,25 +76,20 @@ class CandidateAgentVerifier:
         "tool_policy_digest",
         "dockerfile_digest",
         "probe_digest",
-        "agent_profile_digest",
+        "candidate_runtime_lock_digest",
         "skill_bundle_digest",
     )
 
     def __init__(self, workspace_root: Path | None = None) -> None:
         self.workspace_root = workspace_root or Path(__file__).resolve().parents[2]
         agent_dir = self.workspace_root / "runtimes" / "recipes" / "agent-claude-code"
-        if not agent_dir.is_dir():
-            agent_dir = self.workspace_root / "base-env-build" / "agent-claude-code"
         self.lock_file = agent_dir / "claude-code.lock.json"
         self.policy_file = agent_dir / "tool-policy.json"
         self.dockerfile = agent_dir / "Dockerfile"
         self.probe_file = agent_dir / "probes" / "qualify_agent.sh"
-        self.agent_profiles = self.workspace_root / "infra" / "config" / "agent-profiles.toml"
-        skill_lock = self.workspace_root / "runtimes" / "recipes" / "skills" / ".skill-image.json"
+        skill_lock = self.workspace_root / "runtimes" / "locks" / ".skill-image.json"
         if not skill_lock.is_file():
-            skill_lock = self.workspace_root / "runtimes" / "locks" / ".skill-image.json"
-        if not skill_lock.is_file():
-            skill_lock = self.workspace_root / "base-env-build" / ".skill-image.json"
+            skill_lock = self.workspace_root / "runtimes" / "recipes" / "skills" / ".skill-image.json"
         self.skill_image_lock = skill_lock
 
     def compute_code_identity(self) -> Dict[str, str]:
@@ -283,7 +278,7 @@ class CandidateAgentVerifier:
         tool_policy_digest = "sha256:" + hashlib.sha256(self.policy_file.read_bytes()).hexdigest() if self.policy_file.is_file() else "missing"
         dockerfile_digest = "sha256:" + hashlib.sha256(self.dockerfile.read_bytes()).hexdigest() if self.dockerfile.is_file() else "missing"
         probe_digest = "sha256:" + hashlib.sha256(self.probe_file.read_bytes()).hexdigest() if self.probe_file.is_file() else "missing"
-        agent_profile_digest = "sha256:" + hashlib.sha256(self.agent_profiles.read_bytes()).hexdigest() if self.agent_profiles.is_file() else "missing"
+        candidate_runtime_lock_digest = "sha256:" + hashlib.sha256(self.lock_file.read_bytes()).hexdigest() if self.lock_file.is_file() else "missing"
         skill_bundle_digest = "sha256:" + hashlib.sha256(self.skill_image_lock.read_bytes()).hexdigest() if self.skill_image_lock.is_file() else "missing"
 
         receipt_payload: Dict[str, Any] = {
@@ -304,7 +299,7 @@ class CandidateAgentVerifier:
                 "tool_policy_digest": tool_policy_digest,
                 "dockerfile_digest": dockerfile_digest,
                 "probe_digest": probe_digest,
-                "agent_profile_digest": agent_profile_digest,
+                "candidate_runtime_lock_digest": candidate_runtime_lock_digest,
                 "skill_bundle_digest": skill_bundle_digest,
             },
             "evidence": evidence,

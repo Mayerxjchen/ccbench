@@ -48,10 +48,8 @@ def build_slurm_stack(
     raw_lock_dir = site.runtime_policy.get("runtime_lock_dir", "runtimes/locks")
     lock_dir = Path(raw_lock_dir)
     if not lock_dir.is_dir():
-        for fallback in ("runtimes/locks", "reference/runtime"):
-            if Path(fallback).is_dir():
-                lock_dir = Path(fallback)
-                break
+        if Path("runtimes/locks").is_dir():
+            lock_dir = Path("runtimes/locks")
     if not lock_dir.is_dir():
         raise RuntimeError(
             f"configured runtime lock directory does not exist: {lock_dir}"
@@ -160,10 +158,8 @@ def build_hybrid_stack(
 
     compute_profile = ComputeProfile.from_file(Path(compute_profile_path))
     if not Path(runtime_lock_dir).is_dir():
-        for fb in ("runtimes/locks", "reference/runtime"):
-            if Path(fb).is_dir():
-                runtime_lock_dir = fb
-                break
+        if Path("runtimes/locks").is_dir():
+            runtime_lock_dir = "runtimes/locks"
     site_profiles: dict[str, HpcSiteProfile] = {}
     drivers: dict[str, Any] = {}
 

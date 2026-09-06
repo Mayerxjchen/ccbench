@@ -46,5 +46,5 @@ nodes = "1"
 [runtime]
 expected_node_arch = "x86_64"
 sync_strategy = "sync_back"  # rsync back to the site root on settle
-lock_dir = "reference/runtime"  # optional; locked <capability>-runtime.lock.json
+lock_dir = "runtimes/locks"  # optional; locked <capability>-runtime.lock.json
                                 # files the trusted runtime resolver reads

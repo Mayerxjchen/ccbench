@@ -11,5 +11,5 @@ fi
 
 exec "$qualification_python" \
   "$qualification_repo_root/scripts/infra/qualify_hpc_dispatcher.py" \
-  --cp2k-lock "$qualification_repo_root/reference/runtime/cp2k-runtime.lock.json" \
+  --cp2k-lock "$qualification_repo_root/runtimes/locks/cp2k-runtime.lock.json" \
   "$@"

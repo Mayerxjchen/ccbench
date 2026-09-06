@@ -11,6 +11,7 @@ import json
 import re
 from pathlib import Path
 import pytest
+import jsonschema
 
 from scripts.infra.audit_compshare_image_recipe import audit_image_recipe, canonical_recipe_digest
 
@@ -18,34 +19,83 @@ ROOT = Path(__file__).resolve().parents[2]
 RUNTIMES_DIR = ROOT / "runtimes"
 
 
-def test_zero_base_env_build_references():
-    """Ensure no file under runtimes/, scripts/infra/, schemas/, or eval.py references base-env-build/."""
+def test_active_tree_has_no_legacy_runtime_paths():
+    """Ensure active code trees contain zero legacy runtime paths or legacy case identifiers.
+    
+    Active surface: dftworld_bench/, scripts/infra/, scripts/qualification/, scripts/hpc/,
+                   runtimes/recipes/, schemas/, eval.py.
+    Exempted historical archives: runtimes/history/, docs/history/, evidence/, maintainer/, releases/.
+    """
     scan_targets = [
-        RUNTIMES_DIR,
+        ROOT / "dftworld_bench",
         ROOT / "scripts" / "infra",
+        ROOT / "scripts" / "qualification",
+        ROOT / "scripts" / "hpc",
+        RUNTIMES_DIR / "recipes",
         ROOT / "schemas",
         ROOT / "eval.py",
     ]
-    offending_files = []
+    banned_patterns = [
+        "base-env-build",
+        "reference/runtime",
+        "/031-", "/032-", "/033-", "/034-", "/042-",
+        "031-matclaw", "032-matclaw", "033-matclaw", "034-ai2kit", "042-go",
+    ]
+    offending_files: list[str] = []
+
     for target in scan_targets:
         if target.is_file():
             paths = [target]
         else:
             paths = list(target.rglob("*"))
         for path in paths:
-            if not path.is_file() or path.suffix in {".pyc", ".gz", ".pb", ".cif", ".zip"}:
+            if not path.is_file() or path.suffix in {
+                ".pyc", ".gz", ".pb", ".cif", ".zip", ".pt", ".safetensors"
+            }:
+                continue
+            # Skip historical archives if traversed
+            parts = path.relative_to(ROOT).parts
+            if any(p in ("history", "maintainer", "releases", "evidence") for p in parts):
                 continue
             try:
                 text = path.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 continue
-            if "base-env-build" in text:
-                offending_files.append(str(path.relative_to(ROOT)))
+            for pattern in banned_patterns:
+                if pattern in text:
+                    offending_files.append(f"{path.relative_to(ROOT)} (contains '{pattern}')")
 
     assert not offending_files, (
-        f"Found dangling base-env-build reference in {len(offending_files)} file(s): "
-        + ", ".join(offending_files)
+        f"Found legacy references in active tree ({len(offending_files)} occurrence(s)):\n"
+        + "\n".join(offending_files)
     )
+
+
+def test_all_runtime_locks_validate_against_schema():
+    """Every runtime lock in runtimes/locks/ must strictly validate against compshare-runtime-lock.schema.json."""
+    schema_path = ROOT / "schemas" / "compshare-runtime-lock.schema.json"
+    assert schema_path.is_file(), f"Missing schema file: {schema_path}"
+    schema_doc = json.loads(schema_path.read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema_doc)
+
+    locks_dir = RUNTIMES_DIR / "locks"
+    lock_files = list(locks_dir.glob("*-runtime.lock.json"))
+    assert len(lock_files) >= 3, f"Expected at least 3 runtime locks, found {len(lock_files)}"
+
+    for lock_file in lock_files:
+        doc = json.loads(lock_file.read_text(encoding="utf-8"))
+        errors = list(validator.iter_errors(doc))
+        assert not errors, f"Schema validation failed for {lock_file.name}: {[e.message for e in errors]}"
+
+        # Qualification schema invariants
+        qual = doc.get("qualification", {})
+        if qual.get("status") == "BUILT_NOT_QUALIFIED" and not qual.get("receipt_digest"):
+            assert qual.get("receipt_digest") is None, (
+                f"{lock_file.name}: unsealed receipt_digest must be JSON null, got {qual.get('receipt_digest')!r}"
+            )
+            assert qual.get("receipt_path") is None, (
+                f"{lock_file.name}: unsealed receipt_path must be JSON null, got {qual.get('receipt_path')!r}"
+            )
 
 
 def test_recipe_locks_pass_strict_audit():
@@ -92,18 +142,8 @@ def test_runtime_locks_match_recipe_digests_and_preserve_provenance():
             recipe_doc = json.loads(recipe_file.read_text(encoding="utf-8"))
             computed_digest = canonical_recipe_digest(recipe_doc)
 
-            if recipe_doc.get("image_status") == "UNBUILT":
-                # For unbuilt recipes (e.g. jax-gpu awaiting cloud rebuild),
-                # lock must maintain honest BUILT_NOT_QUALIFIED status and match build_evidence.json
-                assert doc.get("qualification", {}).get("status") == "BUILT_NOT_QUALIFIED"
-                build_ev_file = recipe_file.parent / "build_evidence.json"
-                if build_ev_file.is_file():
-                    ev = json.loads(build_ev_file.read_text(encoding="utf-8"))
-                    assert ev.get("recipe_digest") == lock_recipe_digest, (
-                        f"{lock_file.name}: lock recipe_digest {lock_recipe_digest} "
-                        f"does not match build_evidence.json {ev.get('recipe_digest')}"
-                    )
-            else:
-                assert computed_digest == lock_recipe_digest, (
-                    f"{lock_file.name}: lock recipe_digest {lock_recipe_digest} != canonical {computed_digest}"
-                )
+            # All active locks must compute to exactly their declared recipe_digest
+            assert computed_digest == lock_recipe_digest, (
+                f"{lock_file.name}: lock recipe_digest {lock_recipe_digest} != canonical {computed_digest}"
+            )
+

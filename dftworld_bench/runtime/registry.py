@@ -101,7 +101,7 @@ def satisfies(version: str, constraint: str) -> bool:
 
 
 def default_profiles() -> tuple[RuntimeProfile, ...]:
-    """The in-repo runtime store, grounded in the base-env-build images.
+    """The in-repo runtime store, grounded in the runtimes/recipes images.
 
     Digests are filled by qualification (scripts/infra/qualify_runtimes.py)
     and locked afterwards; until then the identity is the immutable image tag.

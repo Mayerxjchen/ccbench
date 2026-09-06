@@ -166,7 +166,7 @@ def qualify_containment(
     probe("personal HOME unreadable", lambda: reader("/home/svc/.ssh/id_rsa"), expect_failure=True)
     probe(
         "old solution unreadable",
-        lambda: reader("/public/home/<site-user>/dftworld2-runs/031-solution"),
+        lambda: reader("/public/home/<site-user>/dftworld2-runs/001-solution"),
         expect_failure=True,
     )
     probe("other runs unreadable", lambda: reader(f"{rendered.run_dir}-other/x"), expect_failure=True)

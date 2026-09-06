@@ -186,9 +186,11 @@ done < <(expand "${TARGETS[@]}")
 
 if [ ${#STEPS[@]} -eq 0 ]; then
     for arg in "${TARGETS[@]}"; do
-        if [[ "$arg" == *"004"* ]] || [[ "$arg" == "jax-gpu" ]]; then
-            exit 0
-        fi
+        case "$arg" in
+            004|004-ai2kit-water64-end-to-end-potential|jax-gpu)
+                exit 0
+                ;;
+        esac
     done
     echo "没有可构建的步骤" >&2
     exit 1

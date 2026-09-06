@@ -23,11 +23,11 @@ if str(_ROOT) not in sys.path:
 from scripts.infra.audit_compshare_image_recipe import audit_image_recipe
 from scripts.infra.materialize_compshare_runtime_lock import materialize_runtime_lock
 
-DEFAULT_RECIPE = _ROOT / "base-env-build" / "matclaw-cips-gpu" / "recipe.lock.json"
-DEFAULT_RUNTIME_LOCK = _ROOT / "reference" / "runtime" / "matclaw-cips-runtime.lock.json"
+DEFAULT_RECIPE = _ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "recipe.lock.json"
+DEFAULT_RUNTIME_LOCK = _ROOT / "runtimes" / "locks" / "matclaw-cips-runtime.lock.json"
 BASE_IMAGE_ID = "compshareImage-17bl978pmsju"  # Cuda12.1_Py3.10 (Ubuntu 22.04, CUDA 12.1)
 TARGET_IMAGE_NAME = "mlff-deepmd-gpu-v1"
-DEEPMD_RUNTIME_LOCK = _ROOT / "reference" / "runtime" / "deepmd-runtime.lock.json"
+DEEPMD_RUNTIME_LOCK = _ROOT / "runtimes" / "locks" / "deepmd-runtime.lock.json"
 
 
 class ImageBuildError(RuntimeError):

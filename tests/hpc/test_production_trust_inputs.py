@@ -39,7 +39,7 @@ def _cluster_with_runtime_lock(tmp_path: Path) -> tuple[Path, Path]:
     config = tmp_path / "cluster.toml"
     config.write_text(
         template.read_text(encoding="utf-8").replace(
-            'lock_dir = "reference/runtime"',
+            'lock_dir = "runtimes/locks"',
             f'lock_dir = "{lock_dir}"',
         ),
         encoding="utf-8",

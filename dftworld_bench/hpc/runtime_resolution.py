@@ -3,7 +3,7 @@
 Per the Architecture Freeze (docs/architecture/ARCHITECTURE-FREEZE-2026-09-03.md
 §3), an Agent's runtime field names a **capability** (``cp2k``, ``ai2kit``,
 ``deepmd-jax``, ``matclaw-cips``, ...), never a SIF path or digest. The digest
-is infra truth: it lives in a runtime lock file (``reference/runtime/*.lock.json``
+is infra truth: it lives in a runtime lock file (``runtimes/locks/*.lock.json``
 in production; site-captured copies elsewhere) and is resolved server-side at
 the gateway into a :class:`ResolvedRuntime`. Digests then appear only in
 resolved specs, Slurm evidence, and RunRecords — never in Agent-authored text.
@@ -644,9 +644,8 @@ class RuntimeResolver:
 
 
 def default_resolver(lock_dir: Path | None = None) -> RuntimeResolver:
-    """Return resolver initialized from runtimes/locks (or legacy reference/runtime) directory."""
+    """Return resolver initialized from runtimes/locks directory."""
     if lock_dir is None:
         root = Path(__file__).resolve().parents[2]
-        runtimes_lock = root / "runtimes" / "locks"
-        lock_dir = runtimes_lock if runtimes_lock.is_dir() else (root / "reference" / "runtime")
+        lock_dir = root / "runtimes" / "locks"
     return RuntimeResolver.from_lock_dir(lock_dir)

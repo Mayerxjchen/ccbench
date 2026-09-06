@@ -47,7 +47,7 @@ ccbench/
 
 ## 快速上手 (Quick Start)
 
-所有步骤保证从 fresh clone 状态起 100% 直接可执行。
+代码库的离线验证套件、语法与合同测试在 fresh clone 状态下即可 100% 离线直接执行；针对各科学案例的真实 HPC 计算调度与生产现场评测，则需要由操作员配置并提供经过资格化验证的计算运行时（Operator-Provided Runtime）。
 
 ### 第 1 步：安装环境
 
@@ -85,6 +85,9 @@ CCBENCH_BASE_URL=https://api.deepseek.com
 ```
 
 ### 第 4 步：运行基准案例
+
+> [!NOTE]
+> 评测案例的离线合同测试与冒烟套件可直接在本地环境执行；如需调度真实的远程 HPC 算力或云端 GPU 执行生产计算，请挂载对应的操作员运行时（Operator-Provided Runtime）与 Site Profile。
 
 你可以通过统一的 `ccbench` 命令或标准 `eval.py` 执行评测：
 
