@@ -61,6 +61,7 @@ ALLOWED_ROOT_FILES = {
     ".python-version",
     "conftest.py",
     "eval.py",
+    "LICENSE",
     "portfolio-report.json",
     "pyproject.toml",
     "README.md",

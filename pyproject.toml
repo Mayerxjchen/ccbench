@@ -20,8 +20,6 @@ dev = [
 
 [project.scripts]
 ccbench = "ccbench.cli:main"
-mlffbench = "ccbench.cli:main"
-dftworld-config = "ccbench.config.cli:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]

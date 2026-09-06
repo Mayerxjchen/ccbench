@@ -1,4 +1,4 @@
-"""``ccbench`` — the thin unified user entry (aliases: ``mlffbench``).
+"""``ccbench`` — the thin unified user entry.
 
 Five verbs, and no logic: each one locates an existing module and forwards.
 This CLI must never reimplement resolution, submission, qualification, or

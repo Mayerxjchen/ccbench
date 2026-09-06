@@ -86,11 +86,19 @@ _TERMINAL_PHASE = {
     "INFRA_INVALID": "INVALID_INFRA",
 }
 
-from ccbench.config.legacy_env import get_env_int
+def _get_env_int(name: str, default: int) -> int:
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    try:
+        return int(val)
+    except ValueError:
+        return default
 
-VERIFY_MAX_FILES = get_env_int("CCBENCH_VERIFY_MAX_FILES", 50000)
-VERIFY_MAX_SINGLE_BYTES = get_env_int("CCBENCH_VERIFY_MAX_SINGLE_BYTES", 2 * 1024**3)
-VERIFY_MAX_TOTAL_BYTES = get_env_int("CCBENCH_VERIFY_MAX_TOTAL_BYTES", 20 * 1024**3)
+
+VERIFY_MAX_FILES = _get_env_int("CCBENCH_VERIFY_MAX_FILES", 50000)
+VERIFY_MAX_SINGLE_BYTES = _get_env_int("CCBENCH_VERIFY_MAX_SINGLE_BYTES", 2 * 1024**3)
+VERIFY_MAX_TOTAL_BYTES = _get_env_int("CCBENCH_VERIFY_MAX_TOTAL_BYTES", 20 * 1024**3)
 
 
 class RunMode(str, Enum):
