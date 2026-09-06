@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -397,6 +398,23 @@ def execute_build(
             force=True,
         )
         print(f"[DONE] Gate B complete. Production runtime lock updated to BUILT_NOT_QUALIFIED.")
+
+        # Record structured build evidence
+        build_evidence_doc = {
+            "image_name": TARGET_IMAGE_NAME,
+            "image_id": created_image_id,
+            "jax_md_commit": "a41c7d19f6468f4e5263c32c12c9ed6cba26ebff",
+            "archive_sha256": "b50c7318305db3deab3f033190210239dd275d73b0c0f06e02cd8a51463dd638",
+            "recipe_digest": recipe_doc.get("recipe_digest", ""),
+            "built_at": datetime.now(timezone.utc).isoformat(),
+        }
+        build_ev_path = recipe_path.parent / "build_evidence.json"
+        build_ev_path.write_text(json.dumps(build_evidence_doc, indent=2) + "\n", encoding="utf-8")
+        print(f"Recorded build evidence to {build_ev_path}")
+
+        ext_b_dir = Path.home() / ".config" / "mlffbench" / "evidence" / "gate_b"
+        ext_b_dir.mkdir(parents=True, exist_ok=True)
+        (ext_b_dir / "build_record_jax.json").write_text(json.dumps(build_evidence_doc, indent=2) + "\n", encoding="utf-8")
 
     return {
         "status": "BUILT_SUCCESS",

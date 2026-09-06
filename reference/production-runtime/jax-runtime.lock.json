@@ -6,7 +6,7 @@
   "provider": "compshare",
   "artifact": {
     "kind": "compshare_image",
-    "image_id": "compshareImage-1uwv0ijzwej6",
+    "image_id": "compshareImage-1uyaneriamfz",
     "image_source": "custom"
   },
   "provenance": {
@@ -22,7 +22,7 @@
   "qualification": {
     "status": "BUILT_NOT_QUALIFIED",
     "receipt_path": "jax/receipt.json",
-    "receipt_digest": "sha256:de23ec3c5e3b4db7083c3ff14acbc7c7b57a0c02ffc0c09b3a5bafcf708a625a",
+    "receipt_digest": "sha256:f20dc1742d9be8cd599256ef84293202821901c146913e1cc4502ed7c35d11d9",
     "site_profile_id": "compshare-gpu-production"
   },
   "env": {

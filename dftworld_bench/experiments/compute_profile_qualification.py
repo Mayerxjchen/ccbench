@@ -867,6 +867,80 @@ def verify_site_receipt(
                                 "runtime_lock",
                                 f"runtime_lock file image_id mismatch: file has {doc_img!r}, receipt has {runtime_lock.get('image_id')!r}",
                             )
+
+                        # Recipe provenance verification
+                        provenance = lock_doc.get("provenance") or {}
+                        lock_recipe_digest = provenance.get("recipe_digest")
+                        recipe_rel = provenance.get("recipe_path")
+                        receipt_rd = runtime_lock.get("recipe_digest")
+
+                        if lock_recipe_digest:
+                            if not recipe_rel:
+                                problem("recipe_provenance", "runtime_lock has recipe_digest but missing recipe_path")
+                            else:
+                                recipe_path = root / recipe_rel
+                                if not recipe_path.is_file():
+                                    problem("recipe_provenance", f"recipe file missing: {recipe_rel}")
+                                else:
+                                    from scripts.infra.audit_compshare_image_recipe import canonical_recipe_digest
+                                    recipe_doc = json.loads(recipe_path.read_text(encoding="utf-8"))
+                                    canonical_rd = canonical_recipe_digest(recipe_doc)
+                                    if canonical_rd != lock_recipe_digest:
+                                        problem(
+                                            "recipe_provenance",
+                                            f"recipe_digest mismatch: lock claims {lock_recipe_digest} != canonical {canonical_rd}",
+                                        )
+                                    if receipt_rd and receipt_rd != lock_recipe_digest:
+                                        problem(
+                                            "recipe_provenance",
+                                            f"receipt recipe_digest mismatch: receipt has {receipt_rd} != lock {lock_recipe_digest}",
+                                        )
+
+                                    # Build evidence linkage
+                                    build_ev_path = root / "base-env-build" / "jax-gpu" / "build_evidence.json" if "jax" in recipe_rel else None
+                                    if build_ev_path and build_ev_path.is_file():
+                                        try:
+                                            build_ev = json.loads(build_ev_path.read_text(encoding="utf-8"))
+                                            if build_ev.get("recipe_digest") == lock_recipe_digest:
+                                                expected_img = build_ev.get("image_id")
+                                                if expected_img and doc_img != expected_img:
+                                                    problem(
+                                                        "build_lineage",
+                                                        f"Image ID {doc_img} does not match build record image_id {expected_img} for recipe {lock_recipe_digest}",
+                                                    )
+                                        except Exception as b_exc:
+                                            problem("build_lineage", f"build_evidence unreadable: {b_exc}")
+
+                                    # Superseded image protection
+                                    if doc_img == "compshareImage-1uwv0ijzwej6" and lock_recipe_digest == "sha256:766bacfeb5f1c306181302d8b3c5cb1b6f4f192bee2e4cdfb1427a9d95c7118f":
+                                        problem(
+                                            "build_lineage",
+                                            "Image compshareImage-1uwv0ijzwej6 is a superseded image built from legacy recipe and cannot qualify new recipe",
+                                        )
+
+                                    # In-container asset SHA probe verification
+                                    recipe_assets = recipe_doc.get("assets") or []
+                                    canary_report_path = receipt_dir / "canary_report.json"
+                                    if canary_report_path.is_file():
+                                        try:
+                                            canary_data = json.loads(canary_report_path.read_text(encoding="utf-8"))
+                                            probed_assets = canary_data.get("assets") or {}
+                                            if "jax" in recipe_rel:
+                                                if "jax_md-0.2.29.tar.gz" not in probed_assets:
+                                                    problem("asset_provenance", "Canary report missing mandatory probed asset jax_md-0.2.29.tar.gz")
+                                            for a_name, a_val in probed_assets.items():
+                                                actual_sha = (a_val.get("sha256") if isinstance(a_val, dict) else str(a_val)).removeprefix("sha256:")
+                                                expected_sha = next(
+                                                    (a["sha256"].removeprefix("sha256:") for a in recipe_assets if a.get("name") == a_name),
+                                                    None,
+                                                )
+                                                if expected_sha and actual_sha != expected_sha:
+                                                    problem(
+                                                        "asset_provenance",
+                                                        f"Asset {a_name} in-image measured SHA ({actual_sha}) != recipe.lock declared SHA ({expected_sha})",
+                                                    )
+                                        except Exception as c_exc:
+                                            problem("asset_provenance", f"Failed to parse canary report for asset validation: {c_exc}")
                     except Exception as exc:
                         problem("runtime_lock", f"runtime_lock JSON parse error: {exc}")
             except ValueError as exc:

@@ -57,7 +57,8 @@
       "properties": {
         "path": { "type": "string", "minLength": 1 },
         "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
-        "image_id": { "type": "string", "minLength": 1 }
+        "image_id": { "type": "string", "minLength": 1 },
+        "recipe_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
       }
     },
     "evidence_files": {

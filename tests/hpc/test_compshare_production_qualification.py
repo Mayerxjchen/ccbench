@@ -36,7 +36,7 @@ def test_production_runtime_locks_exist_and_conform():
     assert matclaw["qualification"]["receipt_digest"].startswith("sha256:")
 
     jax = json.loads((PROD_LOCK_DIR / "jax-runtime.lock.json").read_text(encoding="utf-8"))
-    assert jax["artifact"]["image_id"] == "compshareImage-1uwv0ijzwej6"
+    assert jax["artifact"]["image_id"] == "compshareImage-1uyaneriamfz"
     assert jax["qualification"]["status"] == "BUILT_NOT_QUALIFIED"
     assert jax["qualification"]["receipt_digest"].startswith("sha256:")
 
@@ -79,4 +79,4 @@ def test_production_catalog_promotes_all_capabilities():
     jax_resolved = resolver.resolve("jax")
     assert jax_resolved.status == RuntimeStatus.QUALIFIED
     assert jax_resolved.qualification_verified is True
-    assert jax_resolved.image_id == "compshareImage-1uwv0ijzwej6"
+    assert jax_resolved.image_id == "compshareImage-1uyaneriamfz"

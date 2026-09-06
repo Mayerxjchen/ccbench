@@ -290,6 +290,18 @@ export CUDA_VISIBLE_DEVICES=0
 
 /opt/jax-gpu/bin/python /opt/jax-gpu/probes/qualify_jax.py \\
     --json-out /tmp/canary_report.json
+
+# Physical probe: measure asset SHA directly inside running container
+ASSET_SHA=$(sha256sum /opt/jax-gpu/assets/jax_md-0.2.29.tar.gz | awk '{print $1}')
+/opt/jax-gpu/bin/python -c "
+import json
+p = '/tmp/canary_report.json'
+with open(p, 'r') as f:
+    d = json.load(f)
+d.setdefault('assets', {})['jax_md-0.2.29.tar.gz'] = '$ASSET_SHA'
+with open(p, 'w') as f:
+    json.dump(d, f, indent=2)
+"
 """
         runner_script.write_text(runner_content, encoding="utf-8")
         runner_script.chmod(0o755)
@@ -309,7 +321,10 @@ export CUDA_VISIBLE_DEVICES=0
         probe_report_data = json.loads(local_report_path.read_text(encoding="utf-8"))
         if not probe_report_data.get("parity_ok"):
             raise CanaryQualificationError(f"Canary probe parity check failed: {probe_report_data}")
-        print(f"Canary physical probe verified: parity_ok=True, device={probe_report_data.get('gpu_name')}")
+        probed_asset_sha = (probe_report_data.get("assets") or {}).get("jax_md-0.2.29.tar.gz")
+        print(f"Canary physical probe verified: parity_ok=True, device={probe_report_data.get('gpu_name')}, jax_md_sha={probed_asset_sha}")
+        if probed_asset_sha != "b50c7318305db3deab3f033190210239dd275d73b0c0f06e02cd8a51463dd638":
+            raise CanaryQualificationError(f"Probed asset SHA mismatch inside image: {probed_asset_sha}")
 
     finally:
         if canary_instance_id:
@@ -414,6 +429,7 @@ export CUDA_VISIBLE_DEVICES=0
             "path": RUNTIME_LOCK_REL,
             "digest": lock_digest,
             "image_id": image_id,
+            "recipe_digest": lock_doc.get("provenance", {}).get("recipe_digest"),
         },
         evidence=evidence_dict,
         audit_log="audit_events.jsonl",
