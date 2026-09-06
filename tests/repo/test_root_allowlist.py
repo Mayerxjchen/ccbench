@@ -47,7 +47,6 @@ ALLOWED_ROOT_DIRS = {
     "runtimes",
     "schemas",
     "scripts",
-    "site-configs",
     "src",
     "tests",
 }
