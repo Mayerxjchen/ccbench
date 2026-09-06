@@ -31,10 +31,15 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install 3.13
 
       - name: Install project dependencies
-        run: uv sync --frozen || uv sync
+        run: uv sync --frozen --extra dev || uv sync --extra dev
+
+      - name: Verify CLI entry point and packaging
+        run: |
+          uv run ccbench --help
+          uv run ccbench setup --report-only
 
       - name: Run verification suite
         run: |

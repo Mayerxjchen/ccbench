@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 
 SUPPORTED_PROVIDERS = frozenset(
-    {"deepseek", "openai", "kimi", "longcat", "mimo", "ollama", "vllm", "sglang"}
+    {"deepseek", "openai", "anthropic", "kimi", "longcat", "mimo", "ollama", "vllm", "sglang"}
 )
 EXECUTION_CLASSES = frozenset({"local_sandbox", "hpc_controller"})
 
@@ -26,7 +26,7 @@ class StrictModel(BaseModel):
 
 
 class ModelConfig(StrictModel):
-    provider: Literal["deepseek", "openai", "kimi", "longcat", "mimo", "ollama", "vllm", "sglang"]
+    provider: Literal["deepseek", "openai", "anthropic", "kimi", "longcat", "mimo", "ollama", "vllm", "sglang"]
     model_id: str = Field(min_length=1)
     deployment_id: str = Field(min_length=1)
     identity_strength: Literal["exact", "alias-only"]

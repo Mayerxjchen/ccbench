@@ -158,3 +158,40 @@ def test_models_registry_loads_models_toml():
 
     with pytest.raises(KeyError, match="unknown model"):
         registry.require("non-existent-model")
+
+
+def test_build_run_lock_v2():
+    from dftworld_bench.contracts.experiment_v2 import (
+        ExperimentBudget,
+        ModelEntry,
+        build_run_lock_v2,
+    )
+
+    budget = ExperimentBudget(
+        max_model_turns=1024,
+        max_total_tokens=100000000,
+        agent_active_walltime_sec=86400.0,
+        scheduler_wait_walltime_sec=604800.0,
+    )
+    model_entry = ModelEntry(
+        name="claude-sonnet",
+        provider="anthropic",
+        model_id="claude-sonnet-4-20250514",
+        identity_strength="alias",
+    )
+    doc = build_run_lock_v2(
+        run_id="run-1",
+        experiment_id="main-v1",
+        case="001",
+        model="claude-sonnet",
+        skill="hpc-submit",
+        repeat=1,
+        budget=budget,
+        model_entry=model_entry,
+        candidate_digest="sha256:" + "0" * 64,
+        verifier_digest="sha256:" + "1" * 64,
+        ccbench_commit="2" * 40,
+    )
+    assert doc["schema_version"] == 2
+    assert doc["model_identity"]["provider"] == "anthropic"
+    assert doc["repeat"] == 1

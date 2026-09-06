@@ -1,8 +1,13 @@
 """[DEPRECATED] Common HTTP binding for the trusted Gateway.
 
 .. deprecated:: 2.0
-    HttpGatewayServer is deprecated. CCBench execution path has converged
-    strictly on Harness -> HpcDispatcher -> Driver.
+    The external HTTP server is deprecated.
+    Public architecture:
+        Harness -> HpcDispatcher
+    Current internal compatibility:
+        HpcDispatcher -> GatewayRuntime -> Gateway -> backend
+    Target Phase 3:
+        HpcDispatcher -> Driver
 
 The Candidate talks to this server only; the scheduler lives behind it.  One
 :class:`Gateway` per run, a run-scoped bearer token in ``Authorization``, and

@@ -206,3 +206,52 @@ def build_experiment_lock(spec: ExperimentSpecV2, ccbench_commit: str) -> dict[s
     }
     validate_experiment_lock(lock_data)
     return lock_data
+
+
+def build_run_lock_v2(
+    *,
+    run_id: str,
+    experiment_id: str,
+    case: str,
+    model: str,
+    skill: str,
+    repeat: int,
+    budget: ExperimentBudget,
+    model_entry: ModelEntry,
+    candidate_digest: str,
+    verifier_digest: str,
+    ccbench_commit: str,
+    compute_profile_digest: str | None = None,
+    runtime_digests: dict[str, str] | None = None,
+    created_at: str | None = None,
+) -> dict[str, Any]:
+    """Construct and validate an immutable RunLockV2 dictionary."""
+    stamp = created_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    strength = model_entry.identity_strength
+    if strength not in ("alias", "alias-only", "exact-snapshot", "pinned-digest"):
+        strength = "alias-only"
+    doc: dict[str, Any] = {
+        "schema_version": 2,
+        "run_id": run_id,
+        "experiment_id": experiment_id,
+        "case": case,
+        "model": model,
+        "skill": skill,
+        "repeat": repeat,
+        "budget": budget.to_dict(),
+        "model_identity": {
+            "provider": model_entry.provider,
+            "requested_model": model_entry.model_id,
+            "identity_strength": strength,
+        },
+        "candidate_digest": candidate_digest,
+        "verifier_digest": verifier_digest,
+        "ccbench_commit": ccbench_commit,
+        "created_at": stamp,
+    }
+    if compute_profile_digest:
+        doc["compute_profile_digest"] = compute_profile_digest
+    if runtime_digests:
+        doc["runtime_digests"] = runtime_digests
+    validate_run_lock(doc)
+    return doc

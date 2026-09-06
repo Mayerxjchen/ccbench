@@ -90,7 +90,7 @@ def test_construct_experiment(registry):
     experiment = construct_experiment(selection, registry)
     assert isinstance(experiment, FrozenExperiment)
     assert experiment.template_name == "formal-long-default"
-    assert experiment.agent_profile["max_model_turns"] == 512
+    assert experiment.budget.max_model_turns == 1024
 
 
 def test_construct_experiment_with_site(registry):
@@ -124,7 +124,7 @@ def test_resolve_formal_creates_lock(registry, case):
     )
     assert lock.payload["case"]["case_id"] == "test/case"
     assert lock.payload["experiment"]["replicate"] == 1
-    assert lock.payload["budgets"]["max_model_turns"] == 512
+    assert lock.payload["budgets"]["max_model_turns"] == 1024
     assert lock.payload["infra"]["commit"] == "abc123def456"
     assert lock.payload["agent"]["provider"] == "deepseek"
     assert lock.payload["agent"]["model_id"] == "deepseek-chat"

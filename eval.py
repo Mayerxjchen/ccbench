@@ -90,6 +90,13 @@ from dftworld_bench.config.profiles import (
     digest_bytes,
 )
 from dftworld_bench.contracts.case import CaseSpec, EXECUTION_ALIASES, EXECUTION_CLASSES
+from dftworld_bench.contracts.experiment_v2 import (
+    ExperimentBudget,
+    ExperimentSpecV2,
+    ModelRegistry,
+    build_experiment_lock,
+    build_run_lock_v2,
+)
 from dftworld_bench.contracts.resolved_lock import ResolvedRunLock
 from dftworld_bench.contracts.result import FailureCode
 from dftworld_bench.core.event_store import EventStore
@@ -801,12 +808,20 @@ def resolve_harness_provenance(
                     "Formal benchmark requires valid locked image digest."
                 ) from exc
 
-    agent_profile_name = "claude-code-formal" if "claude-code-formal" in registry.names("agents") else "formal-long"
-    selection: dict[str, str] = {"agent": agent_profile_name, "api": "default"}
+    selection: dict[str, str] = {"api": "default"}
     site_name = "<site-alias>" if task.execution_class == "hpc_controller" else None
     if site_name:
         selection["site"] = site_name
-    experiment = construct_experiment(selection, registry)
+    budget = None
+    if run_config is not None:
+        raw_b = run_config.budget_for(task.execution_class)
+        budget = ExperimentBudget(
+            max_model_turns=raw_b.max_model_turns,
+            max_total_tokens=raw_b.max_total_tokens,
+            agent_active_walltime_sec=raw_b.active_walltime_sec,
+            scheduler_wait_walltime_sec=raw_b.scheduler_wait_walltime_sec,
+        )
+    experiment = construct_experiment(selection, registry, budget=budget)
 
     # Canonical lock via resolve_formal() — all digests computed from real data.
     lock = resolve_formal(
@@ -1337,6 +1352,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="禁用 skill:agent 完全没有 use_skill 工具(默认)",
     )
     parser.set_defaults(skills_enabled=False)
+    parser.add_argument("--matrix", action="store_true", help="按 Experiment v2 规范自动展开 Case x Model x Skill x Repeat 矩阵执行")
     parser.add_argument("-v", "--verbose", action="store_true")
     return parser.parse_args(argv)
 
@@ -1471,6 +1487,22 @@ async def amain(argv: list[str] | None = None) -> int:
         f"skills={'ON' if args.skills_enabled else 'OFF'}  "
         f"skills_source={skills_source}  skill_image={skill_image or '-'}"
     )
+
+    exp_v2_spec: ExperimentSpecV2 | None = None
+    if cfg_path.suffix == ".toml" or str(cfg_path).endswith(".toml"):
+        try:
+            exp_v2_spec = ExperimentSpecV2.from_file(cfg_path)
+            exp_lock_doc = build_experiment_lock(
+                exp_v2_spec,
+                benchmark_commit if len(benchmark_commit) == 40 else ("0" * 40),
+            )
+            (run_dir / "experiment-lock.v2.json").write_text(
+                json.dumps(exp_lock_doc, indent=2, sort_keys=True), encoding="utf-8"
+            )
+            print(f"experiment_lock_v2: {run_dir / 'experiment-lock.v2.json'}")
+        except Exception as exc:
+            logging.debug(f"failed to build experiment lock: {exc}")
+            exp_v2_spec = None
 
     store = RunStore(args.jobs_dir)
     results: list[TaskResult] = []
@@ -1674,6 +1706,54 @@ async def amain(argv: list[str] | None = None) -> int:
         if result.thread_dir:
             print(f"    thread: {result.thread_dir}")
             print(f"    record: {args.jobs_dir / spec.run_id / 'run-record.json'}")
+
+        # Emit canonical immutable RunLockV2 (Experiment v2 execution contract)
+        models_path = ROOT / "experiments" / "models.toml"
+        model_reg = ModelRegistry.from_file(models_path) if models_path.is_file() else None
+        m_name = getattr(task, "model_name", None) or (exp_v2_spec.models[0] if exp_v2_spec else base_run_config.model.model_id)
+        m_entry = None
+        if model_reg:
+            m_entry = model_reg.get(m_name) or model_reg.get("default")
+        if m_entry is None:
+            m_entry = ModelEntry(
+                name=m_name,
+                provider=base_run_config.model.provider,
+                model_id=base_run_config.model.model_id,
+                identity_strength=base_run_config.model.identity_strength,
+            )
+
+        b_spec = exp_v2_spec.budget if exp_v2_spec else ExperimentBudget(
+            max_model_turns=base_run_config.budget_for(task.execution_class).max_model_turns,
+            max_total_tokens=base_run_config.budget_for(task.execution_class).max_total_tokens,
+            agent_active_walltime_sec=base_run_config.budget_for(task.execution_class).active_walltime_sec,
+            scheduler_wait_walltime_sec=base_run_config.budget_for(task.execution_class).scheduler_wait_walltime_sec,
+        )
+        cand_d = agent_image_digest if (agent_image_digest and agent_image_digest.startswith("sha256:")) else ("sha256:" + "0" * 64)
+        verif_d = image_digest if (image_digest and image_digest.startswith("sha256:")) else ("sha256:" + "0" * 64)
+        cc_commit = benchmark_commit if len(benchmark_commit) == 40 else ("0" * 40)
+        run_lock_v2 = build_run_lock_v2(
+            run_id=spec.run_id,
+            experiment_id=experiment_id,
+            case=task.name,
+            model=m_name,
+            skill=condition_id,
+            repeat=replicate,
+            budget=b_spec,
+            model_entry=m_entry,
+            candidate_digest=cand_d,
+            verifier_digest=verif_d,
+            ccbench_commit=cc_commit,
+        )
+        rec_dir = args.jobs_dir / spec.run_id
+        if rec_dir.is_dir():
+            (rec_dir / "run-lock.v2.json").write_text(
+                json.dumps(run_lock_v2, indent=2, sort_keys=True), encoding="utf-8"
+            )
+        if result.thread_dir and Path(result.thread_dir).is_dir():
+            (Path(result.thread_dir) / "run-lock.v2.json").write_text(
+                json.dumps(run_lock_v2, indent=2, sort_keys=True), encoding="utf-8"
+            )
+            print(f"    run_lock: {Path(result.thread_dir) / 'run-lock.v2.json'}")
 
     summary = {
         "run_id": stamp,

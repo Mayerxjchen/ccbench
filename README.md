@@ -114,6 +114,12 @@ ssh <你的hpc别名> hostname      # 连通性自检
   对同一集群做收养，再运行；它绝不二次提交——只等待已入队作业到达终态、
   按持久化 SUBMIT_INTENT marker 收养并 settle 同一条审计链
 
+### HPC 架构演进与执行路径说明
+
+- **公开架构 (Public Architecture)**: `Harness → HpcDispatcher`
+- **当前内部兼容层 (Phase 2 Compatibility)**: `HpcDispatcher → GatewayRuntime → Gateway → backend`（用于维护既有已签署 Qualification Receipt 密码学 provenance）
+- **下一阶段目标 (Target Phase 3)**: `HpcDispatcher → Driver`（在新收据生成后物理退役 Gateway）
+
 ### 跑评测
 
 见下节 [Running eval](#running-eval)。

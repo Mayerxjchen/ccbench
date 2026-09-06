@@ -44,3 +44,42 @@ def test_condition_must_match_skills_flag() -> None:
     args = eval_mod.parse_args(["001-hello", "--skills", "--condition", "no-skill"])
     with pytest.raises(SystemExit, match="conflicts"):
         eval_mod.resolve_task_run_settings(args, "local_sandbox")
+
+
+def test_experiment_spec_and_run_lock_v2_generation(tmp_path: Path) -> None:
+    from pathlib import Path
+    from dftworld_bench.contracts.experiment_v2 import (
+        ExperimentBudget,
+        ModelEntry,
+        build_run_lock_v2,
+        validate_run_lock,
+    )
+
+    budget = ExperimentBudget(
+        max_model_turns=1024,
+        max_total_tokens=100000000,
+        agent_active_walltime_sec=86400.0,
+        scheduler_wait_walltime_sec=604800.0,
+    )
+    model_entry = ModelEntry(
+        name="deepseek-v4-pro",
+        provider="deepseek",
+        model_id="deepseek-v4-pro",
+        identity_strength="alias-only",
+    )
+    lock = build_run_lock_v2(
+        run_id="run-test",
+        experiment_id="main-v1",
+        case="001-matclaw-cips-active-distillation",
+        model="deepseek-v4-pro",
+        skill="with-skill",
+        repeat=1,
+        budget=budget,
+        model_entry=model_entry,
+        candidate_digest="sha256:" + "0" * 64,
+        verifier_digest="sha256:" + "1" * 64,
+        ccbench_commit="a" * 40,
+    )
+    validate_run_lock(lock)
+    assert lock["schema_version"] == 2
+    assert lock["experiment_id"] == "main-v1"

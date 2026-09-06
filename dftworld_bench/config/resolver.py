@@ -35,29 +35,10 @@ class FrozenExperiment:
         scheduler_wait_walltime_sec=604800.0,
     )
     site_profile: dict[str, Any] | None = None
-    agent_profile: dict[str, Any] | None = None
-
-    def __post_init__(self) -> None:
-        if self.agent_profile is not None and (
-            self.budget == ExperimentBudget(1024, 100_000_000, 86400.0, 604800.0)
-        ):
-            b = ExperimentBudget(
-                max_model_turns=int(self.agent_profile.get("max_model_turns", 1024)),
-                max_total_tokens=int(self.agent_profile.get("max_total_tokens", 100_000_000)),
-                agent_active_walltime_sec=float(self.agent_profile.get("agent_active_walltime_sec", 86400.0)),
-                scheduler_wait_walltime_sec=float(self.agent_profile.get("scheduler_wait_walltime_sec", 604800.0)),
-            )
-            object.__setattr__(self, "budget", b)
-        if self.agent_profile is None:
-            object.__setattr__(self, "agent_profile", self.budget.to_dict())
 
     @property
     def budget_digest(self) -> str:
         return digest_bytes(canonical_json(self.budget.to_dict()))
-
-    @property
-    def agent_profile_digest(self) -> str:
-        return self.budget_digest
 
     @property
     def api_profile_digest(self) -> str:
@@ -70,29 +51,18 @@ def construct_experiment(
     budget: ExperimentBudget | None = None,
 ) -> FrozenExperiment:
     """Construct a frozen experiment from profile selections and optional budget."""
-    agent_name = selection.get("agent", "formal-long")
     api_name = selection.get("api", "default")
     experiment_name = selection.get("experiment", "default")
     runtime_name = selection.get("runtime", "local-sandbox")
     site_name = selection.get("site")
 
     if budget is None:
-        # Check if caller provided budget inside registry for testing
-        raw_agent = registry.profiles.get("agents", {}).get(agent_name)
-        if raw_agent is not None:
-            budget = ExperimentBudget(
-                max_model_turns=int(raw_agent.get("max_model_turns", 1024)),
-                max_total_tokens=int(raw_agent.get("max_total_tokens", 100_000_000)),
-                agent_active_walltime_sec=float(raw_agent.get("agent_active_walltime_sec", 86400.0)),
-                scheduler_wait_walltime_sec=float(raw_agent.get("scheduler_wait_walltime_sec", 604800.0)),
-            )
-        else:
-            budget = ExperimentBudget(
-                max_model_turns=1024,
-                max_total_tokens=100_000_000,
-                agent_active_walltime_sec=86400.0,
-                scheduler_wait_walltime_sec=604800.0,
-            )
+        budget = ExperimentBudget(
+            max_model_turns=1024,
+            max_total_tokens=100_000_000,
+            agent_active_walltime_sec=86400.0,
+            scheduler_wait_walltime_sec=604800.0,
+        )
 
     api_profile = registry.profiles.get("api", {}).get(api_name)
     if api_profile is None:
@@ -117,7 +87,8 @@ def construct_experiment(
     )
     site_profile = registry.profiles.get("sites", {}).get(site_name) if site_name else None
 
-    template_name = selection.get("template", f"{agent_name}-{api_name}")
+    agent_tag = selection.get("agent", "default")
+    template_name = selection.get("template", f"{agent_tag}-{api_name}")
 
     return FrozenExperiment(
         template_name=template_name,
@@ -276,10 +247,10 @@ def resolve_formal(
             "lock_created_at": lock_created_at,
         },
         "budgets": budgets or {
-            "max_model_turns": experiment.agent_profile.get("max_model_turns", 64),
-            "max_total_tokens": experiment.agent_profile.get("max_total_tokens", 10000000),
-            "agent_active_walltime_sec": experiment.agent_profile.get("agent_active_walltime_sec", 7200),
-            "scheduler_wait_walltime_sec": experiment.agent_profile.get("scheduler_wait_walltime_sec", 0),
+            "max_model_turns": experiment.budget.max_model_turns,
+            "max_total_tokens": experiment.budget.max_total_tokens,
+            "agent_active_walltime_sec": experiment.budget.agent_active_walltime_sec,
+            "scheduler_wait_walltime_sec": experiment.budget.scheduler_wait_walltime_sec,
         },
     }
 

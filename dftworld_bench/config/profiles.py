@@ -1,7 +1,7 @@
 """Centralized profile registry for dftworld infrastructure.
 
 Profiles are loaded from TOML files in infra/config/ and provide typed
-configuration for agents, models, APIs, experiments, runtimes, and sites.
+configuration for APIs, experiments, runtimes, and sites.
 The registry is immutable after loading and provides deterministic digests.
 """
 
@@ -35,8 +35,8 @@ def digest_bytes(data: str | bytes) -> str:
 class ProfileRegistry:
     """Immutable registry of typed configuration profiles.
 
-    Profiles are organized by kind (agents, models, api, experiments, runtimes,
-    sites) and loaded from TOML files. The registry provides deterministic
+    Profiles are organized by kind (api, experiments, runtimes, sites)
+    and loaded from TOML files. The registry provides deterministic
     digests for identity and comparison.
     """
 
@@ -47,8 +47,7 @@ class ProfileRegistry:
         """Load all *-profiles.toml files from the given directory.
 
         Files are loaded in sorted order. Duplicate profile names across
-        files raise ValueError. Agent profiles are validated against
-        agent-profile.schema.json.
+        files raise ValueError.
         """
         merged: dict[str, dict[str, dict[str, Any]]] = {}
         # Track (kind, name) → source file for duplicate detection

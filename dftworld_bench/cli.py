@@ -366,7 +366,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     setup = sub.add_parser("setup", help="environment and repo sanity")
-    setup.add_argument("--quiet", action="store_true", help="no next-steps text")
+    setup.add_argument("--quiet", "--report-only", dest="quiet", action="store_true", help="no next-steps text")
 
     site = sub.add_parser("site", help="site configuration and qualification")
     site_sub = site.add_subparsers(dest="site_command", required=True)
