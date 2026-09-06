@@ -11,8 +11,8 @@ retention policy remains the final protection.
 Usage::
 
     python scripts/evidence/gc_plan.py \\
-        --primary cas+file://…/store/031-primary \\
-        --replica cas+file://…/store/031-replica \\
+        --primary cas+file://…/store/001-primary \\
+        --replica cas+file://…/store/001-replica \\
         --evidence-root evidence/matclaw/formal \\
         [--grace-days 30] [--git-history]
 

@@ -54,9 +54,12 @@ def test_active_tree_has_no_legacy_runtime_paths():
                 ".pyc", ".gz", ".pb", ".cif", ".zip", ".pt", ".safetensors"
             }:
                 continue
-            # Skip historical archives if traversed
-            parts = path.relative_to(ROOT).parts
-            if any(p in ("history", "maintainer", "releases", "evidence") for p in parts):
+            # Skip historical archives if traversed: only top-level evidence/,
+            # maintainer/, and releases/, plus any nested history/ directory.
+            rel_parts = path.relative_to(ROOT).parts
+            if rel_parts[0] in ("maintainer", "releases", "evidence"):
+                continue
+            if "history" in rel_parts:
                 continue
             try:
                 text = path.read_text(encoding="utf-8")
@@ -70,6 +73,13 @@ def test_active_tree_has_no_legacy_runtime_paths():
         f"Found legacy references in active tree ({len(offending_files)} occurrence(s)):\n"
         + "\n".join(offending_files)
     )
+
+
+def test_scripts_evidence_is_actively_scanned_without_exemption():
+    """Ensure scripts/evidence/ is actively covered by SSOT scanners and free of legacy IDs."""
+    text = (ROOT / "scripts" / "evidence" / "write_evidence_manifest.py").read_text(encoding="utf-8")
+    for legacy_id in ("031", "032", "033", "034", "042"):
+        assert legacy_id not in text, f"Found legacy id {legacy_id} in scripts/evidence/write_evidence_manifest.py"
 
 
 def test_all_runtime_locks_validate_against_schema():

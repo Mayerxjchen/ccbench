@@ -48,6 +48,9 @@ def _now_utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+CANONICAL_CASE_IDS = frozenset({"001", "002", "003", "004", "005"})
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--case-dir", required=True, type=Path)
@@ -83,6 +86,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if not restored.is_dir():
         print(f"restored dir missing: {restored}", file=sys.stderr)
+        return 1
+
+    case_num = case_dir.name.split("-", 1)[0]
+    if case_num not in CANONICAL_CASE_IDS:
+        print(f"non-canonical case id: {case_num}; expected one of {sorted(CANONICAL_CASE_IDS)}", file=sys.stderr)
         return 1
 
     report = json.loads(args.verifier_report.read_text(encoding="utf-8"))
@@ -202,12 +210,12 @@ def main(argv: list[str] | None = None) -> int:
 
 def _metrics_for_case(case_id: str, restored: Path, report: dict) -> dict:
     """Scientific metrics consumed by the gate; mirrors the formal verifier report."""
-    if case_id in ("001", "031"):
+    if case_id == "001":
         return {
             "final_force_mae_eV_A": report.get("recomputed_final_mae_eV_A"),
             "active_iterations": report.get("active_iterations"),
         }
-    if case_id in ("003", "033"):
+    if case_id == "003":
         result_path = restored / "result.json"
         if result_path.is_file():
             result = json.loads(result_path.read_text(encoding="utf-8"))

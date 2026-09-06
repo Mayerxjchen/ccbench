@@ -43,14 +43,14 @@ def _fixtures(tmp_path: Path, report: dict) -> tuple[list[str], Path]:
     """Minimal case dir, restored tree, files list, bundle descriptor, report.
     Returns argv + the dir that will receive the written manifest
     (the writer emits it at ``restored.parent / manifest.json``)."""
-    # case_id is derived from the case-dir basename ("031-matclaw-…" -> "031")
-    case_dir = tmp_path / "031-matclaw-cips-active-distillation"
+    # case_id is derived from the case-dir basename ("001-matclaw-…" -> "001")
+    case_dir = tmp_path / "001-matclaw-cips-active-distillation"
     (case_dir / "reference").mkdir(parents=True)
     (case_dir / "reference" / "evidence-policy.json").write_text(
-        json.dumps({"schema_version": "1", "case_id": "031",
+        json.dumps({"schema_version": "1", "case_id": "001",
                     "state": "benchmark_valid", "finalization_allowed": True}))
     (case_dir / "evaluator-manifest.json").write_text(
-        json.dumps({"schema_version": "1", "case_id": "031",
+        json.dumps({"schema_version": "1", "case_id": "001",
                     "bundle_sha256": "ab" * 32, "files": []}))
 
     restored = tmp_path / "restored"
