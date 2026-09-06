@@ -16,8 +16,6 @@ from scripts.infra.audit_compshare_image_recipe import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CANONICAL_RECIPE_PATH = (
     REPO_ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "recipe.lock.json"
-    if (REPO_ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "recipe.lock.json").is_file()
-    else REPO_ROOT / "base-env-build" / "matclaw-cips-gpu" / "recipe.lock.json"
 )
 
 

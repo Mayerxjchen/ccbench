@@ -203,18 +203,9 @@ def materialize_runtime_lock(
             raise MaterializeLockError(f"Check mode failed: output lock file {out} does not exist")
         existing_doc = json.loads(out.read_text(encoding="utf-8"))
         if existing_doc != expected_doc:
-            import copy
-            norm_existing = copy.deepcopy(existing_doc)
-            if "provenance" in norm_existing and isinstance(norm_existing["provenance"], dict):
-                rp = norm_existing["provenance"].get("recipe_path", "")
-                if rp.startswith("base-env-build/"):
-                    norm_existing["provenance"]["recipe_path"] = "runtimes/recipes/" + rp.removeprefix("base-env-build/")
-            if "note" in norm_existing and isinstance(norm_existing["note"], str):
-                norm_existing["note"] = norm_existing["note"].replace("base-env-build/", "runtimes/recipes/")
-            if norm_existing != expected_doc:
-                raise MaterializeLockError(
-                    f"Check mode failed: existing lock file at {out} differs from materialized output"
-                )
+            raise MaterializeLockError(
+                f"Check mode failed: existing lock file at {out} differs from materialized output"
+            )
         return expected_doc
 
     if dry_run:
@@ -240,7 +231,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--recipe",
-        default="base-env-build/matclaw-cips-gpu/recipe.lock.json",
+        default="runtimes/recipes/matclaw-cips-gpu/recipe.lock.json",
         help="Path to recipe.lock.json",
     )
     parser.add_argument(

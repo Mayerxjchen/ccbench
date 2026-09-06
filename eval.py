@@ -42,7 +42,7 @@ CLI flags::
     --tasks-dir DIR        任务目录（默认 benchmark/）
     --model PROVIDER/MODEL 模型标识（默认 deepseek/deepseek-chat）
     --max-turns N          每个任务最多对话轮数（默认由 Run Config 决定：Formal 为 1024，Smoke 为 64）
-    --skills               启用 skill：优先 public/，回退 base-env-build/skills/
+    --skills               启用 skill：优先 public/，回退 runtimes/recipes/skills/
     --skills-bundle        从 dftworld-skills bundle 镜像提取 skill
     --no-cache             跑完清理容器，不留 cache
     --verbose, -v          打印 harness 阶段日志
@@ -123,11 +123,9 @@ DEFAULT_EXPERIMENT = ROOT / "experiments" / "main.toml"
 DEFAULT_RUN_CONFIG = DEFAULT_EXPERIMENT
 DEFAULT_JOBS = ROOT / "jobs"
 # skill bundle 镜像锁定的 manifest;eval 只读它决定 immutable tag
-_skill_lock = ROOT / "runtimes" / "recipes" / "skills" / ".skill-image.json"
+_skill_lock = ROOT / "runtimes" / "locks" / ".skill-image.json"
 if not _skill_lock.is_file():
-    _skill_lock = ROOT / "runtimes" / "locks" / ".skill-image.json"
-if not _skill_lock.is_file():
-    _skill_lock = ROOT / "base-env-build" / ".skill-image.json"
+    _skill_lock = ROOT / "runtimes" / "recipes" / "skills" / ".skill-image.json"
 SKILL_MANIFEST = _skill_lock
 # frozen ablation release 目录;存在时 run-record 的 benchmark_commit 钉到其 source_commit
 RELEASES_DIR = ROOT / "releases"
@@ -291,11 +289,12 @@ def frozen_release_source_commit() -> str | None:
 
 
 def load_skill_manifest() -> dict:
-    """读 ``base-env-build/.skill-image.json``;缺失或未锁定时 fail fast。"""
+    """读 ``runtimes/locks/.skill-image.json``;缺失或未锁定时 fail fast。"""
     if not SKILL_MANIFEST.is_file():
         raise SystemExit(
-            f"缺少 {SKILL_MANIFEST}。先构建 skill bundle：\n"
-            f"  cd {ROOT / 'base-env-build'} && bash build.sh skills"
+            f"ERROR: skill 镜像锁定 manifest 不存在: {SKILL_MANIFEST}\n"
+            f"  请先构建并锁定 skill bundle 镜像:\n"
+            f"  cd {ROOT / 'runtimes' / 'recipes'} && bash build.sh skills"
         )
     try:
         data = json.loads(SKILL_MANIFEST.read_text(encoding="utf-8"))
@@ -816,7 +815,7 @@ def resolve_harness_provenance(
         is_formal = True
 
     # Frozen experiment from profile selections (bind claude-code-formal if available).
-    agent_lock_path = Path(__file__).resolve().parent / "base-env-build" / "agent-claude-code" / "claude-code.lock.json"
+    agent_lock_path = Path(__file__).resolve().parent / "runtimes" / "recipes" / "agent-claude-code" / "claude-code.lock.json"
     agent_image_digest = None
     if not agent_lock_path.is_file():
         if is_formal:
@@ -1676,7 +1675,7 @@ async def amain(argv: list[str] | None = None) -> int:
         run_id = f"{stamp}__{task.name}" if len(run_plan) == 1 else f"{stamp}__{task.name}__{m_name}__{cell_condition_id}__r{cell_replicate}"
 
         # Candidate Agent 镜像摘要
-        agent_lock_path = ROOT / "base-env-build" / "agent-claude-code" / "claude-code.lock.json"
+        agent_lock_path = ROOT / "runtimes" / "recipes" / "agent-claude-code" / "claude-code.lock.json"
         cand_d = None
         if agent_lock_path.is_file():
             try:

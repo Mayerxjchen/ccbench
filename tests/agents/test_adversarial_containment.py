@@ -15,8 +15,6 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[2]
 LOCK_FILE = (
     _ROOT / "runtimes" / "recipes" / "agent-claude-code" / "claude-code.lock.json"
-    if (_ROOT / "runtimes" / "recipes" / "agent-claude-code" / "claude-code.lock.json").is_file()
-    else _ROOT / "base-env-build" / "agent-claude-code" / "claude-code.lock.json"
 )
 AGENT_IMAGE = "mlffbench-candidate-claude-code-sandbox:v1"
 

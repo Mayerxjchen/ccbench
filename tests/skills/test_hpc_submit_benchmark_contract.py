@@ -22,11 +22,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-SKILLS = (
-    ROOT / "runtimes" / "recipes" / "skills"
-    if (ROOT / "runtimes" / "recipes" / "skills").is_dir()
-    else ROOT / "base-env-build" / "skills"
-)
+SKILLS = ROOT / "runtimes" / "recipes" / "skills"
 EXCLUDED = ("rsess", "research-orchestrator", "review-response")
 
 # Site facts and identities that must never appear in a Candidate-visible Skill.

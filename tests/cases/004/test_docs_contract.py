@@ -102,13 +102,13 @@ class DocsContract(unittest.TestCase):
             "verifier env keys changed — update this regression",
         )
         # Image-defined env: the task Dockerfile + every base-image Dockerfile
-        # under base-env-build/ (superset guard: none may bake the vars in).
+        # under runtimes/recipes/ (superset guard: none may bake the vars in).
         dockerfiles = []
         if (CASE / "Dockerfile").exists():
             dockerfiles.append(CASE / "Dockerfile")
-        base_env = CASE.parent / "base-env-build"
-        if base_env.exists():
-            dockerfiles += sorted(base_env.rglob("Dockerfile*"))
+        recipes_dir = CASE.parents[1] / "runtimes" / "recipes"
+        if recipes_dir.exists():
+            dockerfiles += sorted(recipes_dir.rglob("Dockerfile*"))
         env_sources = "\n".join(
             f"# {df}\n" + df.read_text(errors="replace") for df in dockerfiles)
         for name in ver_env:

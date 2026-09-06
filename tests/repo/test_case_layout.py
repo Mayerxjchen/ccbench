@@ -3,9 +3,9 @@
 Enforces the canonical Case v2 layout:
 Every preserved benchmark case under `cases/<case_id>` must contain strictly
 the 4 canonical objects and zero stray artifacts:
-- Manifest file: case.toml (or task.toml)
-- Instruction sheet: instruction.md (or task.md)
-- Public input directory: input (or environment)
+- Manifest file: case.toml
+- Instruction sheet: task.md
+- Public input directory: input
 - Verifier directory: verifier
 
 All developer artifacts (solutions, reference trajectories, profiles,
@@ -30,9 +30,9 @@ PRESERVED_CASE_IDS = (
     "005-go-water-dpmp",
 )
 
-ALLOWED_MANIFEST_NAMES = {"case.toml", "task.toml"}
-ALLOWED_INSTRUCTION_NAMES = {"instruction.md", "task.md"}
-ALLOWED_INPUT_NAMES = {"input", "environment"}
+ALLOWED_MANIFEST_NAMES = {"case.toml"}
+ALLOWED_INSTRUCTION_NAMES = {"task.md"}
+ALLOWED_INPUT_NAMES = {"input"}
 ALLOWED_VERIFIER_NAMES = {"verifier"}
 
 FORBIDDEN_NAMES = {

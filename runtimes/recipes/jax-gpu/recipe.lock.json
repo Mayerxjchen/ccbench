@@ -10,7 +10,7 @@
   ],
   "platform": "linux/amd64",
   "status": "RECIPE_VERIFIED",
-  "image_status": "BUILT_NOT_QUALIFIED",
+  "image_status": "UNBUILT",
   "base_image": {
     "image": "compshare/pytorch:2.1.2-cuda12.1-cudnn8-devel-ubuntu22.04",
     "oci_digest": "sha256:7f4955b274534a62580a6bbf08365f50ef917c91350a4b7fef557116b0a88092"
@@ -43,5 +43,5 @@
       "sha256": "d5548ba94ffb9636f22d9932da2a0133bed16e928133c5d6e5bc8b6bd7fab713"
     }
   ],
-  "recipe_digest": "sha256:51bf55df8812a464695eda59e039fa591b03aabf6250d5b4a10014f95ebda4e4"
+  "recipe_digest": "sha256:69d774603dfe67d56998d04e3e5e5abfc3c6a8587a91c2814eeef08b82079aa9"
 }

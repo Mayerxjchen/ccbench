@@ -231,8 +231,6 @@ def test_solve_entry_points_are_deterministic() -> None:
 
 def test_shared_image_is_version_pinned_and_has_a_scientific_smoke_gate() -> None:
     dockerfile_path = ROOT / "runtimes" / "recipes" / "matclaw-cips" / "Dockerfile"
-    if not dockerfile_path.is_file():
-        dockerfile_path = ROOT / "base-env-build" / "matclaw-cips" / "Dockerfile"
     dockerfile = dockerfile_path.read_text()
     assert "deepmd-kit[lmp]==2.2.11" in dockerfile
     assert "tensorflow==2.16.2" in dockerfile
@@ -241,8 +239,6 @@ def test_shared_image_is_version_pinned_and_has_a_scientific_smoke_gate() -> Non
     assert "RUN /opt/matclaw/bin/python /opt/matclaw/smoke_test.py" in dockerfile
 
     build_path = ROOT / "runtimes" / "recipes" / "build.sh"
-    if not build_path.is_file():
-        build_path = ROOT / "base-env-build" / "build.sh"
     build = build_path.read_text()
     assert "matclaw-cips" in build
     assert "dftworld-base-matclaw-cips" in build
@@ -295,8 +291,6 @@ def test_reference_runner_honors_gpus_for_any_evidence_class() -> None:
 
 def test_gpu_image_is_gpu_only_and_keeps_build_gate_device_independent() -> None:
     dockerfile_path = ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "Dockerfile"
-    if not dockerfile_path.is_file():
-        dockerfile_path = ROOT / "base-env-build" / "matclaw-cips-gpu" / "Dockerfile"
     dockerfile = dockerfile_path.read_text()
     # The base is the CPU-verified image; it is parameterized (ARG BASE_IMAGE)
     # so a cross-arch build can pin the amd64 CPU image without touching the
@@ -309,8 +303,6 @@ def test_gpu_image_is_gpu_only_and_keeps_build_gate_device_independent() -> None
     assert 'CUDA_VISIBLE_DEVICES="" /opt/matclaw/bin/python /opt/matclaw/smoke_test.py' in dockerfile
 
     probe_path = ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "qualify_gpu.py"
-    if not probe_path.is_file():
-        probe_path = ROOT / "base-env-build" / "matclaw-cips-gpu" / "qualify_gpu.py"
     probe = probe_path.read_text()
     assert "gpu_visible" in probe
     assert "energy_abs_diff_eV" in probe

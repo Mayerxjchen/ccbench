@@ -22,7 +22,7 @@ if str(_ROOT) not in sys.path:
 SCHEMA_PATH = _ROOT / "schemas" / "compshare-image-recipe.schema.json"
 
 FORBIDDEN_CAPABILITIES = frozenset({"jax", "deepmd-jax", "ai2kit", "cp2k"})
-FORBIDDEN_CASES = frozenset({"034", "042"})
+FORBIDDEN_CASES = frozenset({"004", "031", "032", "033", "034", "042"})
 
 
 class RecipeAuditError(ValueError):
@@ -63,24 +63,24 @@ def audit_image_recipe(
     except jsonschema.ValidationError as exc:
         raise RecipeAuditError(f"Recipe schema validation failed: {exc.message}") from exc
 
-    # 2. Scope gate: strictly cases 001-003 (legacy 031-033) or 005 (legacy 042)
+    # 2. Scope gate: strictly cases 001-003 or 005
     cases = set(doc.get("target_cases", []))
     caps = set(doc.get("target_capabilities", []))
 
-    if cases in ({"001", "002", "003"}, {"031", "032", "033"}):
-        if cases.intersection({"004", "005", "034", "042"}):
-            raise RecipeAuditError(f"MatClaw Recipe improperly includes forbidden cases: {cases.intersection({'004', '005', '034', '042'})}")
+    if cases == {"001", "002", "003"}:
+        if cases.intersection({"004", "005"}):
+            raise RecipeAuditError(f"MatClaw Recipe improperly includes forbidden cases: {cases.intersection({'004', '005'})}")
         if caps.intersection({"jax", "deepmd-jax", "ai2kit", "cp2k"}):
             raise RecipeAuditError(f"MatClaw Recipe improperly includes forbidden capabilities: {caps.intersection({'jax', 'deepmd-jax', 'ai2kit', 'cp2k'})}")
-    elif cases in ({"005"}, {"042"}):
-        if cases.intersection({"001", "002", "003", "004", "031", "032", "033", "034"}):
-            raise RecipeAuditError(f"JAX Recipe improperly includes forbidden cases: {cases.intersection({'001', '002', '003', '004', '031', '032', '033', '034'})}")
+    elif cases == {"005"}:
+        if cases.intersection({"001", "002", "003", "004"}):
+            raise RecipeAuditError(f"JAX Recipe improperly includes forbidden cases: {cases.intersection({'001', '002', '003', '004'})}")
         if caps.intersection({"deepmd", "matclaw-cips", "lammps", "ai2kit", "cp2k"}):
             raise RecipeAuditError(f"JAX Recipe improperly includes forbidden capabilities: {caps.intersection({'deepmd', 'matclaw-cips', 'lammps', 'ai2kit', 'cp2k'})}")
         if "jax" not in caps:
             raise RecipeAuditError("JAX Recipe must include 'jax' capability")
     else:
-        raise RecipeAuditError(f"Recipe target_cases must be exactly {{'001', '002', '003'}} (or legacy {{'031', '032', '033'}}) or {{'005'}} (or legacy {{'042'}}); got {cases}")
+        raise RecipeAuditError(f"Recipe target_cases must be exactly {{'001', '002', '003'}} or {{'005'}}; got {cases}")
 
     # 3. Base image must carry explicit OCI digest
     base_img = doc.get("base_image", {})
@@ -97,14 +97,7 @@ def audit_image_recipe(
         raise RecipeAuditError("Recipe must not specify image_id while UNBUILT")
 
     def _resolve_recipe_rel(rel_str: str) -> Path:
-        p_cand = root / rel_str
-        if p_cand.is_file():
-            return p_cand
-        if rel_str.startswith("base-env-build/"):
-            alt = root / "runtimes" / "recipes" / rel_str.removeprefix("base-env-build/")
-            if alt.is_file():
-                return alt
-        return p_cand
+        return root / rel_str
 
     # 5. Requirements lock verification
     req_meta = doc.get("requirements_lock", {})

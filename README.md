@@ -116,10 +116,10 @@ uv run python summarize.py
 
 ```text
 cases/<case-name>/
-├── instruction.md   # Agent 任务引导与科学目标描述
+├── task.md          # Agent 任务引导与科学目标描述
 ├── input/           # 注入到 Agent 工作区的初始物理数据与代码骨架
-├── eval/            # 独立 Verifier 验收测试（只读挂载，杜绝信息泄露）
-└── task.toml        # 任务元数据、资源约束与评测门禁规范
+├── verifier/        # 独立 Verifier 验收测试（只读挂载，杜绝信息泄露）
+└── case.toml        # 任务元数据、资源约束与评测门禁规范
 ```
 
 | 案例目录 | 科学领域 | 计算后端引擎 | 评测目标与能力考察 |
@@ -130,7 +130,7 @@ cases/<case-name>/
 | `004-ai2kit-water64-end-to-end-potential` | 全自动势函数管线 | `ai2kit` + `cp2k` | 构建端到端基于第一性原理的主动学习流水线 |
 | `005-go-water-dpmp` | 界面化学计算 | `deepmd-jax` / `jax-gpu` | 氧化石墨烯-水界面 DP-MP 势函数复现与 MD 验证 |
 
-> **隔离与防作弊机制**：评测执行期间，Agent 只能访问注入工作区的 `input/` 内容；`eval/` 验收脚本与测试用例运行在**独立、非特权、网络隔离（`--network none`）**的只读容器中，彻底杜绝作弊与训练集污染。
+> **隔离与防作弊机制**：评测执行期间，Agent 只能访问注入工作区的 `input/` 内容；`verifier/` 验收脚本与测试用例运行在**独立、非特权、网络隔离（`--network none`）**的只读容器中，彻底杜绝作弊与训练集污染。
 
 ---
 
@@ -159,10 +159,10 @@ bash build.sh 001
 CCBench 对环境与资格化证明执行严格的密码学单一真相源（SSOT）审计：
 
 - **MatClaw CIPS Runtime** (`runtimes/locks/matclaw-cips-runtime.lock.json`): 对应已验证构建镜像 `compshareImage-1uw6sd44931i`。
-- **JAX GPU Runtime** (`runtimes/locks/jax-runtime.lock.json`): 对应定制 JAX GPU 镜像 `compshareImage-1uyaneriamfz`。
-  - **公开仓库状态**：标注为 `BUILT_NOT_QUALIFIED / external receipt required`。
-  - **血统完整性保证**：源码归档 SHA、Recipe Digest 与 Image ID 的因果链在代码层面已严格绑定闭环。
-  - **正式准入说明**：由于正式 Gate C 资格化收据包含维护者站点的私钥数字签名与集群物理 Canary 审计日志，正式收据通过本地/私有挂载注入验证，公开仓库不包含私钥。
+- **JAX GPU Runtime** (`runtimes/locks/jax-runtime.lock.json`): 对应历史构建 JAX GPU 镜像 `compshareImage-1uyaneriamfz`。
+  - **公开仓库状态**：如实标注为 `BUILT_NOT_QUALIFIED`（当前 `runtimes/recipes/jax-gpu/` 处于 `UNBUILT` 状态，待新镜像构建与物理资格化）。
+  - **血统不可篡改保证**：代码严格保障不可事后篡改历史构建证据，源码归档 SHA、Recipe Digest 与 Image ID 因果链严格闭环。
+  - **密码学验证与准入**：正式 Gate C 资格化收据由维护者站点使用 maintainer private key **签名**，CCBench 使用注入的 trusted public key **验证**。公开仓库绝不包含私钥，确保凭据隔离与真实性验证。
 
 ---
 

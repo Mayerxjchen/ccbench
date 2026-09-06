@@ -24,8 +24,6 @@ from scripts.infra.materialize_compshare_runtime_lock import (
 ROOT = Path(__file__).resolve().parents[2]
 RECIPE_PATH = (
     ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "recipe.lock.json"
-    if (ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "recipe.lock.json").is_file()
-    else ROOT / "base-env-build" / "matclaw-cips-gpu" / "recipe.lock.json"
 )
 SCHEMA_PATH = ROOT / "schemas" / "compshare-runtime-lock.schema.json"
 
@@ -49,10 +47,7 @@ def test_build_runtime_lock_doc_structure():
     assert doc["schema"] == "dispatcher-compshare-runtime-lock/v2"
     assert doc["capability"] == "matclaw-cips"
     assert doc["image_name"] == "mlff-matclaw-cips-gpu-v1"
-    assert doc["provenance"]["recipe_path"] in (
-        "runtimes/recipes/matclaw-cips-gpu/recipe.lock.json",
-        "base-env-build/matclaw-cips-gpu/recipe.lock.json",
-    )
+    assert doc["provenance"]["recipe_path"] == "runtimes/recipes/matclaw-cips-gpu/recipe.lock.json"
     assert doc["artifact"]["image_id"] is None
     assert doc["qualification"]["status"] == "UNBUILT"
     assert doc["provenance"]["recipe_digest"].startswith("sha256:")

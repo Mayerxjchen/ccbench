@@ -19,8 +19,6 @@ def valid_evidence() -> dict[str, Any]:
     root = Path(__file__).resolve().parents[2]
     lock_path = (
         root / "runtimes" / "recipes" / "agent-claude-code" / "claude-code.lock.json"
-        if (root / "runtimes" / "recipes" / "agent-claude-code" / "claude-code.lock.json").is_file()
-        else root / "base-env-build" / "agent-claude-code" / "claude-code.lock.json"
     )
     lock_data = json.loads(lock_path.read_text(encoding="utf-8"))
     image_digest = lock_data["built_image_digest"]

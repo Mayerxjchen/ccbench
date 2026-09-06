@@ -22,16 +22,18 @@ usage() {
 真实可用目标 (Active Targets):
   agent-claude-code       ccbench-agent-claude-code:v1 (Candidate Agent Sandbox 镜像)
   matclaw-cips            ccbench-matclaw-cips:cpu (DeePMD + LAMMPS + CIPS teacher)
-  matclaw-cips-gpu        ccbench-matclaw-cips:gpu (DeePMD + CUDA 12 + qualify_gpu)
+  matclaw-cips-gpu        ccbench-matclaw-cips:gpu (DeePMD + CUDA 12 + qualify_gpu，自动依赖 matclaw-cips)
   matclaw-cips-controller ccbench-matclaw-cips:controller (HPC 控制层沙箱)
-  ai2kit-controller       ccbench-ai2kit:controller (AI2Kit HPC 控制层沙箱)
+  ai2kit-controller       ccbench-ai2kit:controller (Case 004 AI2Kit+CP2K HPC 控制层沙箱，调度集群 SIF 任务)
   deepmd-jax              ccbench-deepmd-jax:cpu (DP-MP / JAX runtime)
   skills                  ccbench-skills:<sha> (技能包镜像，生成 .skill-image.json)
   all                     构建以上全部本地 Dockerfile 镜像
 
 注意:
-  jax-gpu 为 CompShare GPU 镜像配方 (由 recipe.lock.json 定义)，
-  如需构建请使用 scripts/qualification/build_compshare_image_b.py。
+  - jax-gpu 为 CompShare GPU 镜像配方 (由 recipe.lock.json 定义)，
+    如需构建请使用 scripts/qualification/build_compshare_image_b.py。
+  - Case 004 (AI2Kit+CP2K) 依赖集群预置 Singularity/SIF 镜像，由 HPC 控制层直接调度，
+    无本地 Docker 计算引擎构建目标。如需构建控制层沙箱请指定 ai2kit-controller。
 
 也可传入案例目录名或编号（如 001 或 001-matclaw-cips-active-distillation），自动解析依赖。
 
@@ -104,6 +106,9 @@ if "deepmd-jax" in req_families or "jax" in req_families:
     print("deepmd-jax")
 elif "matclaw-cips" in req_families:
     print("matclaw-cips")
+elif "ai2kit" in req_families or "004" in case_dir.name:
+    print("提示: Case 004 (ai2kit) 依赖集群预置 SIF 镜像，无本地 Docker 构建目标", file=sys.stderr)
+    sys.exit(0)
 else:
     print(f"build.sh: {case_dir.name}: no matching local recipe for {req_families}", file=sys.stderr)
     sys.exit(1)
@@ -130,6 +135,7 @@ expand() {
                 echo matclaw-cips
                 ;;
             matclaw-cips-gpu|ccbench-matclaw-cips:gpu|dftworld-base-matclaw-cips:2.2.11-gpu)
+                echo matclaw-cips
                 echo matclaw-cips-gpu
                 ;;
             matclaw-cips-controller|ccbench-matclaw-cips:controller|dftworld-base-matclaw-cips:2.2.11-controller)
@@ -147,6 +153,9 @@ expand() {
                 ;;
             jax-gpu)
                 echo "提示: jax-gpu 为 CompShare 云端镜像配方，请运行 scripts/qualification/build_compshare_image_b.py" >&2
+                ;;
+            004|004-ai2kit-water64-end-to-end-potential)
+                echo "提示: Case 004 依赖集群预置 SIF 镜像 (ai2kit/cp2k)，无本地 Docker 构建目标" >&2
                 ;;
             *)
                 local steps
@@ -176,6 +185,11 @@ while IFS= read -r step; do
 done < <(expand "${TARGETS[@]}")
 
 if [ ${#STEPS[@]} -eq 0 ]; then
+    for arg in "${TARGETS[@]}"; do
+        if [[ "$arg" == *"004"* ]] || [[ "$arg" == "jax-gpu" ]]; then
+            exit 0
+        fi
+    done
     echo "没有可构建的步骤" >&2
     exit 1
 fi
