@@ -93,6 +93,33 @@
       },
       "additionalProperties": false
     },
+    "coverage": {
+      "type": "object",
+      "description": "Portfolio coverage dimensions for representativeness analysis. Optional — cases without coverage tags are valid but excluded from portfolio reports.",
+      "properties": {
+        "scientific_domain": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Material or physics system (e.g. ferroelectric_cips, water_liquid)"
+        },
+        "method_family": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Computational approach (e.g. active_learning_potential, end_to_end_potential)"
+        },
+        "material_class": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Material category (e.g. inorganic_2d, molecular_liquid)"
+        },
+        "computation_type": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Execution pattern (e.g. iterative_training, end_to_end_pipeline)"
+        }
+      },
+      "additionalProperties": false
+    },
     "submission_contract": {
       "type": "object",
       "description": "Structural pre-Verifier gate: shape checks only, never execution.",

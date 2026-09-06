@@ -1,0 +1,49 @@
+schema_version = "1.2"
+case_version = "1.0.0"
+
+[execution]
+class = "hpc_controller"
+
+[candidate]
+instruction = "task.md"
+submission_root = "final"
+legacy_submission_layout = false
+image = "dftworld-base-ai2kit:0.1.0-cpu-controller"
+files = [{ destination = ".", source = "input/**", strip_prefix = "input" }]
+
+[hpc]
+contract_version = "hpc-execution/v1"
+required_capabilities = ["batch_jobs", "gpu", "artifact_fetch"]
+
+[hpc.qualification]
+requires = ["dispatcher.cpu", "dispatcher.gpu", "runtime.ai2kit", "runtime.cp2k"]
+
+[hpc.scientific_capabilities]
+required = ["ai2kit", "cp2k"]
+optional = ["gpu-training"]
+
+[runtime]
+requirements = [
+  { family = "ai2kit", name = "ai2kit", version = "==1.1.0" },
+  { family = "cp2k", name = "cp2k", version = "==2025.2" },
+]
+
+[task]
+name = "benchmark/004-ai2kit-water64-end-to-end-potential"
+description = "End-to-end development of a reliable DeePMD water potential (CP2K AIMD -> active learning -> validation) starting from an unrelaxed 64-H2O structure"
+
+[verifier]
+timeout_sec = 10800
+
+[coverage]
+scientific_domain = "water_liquid"
+method_family = "end_to_end_potential"
+material_class = "molecular_liquid"
+computation_type = "end_to_end_pipeline"
+
+[environment]
+cpus = 16
+memory_mb = 32768
+storage_mb = 102400
+gpus = 0
+allow_internet = false

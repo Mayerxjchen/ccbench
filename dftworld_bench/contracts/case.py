@@ -104,6 +104,21 @@ class ScientificCapabilities:
     optional: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class CoverageTags:
+    """Portfolio coverage dimensions for representativeness analysis.
+
+    All fields are optional; empty string means untagged.  Dimension
+    vocabularies live in ``schemas/coverage-vocabularies.yaml`` (single
+    source of truth — no dual-write).
+    """
+
+    scientific_domain: str = ""
+    method_family: str = ""
+    material_class: str = ""
+    computation_type: str = ""
+
+
 def _reject_infra_owned_fields(raw: dict[str, Any]) -> None:
     """Reject case manifests that contain infra-owned fields.
 
@@ -160,6 +175,8 @@ class CaseSpec:
     # authoritative for the dispatcher tiers; registry auto-derivation (see
     # effective_qualification_requires) can only add runtime.* gates.
     qualification_requires: tuple[str, ...] = ()
+    # Portfolio coverage dimensions (optional; empty = untagged).
+    coverage: CoverageTags = field(default_factory=CoverageTags)
     # Case root, populated by CaseSpec.load; needed by the packager to resolve
     # glob sources and the instruction file.
     case_dir: Path | None = None
@@ -196,19 +213,24 @@ class CaseSpec:
     @classmethod
     def load(cls, case_dir: Path) -> "CaseSpec":
         case_dir = Path(case_dir)
-        toml_path = case_dir / "task.toml"
+        if not case_dir.is_dir() and (case_dir.parent / "cases" / case_dir.name).is_dir():
+            case_dir = case_dir.parent / "cases" / case_dir.name
+        case_toml = case_dir / "case.toml"
+        task_toml = case_dir / "task.toml"
         yaml_path = case_dir / "task.yaml"
-        if toml_path.exists() and yaml_path.exists():
+        if case_toml.exists():
+            raw = tomllib.loads(case_toml.read_text(encoding="utf-8"))
+        elif task_toml.exists() and yaml_path.exists():
             raise CaseContractError(
                 f"both task.toml and task.yaml present in {case_dir}; "
                 "refusing to guess which is authoritative"
             )
-        if toml_path.exists():
-            raw = tomllib.loads(toml_path.read_text(encoding="utf-8"))
+        elif task_toml.exists():
+            raw = tomllib.loads(task_toml.read_text(encoding="utf-8"))
         elif yaml_path.exists():
             raw = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
         else:
-            raise CaseContractError(f"no task.toml or task.yaml in {case_dir}")
+            raise CaseContractError(f"no case.toml, task.toml or task.yaml in {case_dir}")
         if not isinstance(raw, dict):
             raise CaseContractError(f"case manifest {case_dir} is not a table")
         return cls._from_raw(raw, case_dir)
@@ -264,9 +286,10 @@ class CaseSpec:
         if explicit_class is not None:
             cls._validate_schema(contract_doc)
 
-        instruction = "instruction.md"
-        submission_root = "."
-        legacy_layout = True
+        instruction = "task.md" if (case_dir / "task.md").is_file() else "instruction.md"
+        is_case_v2 = (case_dir / "case.toml").is_file()
+        submission_root = "final" if is_case_v2 else "."
+        legacy_layout = False if is_case_v2 else True
         candidate_image: str | None = None
         max_agent_seconds: float | None = None
         public_rules: list[PublicFileRule] = []
@@ -283,7 +306,10 @@ class CaseSpec:
             for rule in candidate.get("files") or []:
                 public_rules.append(_parse_public_rule(rule))
         if not public_rules:
-            public_rules.append(_parse_public_rule(_LEGACY_PUBLIC_RULE))
+            if (case_dir / "input").is_dir():
+                public_rules.append(_parse_public_rule({"source": "input/**", "destination": ".", "strip_prefix": "input"}))
+            else:
+                public_rules.append(_parse_public_rule(_LEGACY_PUBLIC_RULE))
 
         agent = raw.get("agent") or {}
         verifier = raw.get("verifier") or {}
@@ -315,6 +341,17 @@ class CaseSpec:
         submission_contract: dict[str, Any] = {}
         if isinstance(submission_contract_raw, dict):
             submission_contract = submission_contract_raw
+
+        # Coverage tags for portfolio representativeness (optional).
+        coverage_raw = raw.get("coverage")
+        coverage = CoverageTags()
+        if isinstance(coverage_raw, dict):
+            coverage = CoverageTags(
+                scientific_domain=str(coverage_raw.get("scientific_domain", "")),
+                method_family=str(coverage_raw.get("method_family", "")),
+                material_class=str(coverage_raw.get("material_class", "")),
+                computation_type=str(coverage_raw.get("computation_type", "")),
+            )
 
         # Scientific compute capabilities from the [hpc] block (HPC cases only).
         # ``required``/``optional`` name scientific capabilities (cp2k, dpmp,
@@ -402,6 +439,7 @@ class CaseSpec:
             submission_contract=submission_contract,
             scientific_capabilities=scientific_capabilities,
             qualification_requires=qualification_requires,
+            coverage=coverage,
             case_dir=case_dir,
         )
 

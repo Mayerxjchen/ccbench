@@ -1,0 +1,35 @@
+schema_version: 1
+description: >
+  Single source of truth for coverage dimension vocabularies.
+  The portfolio registry reads this file directly; no dual-write.
+  scientific_domain is open (new science doesn't need a schema change);
+  other dimensions are curated.
+
+dimensions:
+  scientific_domain:
+    description: "Material or physics system being studied"
+    values: []  # open vocabulary
+  method_family:
+    description: "Computational approach"
+    values:
+      - active_learning_potential
+      - end_to_end_potential
+      - md_property_calculation
+      - adaptive_property_search
+      - published_model_execution
+      - model_evaluation
+  material_class:
+    description: "Material category"
+    values:
+      - inorganic_2d
+      - molecular_liquid
+      - oxide_interface
+      - molecular_crystal
+      - metallic_alloy
+  computation_type:
+    description: "Execution pattern"
+    values:
+      - iterative_training
+      - single_shot_md
+      - property_calculation
+      - end_to_end_pipeline

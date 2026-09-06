@@ -1,0 +1,46 @@
+schema_version = "1.2"
+case_version = "1.0.0"
+
+[execution]
+class = "hpc_controller"
+
+[candidate]
+instruction = "task.md"
+submission_root = "final"
+legacy_submission_layout = false
+image = "dftworld-base-matclaw-cips:2.2.11-cpu"
+files = [{ destination = ".", source = "input/**", strip_prefix = "input" }]
+
+[hpc]
+contract_version = "hpc-execution/v1"
+required_capabilities = ["batch_jobs", "gpu", "artifact_fetch"]
+
+[hpc.qualification]
+requires = ["dispatcher.gpu", "runtime.matclaw-gpu"]
+
+[hpc.scientific_capabilities]
+required = ["matclaw-cips", "cp2k"]
+optional = ["gpu-training"]
+
+[runtime]
+requirements = [{ family = "matclaw-cips", name = "matclaw-cips", version = "==2.2.11" }]
+
+[task]
+name = "benchmark/002-matclaw-cips-curie-temperature"
+description = "Estimate the CIPS Curie temperature from converged DeePMD MD"
+
+[verifier]
+timeout_sec = 10800
+
+[coverage]
+scientific_domain = "cips_curie_temperature"
+method_family = "md_property_calculation"
+material_class = "inorganic_2d"
+computation_type = "single_shot_md"
+
+[environment]
+cpus = 16
+memory_mb = 32768
+storage_mb = 102400
+gpus = 0
+allow_internet = false
