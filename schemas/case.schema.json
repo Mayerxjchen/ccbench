@@ -116,6 +116,11 @@
           "type": "string",
           "minLength": 1,
           "description": "Execution pattern (e.g. iterative_training, end_to_end_pipeline)"
+        },
+        "paradigm": {
+          "type": "string",
+          "enum": ["standard", "research_question"],
+          "description": "Case paradigm. 'research_question' enables paper-identity isolation checks; 'standard' (default) allows normal DOI/provenance references."
         }
       },
       "additionalProperties": false

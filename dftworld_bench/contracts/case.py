@@ -162,6 +162,7 @@ class CoverageTags:
     method_family: str = ""
     material_class: str = ""
     computation_type: str = ""
+    paradigm: str = "standard"
 
 
 def _reject_infra_owned_fields(raw: dict[str, Any]) -> None:
@@ -391,11 +392,18 @@ class CaseSpec:
         coverage_raw = raw.get("coverage")
         coverage = CoverageTags()
         if isinstance(coverage_raw, dict):
+            paradigm_raw = str(coverage_raw.get("paradigm", "standard"))
+            if paradigm_raw not in ("standard", "research_question"):
+                raise CaseContractError(
+                    f"invalid coverage.paradigm: {paradigm_raw!r}; "
+                    "expected 'standard' or 'research_question'"
+                )
             coverage = CoverageTags(
                 scientific_domain=str(coverage_raw.get("scientific_domain", "")),
                 method_family=str(coverage_raw.get("method_family", "")),
                 material_class=str(coverage_raw.get("material_class", "")),
                 computation_type=str(coverage_raw.get("computation_type", "")),
+                paradigm=paradigm_raw,
             )
             validate_coverage_tags(coverage)
 

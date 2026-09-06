@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Conditional DOI/paper-identity leakage check for research-question cases.
 
-ONLY applies to cases with ``coverage.paradigm == "research_question"``.
-Standard benchmark cases (MLP training/validation) are expected to reference
-DOIs and paper titles — that's normal provenance.  Research-question cases
-need paper-identity isolation so the agent cannot cheat by looking up the
+ONLY applies to cases with ``coverage.paradigm == "research_question"``
+(the single source of truth, defined in case.schema.json).  Standard
+benchmark cases (MLP training/validation) are expected to reference DOIs
+and paper titles — that's normal provenance.  Research-question cases need
+paper-identity isolation so the agent cannot cheat by looking up the
 source paper.
 
 Usage::
@@ -12,7 +13,7 @@ Usage::
     python scripts/portfolio/leakage_check.py --case cases/001-some-case
 
 Exit codes: 0 = no leakage found (or not a research-question case);
-1 = leakage detected; 2 = structural error.
+1 = leakage detected; 2 = structural error (manifest parse failure).
 """
 from __future__ import annotations
 
@@ -26,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from dftworld_bench.contracts.case import CaseSpec
+from dftworld_bench.contracts.case import CaseContractError, CaseSpec
 
 # DOI pattern: 10.XXXX/... (broad match, not RFC-complete)
 DOI_RE = re.compile(
@@ -42,31 +43,43 @@ PAPER_TITLE_PATTERNS = [
 ]
 
 
-def _is_research_question(case_dir: Path) -> bool:
+class LeakageStructuralError(RuntimeError):
+    """Raised when the case manifest cannot be parsed (fail-closed)."""
+
+
+def is_research_question(case_dir: Path) -> bool:
     """Check if this case uses the research-question paradigm.
 
-    Looks for coverage.paradigm or a selection/ directory with
-    research-question artifacts.
+    Single source of truth: ``coverage.paradigm`` in case.toml, parsed via
+    CaseSpec.  Also recognizes the legacy ``selection/state.yaml`` artifact
+    from the research-question workflow.
+
+    Raises LeakageStructuralError if the manifest exists but cannot be parsed.
     """
     case_toml = case_dir / "case.toml"
     if not case_toml.exists():
-        return False
+        # No manifest → check selection directory only
+        selection_dir = case_dir / "selection"
+        return selection_dir.is_dir() and (selection_dir / "state.yaml").exists()
+
     try:
-        import tomllib
-        raw = tomllib.loads(case_toml.read_text(encoding="utf-8"))
-        coverage = raw.get("coverage") or {}
-        if coverage.get("paradigm") == "research_question":
-            return True
-        if raw.get("paradigm") == "research_question":
-            return True
-        if "research_question" in raw:
-            return True
-    except Exception:
-        pass
-    # Also check for selection directory (research-question workflow artifact)
+        spec = CaseSpec.load(case_dir)
+    except (CaseContractError, Exception) as exc:
+        # Catch CaseContractError (schema violations) and TOMLDecodeError
+        # (syntax errors).  A broken manifest must never silently pass as
+        # "not research-question".
+        raise LeakageStructuralError(
+            f"cannot determine paradigm: manifest parse failed: {exc}"
+        ) from exc
+
+    if spec.coverage.paradigm == "research_question":
+        return True
+
+    # Legacy: selection directory presence also signals research-question
     selection_dir = case_dir / "selection"
     if selection_dir.is_dir() and (selection_dir / "state.yaml").exists():
         return True
+
     return False
 
 
@@ -87,7 +100,6 @@ def check_file_for_dois(file_path: Path) -> list[dict]:
         return findings
     for match in DOI_RE.finditer(content):
         doi = match.group().decode("utf-8", errors="replace")
-        # Compute line number
         line_num = content[:match.start()].count(b"\n") + 1
         findings.append({
             "file": _safe_relative(file_path, ROOT),
@@ -121,54 +133,43 @@ def check_file_for_paper_identity(file_path: Path) -> list[dict]:
 def get_candidate_visible_files(case_dir: Path) -> set[Path]:
     """Resolve all files visible to the candidate based on case contract allowlist.
 
-    If CaseSpec can be loaded:
+    Uses CaseSpec to resolve:
     - spec.instruction_path (candidate.instruction)
     - All files matching spec.public_files rules (candidate.files source patterns)
-    Fallback (non-canonical cases):
-    - task.md / instruction.md
-    - input/ directory
-    """
-    visible_files: set[Path] = set()
 
-    spec = None
+    Raises LeakageStructuralError if the manifest cannot be parsed — there is
+    no silent fallback; a broken manifest must not produce a partial scan.
+    """
     try:
         spec = CaseSpec.load(case_dir)
-    except Exception:
-        pass
+    except (CaseContractError, Exception) as exc:
+        raise LeakageStructuralError(
+            f"cannot resolve candidate-visible files: manifest parse failed: {exc}"
+        ) from exc
 
-    if spec is not None:
-        # 1. Instruction file
-        instr = case_dir / spec.instruction_path
-        if instr.is_file():
-            visible_files.add(instr.resolve())
+    visible_files: set[Path] = set()
 
-        # 2. Public files declared in [candidate.files] (or legacy public rule)
-        for rule in spec.public_files:
-            src_str = rule.source.strip()
-            matched_paths = list(case_dir.glob(src_str))
-            if not matched_paths:
-                direct = case_dir / src_str
-                if direct.exists():
-                    matched_paths = [direct]
+    # 1. Instruction file
+    instr = case_dir / spec.instruction_path
+    if instr.is_file():
+        visible_files.add(instr.resolve())
 
-            for p in matched_paths:
-                if p.is_file() and not p.name.startswith("."):
-                    visible_files.add(p.resolve())
-                elif p.is_dir():
-                    for sub in p.rglob("*"):
-                        if sub.is_file() and not sub.name.startswith("."):
-                            visible_files.add(sub.resolve())
-    else:
-        # Fallback for non-canonical case directories
-        for name in ("task.md", "instruction.md"):
-            p = case_dir / name
-            if p.is_file():
+    # 2. Public files declared in [candidate.files] (or legacy public rule)
+    for rule in spec.public_files:
+        src_str = rule.source.strip()
+        matched_paths = list(case_dir.glob(src_str))
+        if not matched_paths:
+            direct = case_dir / src_str
+            if direct.exists():
+                matched_paths = [direct]
+
+        for p in matched_paths:
+            if p.is_file() and not p.name.startswith("."):
                 visible_files.add(p.resolve())
-        input_dir = case_dir / "input"
-        if input_dir.is_dir():
-            for p in input_dir.rglob("*"):
-                if p.is_file() and not p.name.startswith("."):
-                    visible_files.add(p.resolve())
+            elif p.is_dir():
+                for sub in p.rglob("*"):
+                    if sub.is_file() and not sub.name.startswith("."):
+                        visible_files.add(sub.resolve())
 
     return visible_files
 
@@ -182,13 +183,14 @@ def check_case_leakage(case_dir: Path) -> list[dict]:
     - instruction/task files
     - public allowlist files
     - NOT reference/, solution/, tests/, verifier/
+
+    Raises LeakageStructuralError on manifest parse failure (fail-closed).
     """
-    if not _is_research_question(case_dir):
+    if not is_research_question(case_dir):
         return []
 
-    findings = []
     visible_files = get_candidate_visible_files(case_dir)
-
+    findings = []
     for path in sorted(visible_files):
         findings.extend(check_file_for_dois(path))
         findings.extend(check_file_for_paper_identity(path))
@@ -215,17 +217,21 @@ def main(argv: list[str] | None = None) -> int:
         cases_to_check.append(args.case)
 
     all_findings = []
-    for case_dir in cases_to_check:
-        findings = check_case_leakage(case_dir)
-        if findings:
-            for f in findings:
-                f["case"] = case_dir.name
-            all_findings.extend(findings)
-            print(f"[leakage] {case_dir.name}: {len(findings)} finding(s)")
-        else:
-            is_rq = _is_research_question(case_dir)
-            status = "not research-question (skipped)" if is_rq is False else "clean"
-            print(f"[leakage] {case_dir.name}: {status}")
+    try:
+        for case_dir in cases_to_check:
+            findings = check_case_leakage(case_dir)
+            if findings:
+                for f in findings:
+                    f["case"] = case_dir.name
+                all_findings.extend(findings)
+                print(f"[leakage] {case_dir.name}: {len(findings)} finding(s)")
+            else:
+                rq = is_research_question(case_dir)
+                status = "not research-question (skipped)" if not rq else "clean"
+                print(f"[leakage] {case_dir.name}: {status}")
+    except LeakageStructuralError as exc:
+        print(f"[leakage] STRUCTURAL ERROR: {exc}", file=sys.stderr)
+        return 2
 
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
