@@ -433,7 +433,7 @@ def test_031_production_entry_calls_verify_not_pytest():
     entry directly — the same gate the HPC finalize path runs — never the
     development pytest retraining suites (which rewrite fixtures and do not
     belong in the read-only Verifier container)."""
-    test_sh = ROOT / "031-matclaw-cips-active-distillation" / "tests" / "test.sh"
+    test_sh = ROOT / "001-matclaw-cips-active-distillation" / "tests" / "test.sh"
     content = test_sh.read_text(encoding="utf-8")
     assert "from verifier import verify" in content
     assert "verify(" in content

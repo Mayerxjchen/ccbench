@@ -30,16 +30,14 @@ import scripts.infra.migrate_case_contracts as migrator
 ROOT = Path(__file__).resolve().parents[2]
 
 PRESERVED_HPC_CASE_IDS = (
-    "031-matclaw-cips-active-distillation",
-    "032-matclaw-cips-curie-temperature",
-    "033-matclaw-cips-domain-wall-search",
-    "034-ai2kit-water64-end-to-end-potential",
-    "042-go-water-dpmp",
+    "001-matclaw-cips-active-distillation",
+    "002-matclaw-cips-curie-temperature",
+    "003-matclaw-cips-domain-wall-search",
+    "004-ai2kit-water64-end-to-end-potential",
+    "005-go-water-dpmp",
 )
 
-DELETED_SHORT_CASE_PREFIXES = tuple(f"{i:03d}-" for i in range(1, 31)) + tuple(
-    f"{i:03d}-" for i in range(35, 42)
-)
+DELETED_SHORT_CASE_PREFIXES = tuple(f"{i:03d}-" for i in range(6, 42)) + ("042-",)
 
 
 def _load_schema() -> dict:
@@ -165,7 +163,12 @@ def test_case_submission_contract_and_timeouts(case_id: str):
     assert spec.verifier_timeout_sec > 0.0
 
 
-@pytest.mark.parametrize("case_id", ("031-matclaw-cips-active-distillation", "032-matclaw-cips-curie-temperature", "033-matclaw-cips-domain-wall-search", "034-ai2kit-water64-end-to-end-potential"))
+@pytest.mark.parametrize("case_id", (
+    "001-matclaw-cips-active-distillation",
+    "002-matclaw-cips-curie-temperature",
+    "003-matclaw-cips-domain-wall-search",
+    "004-ai2kit-water64-end-to-end-potential",
+))
 def test_matclaw_and_ai2kit_profiles_exist(case_id: str):
     case_dir = ROOT / case_id
     assert (case_dir / "profiles" / "resource.yaml").is_file()

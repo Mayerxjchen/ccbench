@@ -13,9 +13,12 @@ from scripts.evidence.resolve_required_artifacts import resolve_required_artifac
 
 ROOT = Path(__file__).resolve().parents[2]
 CASES = {
-    "031": ROOT / "031-matclaw-cips-active-distillation",
-    "032": ROOT / "032-matclaw-cips-curie-temperature",
-    "033": ROOT / "033-matclaw-cips-domain-wall-search",
+    "001": ROOT / "001-matclaw-cips-active-distillation",
+    "002": ROOT / "002-matclaw-cips-curie-temperature",
+    "003": ROOT / "003-matclaw-cips-domain-wall-search",
+    "031": ROOT / "001-matclaw-cips-active-distillation",
+    "032": ROOT / "002-matclaw-cips-curie-temperature",
+    "033": ROOT / "003-matclaw-cips-domain-wall-search",
 }
 POLICY = {
     case: json.loads((CASES[case] / "reference" / "evidence-policy.json").read_text())

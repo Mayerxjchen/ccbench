@@ -78,11 +78,21 @@ def site_root(site_name: str) -> Path:
 
 
 def case_dir_for(name: str) -> Path:
-    """Resolve ``--case``: exact directory, benchmark_id, or id shorthand.
-
-    ``044-name`` and ``044`` both resolve to the unique root-level benchmark
-    dir whose benchmark_id starts with the argument plus ``-``.
-    """
+    """Resolve ``--case``: exact directory, benchmark_id, or id shorthand."""
+    alias_map = {
+        "031": "001-matclaw-cips-active-distillation",
+        "032": "002-matclaw-cips-curie-temperature",
+        "033": "003-matclaw-cips-domain-wall-search",
+        "034": "004-ai2kit-water64-end-to-end-potential",
+        "042": "005-go-water-dpmp",
+        "031-matclaw-cips-active-distillation": "001-matclaw-cips-active-distillation",
+        "032-matclaw-cips-curie-temperature": "002-matclaw-cips-curie-temperature",
+        "033-matclaw-cips-domain-wall-search": "003-matclaw-cips-domain-wall-search",
+        "034-ai2kit-water64-end-to-end-potential": "004-ai2kit-water64-end-to-end-potential",
+        "042-go-water-dpmp": "005-go-water-dpmp",
+    }
+    if name in alias_map:
+        return ROOT / alias_map[name]
     direct = ROOT / name
     if direct.is_dir() and (direct / "task.toml").is_file():
         return direct

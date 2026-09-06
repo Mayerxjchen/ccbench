@@ -9,7 +9,7 @@ def test_old_ws_command_resolves_hpc_long_budget() -> None:
     args = eval_mod.parse_args(["034-ai2kit-water64-end-to-end-potential", "--skills"])
     settings = eval_mod.resolve_task_run_settings(args, "hpc_controller")
     assert settings.model == "deepseek/deepseek-v4-pro"
-    assert settings.max_turns == 512
+    assert settings.max_turns == 1024
     assert settings.condition_id == "with-skill"
     assert settings.counted is True
 

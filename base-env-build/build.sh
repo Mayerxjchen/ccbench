@@ -55,11 +55,11 @@ EOF
 # 拉取 ubuntu 超时可覆盖，例如:
 #   DFTWORLD_BASE_IMAGE=docker.m.daocloud.io/library/ubuntu:24.04
 #   DFTWORLD_BASE_IMAGE=debian:bookworm-slim
-BASE_IMAGE="${DFTWORLD_BASE_IMAGE:-ubuntu:24.04}"
+BASE_IMAGE="${CCBENCH_BASE_IMAGE:-${DFTWORLD_BASE_IMAGE:-ubuntu:24.04}}"
 
 # 运行时注册表解析用同一套 Python（runtime registry 在 dftworld_bench 内）。
-PY="${DFTWORLD_PYTHON:-$ROOT/.venv/bin/python}"
-[ -x "$PY" ] || PY="${DFTWORLD_PYTHON:-python3}"
+PY="${CCBENCH_PYTHON:-${DFTWORLD_PYTHON:-$ROOT/.venv/bin/python}}"
+[ -x "$PY" ] || PY="${CCBENCH_PYTHON:-${DFTWORLD_PYTHON:-python3}}"
 
 while getopts "fh" opt; do
     case $opt in

@@ -86,12 +86,20 @@ _TERMINAL_PHASE = {
     "INFRA_INVALID": "INVALID_INFRA",
 }
 
-VERIFY_MAX_FILES = int(os.getenv("DFTWORLD_VERIFY_MAX_FILES", "50000"))
+VERIFY_MAX_FILES = int(
+    os.getenv("CCBENCH_VERIFY_MAX_FILES", os.getenv("DFTWORLD_VERIFY_MAX_FILES", "50000"))
+)
 VERIFY_MAX_SINGLE_BYTES = int(
-    os.getenv("DFTWORLD_VERIFY_MAX_SINGLE_BYTES", str(2 * 1024**3))
+    os.getenv(
+        "CCBENCH_VERIFY_MAX_SINGLE_BYTES",
+        os.getenv("DFTWORLD_VERIFY_MAX_SINGLE_BYTES", str(2 * 1024**3)),
+    )
 )
 VERIFY_MAX_TOTAL_BYTES = int(
-    os.getenv("DFTWORLD_VERIFY_MAX_TOTAL_BYTES", str(20 * 1024**3))
+    os.getenv(
+        "CCBENCH_VERIFY_MAX_TOTAL_BYTES",
+        os.getenv("DFTWORLD_VERIFY_MAX_TOTAL_BYTES", str(20 * 1024**3)),
+    )
 )
 
 

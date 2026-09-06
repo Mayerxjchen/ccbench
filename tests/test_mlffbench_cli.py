@@ -87,7 +87,7 @@ def test_run_forwards_argv_to_eval_main(monkeypatch):
     monkeypatch.setattr(eval_mod, "main", fake_main)
     assert cli.main(["run", "034-ai2kit-water64-end-to-end-potential", "--skills"]) == 0
     assert seen[0] == [
-        "mlffbench run", "034-ai2kit-water64-end-to-end-potential", "--skills",
+        "ccbench run", "034-ai2kit-water64-end-to-end-potential", "--skills",
     ]
 
 
@@ -222,7 +222,7 @@ def test_run_translates_compute_flag(monkeypatch):
     code = cli.main(["run", "034-ai2kit-water64-end-to-end-potential", "--compute", "my-profile.json"])
     assert code == 0
     assert seen[0] == [
-        "mlffbench run",
+        "ccbench run",
         "034-ai2kit-water64-end-to-end-potential",
         "--compute-profile",
         "my-profile.json",
@@ -242,7 +242,7 @@ def test_run_translates_site_flag(monkeypatch):
     code = cli.main(["run", "034-ai2kit-water64-end-to-end-potential", "--site", "my-site.json"])
     assert code == 0
     assert seen[0] == [
-        "mlffbench run",
+        "ccbench run",
         "034-ai2kit-water64-end-to-end-potential",
         "--site-profile",
         "my-site.json",

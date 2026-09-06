@@ -1,14 +1,14 @@
-"""``mlffbench`` — the thin unified user entry.
+"""``ccbench`` — the thin unified user entry (aliases: ``mlffbench``).
 
 Five verbs, and no logic: each one locates an existing module and forwards.
 This CLI must never reimplement resolution, submission, qualification, or
 reporting — those live in the trusted modules it orchestrates:
 
-- ``mlffbench setup``             — environment and repo sanity, next steps
-- ``mlffbench site configure``    — materialize the private cluster profile
-- ``mlffbench site qualify ...``  — -> scripts/qualification/qualify_case.py
-- ``mlffbench run ...``           — -> eval.py (the case runner)
-- ``mlffbench report ...``        — -> scripts/ablation/verify_evidence.py
+- ``ccbench setup``             — environment and repo sanity, next steps
+- ``ccbench site configure``    — materialize the private cluster profile
+- ``ccbench site qualify ...``  — -> scripts/qualification/qualify_case.py
+- ``ccbench run ...``           — -> eval.py (the case runner)
+- ``ccbench report ...``        — -> scripts/ablation/verify_evidence.py
 
 A private cluster profile must live OUTSIDE the repository; ``site
 configure`` enforces that at the door.
@@ -59,10 +59,10 @@ def _setup(report_only: bool = False) -> int:
     if not report_only:
         print(
             "\nnext steps:\n"
-            "  mlffbench site configure --out ~/cluster_profile.toml\n"
+            "  ccbench site configure --out ~/cluster_profile.toml\n"
             "  # fill in every value, then:\n"
-            "  mlffbench site qualify --profile ~/cluster_profile.toml --dry-run\n"
-            "  mlffbench run 034-ai2kit-water64-end-to-end-potential\n",
+            "  ccbench site qualify --profile ~/cluster_profile.toml --dry-run\n"
+            "  ccbench run 004-ai2kit-water64-end-to-end-potential\n",
             file=sys.stderr,
         )
     return 0 if ok else 1
@@ -84,7 +84,7 @@ def _site_configure(out: Path, validate: bool) -> int:
         "fill in every REQUIRED value for your cluster; partition must name "
         "exactly ONE queue (full-GPU and MIG are separate profiles with "
         "separate qualifications); then optionally run:\n"
-        f"  mlffbench site configure --out {out} --validate",
+        f"  ccbench site configure --out {out} --validate",
         file=sys.stderr,
     )
     if validate:
@@ -137,7 +137,7 @@ def _run(rest: list[str]) -> int:
         i += 1
 
     saved = sys.argv
-    sys.argv = ["mlffbench run", *translated]
+    sys.argv = ["ccbench run", *translated]
     try:
         eval_mod.main()
         return 0
@@ -360,7 +360,7 @@ def _compute_validate(profile_path: Path) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="mlffbench",
+        prog="ccbench",
         description="thin operator/user entry — orchestrates existing modules only",
     )
     sub = parser.add_subparsers(dest="command", required=True)
@@ -432,7 +432,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    command = argv[0] if argv else ""
+    if not argv or argv[0] in ("-h", "--help"):
+        build_parser().parse_args(argv or ["--help"])
+        return 0
+    command = argv[0]
     try:
         if command == "setup":
             args = build_parser().parse_args(argv)
@@ -470,7 +473,7 @@ def main(argv: list[str] | None = None) -> int:
             return _report(argv[1:])
         build_parser().error(f"unknown command {command!r}")
     except CliError as exc:
-        print(f"mlffbench: {exc}", file=sys.stderr)
+        print(f"ccbench: {exc}", file=sys.stderr)
         return 2
     raise SystemExit("unreachable")  # argparse exits on error paths above
 

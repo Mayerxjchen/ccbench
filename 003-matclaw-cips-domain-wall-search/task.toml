@@ -26,10 +26,10 @@ optional = ["gpu-training"]
 requirements = [{ family = "matclaw-cips", name = "matclaw-cips", version = "==2.2.11" }]
 
 [task]
-name = "benchmark/032-matclaw-cips-curie-temperature"
-description = "Estimate the CIPS Curie temperature from converged DeePMD MD"
+name = "benchmark/003-matclaw-cips-domain-wall-search"
+description = "Adaptive electric-field/temperature search for CIPS domain-wall propagation"
 authors = []
-keywords = ["matclaw", "deepmd", "molecular-dynamics", "curie-temperature"]
+keywords = ["matclaw", "deepmd", "adaptive-search", "domain-wall"]
 
 [metadata]
 

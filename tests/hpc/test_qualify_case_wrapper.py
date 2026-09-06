@@ -35,10 +35,14 @@ def _pass(*names: str) -> dict:
 
 
 def test_case_dir_for_shorthand_and_full_id():
-    full = qc.case_dir_for("034-ai2kit-water64-end-to-end-potential")
-    assert full.name == "034-ai2kit-water64-end-to-end-potential"
-    shorthand = qc.case_dir_for("034")
+    full = qc.case_dir_for("004-ai2kit-water64-end-to-end-potential")
+    assert full.name == "004-ai2kit-water64-end-to-end-potential"
+    shorthand = qc.case_dir_for("004")
     assert shorthand == full
+    legacy_full = qc.case_dir_for("034-ai2kit-water64-end-to-end-potential")
+    assert legacy_full == full
+    legacy_short = qc.case_dir_for("034")
+    assert legacy_short == full
     with pytest.raises(qc.QualifyPlanError):
         qc.case_dir_for("no-such-case-999")
 
@@ -71,7 +75,7 @@ def test_plan_034_fresh_site_runs_canary_then_runtime_gates():
         _case_qualification_requires,
     )
     requires = list(_case_qualification_requires(
-        ROOT / "034-ai2kit-water64-end-to-end-potential"
+        ROOT / "004-ai2kit-water64-end-to-end-potential"
     ))
     assert sorted(requires) == [
         "dispatcher.cpu", "dispatcher.gpu", "runtime.ai2kit", "runtime.cp2k",

@@ -41,7 +41,7 @@ CLI flags::
     --task NAME            只跑一个任务（如 031-matclaw-cips-active-distillation）
     --tasks-dir DIR        任务目录（默认 benchmark/）
     --model PROVIDER/MODEL 模型标识（默认 deepseek/deepseek-chat）
-    --max-turns N          每个任务最多对话轮数（默认 32）
+    --max-turns N          每个任务最多对话轮数（默认由 Run Config 决定：Formal 为 1024，Smoke 为 64）
     --skills               启用 skill：优先 public/，回退 base-env-build/skills/
     --skills-bundle        从 dftworld-skills bundle 镜像提取 skill
     --no-cache             跑完清理容器，不留 cache
@@ -120,6 +120,25 @@ FROZEN_RELEASE_SCHEMA = "ablation-ready-release/v1"
 SKILLS_IN_IMAGE = "/opt/electromind/skills"
 
 FROM_RE = re.compile(r"^\s*FROM\s+(\S+)", re.MULTILINE)
+
+# 案例短名与历史编号（031-034, 042）平滑兼容映射表
+CASE_ALIASES: dict[str, str] = {
+    "001": "001-matclaw-cips-active-distillation",
+    "031": "001-matclaw-cips-active-distillation",
+    "031-matclaw-cips-active-distillation": "001-matclaw-cips-active-distillation",
+    "002": "002-matclaw-cips-curie-temperature",
+    "032": "002-matclaw-cips-curie-temperature",
+    "032-matclaw-cips-curie-temperature": "002-matclaw-cips-curie-temperature",
+    "003": "003-matclaw-cips-domain-wall-search",
+    "033": "003-matclaw-cips-domain-wall-search",
+    "033-matclaw-cips-domain-wall-search": "003-matclaw-cips-domain-wall-search",
+    "004": "004-ai2kit-water64-end-to-end-potential",
+    "034": "004-ai2kit-water64-end-to-end-potential",
+    "034-ai2kit-water64-end-to-end-potential": "004-ai2kit-water64-end-to-end-potential",
+    "005": "005-go-water-dpmp",
+    "042": "005-go-water-dpmp",
+    "042-go-water-dpmp": "005-go-water-dpmp",
+}
 
 
 # -- transport shim for Candidate Agent --------------------------------------
@@ -629,14 +648,23 @@ def _resolved_budget_limits(
         )
     else:
         profile_name = "formal-long" if experiment_id == "skill-ablation-v1" else "local-standard"
-        legacy_agent = registry.require("agents", profile_name)
-        api = registry.require("api", "default")
-        retries = int(api["max_retries"])
-        retry_delay_ms = int(float(api["retry_max_delay_sec"]) * 1000)
+        if registry and "agents" in getattr(registry, "profiles", {}) and profile_name in registry.profiles.get("agents", {}):
+            legacy_agent = registry.require("agents", profile_name)
+            scheduler_sec = float(legacy_agent.get("scheduler_wait_walltime_sec", 0.0))
+            token_limit = int(legacy_agent.get("max_total_tokens", 100_000_000))
+        else:
+            scheduler_sec = 604800.0 if profile_name == "formal-long" else 0.0
+            token_limit = 100_000_000 if profile_name == "formal-long" else 10_000_000
+        if registry and "api" in getattr(registry, "profiles", {}) and "default" in registry.profiles.get("api", {}):
+            api = registry.require("api", "default")
+            retries = int(api.get("max_retries", 3))
+            retry_delay_ms = int(float(api.get("retry_max_delay_sec", 30.0)) * 1000)
+            cost_rate = int(api.get("cost_usd_micros_per_token", 0)) * 1_000_000
+        else:
+            retries = 3
+            retry_delay_ms = 30000
+            cost_rate = 0
         active_sec = float(task.agent_timeout_sec)
-        scheduler_sec = float(legacy_agent["scheduler_wait_walltime_sec"])
-        token_limit = int(legacy_agent["max_total_tokens"])
-        cost_rate = int(api["cost_usd_micros_per_token"]) * 1_000_000
     active_ms = int(active_sec * 1000)
     scheduler_ms = int(scheduler_sec * 1000)
     total_ms = active_ms + scheduler_ms + int(task.verifier_timeout_sec * 1000)
@@ -803,7 +831,11 @@ def resolve_harness_provenance(
     # Profile for run record (platform, execution_class, site digest).
     profile = profile_for_task(task)
     site_for_digest = site_name or "local"
-    site_digest = registry.digest("sites", site_for_digest)
+    site_digest = (
+        registry.digest("sites", site_for_digest)
+        if "sites" in registry.profiles and site_for_digest in registry.profiles["sites"]
+        else digest_bytes(canonical_json({"name": site_for_digest}))
+    )
     profile = Profile(
         name=profile.name,
         execution_class=profile.execution_class,
@@ -1376,7 +1408,10 @@ async def amain(argv: list[str] | None = None) -> int:
     elif args.tasks:
         task_dirs = []
         for name in args.tasks:
-            path = Path(name) if Path(name).is_dir() else ROOT / name
+            mapped_name = CASE_ALIASES.get(name, name)
+            path = Path(mapped_name) if Path(mapped_name).is_dir() else ROOT / mapped_name
+            if not path.is_dir():
+                path = Path(name) if Path(name).is_dir() else ROOT / name
             if not path.is_dir():
                 raise SystemExit(f"task not found: {name}")
             task_dirs.append(path)

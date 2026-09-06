@@ -1586,14 +1586,14 @@ class TestCapabilityRegistry:
     closed at CaseSpec load."""
 
     def test_real_031_requires_dispatcher_gpu_and_matclaw_gpu(self) -> None:
-        spec = CaseSpec.load(_REPO_ROOT / "031-matclaw-cips-active-distillation")
+        spec = CaseSpec.load(_REPO_ROOT / "001-matclaw-cips-active-distillation")
         assert spec.effective_qualification_requires == (
             "dispatcher.gpu", "runtime.matclaw-gpu",
         )
 
     def test_real_034_requires_cpu_and_gpu_and_both_runtime_canaries(self) -> None:
         spec = CaseSpec.load(
-            _REPO_ROOT / "034-ai2kit-water64-end-to-end-potential"
+            _REPO_ROOT / "004-ai2kit-water64-end-to-end-potential"
         )
         assert spec.effective_qualification_requires == (
             "dispatcher.cpu", "dispatcher.gpu",

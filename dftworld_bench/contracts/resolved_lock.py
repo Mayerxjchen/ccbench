@@ -18,7 +18,15 @@ import jsonschema
 
 from dftworld_bench.config.profiles import canonical_json, digest_bytes
 
-SCHEMA_PATH = Path(__file__).resolve().parents[2] / "infra" / "schemas" / "resolved-run-lock.schema.json"
+_PRIMARY_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[2] / "schemas" / "resolved-run-lock.schema.json"
+)
+_FALLBACK_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[2] / "infra" / "schemas" / "resolved-run-lock.schema.json"
+)
+SCHEMA_PATH = (
+    _PRIMARY_SCHEMA_PATH if _PRIMARY_SCHEMA_PATH.is_file() else _FALLBACK_SCHEMA_PATH
+)
 
 
 class FrozenExperimentOverrideError(ValueError):

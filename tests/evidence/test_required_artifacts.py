@@ -19,10 +19,14 @@ from scripts.evidence.resolve_required_artifacts import (
 
 ROOT = Path(__file__).resolve().parents[2]
 CASE_POLICIES = {
-    "031": ROOT / "031-matclaw-cips-active-distillation" / "reference" / "evidence-policy.json",
-    "032": ROOT / "032-matclaw-cips-curie-temperature" / "reference" / "evidence-policy.json",
-    "033": ROOT / "033-matclaw-cips-domain-wall-search" / "reference" / "evidence-policy.json",
-    "034": ROOT / "034-ai2kit-water64-end-to-end-potential" / "reference" / "evidence-policy.json",
+    "001": ROOT / "001-matclaw-cips-active-distillation" / "reference" / "evidence-policy.json",
+    "002": ROOT / "002-matclaw-cips-curie-temperature" / "reference" / "evidence-policy.json",
+    "003": ROOT / "003-matclaw-cips-domain-wall-search" / "reference" / "evidence-policy.json",
+    "004": ROOT / "004-ai2kit-water64-end-to-end-potential" / "reference" / "evidence-policy.json",
+    "031": ROOT / "001-matclaw-cips-active-distillation" / "reference" / "evidence-policy.json",
+    "032": ROOT / "002-matclaw-cips-curie-temperature" / "reference" / "evidence-policy.json",
+    "033": ROOT / "003-matclaw-cips-domain-wall-search" / "reference" / "evidence-policy.json",
+    "034": ROOT / "004-ai2kit-water64-end-to-end-potential" / "reference" / "evidence-policy.json",
 }
 
 

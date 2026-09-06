@@ -64,10 +64,10 @@ POLICY = ROOT / "benchmark" / "sources" / "matclaw" / "acceptance.json"
 CONSTRUCTION_GATES = ("G0", "G1", "G2", "G3", "G4", "G5", "G6", "G9", "G10", "G11")
 
 CASE_DIRS = {
-    "031": "031-matclaw-cips-active-distillation",
-    "032": "032-matclaw-cips-curie-temperature",
-    "033": "033-matclaw-cips-domain-wall-search",
-    "034": "034-ai2kit-water64-end-to-end-potential",
+    "031": "001-matclaw-cips-active-distillation",
+    "032": "002-matclaw-cips-curie-temperature",
+    "033": "003-matclaw-cips-domain-wall-search",
+    "034": "004-ai2kit-water64-end-to-end-potential",
 }
 
 GATE_LABELS = {
@@ -121,8 +121,13 @@ def _component_for(release: dict[str, Any], key: str, case_dir: str) -> dict | N
 
 def _release_freeze_gates(release: dict[str, Any], case_id: str,
                           case_dir: Path) -> dict[str, dict]:
-    """G7/G8 evidence from the release manifest vs current disk state."""
-    dir_name = CASE_DIRS[case_id]
+    HISTORICAL_CASE_DIRS = {
+        "031": "031-matclaw-cips-active-distillation",
+        "032": "032-matclaw-cips-curie-temperature",
+        "033": "033-matclaw-cips-domain-wall-search",
+        "034": "034-ai2kit-water64-end-to-end-potential",
+    }
+    dir_name = HISTORICAL_CASE_DIRS.get(case_id, CASE_DIRS.get(case_id, ""))
     out: dict[str, dict] = {}
 
     case_entry = _component_for(release, "cases", dir_name)

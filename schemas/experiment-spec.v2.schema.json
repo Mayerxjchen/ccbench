@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ccbench.ai/schemas/experiment-spec.v2.schema.json",
+  "title": "ExperimentSpecV2",
+  "description": "Schema for CCBench Experiment Spec v2 defining Case x Model x Skill x Repeat matrix.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "experiment_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "description": {
+      "type": "string"
+    },
+    "cases": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "models": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "skills": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "repeats": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "max_model_turns": { "type": "integer", "minimum": 1 },
+        "max_total_tokens": { "type": "integer", "minimum": 1 },
+        "agent_active_walltime_sec": { "type": "number", "minimum": 1.0 },
+        "scheduler_wait_walltime_sec": { "type": "number", "minimum": 0.0 }
+      },
+      "required": [
+        "max_model_turns",
+        "max_total_tokens",
+        "agent_active_walltime_sec",
+        "scheduler_wait_walltime_sec"
+      ],
+      "additionalProperties": false
+    },
+    "runner": {
+      "type": "object",
+      "properties": {
+        "max_concurrent_runs": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "experiment_id",
+    "cases",
+    "models",
+    "skills",
+    "repeats",
+    "budget"
+  ],
+  "additionalProperties": false
+}

@@ -28,7 +28,7 @@ optional = ["gpu-training", "jax-md-gpu"]
 requirements = [{ family = "deepmd-jax", name = "dpmp", version = "==0.2.1" }]
 
 [task]
-name = "benchmark/042-go-water-dpmp"
+name = "benchmark/005-go-water-dpmp"
 title = "End-to-end development of a GO–water DPMP interatomic potential"
 description = "Reproduce the full development pipeline of the DPMP potential for GO–water interfaces: CP2K revPBE-D3 AIMD labeling, DPMP training on JAX, iterative active-learning improvement, hidden static/dynamic/physical validation. Published dataset and author model are hidden references."
 authors = []

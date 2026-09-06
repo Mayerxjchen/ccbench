@@ -28,7 +28,7 @@ from dftworld_bench.executors.base import ExecutionContext
 from dftworld_bench.hpc.gateway_runtime import GatewayRuntime
 
 ROOT = Path(__file__).resolve().parents[2]
-HPC_CASE_PREFIXES = ("031-", "032-", "033-", "034-", "042-")
+HPC_CASE_PREFIXES = ("001-", "002-", "003-", "004-", "005-")
 
 
 def _find_case(prefix: str) -> Path:
@@ -218,7 +218,7 @@ def test_same_operation_id_generates_one_job(prefix, tmp_path):
 
 def test_two_executors_are_independent(tmp_path):
     """Closing one executor does not affect another run's gateway."""
-    prefix = "031-"
+    prefix = "001-"
     spec = CaseSpec.load(_find_case(prefix))
 
     ctx1 = _make_context(spec, tmp_path / "run1", "run-independent-1")

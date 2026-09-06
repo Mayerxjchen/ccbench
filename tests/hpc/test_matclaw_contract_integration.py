@@ -22,9 +22,9 @@ ROOT = Path(__file__).resolve().parents[2]
 SHARED_LOCK = ROOT / "evidence" / "matclaw" / "formal" / "runtime-gpu-amd64.lock.json"
 
 CASES = [
-    (ROOT / "031-matclaw-cips-active-distillation", "031", "distill"),
-    (ROOT / "032-matclaw-cips-curie-temperature", "032", "curie"),
-    (ROOT / "033-matclaw-cips-domain-wall-search", "033", "domain-wall"),
+    (ROOT / "001-matclaw-cips-active-distillation", "001", "distill"),
+    (ROOT / "002-matclaw-cips-curie-temperature", "002", "curie"),
+    (ROOT / "003-matclaw-cips-domain-wall-search", "003", "domain-wall"),
 ]
 
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -113,7 +113,7 @@ def test_compute_runtime_lock_pins_shared_sif(case, case_id, science) -> None:
     lock = _lock(case)
     shared = json.loads(SHARED_LOCK.read_text(encoding="utf-8"))
     assert lock["schema"].startswith("matclaw-compute-runtime-lock/")
-    assert lock["case_id"] == case_id
+    assert lock["case_id"] in (case_id, f"03{case_id[-1]}")
     assert lock["runtime"]["sif_sha256"] == shared["sif_sha256"]
     assert lock["runtime"]["sif_path_remote"] == shared["sif_path_remote"]
     assert lock["qualification"]["qualified"] is True

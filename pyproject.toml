@@ -1,5 +1,5 @@
 [project]
-name = "dftworld"
+name = "ccbench"
 version = "0.1.0"
 description = "AI agent benchmark for computational chemistry tasks"
 readme = "README.md"
@@ -19,8 +19,9 @@ dev = [
 ]
 
 [project.scripts]
-dftworld-config = "dftworld_bench.config.cli:main"
+ccbench = "dftworld_bench.cli:main"
 mlffbench = "dftworld_bench.cli:main"
+dftworld-config = "dftworld_bench.config.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["dftworld_bench*"]

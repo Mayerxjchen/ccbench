@@ -18,9 +18,12 @@ from scripts.matclaw_validation import (
 ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "benchmark/sources/matclaw/acceptance.json"
 CASE_NAMES = {
-    "031": "031-matclaw-cips-active-distillation",
-    "032": "032-matclaw-cips-curie-temperature",
-    "033": "033-matclaw-cips-domain-wall-search",
+    "001": "001-matclaw-cips-active-distillation",
+    "002": "002-matclaw-cips-curie-temperature",
+    "003": "003-matclaw-cips-domain-wall-search",
+    "031": "001-matclaw-cips-active-distillation",
+    "032": "002-matclaw-cips-curie-temperature",
+    "033": "003-matclaw-cips-domain-wall-search",
 }
 TEMPERATURES = [100, 150, 200, 250, 275, 300, 325, 350, 375, 400, 450, 500, 600]
 

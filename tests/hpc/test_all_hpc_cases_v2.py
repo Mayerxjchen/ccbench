@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 # The five HPC-controller cases.  ``*``-prefix so the directory slug may vary;
 # ``discover`` asserts exactly one match per prefix.
-HPC_CASE_PREFIXES = ("031-", "032-", "033-", "034-", "042-")
+HPC_CASE_PREFIXES = ("001-", "002-", "003-", "004-", "005-")
 
 
 def discover_numbered_cases(root: Path = ROOT) -> list[Path]:

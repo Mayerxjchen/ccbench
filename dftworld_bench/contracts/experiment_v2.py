@@ -1,0 +1,162 @@
+"""CCBench Experiment v2 contract and matrix resolution.
+
+Defines the Case x Model x Skill x Repeat experiment model, backed by
+formal schemas:
+- schemas/experiment-spec.v2.schema.json
+- schemas/experiment-lock.v2.schema.json
+- schemas/run-lock.v2.schema.json
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import tomllib
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+import jsonschema
+
+SCHEMA_DIR = Path(__file__).resolve().parents[2] / "schemas"
+SPEC_SCHEMA_PATH = SCHEMA_DIR / "experiment-spec.v2.schema.json"
+LOCK_SCHEMA_PATH = SCHEMA_DIR / "experiment-lock.v2.schema.json"
+RUN_LOCK_SCHEMA_PATH = SCHEMA_DIR / "run-lock.v2.schema.json"
+
+
+class ExperimentError(Exception):
+    """Raised when an experiment specification or lock fails contract validation."""
+
+
+@dataclass(frozen=True)
+class ExperimentBudget:
+    max_model_turns: int
+    max_total_tokens: int
+    agent_active_walltime_sec: float
+    scheduler_wait_walltime_sec: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class ExperimentSpecV2:
+    schema_version: int
+    experiment_id: str
+    description: str
+    cases: list[str]
+    models: list[str]
+    skills: list[str]
+    repeats: int
+    budget: ExperimentBudget
+    max_concurrent_runs: int = 1
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ExperimentSpecV2:
+        validate_experiment_spec(data)
+        b = data["budget"]
+        budget = ExperimentBudget(
+            max_model_turns=int(b["max_model_turns"]),
+            max_total_tokens=int(b["max_total_tokens"]),
+            agent_active_walltime_sec=float(b["agent_active_walltime_sec"]),
+            scheduler_wait_walltime_sec=float(b["scheduler_wait_walltime_sec"]),
+        )
+        runner = data.get("runner", {})
+        return cls(
+            schema_version=data["schema_version"],
+            experiment_id=data["experiment_id"],
+            description=data.get("description", ""),
+            cases=list(data["cases"]),
+            models=list(data["models"]),
+            skills=list(data["skills"]),
+            repeats=int(data["repeats"]),
+            budget=budget,
+            max_concurrent_runs=int(runner.get("max_concurrent_runs", 1)),
+        )
+
+    @classmethod
+    def from_file(cls, path: Path) -> ExperimentSpecV2:
+        if not path.is_file():
+            raise FileNotFoundError(f"Experiment spec file not found: {path}")
+        content = path.read_text(encoding="utf-8")
+        data = tomllib.loads(content)
+        return cls.from_dict(data)
+
+    def expand_matrix(self) -> list[dict[str, Any]]:
+        """Expand into the exhaustive list of individual execution items.
+        Order: Case -> Model -> Skill -> Repeat.
+        """
+        matrix: list[dict[str, Any]] = []
+        for case in sorted(self.cases):
+            for model in sorted(self.models):
+                for skill in sorted(self.skills):
+                    for rep in range(1, self.repeats + 1):
+                        matrix.append({
+                            "case": case,
+                            "model": model,
+                            "skill": skill,
+                            "repeat": rep,
+                        })
+        return matrix
+
+
+def _load_schema(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        raise FileNotFoundError(f"Required schema file not found: {path}")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def validate_experiment_spec(data: dict[str, Any]) -> None:
+    schema = _load_schema(SPEC_SCHEMA_PATH)
+    try:
+        jsonschema.Draft202012Validator(schema).validate(data)
+    except jsonschema.ValidationError as exc:
+        raise ExperimentError(f"Invalid experiment spec: {exc.message}") from exc
+
+
+def validate_experiment_lock(data: dict[str, Any]) -> None:
+    schema = _load_schema(LOCK_SCHEMA_PATH)
+    try:
+        jsonschema.Draft202012Validator(schema).validate(data)
+    except jsonschema.ValidationError as exc:
+        raise ExperimentError(f"Invalid experiment lock: {exc.message}") from exc
+
+
+def validate_run_lock(data: dict[str, Any]) -> None:
+    schema = _load_schema(RUN_LOCK_SCHEMA_PATH)
+    try:
+        jsonschema.Draft202012Validator(schema).validate(data)
+    except jsonschema.ValidationError as exc:
+        raise ExperimentError(f"Invalid run lock: {exc.message}") from exc
+
+
+def build_experiment_lock(spec: ExperimentSpecV2, ccbench_commit: str) -> dict[str, Any]:
+    """Generate and validate an immutable experiment lock dictionary."""
+    matrix = spec.expand_matrix()
+    canonical_spec_json = json.dumps(
+        {
+            "schema_version": spec.schema_version,
+            "experiment_id": spec.experiment_id,
+            "cases": sorted(spec.cases),
+            "models": sorted(spec.models),
+            "skills": sorted(spec.skills),
+            "repeats": spec.repeats,
+            "budget": spec.budget.to_dict(),
+        },
+        sort_keys=True,
+    )
+    spec_digest = "sha256:" + hashlib.sha256(canonical_spec_json.encode("utf-8")).hexdigest()
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    lock_data: dict[str, Any] = {
+        "schema_version": 2,
+        "experiment_id": spec.experiment_id,
+        "spec_digest": spec_digest,
+        "ccbench_commit": ccbench_commit,
+        "total_runs": len(matrix),
+        "budget": spec.budget.to_dict(),
+        "matrix": matrix,
+        "created_at": stamp,
+    }
+    validate_experiment_lock(lock_data)
+    return lock_data

@@ -9,6 +9,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 /tmp/
+*.egg-info/
 .worktrees/
 
 # CP2K restart files (regenerated during reference runs)

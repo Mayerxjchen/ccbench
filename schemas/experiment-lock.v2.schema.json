@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ccbench.ai/schemas/experiment-lock.v2.schema.json",
+  "title": "ExperimentLockV2",
+  "description": "Expanded matrix lock for a full ExperimentSpec execution plan.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "experiment_id": {
+      "type": "string"
+    },
+    "spec_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "ccbench_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{40}$"
+    },
+    "total_runs": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "max_model_turns": { "type": "integer", "minimum": 1 },
+        "max_total_tokens": { "type": "integer", "minimum": 1 },
+        "agent_active_walltime_sec": { "type": "number", "minimum": 1.0 },
+        "scheduler_wait_walltime_sec": { "type": "number", "minimum": 0.0 }
+      },
+      "required": [
+        "max_model_turns",
+        "max_total_tokens",
+        "agent_active_walltime_sec",
+        "scheduler_wait_walltime_sec"
+      ],
+      "additionalProperties": false
+    },
+    "matrix": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "case": { "type": "string" },
+          "model": { "type": "string" },
+          "skill": { "type": "string" },
+          "repeat": { "type": "integer", "minimum": 1 }
+        },
+        "required": ["case", "model", "skill", "repeat"],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "created_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "experiment_id",
+    "spec_digest",
+    "ccbench_commit",
+    "total_runs",
+    "budget",
+    "matrix"
+  ],
+  "additionalProperties": false
+}

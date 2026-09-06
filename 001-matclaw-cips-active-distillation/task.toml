@@ -26,7 +26,7 @@ optional = ["gpu-training"]
 requirements = [{ family = "matclaw-cips", name = "matclaw-cips", version = "==2.2.11" }]
 
 [task]
-name = "benchmark/031-matclaw-cips-active-distillation"
+name = "benchmark/001-matclaw-cips-active-distillation"
 description = "Active distillation of a fast CIPS DeePMD potential"
 authors = []
 keywords = ["matclaw", "deepmd", "active-learning", "cips"]

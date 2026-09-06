@@ -167,9 +167,9 @@ def test_eval_resolves_complete_local_harness_provenance(tmp_path: Path) -> None
 
 def test_known_matclaw_cases_resolve_hpc_controller() -> None:
     for name in (
-        "031-matclaw-cips-active-distillation",
-        "032-matclaw-cips-curie-temperature",
-        "033-matclaw-cips-domain-wall-search",
+        "001-matclaw-cips-active-distillation",
+        "002-matclaw-cips-curie-temperature",
+        "003-matclaw-cips-domain-wall-search",
     ):
         spec = E.load_task(ROOT / name)
         assert spec.execution_class == "hpc_controller", name
@@ -233,7 +233,7 @@ def test_controller_gateway_env_uses_host_docker_internal() -> None:
     from dftworld_bench.executors.base import ExecutionContext
     from dftworld_bench.executors.hpc import HpcExecutor
 
-    spec = E.load_task(ROOT / "032-matclaw-cips-curie-temperature")
+    spec = E.load_task(ROOT / "002-matclaw-cips-curie-temperature")
     workspace = ROOT / ".test-gateway-workspace"
     workspace.mkdir(parents=True, exist_ok=True)
 

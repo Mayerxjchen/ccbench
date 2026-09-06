@@ -1,0 +1,27 @@
+# CCBench Fast Smoke Test Experiment
+schema_version = 2
+experiment_id = "smoke-v1"
+description = "CCBench Fast Smoke Test Experiment"
+
+cases = [
+  "001",
+]
+
+models = [
+  "deepseek-v4-pro",
+]
+
+skills = [
+  "none",
+]
+
+repeats = 1
+
+[budget]
+max_model_turns = 64
+max_total_tokens = 10000000
+agent_active_walltime_sec = 7200.0
+scheduler_wait_walltime_sec = 0.0
+
+[runner]
+max_concurrent_runs = 1

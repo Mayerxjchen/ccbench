@@ -57,7 +57,7 @@ _FROM_REQUIREMENTS: dict[str, tuple[str, ...] | None] = {
 # Case id -> migration scope.
 _SCOPE_RANGES: dict[str, tuple[tuple[int, int], ...]] = {
     "local": (),
-    "hpc": ((31, 34), (42, 42)),
+    "hpc": ((1, 5),),
 }
 
 # HPC case number -> canonical scientific runtime requirement.  Field order is
@@ -65,6 +65,14 @@ _SCOPE_RANGES: dict[str, tuple[tuple[int, int], ...]] = {
 # The compute image is resolved by the runtime registry — never owned by the
 # case and never read from the (legacy, non-authoritative) Dockerfile.
 _HPC_RUNTIME: dict[int, list[tuple[str, str, str]]] = {
+    1: [("matclaw-cips", "matclaw-cips", "==2.2.11")],
+    2: [("matclaw-cips", "matclaw-cips", "==2.2.11")],
+    3: [("matclaw-cips", "matclaw-cips", "==2.2.11")],
+    4: [
+        ("ai2kit", "ai2kit", "==1.1.0"),
+        ("cp2k", "cp2k", "==2025.2"),
+    ],
+    5: [("dpmp", "deepmd-jax", "==0.2.1")],
     31: [("matclaw-cips", "matclaw-cips", "==2.2.11")],
     32: [("matclaw-cips", "matclaw-cips", "==2.2.11")],
     33: [("matclaw-cips", "matclaw-cips", "==2.2.11")],
@@ -80,6 +88,11 @@ _HPC_RUNTIME: dict[int, list[tuple[str, str, str]]] = {
 # GPU DPMP training).  Category plugins consume these; they are capability
 # checks, never a second image-selection mechanism.
 _HPC_SCOPES: dict[int, dict[str, list[str]]] = {
+    1: {"required": ["matclaw-cips", "cp2k"], "optional": ["gpu-training"]},
+    2: {"required": ["matclaw-cips", "cp2k"], "optional": ["gpu-training"]},
+    3: {"required": ["matclaw-cips", "cp2k"], "optional": ["gpu-training"]},
+    4: {"required": ["ai2kit", "cp2k"], "optional": ["gpu-training"]},
+    5: {"required": ["cp2k"], "optional": ["gpu-training", "jax-md-gpu"]},
     31: {"required": ["matclaw-cips", "cp2k"], "optional": ["gpu-training"]},
     32: {"required": ["matclaw-cips", "cp2k"], "optional": ["gpu-training"]},
     33: {"required": ["matclaw-cips", "cp2k"], "optional": ["gpu-training"]},

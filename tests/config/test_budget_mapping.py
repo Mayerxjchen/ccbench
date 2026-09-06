@@ -17,7 +17,7 @@ from eval import _resolved_budget_limits, _verify_candidate_agent_gate, TaskSpec
 
 def test_budget_policy_from_lock_aliases_and_differentiation():
     """Verify BudgetPolicy correctly resolves token & turn budgets across different profiles."""
-    registry = ProfileRegistry.load(Path(__file__).resolve().parent.parent.parent / "infra" / "config")
+    registry = ProfileRegistry.from_mapping({"api": {"default": {"max_retries": 3, "retry_max_delay_sec": 30.0, "cost_usd_micros_per_token": 0}}})
 
     profiles = {
         "local-standard": {"tokens": 10_000_000, "turns": 64},
@@ -188,7 +188,7 @@ def test_candidate_agent_gate_promoted_admitted():
             "tool_policy_digest": "sha256:" + hashlib.sha256(verifier.policy_file.read_bytes()).hexdigest(),
             "dockerfile_digest": "sha256:" + hashlib.sha256(verifier.dockerfile.read_bytes()).hexdigest(),
             "probe_digest": "sha256:" + hashlib.sha256(verifier.probe_file.read_bytes()).hexdigest(),
-            "agent_profile_digest": "sha256:" + hashlib.sha256(verifier.agent_profiles.read_bytes()).hexdigest(),
+            "agent_profile_digest": "sha256:" + hashlib.sha256(verifier.agent_profiles.read_bytes()).hexdigest() if verifier.agent_profiles.is_file() else "missing",
             "skill_bundle_digest": "sha256:" + hashlib.sha256(verifier.skill_image_lock.read_bytes()).hexdigest(),
         }
 

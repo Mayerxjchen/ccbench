@@ -5,9 +5,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = (
-    "031-matclaw-cips-active-distillation",
-    "032-matclaw-cips-curie-temperature",
-    "033-matclaw-cips-domain-wall-search",
+    "001-matclaw-cips-active-distillation",
+    "002-matclaw-cips-curie-temperature",
+    "003-matclaw-cips-domain-wall-search",
 )
 REQUIRED = {
     "Dockerfile",
@@ -83,7 +83,7 @@ def test_case_033_public_profile_does_not_reveal_answer_or_future_path() -> None
     domain and the fixed start point are public.
     """
     public = json.loads(
-        (ROOT / "033-matclaw-cips-domain-wall-search" / "public" / "run_profiles.json").read_text()
+        (ROOT / "003-matclaw-cips-domain-wall-search" / "public" / "run_profiles.json").read_text()
     )
     serialized = json.dumps(public)
     assert "search_path" not in serialized
@@ -167,13 +167,13 @@ def test_031_formal_harness_uses_the_site_accepted_qualified_gpu_request() -> No
 
 def test_031_verifier_recomputes_every_solver_exploration_frame() -> None:
     """Solver and verifier must agree that ASE's saved initial frame is a candidate."""
-    verifier = (ROOT / "031-matclaw-cips-active-distillation/tests/verifier.py").read_text()
+    verifier = (ROOT / "001-matclaw-cips-active-distillation/tests/verifier.py").read_text()
     assert "candidates.extend(list(Trajectory(str(path))))" in verifier
     assert "list(Trajectory(str(path)))[1:]" not in verifier
 
 
 def test_031_alternative_scores_every_exploration_frame() -> None:
-    alternative = (ROOT / "031-matclaw-cips-active-distillation/solution/alt_distillation.py").read_text()
+    alternative = (ROOT / "001-matclaw-cips-active-distillation/solution/alt_distillation.py").read_text()
     # Initial teacher sampling intentionally uses dynamic frames only; active
     # exploration, like the primary workflow and source trace, scores frame 0.
     assert "dynamic = frames[1:]" in alternative
@@ -182,7 +182,7 @@ def test_031_alternative_scores_every_exploration_frame() -> None:
 
 def test_031_alternative_heldout_excludes_shared_pre_dynamics_frame() -> None:
     """Held-out data must not contain the identical frame zero shared by all MD runs."""
-    alternative = (ROOT / "031-matclaw-cips-active-distillation/solution/alt_distillation.py").read_text()
+    alternative = (ROOT / "001-matclaw-cips-active-distillation/solution/alt_distillation.py").read_text()
     heldout_start = alternative.index("test_frames = md_frames(")
     heldout_end = alternative.index("train_energy, train_forces", heldout_start)
     assert ")[1:]" in alternative[heldout_start:heldout_end]

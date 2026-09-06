@@ -16,7 +16,7 @@ from typing import Any
 
 import jsonschema
 
-SCHEMA_DIR = Path(__file__).resolve().parents[2] / "infra" / "schemas"
+SCHEMA_DIR = Path(__file__).resolve().parents[2] / "schemas"
 
 
 def canonical_json(obj: Any) -> str:
@@ -53,7 +53,6 @@ class ProfileRegistry:
         merged: dict[str, dict[str, dict[str, Any]]] = {}
         # Track (kind, name) → source file for duplicate detection
         source_map: dict[tuple[str, str], str] = {}
-
         # Load agent profile schema if available
         agent_schema_path = SCHEMA_DIR / "agent-profile.schema.json"
         agent_schema = None

@@ -24,11 +24,14 @@ from pathlib import Path
 from typing import Any
 
 CASE_NAMES = {
-    "031": "031-matclaw-cips-active-distillation",
-    "032": "032-matclaw-cips-curie-temperature",
-    "033": "033-matclaw-cips-domain-wall-search",
+    "001": "001-matclaw-cips-active-distillation",
+    "002": "002-matclaw-cips-curie-temperature",
+    "003": "003-matclaw-cips-domain-wall-search",
+    "031": "001-matclaw-cips-active-distillation",
+    "032": "002-matclaw-cips-curie-temperature",
+    "033": "003-matclaw-cips-domain-wall-search",
 }
-CASE_IDS = set(CASE_NAMES)
+CASE_IDS = {"031", "032", "033"}
 
 RUN_IDS = ("run-1", "run-2")
 
@@ -511,6 +514,15 @@ def main(argv: list[str] | None = None) -> int:
     reports: list[dict[str, Any]] = []
     for case_id in case_ids:
         case_dir = args.repo_root / CASE_NAMES[case_id]
+        if not case_dir.is_dir():
+            for cand in (
+                f"{case_id}-matclaw-cips-active-distillation",
+                f"{case_id}-matclaw-cips-curie-temperature",
+                f"{case_id}-matclaw-cips-domain-wall-search",
+            ):
+                if (args.repo_root / cand).is_dir():
+                    case_dir = args.repo_root / cand
+                    break
         report = derive_case(case_dir, args.evidence_root, args.policy)
         reports.append(report)
         if args.write:

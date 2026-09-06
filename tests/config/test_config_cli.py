@@ -20,7 +20,7 @@ def test_resolve_is_secret_free(capsys, monkeypatch) -> None:
     assert main(["resolve", "--run-config", str(CONFIG), "--execution-class", "hpc_controller"]) == 0
     raw = capsys.readouterr().out
     payload = json.loads(raw)
-    assert payload["budget"]["max_model_turns"] == 512
+    assert payload["budget"]["max_model_turns"] == 1024
     assert payload["model"]["model_id"] == "deepseek-v4-pro"
     assert "sk-never-print" not in raw
 
@@ -47,7 +47,7 @@ def test_doctor_accepts_valid_values_but_redacts_them(capsys, monkeypatch) -> No
 def test_diff_reports_changed_path(tmp_path, capsys) -> None:
     changed = tmp_path / "changed.yaml"
     changed.write_text(
-        CONFIG.read_text(encoding="utf-8").replace("max_model_turns: 512", "max_model_turns: 256"),
+        CONFIG.read_text(encoding="utf-8").replace("max_model_turns: 1024", "max_model_turns: 256"),
         encoding="utf-8",
     )
     assert main(["diff", str(CONFIG), str(changed)]) == 1
@@ -55,7 +55,7 @@ def test_diff_reports_changed_path(tmp_path, capsys) -> None:
     assert payload["differences"] == [
         {
             "path": "agent_by_execution_class.hpc_controller.max_model_turns",
-            "left": 512,
+            "left": 1024,
             "right": 256,
         }
     ]

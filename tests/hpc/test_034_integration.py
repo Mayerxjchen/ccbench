@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-CASE = Path(__file__).resolve().parents[2] / "034-ai2kit-water64-end-to-end-potential"
+CASE = Path(__file__).resolve().parents[2] / "004-ai2kit-water64-end-to-end-potential"
 PROFILES = CASE / "profiles"
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 

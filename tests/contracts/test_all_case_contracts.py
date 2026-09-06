@@ -14,9 +14,9 @@ from dftworld_bench.contracts.case import CaseSpec
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# Local cases: 001–030 (001–042 span all; 031–034 and 042 are HPC-controller
-# cases and are governed by the generic HPC contract, Task 16).
-LOCAL_IDS = set(range(1, 31)) | set(range(35, 42))
+# Under CCBench Phase 1, cases 001-005 are the official HPC-controller cases.
+# Any local_sandbox cases present must satisfy the strict infra v2 CaseSpec contract.
+HPC_IDS = {1, 2, 3, 4, 5}
 
 
 def discover_numbered_cases(root: Path = ROOT) -> list[Path]:
@@ -28,7 +28,7 @@ def discover_numbered_cases(root: Path = ROOT) -> list[Path]:
 
 def test_all_local_cases_are_strict_and_infra_free():
     for case in discover_numbered_cases(ROOT):
-        if int(case.name[:3]) not in LOCAL_IDS:
+        if int(case.name[:3]) in HPC_IDS:
             continue
         spec = CaseSpec.load(case)
         assert spec.execution_class == "local_sandbox"

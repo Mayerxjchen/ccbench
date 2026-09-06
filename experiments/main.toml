@@ -1,0 +1,32 @@
+# CCBench Official Formal Benchmark Experiment
+schema_version = 2
+experiment_id = "main-v1"
+description = "CCBench Formal Benchmark Matrix (5 Long-horizon Cases x DeepSeek x Skill x 3 Repeats)"
+
+cases = [
+  "001",
+  "002",
+  "003",
+  "004",
+  "005",
+]
+
+models = [
+  "deepseek-v4-pro",
+]
+
+skills = [
+  "none",
+  "hpc-submit",
+]
+
+repeats = 3
+
+[budget]
+max_model_turns = 1024
+max_total_tokens = 100000000
+agent_active_walltime_sec = 86400.0
+scheduler_wait_walltime_sec = 604800.0
+
+[runner]
+max_concurrent_runs = 4

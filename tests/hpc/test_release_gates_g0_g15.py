@@ -47,7 +47,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_g0_public_isolation():
     """G0: Verify public surface contains no private credentials or internal host keys."""
-    for case_num in ("031", "032", "033", "034", "042"):
+    for case_num in ("001", "002", "003", "004", "005"):
         matches = list(ROOT.glob(f"{case_num}-*"))
         assert len(matches) == 1
         pub_dir = matches[0] / "public"
@@ -68,7 +68,7 @@ def test_g1_repo_provenance():
 
 def test_g2_clean_executor_contract():
     """G2: All 5 cases resolve to HpcExecutor under hpc_controller class."""
-    for case_num in ("031", "032", "033", "034", "042"):
+    for case_num in ("001", "002", "003", "004", "005"):
         matches = list(ROOT.glob(f"{case_num}-*"))
         assert len(matches) == 1
         spec = CaseSpec.load(matches[0])
@@ -87,7 +87,7 @@ def test_g3_runtime_locks_valid():
 
 def test_g4_prompt_fidelity():
     """G4: Instructions describe provider-neutral execution."""
-    for case_num in ("031", "032", "033", "034", "042"):
+    for case_num in ("001", "002", "003", "004", "005"):
         matches = list(ROOT.glob(f"{case_num}-*"))
         instr = (matches[0] / "instruction.md").read_text()
         assert "A remote HPC capability exists" in instr or "remote scheduler" in instr
@@ -257,13 +257,13 @@ def test_g11_zero_orphan_gate(tmp_path: Path):
 
 def test_g12_case_validation_states():
     """G12: Cases 031-033 are verified baseline valid; 034/042 reflect actual construction status."""
-    for case_num in ("031", "032", "033"):
+    for case_num in ("001", "002", "003"):
         matches = list(ROOT.glob(f"{case_num}-*"))
         assert len(matches) == 1
         data = json.loads((matches[0] / "benchmark_valid.json").read_text())
         assert data.get("benchmark_valid") is True
 
-    for case_num in ("034", "042"):
+    for case_num in ("004", "005"):
         matches = list(ROOT.glob(f"{case_num}-*"))
         assert len(matches) == 1
         data = json.loads((matches[0] / "benchmark_valid.json").read_text())

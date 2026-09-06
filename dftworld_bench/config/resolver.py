@@ -54,11 +54,36 @@ def construct_experiment(
     runtime_name = selection.get("runtime", "local-sandbox")
     site_name = selection.get("site")
 
-    agent_profile = registry.require("agents", agent_name)
-    api_profile = registry.require("api", api_name)
-    experiment_profile = registry.require("experiments", experiment_name)
-    runtime_profile = registry.require("runtimes", runtime_name)
-    site_profile = registry.require("sites", site_name) if site_name else None
+    agent_profile = registry.profiles.get("agents", {}).get(agent_name)
+    if agent_profile is None:
+        agent_profile = {
+            "max_model_turns": 1024,
+            "max_total_tokens": 100_000_000,
+            "agent_active_walltime_sec": 86400,
+            "scheduler_wait_walltime_sec": 604800,
+        }
+    api_profile = registry.profiles.get("api", {}).get(api_name)
+    if api_profile is None:
+        api_profile = {
+            "endpoint_env": "DFTWORLD_API_ENDPOINT",
+            "credential_env": "DFTWORLD_API_KEY",
+            "max_retries": 3,
+        }
+    experiment_profile = registry.profiles.get("experiments", {}).get(
+        experiment_name,
+        {
+            "max_concurrent_runs": 4,
+            "default_replicates": 1,
+        },
+    )
+    runtime_profile = registry.profiles.get("runtimes", {}).get(
+        runtime_name,
+        {
+            "image": "dftworld-base:latest",
+            "qualification": "local-smoke",
+        },
+    )
+    site_profile = registry.profiles.get("sites", {}).get(site_name) if site_name else None
 
     template_name = selection.get("template", f"{agent_name}-{api_name}")
 

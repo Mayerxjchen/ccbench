@@ -1,25 +1,25 @@
-# MLFFBench (dftworld)
+# CCBench
 
 AI agent benchmark for computational chemistry.
 
-Tasks focus on **scientific benchmark cases** (`031-matclaw-cips-active-distillation`, `032-matclaw-cips-curie-temperature`, `033-matclaw-cips-domain-wall-search`, `034-ai2kit-water64-end-to-end-potential`, `042-go-water-dpmp`). Directory names are `NNN-slug`. `eval.py` scans root-level `NNN-slug` directories to discover benchmark cases.
+Tasks focus on **scientific benchmark cases** (`001-matclaw-cips-active-distillation`, `002-matclaw-cips-curie-temperature`, `003-matclaw-cips-domain-wall-search`, `004-ai2kit-water64-end-to-end-potential`, `005-go-water-dpmp`). Directory names are `NNN-slug`. `eval.py` scans root-level `NNN-slug` directories to discover benchmark cases.
 
 ## Repository Map
 
 仓库按「长周期核心案例 / 构造中区 / 活跃工作 / 基建」组织：
 
 ```text
-dftworld/
-├── 031-matclaw-cips-active-distillation   # 核心案例：MatClaw CIPS 势能主动学习蒸馏
-├── 032-matclaw-cips-curie-temperature     # 核心案例：MatClaw CIPS 居里温度分子动力学
-├── 033-matclaw-cips-domain-wall-search    # 核心案例：MatClaw CIPS 畴壁搜索
-├── 034-ai2kit-water64-…/                  # 构造中区：ai2kit训练水的MLFF
-├── 042-go-water-dpmp/                     # 构造中区：石墨烯氧化程度如何改变界面水的分子组织与振动响应
+ccbench/
+├── 001-matclaw-cips-active-distillation   # 核心案例：MatClaw CIPS 势能主动学习蒸馏
+├── 002-matclaw-cips-curie-temperature     # 核心案例：MatClaw CIPS 居里温度分子动力学
+├── 003-matclaw-cips-domain-wall-search    # 核心案例：MatClaw CIPS 畴壁搜索
+├── 004-ai2kit-water64-…/                  # 核心案例：ai2kit训练水的MLFF
+├── 005-go-water-dpmp/                     # 核心案例：石墨烯氧化程度如何改变界面水的分子组织与振动响应
 │
 ├── active-work/                           # 活跃工作区：不参与评测扫描的工作内容
 │   └── ai2kit/                            #   water64 专家流水线工作目录
 │
-├── eval.py                                # Formal Runner harness
+├── eval.py                                # Formal Runner harness（支持 ccbench / mlffbench 入口）
 ├── summarize.py                           # jobs/ 汇总 → jobs/SUMMARY.md
 ├── scripts/infra/qualify_hpc_dispatcher.py   # 双 canary 资格化驱动（--phase
 │                                  #   preflight/canary/cp2k/verify/resume；
@@ -33,8 +33,8 @@ dftworld/
 ├── scripts/                       # infra / qualification / ablation / evidence 工具
 │   └── ablation/hpc/              # G9 参考运行脚手架（submit/fetch/common/template）
 ├── tests/                         # 架构回归测试套件（pytest testpaths=["tests"]）
-├── schemas/                       # result / case 等合同 schema
-├── infra/runs/                    # 实验配置（skill-ablation-v2.yaml 等）
+├── schemas/                       # result / case / experiment-spec 等合同 schema
+├── experiments/                   # 实验规格（main.toml, smoke.toml, models.toml）
 ├── reference/runtime/             # 冻结运行时锁（cp2k / deepmd-jax；数据非配置，勿就地改）
 ├── evidence/                      # 清理回执 / 资格化证据 / 正式证据（append-only ledger 在
 │                                  #   evidence/local-cleanup-20260825/decision-ledger.json）
@@ -52,7 +52,7 @@ dftworld/
 ### 第 1 步：克隆 + Python 环境
 
 ```bash
-git clone https://github.com/Mayerxjchen/mlffbench.git && cd mlffbench
+git clone https://github.com/Mayerxjchen/ccbench.git && cd ccbench
 
 # 装 uv（已有可跳过）
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -121,15 +121,15 @@ ssh <你的hpc别名> hostname      # 连通性自检
 ## Running eval
 
 ```bash
-uv run python eval.py 031-matclaw-cips-active-distillation -v
+uv run python eval.py 001-matclaw-cips-active-distillation -v
 uv run python eval.py --all
 uv run python eval.py --all --skills      # 启用 skill bundle（需先 build.sh skills）
-uv run python eval.py 031-matclaw-cips-active-distillation 032-matclaw-cips-curie-temperature   # 指定多个任务
+uv run python eval.py 001-matclaw-cips-active-distillation 002-matclaw-cips-curie-temperature   # 指定多个任务
 ```
 
 Counted runs load `infra/runs/skill-ablation-v2.yaml`. The command without
-`--skills` is NS; `--skills` is WS. Local cases receive 500 turns and HPC cases
-receive 512 turns from the same frozen config. Policy overrides require
+`--skills` is NS; `--skills` is WS. Local smoke cases receive 64 turns and HPC
+formal cases receive 1024 turns from the same frozen config. Policy overrides require
 `--uncounted-smoke` and never enter counted results.
 
 > `--skills`（默认关）从 `dftworld-skills:<sha>` bundle 镜像提取 skills 作为

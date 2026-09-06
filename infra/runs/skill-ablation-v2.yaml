@@ -22,7 +22,7 @@ agent_by_execution_class:
     active_walltime_sec: 7200
     scheduler_wait_walltime_sec: 0
   hpc_controller:
-    max_model_turns: 512
+    max_model_turns: 1024
     max_total_tokens: 100000000
     active_walltime_sec: 86400
     scheduler_wait_walltime_sec: 604800
