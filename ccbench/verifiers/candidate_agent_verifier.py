@@ -87,10 +87,7 @@ class CandidateAgentVerifier:
         self.policy_file = agent_dir / "tool-policy.json"
         self.dockerfile = agent_dir / "Dockerfile"
         self.probe_file = agent_dir / "probes" / "qualify_agent.sh"
-        skill_lock = self.workspace_root / "runtimes" / "locks" / ".skill-image.json"
-        if not skill_lock.is_file():
-            skill_lock = self.workspace_root / "runtimes" / "recipes" / "skills" / ".skill-image.json"
-        self.skill_image_lock = skill_lock
+        self.skill_image_lock = self.workspace_root / "runtimes" / "locks" / ".skill-image.json"
 
     def compute_code_identity(self) -> Dict[str, str]:
         """Compute sha256 hashes of critical trusted codebase modules."""

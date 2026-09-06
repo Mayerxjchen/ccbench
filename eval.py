@@ -123,10 +123,7 @@ DEFAULT_EXPERIMENT = ROOT / "experiments" / "main.toml"
 DEFAULT_RUN_CONFIG = DEFAULT_EXPERIMENT
 DEFAULT_JOBS = ROOT / "jobs"
 # skill bundle 镜像锁定的 manifest;eval 只读它决定 immutable tag
-_skill_lock = ROOT / "runtimes" / "locks" / ".skill-image.json"
-if not _skill_lock.is_file():
-    _skill_lock = ROOT / "runtimes" / "recipes" / "skills" / ".skill-image.json"
-SKILL_MANIFEST = _skill_lock
+SKILL_MANIFEST = ROOT / "runtimes" / "locks" / ".skill-image.json"
 # frozen ablation release 目录;存在时 run-record 的 benchmark_commit 钉到其 source_commit
 RELEASES_DIR = ROOT / "releases"
 FROZEN_RELEASE_SCHEMA = "ablation-ready-release/v1"
