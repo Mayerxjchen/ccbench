@@ -22,7 +22,7 @@
   "qualification": {
     "status": "BUILT_NOT_QUALIFIED",
     "receipt_path": "jax/receipt.json",
-    "receipt_digest": "sha256:04f6337f1d099606a0ae7ba9362066a17dc3426575d52fc9e20c9afbde2007d5",
+    "receipt_digest": "sha256:de23ec3c5e3b4db7083c3ff14acbc7c7b57a0c02ffc0c09b3a5bafcf708a625a",
     "site_profile_id": "compshare-gpu-production"
   },
   "env": {
