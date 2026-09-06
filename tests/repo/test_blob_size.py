@@ -38,12 +38,6 @@ KNOWN_LARGE_BLOBS = {
     "benchmark/sources/matclaw/common/teacher-model/frozen_model.pb",
     "benchmark/sources/matclaw/repository/release/workspace_demo1b_distill_pdf/He_paper.pdf",
     "runtimes/recipes/jax-gpu/assets/jax_md-0.2.29.tar.gz",
-    "experiments/case-builder-luna-v1/generated/901-luna-cips-active-distillation/public/teacher/frozen_model.pb",
-    "experiments/case-builder-luna-v2/generated/902-mvp-cips-curie-temperature/public/teacher_model.pb",
-    "experiments/case-builder-luna-v2/generated/902-mvp-cips-curie-temperature/tests/fixtures/negative/broken-lineage/artifacts/model/teacher_used.pb",
-    "experiments/case-builder-luna-v2/generated/902-mvp-cips-curie-temperature/tests/fixtures/negative/forged-manifest/artifacts/model/teacher_used.pb",
-    "experiments/case-builder-luna-v2/generated/902-mvp-cips-curie-temperature/tests/fixtures/alternative-valid/alt-hybrid-analysis/artifacts/model/teacher_used.pb",
-    "experiments/case-builder-luna-v2/generated/902-mvp-cips-curie-temperature/tests/fixtures/positive/structural-minimal/artifacts/model/teacher_used.pb",
 }
 
 

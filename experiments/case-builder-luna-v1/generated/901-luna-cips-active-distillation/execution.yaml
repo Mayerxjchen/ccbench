@@ -1,7 +1,0 @@
-schema_version: 1
-class: hpc_controller
-runtime: matclaw-cips
-site_specific: true
-controller_role: submit-poll-fetch
-completion_rule: scheduler terminal state plus fetched artifact manifest; fixed sleeps are not completion checks
-formal_site_receipt: required before formal execution

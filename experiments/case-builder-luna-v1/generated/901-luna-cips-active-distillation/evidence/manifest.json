@@ -1,8 +1,0 @@
-{
-  "schema_version": 1,
-  "state": "draft",
-  "objects": {},
-  "gates": {},
-  "pending_gates": ["G0", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12"],
-  "note": "No restorable evidence bytes are sealed during construction; gate objects will be uploaded/read-back/restored only after authorized runs."
-}

@@ -67,7 +67,6 @@ ALLOWED_ROOT_FILES = {
     "README.md",
     "skills_sha.py",
     "summarize.py",
-    "TASKS.md",
     "uv.lock",
 }
 

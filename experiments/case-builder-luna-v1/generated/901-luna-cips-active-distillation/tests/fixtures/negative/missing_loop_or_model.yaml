@@ -1,4 +1,0 @@
-fixture: missing_loop_or_unloadable_model
-expected: reject
-targets: [MLP-V2, MLP-V3, C-V8]
-mutation: omit a closed active-learning stage or provide an empty/unloadable model path
