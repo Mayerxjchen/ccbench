@@ -351,7 +351,7 @@ class FinalizeTransaction:
             "verified_at": self.state.get("sealed_at") or _now_utc(),
         }), encoding="utf-8")
 
-        from scripts.reference.write_evidence_manifest import main as write_manifest
+        from scripts.evidence.write_evidence_manifest import main as write_manifest
         argv = [
             "--case-dir", str(self.case_dir),
             "--restored", str(restored),

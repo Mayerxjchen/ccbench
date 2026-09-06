@@ -110,7 +110,7 @@ def test_v2_manifest_writer_emits_curated_artifacts_and_bundle(tmp_path: Path) -
     report_path = tmp_path / "verifier_report.json"
     report_path.write_text(json.dumps(report))
 
-    from scripts.reference.write_evidence_manifest import main as write_manifest
+    from scripts.evidence.write_evidence_manifest import main as write_manifest
     rc = write_manifest([
         "--case-dir", str(CASES["032"]),
         "--restored", str(restored),
@@ -157,7 +157,7 @@ def test_v2_manifest_writer_rejects_nonvalid_report(tmp_path: Path) -> None:
         "replica_uri": "cas+file:///s/r/x.tar.zst", "replica_version": "1",
         "verified_at": "2026-08-18T12:00:00Z"}))
 
-    from scripts.reference.write_evidence_manifest import main as write_manifest
+    from scripts.evidence.write_evidence_manifest import main as write_manifest
     rc = write_manifest([
         "--case-dir", str(CASES["032"]), "--restored", str(restored),
         "--files-json", str(files_listing),
