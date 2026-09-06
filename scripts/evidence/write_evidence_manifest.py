@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Author a v2 formal-run manifest.json for the evidence tree (plan Task 5).
+"""Author a v2 formal-run manifest.json for the evidence tree.
 
 Replaces the v1 full-workspace scan with the curated (policy-resolved) file list:
 artifacts carry ``role`` and ``size_bytes``, the manifest references the case-level
@@ -9,16 +9,16 @@ and verifier metrics from v1 are preserved.
 
 Usage::
 
-    python scripts/reference/write_evidence_manifest.py \\
-        --case-dir 032-matclaw-cips-curie-temperature \\
-        --restored evidence/matclaw/formal/032/run-1/restored \\
+    python scripts/evidence/write_evidence_manifest.py \\
+        --case-dir cases/002-matclaw-cips-curie-temperature \\
+        --restored evidence/matclaw/formal/002/run-1/restored \\
         --files-json curated_files.json \\
         --verifier-report artifacts/verifier_report.json \\
         --seed 2026081206 --run-id run-1 \\
         --git-commit 71078a4 --git-clean true \\
         --gpu-image ... --gpu-image-digest sha256:... \\
         --cpu-verifier-image ... --cpu-verifier-image-digest sha256:... \\
-        --workspace-identity 032-2026081206 \\
+        --workspace-identity 002-2026081206 \\
         --started-at ... --finished-at ... \\
         --hardware-json '{...}' --software-json '{...}' \\
         --bundle-json '{"format":"tar.zst","sha256":"...","size_bytes":123,"primary_uri":"cas+file://...","primary_version":"123","replica_uri":"cas+file://...","replica_version":"123","verified_at":"..."}'
@@ -124,8 +124,7 @@ def main(argv: list[str] | None = None) -> int:
         if not evaluator_manifest.is_file():
             num = case_dir.name.split("-")[0]
             root = case_dir.parent.parent if case_dir.parent.name == "cases" else case_dir.parent
-            id_map = {"001": "001", "002": "002", "003": "003", "004": "004", "005": "005", "031": "001", "032": "002", "033": "003", "034": "004", "042": "005"}
-            alt = root / "maintainer" / "cases" / id_map.get(num, num) / "evaluator-manifest.json"
+            alt = root / "maintainer" / "cases" / num / "evaluator-manifest.json"
             if alt.is_file():
                 evaluator_manifest = alt
         if not evaluator_manifest.is_file():
@@ -136,8 +135,7 @@ def main(argv: list[str] | None = None) -> int:
     if not policy_path.is_file():
         num = case_dir.name.split("-")[0]
         root = case_dir.parent.parent if case_dir.parent.name == "cases" else case_dir.parent
-        id_map = {"001": "001", "002": "002", "003": "003", "004": "004", "005": "005", "031": "001", "032": "002", "033": "003", "034": "004", "042": "005"}
-        alt = root / "maintainer" / "cases" / id_map.get(num, num) / "reference" / "evidence-policy.json"
+        alt = root / "maintainer" / "cases" / num / "reference" / "evidence-policy.json"
         if alt.is_file():
             policy_path = alt
     if not policy_path.is_file():
@@ -203,13 +201,13 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _metrics_for_case(case_id: str, restored: Path, report: dict) -> dict:
-    """Scientific metrics consumed by the gate; mirrors the v1 writer for 032."""
-    if case_id == "031":
+    """Scientific metrics consumed by the gate; mirrors the formal verifier report."""
+    if case_id in ("001", "031"):
         return {
             "final_force_mae_eV_A": report.get("recomputed_final_mae_eV_A"),
             "active_iterations": report.get("active_iterations"),
         }
-    if case_id == "033":
+    if case_id in ("003", "033"):
         result_path = restored / "result.json"
         if result_path.is_file():
             result = json.loads(result_path.read_text(encoding="utf-8"))

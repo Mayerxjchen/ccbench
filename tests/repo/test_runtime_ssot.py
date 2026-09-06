@@ -23,7 +23,7 @@ def test_active_tree_has_no_legacy_runtime_paths():
     """Ensure active code trees contain zero legacy runtime paths or legacy case identifiers.
 
     Active surface: ccbench/, scripts/infra/, scripts/qualification/,
-                   scripts/hpc/, runtimes/recipes/, schemas/, eval.py.
+                   scripts/hpc/, scripts/evidence/, runtimes/recipes/, schemas/, eval.py.
     Exempted historical archives: runtimes/history/, docs/history/, evidence/, maintainer/, releases/.
     """
     scan_targets = [
@@ -31,6 +31,7 @@ def test_active_tree_has_no_legacy_runtime_paths():
         ROOT / "scripts" / "infra",
         ROOT / "scripts" / "qualification",
         ROOT / "scripts" / "hpc",
+        ROOT / "scripts" / "evidence",
         RUNTIMES_DIR / "recipes",
         ROOT / "schemas",
         ROOT / "eval.py",
