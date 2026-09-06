@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from dftworld_bench.contracts.case import CaseSpec, CoverageTags
+from dftworld_bench.contracts.case import CaseContractError, CaseSpec, CoverageTags
 
 CASES_DIR = Path(__file__).resolve().parents[2] / "cases"
 
@@ -83,15 +83,15 @@ class TestCoverageInCaseSpec:
             '[candidate]\ninstruction = "task.md"\nsubmission_root = "final"\n'
             '[coverage]\n'
             'scientific_domain = "test_domain"\n'
-            'method_family = "test_method"\n'
-            'material_class = "test_material"\n'
-            'computation_type = "test_computation"\n'
+            'method_family = "active_learning_potential"\n'
+            'material_class = "inorganic_2d"\n'
+            'computation_type = "iterative_training"\n'
         )
         spec = CaseSpec.load(case_dir)
         assert spec.coverage.scientific_domain == "test_domain"
-        assert spec.coverage.method_family == "test_method"
-        assert spec.coverage.material_class == "test_material"
-        assert spec.coverage.computation_type == "test_computation"
+        assert spec.coverage.method_family == "active_learning_potential"
+        assert spec.coverage.material_class == "inorganic_2d"
+        assert spec.coverage.computation_type == "iterative_training"
 
     def test_distinct_cips_domains(self):
         """CIPS sub-variants must have distinct scientific_domain values."""
@@ -115,8 +115,8 @@ class TestCoverageInCaseSpec:
 class TestCoverageSchemaValidation:
     """Schema-level validation: [coverage] shape is enforced."""
 
-    def test_coverage_extra_keys_rejected(self, tmp_path: Path):
-        """Extra keys in [coverage] should fail schema validation."""
+    def test_coverage_extra_keys_rejected_via_casespec(self, tmp_path: Path):
+        """Extra keys in [coverage] must fail CaseSpec.load schema validation."""
         case_dir = tmp_path / "bad-coverage"
         case_dir.mkdir()
         (case_dir / "task.md").write_text("# Test")
@@ -129,9 +129,28 @@ class TestCoverageSchemaValidation:
             'scientific_domain = "test"\n'
             'bogus_field = "should_fail"\n'
         )
-        # Schema validation happens via the JSON schema check in _validate_schema
-        # which only runs for explicit execution class. Let's verify the schema
-        # itself rejects extra properties.
+        with pytest.raises(CaseContractError, match="schema violation at coverage"):
+            CaseSpec.load(case_dir)
+
+    def test_coverage_invalid_vocab_value_rejected_via_casespec(self, tmp_path: Path):
+        """Illegal vocabulary values in [coverage] must fail CaseSpec.load."""
+        case_dir = tmp_path / "illegal-vocab"
+        case_dir.mkdir()
+        (case_dir / "task.md").write_text("# Test")
+        (case_dir / "case.toml").write_text(
+            'schema_version = "1.2"\n'
+            'case_version = "1.0.0"\n'
+            '[execution]\nclass = "local_sandbox"\n'
+            '[candidate]\ninstruction = "task.md"\nsubmission_root = "final"\n'
+            '[coverage]\n'
+            'scientific_domain = "test"\n'
+            'method_family = "unsupported_method"\n'
+        )
+        with pytest.raises(CaseContractError, match="invalid coverage tag for method_family"):
+            CaseSpec.load(case_dir)
+
+    def test_coverage_extra_keys_rejected(self, tmp_path: Path):
+        """Extra keys in [coverage] should fail schema validation."""
         import json
         schema_path = Path(__file__).resolve().parents[2] / "schemas" / "case.schema.json"
         schema = json.loads(schema_path.read_text())

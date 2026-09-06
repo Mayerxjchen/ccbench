@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Physical GPU qualification probe for the MLFFBench JAX GPU runtime (Case 042).
+"""Physical GPU qualification probe for the MLFFBench JAX GPU runtime (Case 005).
 
 Executes four-layer verification on genuine GPU hardware:
   S1  Verify JAX, Flax, Optax, JAX-MD, and DeepMD-JAX module imports & GPU presence

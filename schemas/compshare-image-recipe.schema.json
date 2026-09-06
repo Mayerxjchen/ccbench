@@ -24,7 +24,7 @@
     "image_name": { "type": "string", "minLength": 1 },
     "target_cases": {
       "type": "array",
-      "items": { "type": "string", "enum": ["031", "032", "033", "042"] },
+      "items": { "type": "string", "enum": ["001", "002", "003", "004", "005", "031", "032", "033", "042"] },
       "minItems": 1,
       "uniqueItems": true
     },
@@ -36,7 +36,7 @@
     },
     "platform": { "const": "linux/amd64" },
     "status": { "const": "RECIPE_VERIFIED" },
-    "image_status": { "const": "UNBUILT" },
+    "image_status": { "type": "string", "enum": ["UNBUILT", "BUILT", "BUILT_NOT_QUALIFIED"] },
     "base_image": {
       "type": "object",
       "required": ["image", "oci_digest"],

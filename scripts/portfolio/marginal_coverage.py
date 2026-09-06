@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from dftworld_bench.contracts.case import CoverageTags
+from dftworld_bench.contracts.case import CoverageTags, load_coverage_vocabularies
 
 DIMENSIONS = ("scientific_domain", "method_family", "material_class", "computation_type")
 
@@ -30,6 +30,7 @@ def marginal_coverage_value(
     Returns 0.0-1.0: fraction of dimensions where the candidate introduces
     a value not yet in the existing portfolio.  Empty candidate dimensions
     contribute nothing.  Empty existing dimensions don't count as "covered".
+    Invalid values on curated dimensions cannot score as new coverage.
 
     Args:
         candidate: Coverage tags of the proposed new case.
@@ -41,12 +42,17 @@ def marginal_coverage_value(
     if not any(getattr(candidate, d) for d in DIMENSIONS):
         return 0.0
 
+    vocab = load_coverage_vocabularies()
+
     existing_values: dict[str, set[str]] = {d: set() for d in DIMENSIONS}
     for tag in existing:
         for dim in DIMENSIONS:
             val = getattr(tag, dim)
             if val:
-                existing_values[dim].add(val)
+                allowed = vocab.get(dim, set())
+                # If curated, only record valid values as existing coverage
+                if not allowed or val in allowed:
+                    existing_values[dim].add(val)
 
     new_count = 0
     scored_dims = 0
@@ -55,6 +61,10 @@ def marginal_coverage_value(
         if not cand_val:
             continue
         scored_dims += 1
+        allowed = vocab.get(dim, set())
+        # Curated dimension check: invalid vocabulary values cannot score new coverage
+        if allowed and cand_val not in allowed:
+            continue
         if cand_val not in existing_values[dim]:
             new_count += 1
 

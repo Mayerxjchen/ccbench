@@ -4,7 +4,7 @@
 Run inside the image:
     /opt/ai2kit/bin/python version_capture.py
 Emits JSON to stdout. This is the G1 evidence that fills
-042/reference/compute-runtime.lock.json — no TBD may be left fabricated.
+cases/005-go-water-dpmp-potential/reference/compute-runtime.lock.json — no TBD may be left fabricated.
 """
 from __future__ import annotations
 

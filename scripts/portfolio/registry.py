@@ -27,14 +27,23 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from dftworld_bench.contracts.case import CaseSpec, CoverageTags
+from dftworld_bench.contracts.case import (
+    CaseSpec,
+    CoverageTags,
+    load_coverage_vocabularies,
+)
 
 DIMENSIONS = ("scientific_domain", "method_family", "material_class", "computation_type")
 
 
-def scan_cases(cases_dir: Path) -> list[dict]:
-    """Load all cases and extract coverage information."""
+def scan_cases(cases_dir: Path) -> tuple[list[dict], list[dict]]:
+    """Load all cases and extract coverage information.
+
+    Returns:
+        tuple of (valid_cases, invalid_cases)
+    """
     cases = []
+    invalid_cases = []
     for case_dir in sorted(cases_dir.iterdir()):
         if not case_dir.is_dir():
             continue
@@ -45,7 +54,11 @@ def scan_cases(cases_dir: Path) -> list[dict]:
         try:
             spec = CaseSpec.load(case_dir)
         except Exception as exc:
-            print(f"[registry] SKIP {case_dir.name}: {exc}", file=sys.stderr)
+            print(f"[registry] ERROR {case_dir.name}: {exc}", file=sys.stderr)
+            invalid_cases.append({
+                "case_id": case_dir.name,
+                "error": str(exc),
+            })
             continue
         cov = spec.coverage
         cases.append({
@@ -57,7 +70,7 @@ def scan_cases(cases_dir: Path) -> list[dict]:
             },
             "has_coverage": any(getattr(cov, dim) for dim in DIMENSIONS),
         })
-    return cases
+    return cases, invalid_cases
 
 
 def compute_distribution(cases: list[dict]) -> dict[str, dict[str, int]]:
@@ -121,7 +134,7 @@ def compute_diversity_score(dist: dict[str, dict[str, int]], total: int) -> dict
 
 def build_report(cases_dir: Path) -> dict:
     """Build the full portfolio report."""
-    cases = scan_cases(cases_dir)
+    cases, invalid_cases = scan_cases(cases_dir)
     total = len(cases)
     covered = sum(1 for c in cases if c["has_coverage"])
     dist = compute_distribution(cases)
@@ -129,17 +142,30 @@ def build_report(cases_dir: Path) -> dict:
     gaps = find_gaps(cases)
     diversity = compute_diversity_score(dist, total)
 
+    status = "INVALID" if invalid_cases else "VALID"
+
+    vocab = load_coverage_vocabularies()
+    uncovered_vocab: dict[str, list[str]] = {}
+    for dim, allowed in vocab.items():
+        if allowed:
+            covered_vals = set(dist.get(dim, {}).keys())
+            uncovered_vocab[dim] = sorted(allowed - covered_vals)
+
     return {
         "schema_version": 1,
+        "status": status,
         "source_dir": str(cases_dir),
         "summary": {
             "total_cases": total,
             "tagged_cases": covered,
             "untagged_cases": total - covered,
+            "invalid_cases": len(invalid_cases),
         },
+        "invalid_cases": invalid_cases,
         "distribution": dist,
         "concentration_flags": concentration,
         "gaps": gaps,
+        "uncovered_vocabularies": uncovered_vocab,
         "diversity": diversity,
         "cases": cases,
     }
@@ -166,6 +192,15 @@ def main(argv: list[str] | None = None) -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(payload, encoding="utf-8")
         print(f"[registry] report written to {args.output}")
+
+    if report["status"] == "INVALID":
+        print(
+            f"[registry] FAILED: {len(report['invalid_cases'])} invalid case(s) detected",
+            file=sys.stderr,
+        )
+        for inv in report["invalid_cases"]:
+            print(f"  - {inv['case_id']}: {inv['error']}", file=sys.stderr)
+        return 1
 
     if args.summary or not args.output:
         s = report["summary"]

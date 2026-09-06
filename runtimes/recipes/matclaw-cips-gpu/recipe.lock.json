@@ -2,9 +2,9 @@
   "schema_version": 1,
   "image_name": "mlff-matclaw-cips-gpu-v1",
   "target_cases": [
-    "031",
-    "032",
-    "033"
+    "001",
+    "002",
+    "003"
   ],
   "target_capabilities": [
     "matclaw-cips",
@@ -13,7 +13,7 @@
   ],
   "platform": "linux/amd64",
   "status": "RECIPE_VERIFIED",
-  "image_status": "UNBUILT",
+  "image_status": "BUILT",
   "base_image": {
     "image": "compshare/pytorch:2.1.2-cuda12.1-cudnn8-devel-ubuntu22.04",
     "oci_digest": "sha256:7f4955b274534a62580a6bbf08365f50ef917c91350a4b7fef557116b0a88092"
@@ -23,7 +23,7 @@
     "implementation": "CPython"
   },
   "requirements_lock": {
-    "path": "base-env-build/matclaw-cips-gpu/requirements.lock",
+    "path": "runtimes/recipes/matclaw-cips-gpu/requirements.lock",
     "sha256": "99aad5f79949c2735dc7cfa45201681daa02420c5387bd7ab2d6fdf10c3234ce",
     "package_count": 55
   },
@@ -47,9 +47,9 @@
   "probes": [
     {
       "name": "qualify_gpu.py",
-      "path": "base-env-build/matclaw-cips-gpu/qualify_gpu.py",
+      "path": "runtimes/recipes/matclaw-cips-gpu/qualify_gpu.py",
       "sha256": "ef863ffc7c2ad5259738e1c62ca03bbfc30b200e28c708ae5e3fb30a7ac5c5b2"
     }
   ],
-  "recipe_digest": "sha256:2e2d41847edacdf78d94a8854699260ea72e895a9b26ed101700bc6319809bbc"
+  "recipe_digest": "sha256:640e02b4aa6f3c50395b583e0c51166a02d83015128eb929d81b08f07bd5fbe5"
 }

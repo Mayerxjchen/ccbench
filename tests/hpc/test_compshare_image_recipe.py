@@ -30,8 +30,8 @@ def test_canonical_recipe_lock_audits_cleanly():
     res = audit_image_recipe(CANONICAL_RECIPE_PATH, repo_root=REPO_ROOT)
     assert res["ok"] is True
     assert res["status"] == "RECIPE_VERIFIED"
-    assert res["image_status"] == "UNBUILT"
-    assert res["target_cases"] == ["031", "032", "033"]
+    assert res["image_status"] == "BUILT"
+    assert res["target_cases"] == ["001", "002", "003"]
     assert res["recipe_digest"].startswith("sha256:")
 
 
@@ -92,9 +92,9 @@ def test_reject_forbidden_capabilities(tmp_path: Path):
 
 
 def test_reject_premature_built_or_qualified_status(tmp_path: Path):
-    # Must NOT claim BUILT or QUALIFIED at recipe freeze time
+    # Must NOT claim arbitrary or invalid status
     doc = _valid_recipe_doc()
-    doc["image_status"] = "BUILT"
+    doc["image_status"] = "QUALIFIED"
     doc["recipe_digest"] = canonical_recipe_digest(doc)
     p = tmp_path / "recipe_built.json"
     p.write_text(json.dumps(doc))

@@ -29,11 +29,13 @@ def report() -> dict:
 
 class TestScanCases:
     def test_finds_all_five(self):
-        cases = scan_cases(CASES_DIR)
+        cases, invalid = scan_cases(CASES_DIR)
         assert len(cases) == 5
+        assert invalid == []
 
     def test_all_have_coverage(self):
-        cases = scan_cases(CASES_DIR)
+        cases, invalid = scan_cases(CASES_DIR)
+        assert invalid == []
         for c in cases:
             assert c["has_coverage"], f"{c['case_id']} missing coverage"
 
@@ -91,7 +93,8 @@ class TestGaps:
             '[candidate]\ninstruction = "task.md"\nsubmission_root = "final"\n'
         )
         # Use tmp_path as cases dir
-        cases = scan_cases(tmp_path)
+        cases, invalid = scan_cases(tmp_path)
+        assert invalid == []
         gaps = find_gaps(cases)
         assert len(gaps) == 1
         assert gaps[0]["case_id"] == "untagged"
@@ -119,18 +122,60 @@ class TestDiversity:
 
 class TestBuildReport:
     def test_has_required_keys(self, report: dict):
-        for key in ("schema_version", "summary", "distribution",
-                     "concentration_flags", "gaps", "diversity", "cases"):
+        for key in ("schema_version", "status", "summary", "distribution",
+                     "concentration_flags", "gaps", "uncovered_vocabularies",
+                     "diversity", "cases", "invalid_cases"):
             assert key in report
+        assert report["status"] == "VALID"
+        assert report["invalid_cases"] == []
 
     def test_summary_counts(self, report: dict):
         s = report["summary"]
         assert s["total_cases"] == 5
         assert s["tagged_cases"] == 5
         assert s["untagged_cases"] == 0
+        assert s["invalid_cases"] == 0
 
     def test_json_serializable(self, report: dict):
         """Report must be JSON-serializable (no Path objects, etc.)."""
         payload = json.dumps(report)
         restored = json.loads(payload)
         assert restored["summary"]["total_cases"] == 5
+
+    def test_corrupted_case_fails_closed(self, tmp_path: Path):
+        """A corrupted case must NOT be skipped quietly; report must mark INVALID and CLI return 1."""
+        from scripts.portfolio.registry import main
+
+        # Create one valid case and one corrupted case (invalid schema with bogus_field)
+        valid_dir = tmp_path / "case-valid"
+        valid_dir.mkdir()
+        (valid_dir / "task.md").write_text("# Valid")
+        (valid_dir / "case.toml").write_text(
+            'schema_version = "1.2"\n'
+            'case_version = "1.0.0"\n'
+            '[execution]\nclass = "local_sandbox"\n'
+            '[candidate]\ninstruction = "task.md"\nsubmission_root = "final"\n'
+            '[coverage]\nscientific_domain = "valid_domain"\n'
+        )
+
+        broken_dir = tmp_path / "case-broken"
+        broken_dir.mkdir()
+        (broken_dir / "task.md").write_text("# Broken")
+        (broken_dir / "case.toml").write_text(
+            'schema_version = "1.2"\n'
+            'case_version = "1.0.0"\n'
+            '[execution]\nclass = "local_sandbox"\n'
+            '[candidate]\ninstruction = "task.md"\nsubmission_root = "final"\n'
+            '[coverage]\nbogus_field = "illegal"\n'
+        )
+
+        # build_report should record invalid_cases and status INVALID
+        rep = build_report(tmp_path)
+        assert rep["status"] == "INVALID"
+        assert len(rep["invalid_cases"]) == 1
+        assert rep["invalid_cases"][0]["case_id"] == "case-broken"
+        assert rep["summary"]["invalid_cases"] == 1
+
+        # CLI main must exit with code 1
+        exit_code = main(["--cases-dir", str(tmp_path)])
+        assert exit_code == 1

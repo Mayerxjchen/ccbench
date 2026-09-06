@@ -6,7 +6,7 @@
 #       杜绝 agent 绕过 install_skills 直接读文件。
 #
 # 构建:
-#   cd base-env-build && bash build.sh skills
+#   cd runtimes/recipes && bash build.sh skills
 FROM ubuntu:24.04
 
 COPY skills/ /opt/electromind/skills/

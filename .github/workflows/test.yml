@@ -17,8 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CCBENCH_OFFLINE: "1"
-      DEEPSEEK_API_KEY: "ci-mock-disabled"
-      DEEPSEEK_BASE_URL: "http://127.0.0.1:9"
+      CCBENCH_API_KEY: "ci-mock-disabled"
+      CCBENCH_BASE_URL: "http://127.0.0.1:9"
 
     steps:
       - name: Check out repository

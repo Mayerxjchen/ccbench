@@ -1,6 +1,6 @@
 # BASE_IMAGE lets a cross-arch build pin an amd64 base (dftworld-base:amd64)
 # without touching the default arm64 tag used for local container runs.
-ARG BASE_IMAGE=dftworld-base
+ARG BASE_IMAGE=ubuntu:24.04
 FROM ${BASE_IMAGE} AS matclaw-runtime
 
 ENV PATH="/opt/matclaw/bin:${PATH}" \
@@ -31,7 +31,7 @@ RUN mkdir -p /opt/matclaw/assets
 COPY benchmark/sources/matclaw/common/teacher-model/frozen_model.pb /opt/matclaw/assets/frozen_model.pb
 COPY benchmark/sources/matclaw/common/teacher-model/type_map.raw /opt/matclaw/assets/type_map.raw
 COPY benchmark/sources/matclaw/common/CuInP2S6.cif /opt/matclaw/assets/CuInP2S6.cif
-COPY base-env-build/matclaw-cips/smoke_test.py /opt/matclaw/smoke_test.py
+COPY runtimes/recipes/matclaw-cips/smoke_test.py /opt/matclaw/smoke_test.py
 
 RUN printf '%s  %s\n' \
       'a3e7cf9c8168c649ee1ba6e39a7212f3f9db29fc0162b093beb908927e956b4d' \

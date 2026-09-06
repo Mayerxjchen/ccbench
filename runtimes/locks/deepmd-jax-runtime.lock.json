@@ -1,7 +1,7 @@
 {
   "schema": "dispatcher-deepmd-jax-runtime-lock/v1",
   "image_name": "dftworld-deepmd-jax",
-  "note": "Frozen DP-MP/JAX runtime identity for Case 042 draft runs. Built 2026-08-25 from the version-captured ai2kit-stack image (sha256:0d243b27fd25... = reference/runtime-evidence/version-capture.json) via docker-save -> rsync -> apptainer build on a cpu-partition node. Acceptance all-pass: jax 0.5.3 / flax 0.10.6 / optax / jax_md / deepmd_jax(editable @48a981a); project G1 smoke_test.py ALL PASS (S2 inference, S3 message-passing train+infer, S4 DPMP+NVT 10 steps). CPU variant; GPU (jax[cuda]) remains a Discovery decision per the case lock note.",
+  "note": "Frozen DP-MP/JAX runtime identity for Case 005 (legacy 042) draft runs. Built 2026-08-25 from the version-captured ai2kit-stack image (sha256:0d243b27fd25... captured via runtimes/recipes/deepmd-jax/version_capture.py) via docker-save -> rsync -> apptainer build on a cpu-partition node. Acceptance all-pass: jax 0.5.3 / flax 0.10.6 / optax / jax_md / deepmd_jax(editable @48a981a); project G1 smoke_test.py ALL PASS (S2 inference, S3 message-passing train+infer, S4 DPMP+NVT 10 steps). CPU variant; GPU (jax[cuda]) remains a Discovery decision per the case lock note.",
   "source": {
     "docker_image_id": "sha256:0d243b27fd256b01b4664436af36175da58257ddb7ff5e92a67bf3efa176844f",
     "tag": "dftworld-base-deepmd-jax:latest",

@@ -1,240 +1,172 @@
 # CCBench
 
-AI agent benchmark for computational chemistry.
+AI Agent Benchmark for Computational Chemistry.
 
-Tasks focus on **scientific benchmark cases** (`001-matclaw-cips-active-distillation`, `002-matclaw-cips-curie-temperature`, `003-matclaw-cips-domain-wall-search`, `004-ai2kit-water64-end-to-end-potential`, `005-go-water-dpmp`). Directory names are `NNN-slug`. `eval.py` scans root-level `NNN-slug` directories to discover benchmark cases.
+CCBench 面向计算化学与材料模拟领域的前沿大模型与智能体系统，提供端到端、高度隔离、具备物理真实性校验的长周期科学评测基准。
 
-## Repository Map
+使用者无需理解复杂历史演进，克隆仓库后即可直接回答三个核心问题：
 
-仓库按「长周期核心案例 / 构造中区 / 活跃工作 / 基建」组织：
+```text
+cases/       我能测试什么？       → 5 个长周期跨学科材料与分子建模科学基准案例
+experiments/ 我怎么比较模型/Skill？ → 声明式 Run Config 与实验矩阵规格定义
+ccbench      我怎么运行？         → 一行命令安装、自检与隔离沙箱评测执行
+```
+
+---
+
+## 仓库结构 (Repository Architecture)
+
+项目物理结构严格收敛为三大支柱与统一 CLI 入口：
 
 ```text
 ccbench/
-├── 001-matclaw-cips-active-distillation   # 核心案例：MatClaw CIPS 势能主动学习蒸馏
-├── 002-matclaw-cips-curie-temperature     # 核心案例：MatClaw CIPS 居里温度分子动力学
-├── 003-matclaw-cips-domain-wall-search    # 核心案例：MatClaw CIPS 畴壁搜索
-├── 004-ai2kit-water64-…/                  # 核心案例：ai2kit训练水的MLFF
-├── 005-go-water-dpmp/                     # 核心案例：石墨烯氧化程度如何改变界面水的分子组织与振动响应
+├── cases/                                # 评测案例集（严格四件套规范）
+│   ├── 001-matclaw-cips-active-distillation  # 铁电体系主动学习势函数蒸馏
+│   ├── 002-matclaw-cips-curie-temperature    # 铁电居里温度分子动力学搜索
+│   ├── 003-matclaw-cips-domain-wall-search   # 外电场/温度诱导铁电畴壁动力学搜索
+│   ├── 004-ai2kit-water64-end-to-end-potential # 水体系全流程第一性原理势函数流水线
+│   └── 005-go-water-dpmp                 # 氧化石墨烯-水界面 JAX/DP-MP 势函数重现
 │
-├── active-work/                           # 活跃工作区：不参与评测扫描的工作内容
-│   └── ai2kit/                            #   water64 专家流水线工作目录
+├── experiments/                          # 实验矩阵与评测规格
+│   ├── main.toml                         # 生产基线评测矩阵 (Counted runs)
+│   ├── smoke.toml                        # 快速冒烟测试配置 (Uncounted smoke)
+│   └── models.toml                       # 模型代号与参数映射定义
 │
-├── eval.py                                # Formal Runner harness（支持 ccbench / mlffbench 入口）
-├── summarize.py                           # jobs/ 汇总 → jobs/SUMMARY.md
-├── scripts/infra/qualify_hpc_dispatcher.py   # 双 canary 资格化驱动（--phase
-│                                  #   preflight/canary/cp2k/verify/resume；
-│                                  #   --phase resume 完成中断的 canary，绝不重提）
+├── runtimes/                             # 运行时与容器镜像规范 (SSOT)
+│   ├── recipes/                          # 可复现构建配方 (Dockerfile 与 build.sh)
+│   ├── locks/                            # 密码学锚定的环境与镜像锁定文件
+│   └── trust.toml                        # 资格化公钥信任锚点
 │
-├── base-env-build/                # Docker 镜像构建（base/cp2k/deepmd/matclaw-cips/candidate-claude-code/skills）
-│   ├── build.sh
-│   ├── skills/                    # benchmark skill bundle（→ dftworld-skills:<sha>）
-│   └── .skill-image.json          # skill 镜像锁（tag/commit/skills_sha）
-├── benchmark/sources/             # 论文溯源（matclaw 论文与参考实现；旧 ChemGraph 已从当前版本移除、历史可由 Git 追溯）
-├── scripts/                       # infra / qualification / ablation / evidence 工具
-│   └── ablation/hpc/              # G9 参考运行脚手架（submit/fetch/common/template）
-├── tests/                         # 架构回归测试套件（pytest testpaths=["tests"]）
-├── schemas/                       # result / case / experiment-spec 等合同 schema
-├── experiments/                   # 实验规格（main.toml, smoke.toml, models.toml）
-├── reference/runtime/             # 冻结运行时锁（cp2k / deepmd-jax；数据非配置，勿就地改）
-├── evidence/                      # 清理回执 / 资格化证据 / 正式证据（append-only ledger 在
-│                                  #   evidence/local-cleanup-20260825/decision-ledger.json）
-├── docs/                          # architecture 合同 / operations 政策 / superpowers 计划
-├── jobs/                          # 本地网关审计状态（hpc-audit.jsonl）
-└── paper/                         # 源论文 PDF
+├── ccbench / eval.py                     # 统一评测调度 Harness CLI 入口
+├── summarize.py                          # 评测结果结构化聚合工具
+├── scripts/                              # 自动化构建、资格化与分析辅助脚本
+└── tests/                                # 覆盖仓库架构、合同与科学属性的回归测试套件
 ```
 
-> 规则速记：案例 = 根级 `NNN-slug`；可随时重建的状态（`.venv` `tmp/` 缓存）不入 Git；
-> 删除任何路径前先查 [workspace-maintenance](docs/operations/workspace-maintenance.md)
-> 并记账到 decision ledger。`ai2kit/` 是用户明确要求恢复的工作目录，未经指示不得再删。
+---
 
-## Setup
+## 快速上手 (Quick Start)
 
-### 第 1 步：克隆 + Python 环境
+所有步骤保证从 fresh clone 状态起 100% 直接可执行。
+
+### 第 1 步：安装环境
+
+推荐使用 [uv](https://astral.sh/uv) 极速包管理器：
 
 ```bash
 git clone https://github.com/Mayerxjchen/ccbench.git && cd ccbench
 
-# 装 uv（已有可跳过）
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 一键装齐依赖（锁定版本：运行时 + pytest/numpy/ase）
+# 一键安装生产与开发依赖（严格锁定版本）
 uv sync --frozen --extra dev
 ```
 
-验证环境正常：
+### 第 2 步：自检与回归测试
+
+运行架构完整性门禁与 CLI 自检：
 
 ```bash
-uv run python -m pytest tests/core -q          # 应全绿
-uv run python eval.py --help                   # 能打印用法即 OK
+uv run ccbench --help
+uv run pytest tests/repo/ -q
 ```
 
-### 第 2 步：Docker 镜像（按需，跑哪个案例装哪个，别一次 all）
+### 第 3 步：配置通用模型 API 凭据
+
+复制环境配置模板：
 
 ```bash
-cd base-env-build
-bash build.sh                # 看帮助 / 已有镜像
-bash build.sh base           # 最小镜像
-bash build.sh cp2k deepmd    # 指定若干引擎镜像
-bash build.sh skills         # skill bundle 镜像（--skills 运行才需要）
+cp .env.example .env
 ```
 
-镜像依赖树：`ubuntu:24.04 → dftworld-base → {cp2k, deepmd, matclaw-cips, deepmd-jax}`。国内拉不动 Docker Hub 时换源：
-`DFTWORLD_BASE_IMAGE=docker.m.daocloud.io/library/ubuntu:24.04 bash build.sh base`
-
-### 第 3 步：模型 API 凭据 `.env`
-
-Provider/模型策略在 Run Config（`experiments/main.toml`），
-`.env` 只放它要求的变量值：
+在 `.env` 中填入你的大模型调用端点与密钥（支持任何兼容 OpenAI / DeepSeek 协议的 API）：
 
 ```bash
-API_KEY=...
-BASE_URL=https://...
+CCBENCH_API_KEY=your_api_key_here
+CCBENCH_BASE_URL=https://api.deepseek.com
 ```
 
-自检：`uv run python -m dftworld_bench.config.cli doctor --run-config experiments/main.toml`
+### 第 4 步：运行基准案例
 
-### 第 4 步：HPC 集群接入（可选，只有跑真实 HPC 案例才需要）
-
-站点专属信息（地址、账号、队列、已部署的运行时镜像路径）**不入库**——
-向管理员或团队内部渠道索取，然后：
+你可以通过统一的 `ccbench` 命令或标准 `eval.py` 执行评测：
 
 ```bash
-# 1) 在 ~/.ssh/config 配置你的站点别名：
-Host <你的hpc别名>
-    HostName <内网地址>        # 通常需校园网/VPN
-    User <你的账号>
+# 运行单个科学案例（默认在隔离沙箱内启动 Candidate Agent）
+uv run ccbench run 001-matclaw-cips-active-distillation
 
-ssh <你的hpc别名> hostname      # 连通性自检
+# 或者使用 eval.py 入口
+uv run python eval.py 001-matclaw-cips-active-distillation
+
+# 启用 Benchmark Skills 辅助
+uv run ccbench run 001-matclaw-cips-active-distillation --skills
+
+# 运行完整评测矩阵（建议配置并行沙箱）
+uv run ccbench run --all
 ```
 
-- 计算镜像（SIF）按站点流程部署；资格化状态看
-  `evidence/hpc-dispatcher/qualification/<site>/receipt.json`
-  （不存在 = 未封证，fail-closed）
-- `--phase resume` 是单实例恢复路径（锁文件护栏）：确认没有别的机器正在
-  对同一集群做收养，再运行；它绝不二次提交——只等待已入队作业到达终态、
-  按持久化 SUBMIT_INTENT marker 收养并 settle 同一条审计链
-
-### HPC 架构演进与执行路径说明
-
-- **公开架构 (Public Architecture)**: `Harness → HpcDispatcher`
-- **当前内部兼容层 (Phase 2 Compatibility)**: `HpcDispatcher → GatewayRuntime → Gateway → backend`（用于维护既有已签署 Qualification Receipt 密码学 provenance）
-- **下一阶段目标 (Target Phase 3)**: `HpcDispatcher → Driver`（在新收据生成后物理退役 Gateway）
-
-### 跑评测
-
-见下节 [Running eval](#running-eval)。
-
-## Running eval
+评测产物与轨迹统一落盘至 `jobs/<run_id>/` 目录。使用以下命令生成聚合报表：
 
 ```bash
-uv run python eval.py 001-matclaw-cips-active-distillation -v
-uv run python eval.py --all
-uv run python eval.py --all --skills      # 启用 skill bundle（需先 build.sh skills）
-uv run python eval.py 001-matclaw-cips-active-distillation 002-matclaw-cips-curie-temperature   # 指定多个任务
+uv run python summarize.py
 ```
 
-Counted runs load `experiments/main.toml`. The command without
-`--skills` is NS; `--skills` is WS. Local smoke cases receive 64 turns and HPC
-formal cases receive 1024 turns from the same frozen config. Policy overrides require
-`--uncounted-smoke` and never enter counted results.
+---
 
-> `--skills`（默认关）从 `dftworld-skills:<sha>` bundle 镜像提取 skills 作为
-> skill_roots，提取后哈希须与 `base-env-build/.skill-image.json` 一致，否则本次
-> run 作废（防镜像/manifest 漂移）。`--experiment` / `--condition` / `--replicate`
-> 控制实验分组，`jobs/SUMMARY.md` 由 `summarize.py` 汇总生成。
+## 核心科学评测案例 (Benchmark Cases)
+
+所有案例均收敛至 `cases/<case-id>/` 目录，严格包含四项标准构件（四件套）：
 
 ```text
-jobs/<timestamp>/
-  summary.json
-  threads/<task>/
-    thread.toml
-    metainfo.json
-    workspace/              # = 容器内 /app
-    messages.jsonl
-    raw-submission/         # 冻结声明提交的私有宿主副本（随线程保留）
-    sealed-submission/      # 隔离密封后的干净提交（manifest.json + 文件）
-    verifier-logs/          # 独立 Verifier 的输出（result.json / reward.txt）
+cases/<case-name>/
+├── instruction.md   # Agent 任务引导与科学目标描述
+├── input/           # 注入到 Agent 工作区的初始物理数据与代码骨架
+├── eval/            # 独立 Verifier 验收测试（只读挂载，杜绝信息泄露）
+└── task.toml        # 任务元数据、资源约束与评测门禁规范
 ```
 
-容器内任务根目录统一为 `/app`（instruction / tests / Dockerfile 同源）。eval 会把镜像 `/app` 拷进 `workspace/`，再把容器 `/app` 链到该目录；不继承任何宿主外部 agent skills（完全与宿主 agent 配置文件、全局技能目录及外部环境隔离解耦）。
+| 案例目录 | 科学领域 | 计算后端引擎 | 评测目标与能力考察 |
+|:---|:---|:---|:---|
+| `001-matclaw-cips-active-distillation` | 铁电材料物理 | `matclaw-cips` (DeePMD+LAMMPS) | 运用主动学习闭环蒸馏高精度紧凑势函数 |
+| `002-matclaw-cips-curie-temperature` | 统计力学 MD | `matclaw-cips` (DeePMD+LAMMPS) | 基于分子动力学校准相变温度与居里点 |
+| `003-matclaw-cips-domain-wall-search` | 外场响应动力学 | `matclaw-cips` (DeePMD+LAMMPS) | 在外电场与温度耦合下搜索畴壁动力学机制 |
+| `004-ai2kit-water64-end-to-end-potential` | 全自动势函数管线 | `ai2kit` + `cp2k` | 构建端到端基于第一性原理的主动学习流水线 |
+| `005-go-water-dpmp` | 界面化学计算 | `deepmd-jax` / `jax-gpu` | 氧化石墨烯-水界面 DP-MP 势函数复现与 MD 验证 |
 
-验证永远发生在**独立 Verifier 容器**里，不共享 Candidate：Agent 轮结束后先冻结并
-收集声明提交（legacy 布局排除 `.venv`/`.skills`/`_dftworld_tests`/`tests` 等运行时
-名称），**销毁候选容器**，再把密封后的干净提交以只读方式挂到 `/submission` 与
-legacy 兼容的 `/app`，在全新容器中跑 `tests/test.sh`（非 root `65532:65532`、
-`--network none`、`--read-only`、`--cap-drop ALL`、私有 `/tmp`）。Verifier 写
-`result.json`（符合 `schemas/result.schema.json`）；缺失/损坏按 `VERIFIER_FAILURE`
-（基础设施无效），绝不当作科学失败。旧 test.sh 仍写 `reward.txt` 的按兼容路径映射。
+> **隔离与防作弊机制**：评测执行期间，Agent 只能访问注入工作区的 `input/` 内容；`eval/` 验收脚本与测试用例运行在**独立、非特权、网络隔离（`--network none`）**的只读容器中，彻底杜绝作弊与训练集污染。
 
-## 长周期案例镜像与运行环境
+---
 
-5 个核心长案例覆盖 MatClaw CIPS、ai2kit + CP2K 和 GO-water DeePMD-JAX 科学工作流。计算环境支持容器化沙箱与 HPC 控制器架构：
+## 运行时与镜像构建 (Runtimes & Containers)
 
-| 案例 | 运行时引擎 | 核心组件 | 计算场景 |
-|------|------------|----------|----------|
-| `031-matclaw-cips-active-distillation` | `matclaw-cips` | DeePMD-kit, LAMMPS, ASE | 主动学习势函数蒸馏 |
-| `032-matclaw-cips-curie-temperature` | `matclaw-cips` | DeePMD-kit, LAMMPS, ASE | 居里温度分子动力学搜索 |
-| `033-matclaw-cips-domain-wall-search` | `matclaw-cips` | DeePMD-kit, LAMMPS, ASE | 外场/温度下铁电畴壁搜索 |
-| `034-ai2kit-water64-end-to-end-potential` | `ai2kit` / `cp2k` | ai2kit, CP2K, DeePMD-kit | 水体系端到端势函数流水线 |
-| `042-go-water-dpmp` | `deepmd-jax` | JAX, DeePMD-kit, DPMP | GO–water 界面势函数复现与隐式验证 |
-
-### 任务目录约定（科学基准布局）
-
-长周期案例采用规范的根级目录结构：
-
-```text
-031-matclaw-cips-active-distillation/
-├── Dockerfile            # 容器环境定义（如适用）
-├── public/               # COPY public/ /app/  ← 注入 agent 工作区的数据
-├── reference/            # 科学参考数据与生成脚本
-├── solution/             # 官方参考解与基准流程
-├── tests/                # 独立 Verifier 验收测试（含 test.sh 与 test_outputs.py）
-├── task.toml             # 任务元数据与资源约束
-└── instruction.md        # 任务指导说明
-```
-
-要点：
-- 任务数据通过 `public/` 注入 agent 工作区。
-- **`reference/ solution/ tests/` 绝不进 agent 视野**——eval 在独立只读隔离沙箱中运行验证器，杜绝信息泄漏。
-- `task.toml` 声明严格的超时控制、资源配额与评测门禁规范。
-
-### skill bundle 与 .skill-image.json
+CCBench 针对不同科学计算任务提供经过验证的轻量化容器与环境配方：
 
 ```bash
-cd base-env-build
-bash build.sh skills
+cd runtimes/recipes
+
+# 查看可用构建目标
+bash build.sh -h
+
+# 构建 Claude Code 候选智能体隔离沙箱
+bash build.sh agent-claude-code
+
+# 构建 MatClaw CIPS 计算镜像
+bash build.sh matclaw-cips
+
+# 按案例依赖自动解析并构建对应镜像
+bash build.sh 001
 ```
 
-构建后 `base-env-build/.skill-image.json` 记录 `tag` / `commit` / `skills_sha`。
-`eval.py --skills` 从 `tag` 对应镜像提取 skills，用 `skills_sha.py` 重算哈希并与
-manifest 比对；不一致即本次 run 作废。**改过 `base-env-build/skills/` 后必须重跑
-`bash build.sh skills`**，否则 eval 会因 sha 漂移拒绝运行。
+### 运行时真实性与资格化状态说明 (Qualification Truthfulness)
 
-### 从源码校验新案例（可选）
+CCBench 对环境与资格化证明执行严格的密码学单一真相源（SSOT）审计：
 
-```bash
-uv run python 031-matclaw-cips-active-distillation/reference/generate_reference.py   # 复现参考值
-uv run pytest tests/contracts/test_hpc_cases_gold_matrix.py   # 跑长案例契约验证矩阵
-```
+- **MatClaw CIPS Runtime** (`runtimes/locks/matclaw-cips-runtime.lock.json`): 对应已验证构建镜像 `compshareImage-1uw6sd44931i`。
+- **JAX GPU Runtime** (`runtimes/locks/jax-runtime.lock.json`): 对应定制 JAX GPU 镜像 `compshareImage-1uyaneriamfz`。
+  - **公开仓库状态**：标注为 `BUILT_NOT_QUALIFIED / external receipt required`。
+  - **血统完整性保证**：源码归档 SHA、Recipe Digest 与 Image ID 的因果链在代码层面已严格绑定闭环。
+  - **正式准入说明**：由于正式 Gate C 资格化收据包含维护者站点的私钥数字签名与集群物理 Canary 审计日志，正式收据通过本地/私有挂载注入验证，公开仓库不包含私钥。
 
-每个长案例目录包含 `VALIDATION.json`、`benchmark_valid.json`、`task.toml`、`instruction.md`、`reference/` 以及独立验证器套件。详细科学背景、理论依据与指标说明见 [TASKS.md](TASKS.md)。
+---
 
-## Task Overview
+## 许可证与贡献指南 (License & Contributing)
 
-| Task | Execution Class | Runtime Family | Keywords / Description |
-|---|---|---|---|
-| `031-matclaw-cips-active-distillation` | `hpc_controller` | `matclaw-cips` | Active distillation of a fast CIPS DeePMD potential (active-learning, cips) |
-| `032-matclaw-cips-curie-temperature` | `hpc_controller` | `matclaw-cips` | Curie temperature MD search with DeePMD (cips, curie-temperature, md) |
-| `033-matclaw-cips-domain-wall-search` | `hpc_controller` | `matclaw-cips` | Domain-wall search under electric field/temperature (domain-wall, ferroelectric) |
-| `034-ai2kit-water64-end-to-end-potential` | `hpc_controller` | `ai2kit`, `cp2k` | End-to-end water potential (CP2K AIMD -> active learning -> validation) |
-| `042-go-water-dpmp` | `hpc_controller` | `deepmd-jax` | End-to-end development of a GO–water DPMP interatomic potential |
+本项目遵循 Apache 2.0 开源许可。详细开发者维护指南请参阅 `maintainer/` 目录。
 
-`031`–`033` 源自 MatClaw 高性能铁电体系科学计算工作流；`034` 为 ai2kit + CP2K 端到端全自动势函数主动学习流水线；`042` 为氧化石墨烯-水界面 (GO–water) JAX/DPMP 势函数复现与隐式物理验证案例。详细规范请参阅 [TASKS.md](TASKS.md)。
-
-
-## Workspace maintenance
-
-Retention classes, protected areas, cache policy, and deletion rules live in
-[docs/operations/workspace-maintenance.md](docs/operations/workspace-maintenance.md);
-every deletion batch is recorded in the append-only
-`evidence/local-cleanup-20260825/decision-ledger.json`.

@@ -29,7 +29,7 @@ RUN uv pip install --python /opt/matclaw/bin/python --reinstall \
         "tensorflow[and-cuda]==2.16.2"
 
 # The parity qualification probe ships next to the smoke gate.
-COPY base-env-build/matclaw-cips-gpu/qualify_gpu.py /opt/matclaw/qualify_gpu.py
+COPY runtimes/recipes/matclaw-cips-gpu/qualify_gpu.py /opt/matclaw/qualify_gpu.py
 
 FROM matclaw-gpu-runtime AS matclaw-gpu-verified
 # Build-time gate stays device-independent: docker build has no GPU, so pin the

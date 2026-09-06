@@ -2,7 +2,7 @@
   "schema": "dispatcher-compshare-runtime-lock/v2",
   "capability": "matclaw-cips",
   "image_name": "mlff-matclaw-cips-gpu-v1",
-  "note": "Frozen MatClaw CIPS GPU runtime for MLFFBench (Cases 031, 032, 033). Built from recipe base-env-build/matclaw-cips-gpu/recipe.lock.json.",
+  "note": "Frozen MatClaw CIPS GPU runtime for MLFFBench (Cases 001, 002, 003). Built from recipe runtimes/recipes/matclaw-cips-gpu/recipe.lock.json.",
   "provider": "compshare",
   "artifact": {
     "kind": "compshare_image",
@@ -11,8 +11,8 @@
   },
   "provenance": {
     "base_image": "compshare/pytorch:2.1.2-cuda12.1-cudnn8-devel-ubuntu22.04",
-    "recipe_digest": "sha256:2e2d41847edacdf78d94a8854699260ea72e895a9b26ed101700bc6319809bbc",
-    "recipe_path": "base-env-build/matclaw-cips-gpu/recipe.lock.json",
+    "recipe_digest": "sha256:640e02b4aa6f3c50395b583e0c51166a02d83015128eb929d81b08f07bd5fbe5",
+    "recipe_path": "runtimes/recipes/matclaw-cips-gpu/recipe.lock.json",
     "cuda_version": "12.1",
     "software_versions": {
       "python": "3.11.15",
@@ -22,7 +22,7 @@
   "qualification": {
     "status": "BUILT_NOT_QUALIFIED",
     "receipt_path": "matclaw-cips/receipt.json",
-    "receipt_digest": "sha256:52e9493a8a56dcb868b683885b44a5887f05073140fcdf76f28f8ac18261e523",
+    "receipt_digest": "sha256:1f15385d714565561701272bbc5333b1c2e3cb9fa7441de6d8ea4bfe90648f05",
     "site_profile_id": "compshare-gpu-production"
   },
   "env": {

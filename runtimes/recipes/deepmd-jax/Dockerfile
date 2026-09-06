@@ -1,6 +1,6 @@
 # deepmd-jax runtime family (DPMP/JAX workflow capability) — CPU variant.
 #
-# Shared runtime for GO-water DPMP (Case 042) and any future deepmd-jax MLP case.
+# Shared runtime for GO-water DPMP (Case 005) and any future deepmd-jax MLP case.
 # NOT a per-case image: build once, reuse.
 #
 #   deepmd-jax  = Deep Potential / Deep Potential Message-Passing (DP-MP)

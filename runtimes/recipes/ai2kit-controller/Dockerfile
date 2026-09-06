@@ -1,4 +1,4 @@
-# Case 034 HPC controller base — built in-repo replacement for the former
+# Case 004 (legacy 034) HPC controller base — built in-repo replacement for the former
 # external ``dftworld-base-ai2kit:0.1.0-cpu-controller`` overlay.
 #
 # Like every controller image, this is ONLY a control layer.  Scientific

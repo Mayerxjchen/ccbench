@@ -57,6 +57,51 @@ INFRA_OWNED_CASE_FIELDS = frozenset({
 })
 
 SCHEMA_PATH = Path(__file__).resolve().parents[2] / "schemas" / "case.schema.json"
+VOCABULARIES_PATH = Path(__file__).resolve().parents[2] / "schemas" / "coverage-vocabularies.yaml"
+_COVERAGE_VOCABULARIES: dict[str, set[str]] | None = None
+
+
+def load_coverage_vocabularies() -> dict[str, set[str]]:
+    """Load curated coverage vocabularies from schemas/coverage-vocabularies.yaml.
+
+    Returns mapping of dimension_name -> set of allowed values.
+    scientific_domain has empty set (open vocabulary).
+    """
+    global _COVERAGE_VOCABULARIES
+    if _COVERAGE_VOCABULARIES is not None:
+        return _COVERAGE_VOCABULARIES
+
+    if not VOCABULARIES_PATH.is_file():
+        raise CaseContractError(f"coverage vocabularies file missing at {VOCABULARIES_PATH}")
+
+    data = yaml.safe_load(VOCABULARIES_PATH.read_text(encoding="utf-8")) or {}
+    dims = data.get("dimensions") or {}
+    vocab: dict[str, set[str]] = {}
+    for dim_name, info in dims.items():
+        if isinstance(info, dict):
+            vocab[dim_name] = set(info.get("values") or [])
+        else:
+            vocab[dim_name] = set()
+
+    _COVERAGE_VOCABULARIES = vocab
+    return vocab
+
+
+def validate_coverage_tags(coverage: CoverageTags) -> None:
+    """Validate coverage tags against curated vocabularies.
+
+    Raises CaseContractError if a curated dimension carries an invalid value.
+    """
+    vocab = load_coverage_vocabularies()
+    for dim in ("method_family", "material_class", "computation_type"):
+        val = getattr(coverage, dim, "")
+        if val:
+            allowed = vocab.get(dim, set())
+            if allowed and val not in allowed:
+                raise CaseContractError(
+                    f"invalid coverage tag for {dim}: {val!r}; expected one of {sorted(allowed)}"
+                )
+
 
 # Implicit legacy public-files rule, mirroring the old `COPY public/ /app/`
 # image staging. Canonical v2 manifests override this with explicit rules.
@@ -280,7 +325,7 @@ class CaseSpec:
             raise CaseContractError("[hpc] is not allowed for local_sandbox execution")
 
         contract_doc: dict[str, Any] = {}
-        for key in ("execution", "candidate", "hpc"):
+        for key in ("execution", "candidate", "hpc", "runtime", "coverage", "submission_contract"):
             if key in raw:
                 contract_doc[key] = raw[key]
         if explicit_class is not None:
@@ -352,6 +397,7 @@ class CaseSpec:
                 material_class=str(coverage_raw.get("material_class", "")),
                 computation_type=str(coverage_raw.get("computation_type", "")),
             )
+            validate_coverage_tags(coverage)
 
         # Scientific compute capabilities from the [hpc] block (HPC cases only).
         # ``required``/``optional`` name scientific capabilities (cp2k, dpmp,

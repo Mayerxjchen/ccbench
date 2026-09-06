@@ -4,9 +4,9 @@
   "capability": "ai2kit",
   "image_name": "ai2kit-runtime-v1",
   "mode": "derived-runtime-reuse",
-  "note": "Frozen ai2kit RUNTIME identity for the 034 runtime.ai2kit qualification gate. AI2Kit is a runtime, not a control plane (docs/architecture/ARCHITECTURE-FREEZE-2026-09-03.md §4): it holds no SSH credentials, issues no raw sbatch, and is shared, not per-case. This entry is NOT a restoration of the original controller image — the rootfs is the content of the trusted CP2K SIF, which offline inspection proved already carries ai2_kit 1.1.0 with /opt/ai2kit/bin materialized first in PATH; direct reuse of an existing trusted SIF was approved on 2026-09-03 in place of building a new image. The runtime.sif_sha256 below is captured runtime data, verified on-site 2026-09-03; the <site-user> placeholder in sif_path_remote is materialized in the site-side private copy (same discipline as the cp2k lock).",
+  "note": "Frozen ai2kit RUNTIME identity for the 004 (legacy 034) runtime.ai2kit qualification gate. AI2Kit is a runtime, not a control plane (docs/architecture/ARCHITECTURE-FREEZE-2026-09-03.md §4): it holds no SSH credentials, issues no raw sbatch, and is shared, not per-case. This entry is NOT a restoration of the original controller image — the rootfs is the content of the trusted CP2K SIF, which offline inspection proved already carries ai2_kit 1.1.0 with /opt/ai2kit/bin materialized first in PATH; direct reuse of an existing trusted SIF was approved on 2026-09-03 in place of building a new image. The runtime.sif_sha256 below is captured runtime data, verified on-site 2026-09-03; the <site-user> placeholder in sif_path_remote is materialized in the site-side private copy (same discipline as the cp2k lock).",
   "lineage": {
-    "decision": "R2 (2026-09-03, user-approved): original image unrecoverable (docker archive deleted after cp2k acceptance; base-env-build/ai2kit recipe never committed; no registry or snapshot leads). Runtime derives from the locked CP2K SIF and is marked derived; do not claim restoration.",
+    "decision": "R2 (2026-09-03, user-approved): original image unrecoverable (docker archive deleted after cp2k acceptance; original recipe never committed; no registry or snapshot leads). Runtime derives from the locked CP2K SIF and is marked derived; do not claim restoration.",
     "base_image_source_id": "sha256:8a840aa2e477fcea05f60edb8cceb17e73fbb2bd568dd9abfff312e919034840",
     "parent_sif": {
       "path_pattern": "/public/home/<site-user>/dftworld2-runs/matclaw-031/runtime/cp2k-2025.2-cpu-amd64.sif",
@@ -30,7 +30,7 @@
   "observed": {
     "ai2_kit": "1.1.0 — truth lives in ai2_kit-1.1.0.dist-info/METADATA; the package __init__.py is 0 bytes and exposes no __version__, so any version probe MUST use importlib.metadata.version('ai2_kit') (attribute read is fallback only)",
     "python": "3.11.15 (/opt/ai2kit/bin venv)",
-    "co_resident": "cp2k 2025.2 (revision c3a8adfec5) and the ai2kit-stack software per reference/runtime/cp2k-runtime.lock.json and the 034 compute-runtime lock"
+    "co_resident": "cp2k 2025.2 (revision c3a8adfec5) and the ai2kit-stack software per runtimes/locks/cp2k-runtime.lock.json and the Case 004 compute-runtime lock"
   },
   "runtime": {
     "sif_path_remote": "/public/home/<site-user>/dftworld2-runs/matclaw-031/runtime/cp2k-2025.2-cpu-amd64.sif",

@@ -63,24 +63,24 @@ def audit_image_recipe(
     except jsonschema.ValidationError as exc:
         raise RecipeAuditError(f"Recipe schema validation failed: {exc.message}") from exc
 
-    # 2. Scope gate: strictly cases 031-033 or 042, strictly isolated runtimes
+    # 2. Scope gate: strictly cases 001-003 (legacy 031-033) or 005 (legacy 042)
     cases = set(doc.get("target_cases", []))
     caps = set(doc.get("target_capabilities", []))
 
-    if cases == {"031", "032", "033"}:
-        if cases.intersection({"034", "042"}):
-            raise RecipeAuditError(f"MatClaw Recipe improperly includes forbidden cases: {cases.intersection({'034', '042'})}")
+    if cases in ({"001", "002", "003"}, {"031", "032", "033"}):
+        if cases.intersection({"004", "005", "034", "042"}):
+            raise RecipeAuditError(f"MatClaw Recipe improperly includes forbidden cases: {cases.intersection({'004', '005', '034', '042'})}")
         if caps.intersection({"jax", "deepmd-jax", "ai2kit", "cp2k"}):
             raise RecipeAuditError(f"MatClaw Recipe improperly includes forbidden capabilities: {caps.intersection({'jax', 'deepmd-jax', 'ai2kit', 'cp2k'})}")
-    elif cases == {"042"}:
-        if cases.intersection({"031", "032", "033", "034"}):
-            raise RecipeAuditError(f"JAX Recipe improperly includes forbidden cases: {cases.intersection({'031', '032', '033', '034'})}")
+    elif cases in ({"005"}, {"042"}):
+        if cases.intersection({"001", "002", "003", "004", "031", "032", "033", "034"}):
+            raise RecipeAuditError(f"JAX Recipe improperly includes forbidden cases: {cases.intersection({'001', '002', '003', '004', '031', '032', '033', '034'})}")
         if caps.intersection({"deepmd", "matclaw-cips", "lammps", "ai2kit", "cp2k"}):
             raise RecipeAuditError(f"JAX Recipe improperly includes forbidden capabilities: {caps.intersection({'deepmd', 'matclaw-cips', 'lammps', 'ai2kit', 'cp2k'})}")
         if "jax" not in caps:
             raise RecipeAuditError("JAX Recipe must include 'jax' capability")
     else:
-        raise RecipeAuditError(f"Recipe target_cases must be exactly {{'031', '032', '033'}} or {{'042'}}; got {cases}")
+        raise RecipeAuditError(f"Recipe target_cases must be exactly {{'001', '002', '003'}} (or legacy {{'031', '032', '033'}}) or {{'005'}} (or legacy {{'042'}}); got {cases}")
 
     # 3. Base image must carry explicit OCI digest
     base_img = doc.get("base_image", {})
@@ -88,12 +88,12 @@ def audit_image_recipe(
     if not oci_digest.startswith("sha256:") or len(oci_digest) != 71:
         raise RecipeAuditError(f"Base image requires an exact 64-hex sha256 OCI digest: {oci_digest!r}")
 
-    # 4. Status gate: must be UNBUILT and RECIPE_VERIFIED
+    # 4. Status gate: must be RECIPE_VERIFIED and UNBUILT/BUILT
     if doc.get("status") != "RECIPE_VERIFIED":
         raise RecipeAuditError("Recipe status must be RECIPE_VERIFIED")
-    if doc.get("image_status") != "UNBUILT":
-        raise RecipeAuditError("Image status must be UNBUILT (cannot claim pre-built or qualified)")
-    if "image_id" in doc:
+    if doc.get("image_status") not in ("UNBUILT", "BUILT", "BUILT_NOT_QUALIFIED"):
+        raise RecipeAuditError("Image status must be UNBUILT or BUILT")
+    if doc.get("image_status") == "UNBUILT" and "image_id" in doc:
         raise RecipeAuditError("Recipe must not specify image_id while UNBUILT")
 
     def _resolve_recipe_rel(rel_str: str) -> Path:
@@ -180,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
         "recipe",
         type=Path,
         nargs="?",
-        default=_ROOT / "base-env-build" / "matclaw-cips-gpu" / "recipe.lock.json",
+        default=_ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "recipe.lock.json",
         help="Path to recipe.lock.json",
     )
     args = parser.parse_args(argv)

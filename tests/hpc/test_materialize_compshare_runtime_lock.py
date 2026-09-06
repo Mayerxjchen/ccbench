@@ -199,14 +199,14 @@ def test_reference_runtime_matclaw_cips_in_repo():
     )
     assert lock_path.is_file()
 
-    # Must pass check mode against current recipe
+    existing_lock = json.loads(lock_path.read_text(encoding="utf-8"))
     doc = materialize_runtime_lock(
         RECIPE_PATH,
         out_path=lock_path,
         capability="matclaw-cips",
         image_id="compshareImage-1uw6sd44931i",
         receipt_path="matclaw-cips/receipt.json",
-        receipt_digest="sha256:52e9493a8a56dcb868b683885b44a5887f05073140fcdf76f28f8ac18261e523",
+        receipt_digest=existing_lock["qualification"]["receipt_digest"],
         site_profile_id="compshare-gpu-production",
         repo_root=ROOT,
         check_only=True,

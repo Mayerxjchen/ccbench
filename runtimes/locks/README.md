@@ -31,7 +31,7 @@ gate NOT_RUN.
   (`3634151fa6e0b3322b52c4c8e841a823701d19881e10cd265d1f3fd0bf8c6cdf`)
 - Origin: built 2026-08-25 from the version-captured ai2kit-stack image;
   jax 0.5.3 / flax 0.10.6 / `deepmd_jax` editable @48a981a; G1 smoke ALL PASS
-- Consumer: Case 042 draft runs / dispatcher deepmd phase
+- Consumer: Case 005 (legacy 042) draft runs / dispatcher deepmd phase
 
 ## ai2kit-runtime.lock.json
 
@@ -48,13 +48,34 @@ gate NOT_RUN.
   lock records apptainer 1.4.0, the rootfs manifest digest
   (`5c7e6edf…3572`, sorted `unsquashfs -l` listing), and keeps the
   unrecoverable OCI/Dockerfile/archive digests **null** — never fabricated.
-- Software: `ai2_kit` 1.1.0 (= 034 lock + registry `ai2kit-runtime-v1`); the
+- Software: `ai2_kit` 1.1.0 (= Case 004 lock + registry `ai2kit-runtime-v1`); the
   package has no `__version__` (empty `__init__.py`) — probe via
   `importlib.metadata.version("ai2_kit")`
 - Remote SIF: same file as the cp2k lock
   (`05f708b1b03d949af095a770c00ca7930fea293b161a2383d71ea99e5cfef5dd`)
 - Consumer: `scripts/qualification/run_hpc_dispatcher.sh --phase ai2kit …`
-  + `--ai2kit-lock reference/runtime/ai2kit-runtime.lock.json`
-  (034 `runtime.ai2kit` qualification gate; requires explicit caller authorization)
+  + `--ai2kit-lock runtimes/locks/ai2kit-runtime.lock.json`
+  (Case 004 `runtime.ai2kit` qualification gate; requires explicit caller authorization)
 - If an R4 replayable build replaces this runtime, its digest changes and
   site qualification MUST be re-run under a new candidate tag
+
+## matclaw-cips-runtime.lock.json
+
+- Schema: `dispatcher-compshare-runtime-lock/v2`
+- Capability: `matclaw-cips`
+- Image: `mlff-matclaw-cips-gpu-v1` (`compshareImage-1uw6sd44931i`)
+- Target cases: Cases 001, 002, 003
+- Recipe: `runtimes/recipes/matclaw-cips-gpu/recipe.lock.json`
+- Qualification status: `BUILT_NOT_QUALIFIED` (in public repository; production verification relies on site qualification receipt)
+
+## jax-runtime.lock.json
+
+- Schema: `dispatcher-compshare-runtime-lock/v2`
+- Capability: `jax`
+- Image: `mlff-jax-gpu-v1` (`compshareImage-1uyaneriamfz`)
+- Target case: Case 005
+- Recipe: `runtimes/recipes/jax-gpu/recipe.lock.json`
+- Public GitHub status: `BUILT_NOT_QUALIFIED / external receipt required`
+  - Build provenance is verified: image ID, recipe digest, and source archive SHA are locked.
+  - Formal qualification receipt requires cryptographic verification with maintainer site private key and is mounted at runtime; the public repository does not bundle private signing keys.
+
