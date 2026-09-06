@@ -38,7 +38,7 @@ from dftworld_bench.hpc.trust_store import QualificationTrustStore
 DEFAULT_SITE_PROFILE_PATH = Path.home() / ".config" / "mlffbench" / "sites" / "compshare-gpu-production.json"
 PRIVATE_KEY_PATH = Path.home() / ".config" / "mlffbench" / "keys" / "compshare-site-v1.priv"
 TRUST_STORE_PATH = Path.home() / ".config" / "mlffbench" / "trust" / "qualification-trust.toml"
-RUNTIME_LOCK_REL = "reference/production-runtime/jax-runtime.lock.json"
+RUNTIME_LOCK_REL = "reference/runtime/jax-runtime.lock.json"
 EXTERNAL_RUNTIME_DIR = Path.home() / ".config" / "mlffbench" / "runtime"
 DEFAULT_EVIDENCE_ROOT = Path.home() / ".config" / "mlffbench" / "evidence" / "gate_c" / "20260904T174600Z"
 
@@ -469,7 +469,7 @@ with open(p, 'w') as f:
     # Holistic verification via TrustedRuntimeCatalog
     print("\n--- Holistic verification via TrustedRuntimeCatalog ---")
     catalog = TrustedRuntimeCatalog.load(
-        lock_dir=_ROOT / "reference" / "production-runtime",
+        lock_dir=_ROOT / "reference" / "runtime",
         qualification_root=evidence_base,
         trust_store=trust_store,
         trusted_site_profiles={site_profile_id: site_profile_obj},

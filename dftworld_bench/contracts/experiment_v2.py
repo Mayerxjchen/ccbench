@@ -41,6 +41,52 @@ class ExperimentBudget:
 
 
 @dataclass(frozen=True)
+class ModelEntry:
+    name: str
+    provider: str
+    model_id: str
+    deployment_id: str = "default"
+    identity_strength: str = "alias"
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+class ModelRegistry:
+    """Registry of models backed by experiments/models.toml."""
+
+    def __init__(self, models: dict[str, ModelEntry]) -> None:
+        self.models = models
+
+    @classmethod
+    def from_file(cls, path: Path) -> ModelRegistry:
+        if not path.is_file():
+            raise FileNotFoundError(f"Models file not found: {path}")
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        raw_models = data.get("models", {})
+        entries: dict[str, ModelEntry] = {}
+        for name, info in raw_models.items():
+            entries[name] = ModelEntry(
+                name=name,
+                provider=info["provider"],
+                model_id=info["model_id"],
+                deployment_id=info.get("deployment_id", "default"),
+                identity_strength=info.get("identity_strength", "alias"),
+            )
+        return cls(entries)
+
+    def get(self, name: str) -> ModelEntry | None:
+        return self.models.get(name)
+
+    def require(self, name: str) -> ModelEntry:
+        if name not in self.models:
+            raise KeyError(
+                f"unknown model {name!r}, available: {sorted(self.models.keys())}"
+            )
+        return self.models[name]
+
+
+@dataclass(frozen=True)
 class ExperimentSpecV2:
     schema_version: int
     experiment_id: str

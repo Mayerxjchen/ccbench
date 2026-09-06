@@ -592,8 +592,8 @@ def test_frozen_compshare_gpu_locks_parse():
         "deepmd", deepmd_data, source=str(deepmd_lock)
     )
     assert deepmd_entry.artifact_kind == "compshare_image"
-    assert deepmd_entry.image_id == ""
-    assert deepmd_entry.status == RuntimeStatus.UNBUILT
+    assert deepmd_entry.image_id == "compshareImage-1uw6sd44931i"
+    assert deepmd_entry.status == RuntimeStatus.BUILT_NOT_QUALIFIED
     assert deepmd_entry.provider == "compshare"
 
     jax_data = json.loads(jax_lock.read_text())
@@ -601,6 +601,6 @@ def test_frozen_compshare_gpu_locks_parse():
         "jax", jax_data, source=str(jax_lock)
     )
     assert jax_entry.artifact_kind == "compshare_image"
-    assert jax_entry.image_id == ""
-    assert jax_entry.status == RuntimeStatus.UNBUILT
+    assert jax_entry.image_id == "compshareImage-1uyaneriamfz"
+    assert jax_entry.status == RuntimeStatus.BUILT_NOT_QUALIFIED
     assert jax_entry.provider == "compshare"

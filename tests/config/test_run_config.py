@@ -55,7 +55,7 @@ def _write(tmp_path: Path, text: str) -> Path:
 
 
 def test_real_default_config_routes_budget_by_execution_class() -> None:
-    config = load_run_config(ROOT / "infra/runs/skill-ablation-v2.yaml")
+    config = load_run_config(ROOT / "experiments/main.toml")
     assert config.budget_for("local_sandbox").max_model_turns == 64
     assert config.budget_for("hpc_controller").max_model_turns == 1024
     assert config.treatment_for(skills_enabled=False).name == "no-skill"

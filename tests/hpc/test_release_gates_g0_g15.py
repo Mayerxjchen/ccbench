@@ -117,9 +117,9 @@ def test_g7_route_aware_resolver():
 
     resolver = RuntimeResolver.from_lock_dir(ROOT / "reference" / "runtime")
     # Gate A1 requirement: unbuilt runtimes without qualification fail closed
-    with pytest.raises(RuntimeResolutionError, match="UNBUILT"):
+    with pytest.raises(RuntimeResolutionError, match="UNBUILT|BUILT_NOT_QUALIFIED"):
         resolver.resolve("deepmd")
-    with pytest.raises(RuntimeResolutionError, match="UNBUILT"):
+    with pytest.raises(RuntimeResolutionError, match="UNBUILT|BUILT_NOT_QUALIFIED"):
         resolver.resolve("jax")
 
 

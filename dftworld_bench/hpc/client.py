@@ -1,4 +1,8 @@
-"""bench-hpc client: talk to a trusted gateway over plain HTTP(S).
+"""[DEPRECATED] bench-hpc client: talk to a trusted gateway over plain HTTP(S).
+
+.. deprecated:: 2.0
+    Gateway HTTP Client is deprecated. CCBench execution path has converged
+    strictly on Harness -> HpcDispatcher -> Driver.
 
 The client is deliberately dumb:
 

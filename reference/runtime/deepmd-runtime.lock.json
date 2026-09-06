@@ -6,7 +6,7 @@
   "provider": "compshare",
   "artifact": {
     "kind": "compshare_image",
-    "image_id": null,
+    "image_id": "compshareImage-1uw6sd44931i",
     "image_source": "custom"
   },
   "provenance": {
@@ -21,9 +21,10 @@
     }
   },
   "qualification": {
-    "status": "NOT_RUN",
-    "receipt_path": null,
-    "receipt_digest": null
+    "status": "BUILT_NOT_QUALIFIED",
+    "receipt_path": "deepmd/receipt.json",
+    "receipt_digest": "sha256:1d800f07a71f8d381ab449a251d115f7945b29306ff61ec8bd8ae89e033a66c6",
+    "site_profile_id": "compshare-gpu-production"
   },
   "env": {
     "CUDA_VISIBLE_DEVICES": "0",

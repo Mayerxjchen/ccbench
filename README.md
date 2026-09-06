@@ -83,7 +83,7 @@ bash build.sh skills         # skill bundle 镜像（--skills 运行才需要）
 
 ### 第 3 步：模型 API 凭据 `.env`
 
-Provider/模型策略在 Run Config（`infra/runs/skill-ablation-v2.yaml`），
+Provider/模型策略在 Run Config（`experiments/main.toml`），
 `.env` 只放它要求的变量值：
 
 ```bash
@@ -91,7 +91,7 @@ API_KEY=...
 BASE_URL=https://...
 ```
 
-自检：`uv run python -m dftworld_bench.config.cli doctor --run-config infra/runs/skill-ablation-v2.yaml`
+自检：`uv run python -m dftworld_bench.config.cli doctor --run-config experiments/main.toml`
 
 ### 第 4 步：HPC 集群接入（可选，只有跑真实 HPC 案例才需要）
 
@@ -127,7 +127,7 @@ uv run python eval.py --all --skills      # 启用 skill bundle（需先 build.s
 uv run python eval.py 001-matclaw-cips-active-distillation 002-matclaw-cips-curie-temperature   # 指定多个任务
 ```
 
-Counted runs load `infra/runs/skill-ablation-v2.yaml`. The command without
+Counted runs load `experiments/main.toml`. The command without
 `--skills` is NS; `--skills` is WS. Local smoke cases receive 64 turns and HPC
 formal cases receive 1024 turns from the same frozen config. Policy overrides require
 `--uncounted-smoke` and never enter counted results.

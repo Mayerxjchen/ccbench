@@ -125,12 +125,12 @@ class TestGateA1NegativeContracts:
         runtime_dir = repo_root / "reference" / "runtime"
 
         resolver = RuntimeResolver.from_lock_dir(runtime_dir)
-        # Deepmd and JAX are currently UNBUILT and must not be in qualified capabilities
+        # Deepmd and JAX are currently unverified and must not be in qualified capabilities
         assert "deepmd" not in resolver.qualified_capabilities()
         assert "jax" not in resolver.qualified_capabilities()
 
         # Direct resolution attempt must raise RuntimeResolutionError
-        with pytest.raises(RuntimeResolutionError, match="UNBUILT"):
+        with pytest.raises(RuntimeResolutionError, match="UNBUILT|BUILT_NOT_QUALIFIED"):
             resolver.resolve("deepmd")
 
     def test_contract_3_ownership_marker_injected_by_trusted_driver(self, tmp_path: Path):

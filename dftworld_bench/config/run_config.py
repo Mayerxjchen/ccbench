@@ -115,16 +115,101 @@ class RunConfig(StrictModel):
 
 
 def load_run_config(path: Path) -> RunConfig:
-    """Load one YAML config and reject all ambiguity."""
+    """Load one YAML or TOML config and reject all ambiguity."""
     path = Path(path)
     if not path.is_file():
         raise RunConfigError(f"run config not found: {path}")
-    try:
-        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as exc:
-        raise RunConfigError(f"run config unreadable: {path}: {exc}") from exc
-    if not isinstance(payload, dict):
-        raise RunConfigError("run config must be a YAML mapping")
+    raw_text = path.read_text(encoding="utf-8")
+    if path.suffix == ".toml" or "schema_version = 2" in raw_text or "experiment_id" in raw_text:
+        try:
+            import tomllib
+            payload = tomllib.loads(raw_text)
+        except Exception:
+            try:
+                payload = yaml.safe_load(raw_text)
+            except Exception as exc:
+                raise RunConfigError(f"run config unreadable: {path}: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise RunConfigError("run config must be a mapping")
+        if payload.get("schema_version") == 2 or "experiment_id" in payload:
+            from dftworld_bench.contracts.experiment_v2 import ExperimentSpecV2, ModelRegistry
+
+            spec = ExperimentSpecV2.from_dict(payload)
+            root = Path(__file__).resolve().parents[2]
+            models_path = root / "experiments" / "models.toml"
+            model_reg = ModelRegistry.from_file(models_path) if models_path.is_file() else None
+            chosen_model_name = spec.models[0] if spec.models else "deepseek-v4-pro"
+            if model_reg and chosen_model_name in model_reg.models:
+                m_entry = model_reg.require(chosen_model_name)
+                provider = m_entry.provider
+                model_id = m_entry.model_id
+                deployment_id = m_entry.deployment_id
+                identity_strength = "alias-only" if m_entry.identity_strength == "alias-only" else "exact"
+            else:
+                provider = "deepseek"
+                model_id = chosen_model_name
+                deployment_id = "default"
+                identity_strength = "alias-only"
+
+            endpoint_env = f"{provider.upper()}_BASE_URL"
+            credential_env = f"{provider.upper()}_API_KEY"
+            if provider == "deepseek":
+                endpoint_env = "DEEPSEEK_BASE_URL"
+                credential_env = "DEEPSEEK_API_KEY"
+            elif provider == "openai":
+                endpoint_env = "OPENAI_BASE_URL"
+                credential_env = "OPENAI_API_KEY"
+            elif provider == "anthropic":
+                endpoint_env = "ANTHROPIC_BASE_URL"
+                credential_env = "ANTHROPIC_API_KEY"
+
+            adapted = {
+                "schema_version": 1,
+                "run_config_id": spec.experiment_id,
+                "mode": "formal",
+                "model": {
+                    "provider": provider,
+                    "model_id": model_id,
+                    "deployment_id": deployment_id,
+                    "identity_strength": identity_strength,
+                },
+                "api": {
+                    "endpoint_env": endpoint_env,
+                    "credential_env": credential_env,
+                    "max_attempts": 4,
+                    "retry_base_delay_sec": 1.0,
+                    "retry_max_delay_sec": 30.0,
+                    "request_timeout_sec": 180.0,
+                    "input_usd_micros_per_million_tokens": 0,
+                    "output_usd_micros_per_million_tokens": 0,
+                },
+                "agent_by_execution_class": {
+                    "local_sandbox": {
+                        "max_model_turns": 64,
+                        "max_total_tokens": 10000000,
+                        "active_walltime_sec": 7200.0,
+                        "scheduler_wait_walltime_sec": 0.0,
+                    },
+                    "hpc_controller": {
+                        "max_model_turns": spec.budget.max_model_turns,
+                        "max_total_tokens": spec.budget.max_total_tokens,
+                        "active_walltime_sec": spec.budget.agent_active_walltime_sec,
+                        "scheduler_wait_walltime_sec": spec.budget.scheduler_wait_walltime_sec,
+                    },
+                },
+                "treatments": {
+                    "no-skill": {"skills_enabled": False},
+                    "with-skill": {"skills_enabled": True},
+                },
+            }
+            return RunConfig.model_validate(adapted)
+    else:
+        try:
+            payload = yaml.safe_load(raw_text)
+        except (OSError, yaml.YAMLError) as exc:
+            raise RunConfigError(f"run config unreadable: {path}: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise RunConfigError("run config must be a YAML mapping")
     try:
         return RunConfig.model_validate(payload)
     except ValidationError as exc:

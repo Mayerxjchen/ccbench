@@ -13,6 +13,7 @@ from typing import Any
 
 from dftworld_bench.config.profiles import ProfileRegistry, canonical_json, digest_bytes
 from dftworld_bench.contracts.case import CaseSpec
+from dftworld_bench.contracts.experiment_v2 import ExperimentBudget
 from dftworld_bench.contracts.resolved_lock import (
     FrozenExperimentOverrideError,
     ResolvedRunLock,
@@ -24,15 +25,39 @@ class FrozenExperiment:
     """A frozen experiment template that cannot be overridden."""
 
     template_name: str
-    agent_profile: dict[str, Any]
     api_profile: dict[str, Any]
     experiment_profile: dict[str, Any]
     runtime_profile: dict[str, Any]
+    budget: ExperimentBudget = ExperimentBudget(
+        max_model_turns=1024,
+        max_total_tokens=100_000_000,
+        agent_active_walltime_sec=86400.0,
+        scheduler_wait_walltime_sec=604800.0,
+    )
     site_profile: dict[str, Any] | None = None
+    agent_profile: dict[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        if self.agent_profile is not None and (
+            self.budget == ExperimentBudget(1024, 100_000_000, 86400.0, 604800.0)
+        ):
+            b = ExperimentBudget(
+                max_model_turns=int(self.agent_profile.get("max_model_turns", 1024)),
+                max_total_tokens=int(self.agent_profile.get("max_total_tokens", 100_000_000)),
+                agent_active_walltime_sec=float(self.agent_profile.get("agent_active_walltime_sec", 86400.0)),
+                scheduler_wait_walltime_sec=float(self.agent_profile.get("scheduler_wait_walltime_sec", 604800.0)),
+            )
+            object.__setattr__(self, "budget", b)
+        if self.agent_profile is None:
+            object.__setattr__(self, "agent_profile", self.budget.to_dict())
+
+    @property
+    def budget_digest(self) -> str:
+        return digest_bytes(canonical_json(self.budget.to_dict()))
 
     @property
     def agent_profile_digest(self) -> str:
-        return digest_bytes(canonical_json(self.agent_profile))
+        return self.budget_digest
 
     @property
     def api_profile_digest(self) -> str:
@@ -42,26 +67,33 @@ class FrozenExperiment:
 def construct_experiment(
     selection: dict[str, str],
     registry: ProfileRegistry,
+    budget: ExperimentBudget | None = None,
 ) -> FrozenExperiment:
-    """Construct a frozen experiment from profile selections.
-
-    Selection maps profile kinds to profile names:
-    {"agent": "formal-long", "api": "default", ...}
-    """
+    """Construct a frozen experiment from profile selections and optional budget."""
     agent_name = selection.get("agent", "formal-long")
     api_name = selection.get("api", "default")
     experiment_name = selection.get("experiment", "default")
     runtime_name = selection.get("runtime", "local-sandbox")
     site_name = selection.get("site")
 
-    agent_profile = registry.profiles.get("agents", {}).get(agent_name)
-    if agent_profile is None:
-        agent_profile = {
-            "max_model_turns": 1024,
-            "max_total_tokens": 100_000_000,
-            "agent_active_walltime_sec": 86400,
-            "scheduler_wait_walltime_sec": 604800,
-        }
+    if budget is None:
+        # Check if caller provided budget inside registry for testing
+        raw_agent = registry.profiles.get("agents", {}).get(agent_name)
+        if raw_agent is not None:
+            budget = ExperimentBudget(
+                max_model_turns=int(raw_agent.get("max_model_turns", 1024)),
+                max_total_tokens=int(raw_agent.get("max_total_tokens", 100_000_000)),
+                agent_active_walltime_sec=float(raw_agent.get("agent_active_walltime_sec", 86400.0)),
+                scheduler_wait_walltime_sec=float(raw_agent.get("scheduler_wait_walltime_sec", 604800.0)),
+            )
+        else:
+            budget = ExperimentBudget(
+                max_model_turns=1024,
+                max_total_tokens=100_000_000,
+                agent_active_walltime_sec=86400.0,
+                scheduler_wait_walltime_sec=604800.0,
+            )
+
     api_profile = registry.profiles.get("api", {}).get(api_name)
     if api_profile is None:
         api_profile = {
@@ -89,7 +121,7 @@ def construct_experiment(
 
     return FrozenExperiment(
         template_name=template_name,
-        agent_profile=agent_profile,
+        budget=budget,
         api_profile=api_profile,
         experiment_profile=experiment_profile,
         runtime_profile=runtime_profile,

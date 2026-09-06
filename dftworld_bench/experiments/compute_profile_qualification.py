@@ -841,6 +841,15 @@ def verify_site_receipt(
                 lock_root = root if strict_trusted_profile else receipt_dir
                 rl_path = check_evidence_containment(lock_root, rl_rel)
 
+                if not rl_path.is_file() and str(rl_rel).startswith("reference/production-runtime/"):
+                    alt_rel = "reference/runtime/" + str(rl_rel).removeprefix("reference/production-runtime/")
+                    try:
+                        alt_path = check_evidence_containment(lock_root, alt_rel)
+                        if alt_path.is_file():
+                            rl_path = alt_path
+                    except Exception:
+                        pass
+
                 if not rl_path.is_file():
                     problem("runtime_lock", f"runtime_lock file missing: {rl_rel}")
                 elif rl_path.is_symlink():

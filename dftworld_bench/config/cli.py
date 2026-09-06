@@ -13,7 +13,7 @@ from dftworld_bench.config.run_config import EXECUTION_CLASSES, RunConfigError, 
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_CONFIG = ROOT / "infra/runs/skill-ablation-v2.yaml"
+DEFAULT_CONFIG = ROOT / "experiments/main.toml"
 
 
 def _emit(payload: dict[str, Any]) -> None:

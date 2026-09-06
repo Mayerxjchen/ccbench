@@ -7,7 +7,7 @@ from dftworld_bench.config.cli import main
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CONFIG = ROOT / "infra/runs/skill-ablation-v2.yaml"
+CONFIG = ROOT / "experiments/main.toml"
 
 
 def _json(capsys) -> dict:
@@ -45,9 +45,9 @@ def test_doctor_accepts_valid_values_but_redacts_them(capsys, monkeypatch) -> No
 
 
 def test_diff_reports_changed_path(tmp_path, capsys) -> None:
-    changed = tmp_path / "changed.yaml"
+    changed = tmp_path / "changed.toml"
     changed.write_text(
-        CONFIG.read_text(encoding="utf-8").replace("max_model_turns: 1024", "max_model_turns: 256"),
+        CONFIG.read_text(encoding="utf-8").replace("max_model_turns = 1024", "max_model_turns = 256"),
         encoding="utf-8",
     )
     assert main(["diff", str(CONFIG), str(changed)]) == 1

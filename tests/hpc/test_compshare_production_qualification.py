@@ -13,7 +13,7 @@ from dftworld_bench.hpc.site_profile import HpcSiteProfile
 from dftworld_bench.hpc.trust_store import QualificationTrustStore
 
 ROOT = Path(__file__).resolve().parents[2]
-PROD_LOCK_DIR = ROOT / "reference" / "production-runtime"
+PROD_LOCK_DIR = ROOT / "reference" / "runtime"
 DEFAULT_EVIDENCE_DIR = Path.home() / ".config" / "mlffbench" / "evidence" / "gate_c" / "20260904T174600Z"
 SITE_PROFILE_PATH = Path.home() / ".config" / "mlffbench" / "sites" / "compshare-gpu-production.json"
 TRUST_STORE_PATH = Path.home() / ".config" / "mlffbench" / "trust" / "qualification-trust.toml"

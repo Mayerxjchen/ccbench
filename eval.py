@@ -109,7 +109,8 @@ from dftworld_bench.runtime.qualify import qualify_runtime
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_DIR = ROOT / "infra" / "config"
-DEFAULT_RUN_CONFIG = ROOT / "infra" / "runs" / "skill-ablation-v2.yaml"
+DEFAULT_EXPERIMENT = ROOT / "experiments" / "main.toml"
+DEFAULT_RUN_CONFIG = DEFAULT_EXPERIMENT
 DEFAULT_JOBS = ROOT / "jobs"
 # skill bundle 镜像锁定的 manifest;eval 只读它决定 immutable tag
 SKILL_MANIFEST = ROOT / "base-env-build" / ".skill-image.json"
@@ -1352,13 +1353,25 @@ class TaskRunSettings:
     counted: bool
 
 
+def _resolve_run_config_path(args: argparse.Namespace) -> Path:
+    if getattr(args, "experiment", None) and args.experiment != "default":
+        p = Path(args.experiment)
+        if p.is_file():
+            return p
+        cand = ROOT / "experiments" / f"{args.experiment}.toml"
+        if cand.is_file():
+            return cand
+    return getattr(args, "run_config", DEFAULT_RUN_CONFIG)
+
+
 def resolve_task_run_settings(
     args: argparse.Namespace, execution_class: str
 ) -> TaskRunSettings:
     """Resolve the one policy object used by runtime, budgets, and lock."""
     from dftworld_bench.config.run_config import load_run_config
 
-    config = load_run_config(args.run_config)
+    cfg_path = _resolve_run_config_path(args)
+    config = load_run_config(cfg_path)
     derived_condition = "with-skill" if args.skills_enabled else "no-skill"
     if args.condition is not None and args.condition != derived_condition:
         raise SystemExit(
@@ -1392,7 +1405,8 @@ async def amain(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     from dftworld_bench.config.run_config import load_run_config
 
-    base_run_config = load_run_config(args.run_config)
+    cfg_path = _resolve_run_config_path(args)
+    base_run_config = load_run_config(cfg_path)
     api_endpoint = os.getenv(base_run_config.api.endpoint_env)
     api_key = os.getenv(base_run_config.api.credential_env)
     missing = [

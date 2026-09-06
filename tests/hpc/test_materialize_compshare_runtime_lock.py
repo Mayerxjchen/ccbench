@@ -163,7 +163,7 @@ def test_materialize_rejects_corrupted_recipe(tmp_path: Path):
 
 
 def test_reference_runtime_matclaw_cips_in_repo():
-    """Verify the repo's reference/runtime/matclaw-cips-runtime.lock.json is valid and UNBUILT."""
+    """Verify the repo's reference/runtime/matclaw-cips-runtime.lock.json is valid."""
     lock_path = ROOT / "reference" / "runtime" / "matclaw-cips-runtime.lock.json"
     assert lock_path.is_file()
 
@@ -172,11 +172,15 @@ def test_reference_runtime_matclaw_cips_in_repo():
         RECIPE_PATH,
         out_path=lock_path,
         capability="matclaw-cips",
+        image_id="compshareImage-1uw6sd44931i",
+        receipt_path="matclaw-cips/receipt.json",
+        receipt_digest="sha256:52e9493a8a56dcb868b683885b44a5887f05073140fcdf76f28f8ac18261e523",
+        site_profile_id="compshare-gpu-production",
         repo_root=ROOT,
         check_only=True,
     )
-    assert doc["qualification"]["status"] == "UNBUILT"
-    assert doc["artifact"]["image_id"] is None
+    assert doc["qualification"]["status"] == "BUILT_NOT_QUALIFIED"
+    assert doc["artifact"]["image_id"] == "compshareImage-1uw6sd44931i"
 
 
 def test_runtime_resolver_loads_matclaw_cips():
@@ -186,7 +190,7 @@ def test_runtime_resolver_loads_matclaw_cips():
     assert "matclaw-cips" in resolver.all_capabilities()
     entry = resolver.get("matclaw-cips")
     assert entry is not None
-    assert entry.status == RuntimeStatus.UNBUILT
+    assert entry.status == RuntimeStatus.BUILT_NOT_QUALIFIED
     assert entry.image_name == "mlff-matclaw-cips-gpu-v1"
     assert entry.provider == "compshare"
     assert not entry.qualification_verified

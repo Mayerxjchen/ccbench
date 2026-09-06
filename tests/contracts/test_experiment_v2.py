@@ -135,3 +135,26 @@ def test_invalid_experiment_spec_rejects():
     }
     with pytest.raises(ExperimentError):
         validate_experiment_spec(invalid_spec)
+
+
+def test_models_registry_loads_models_toml():
+    from dftworld_bench.contracts.experiment_v2 import ModelRegistry
+
+    path = ROOT / "experiments" / "models.toml"
+    assert path.is_file()
+    registry = ModelRegistry.from_file(path)
+    default = registry.require("default")
+    assert default.model_id == "deepseek-v4-pro"
+    assert default.provider == "deepseek"
+
+    ds = registry.require("deepseek-v4-pro")
+    assert ds.provider == "deepseek"
+
+    gpt = registry.require("gpt-4o")
+    assert gpt.provider == "openai"
+
+    claude = registry.require("claude-sonnet")
+    assert claude.provider == "anthropic"
+
+    with pytest.raises(KeyError, match="unknown model"):
+        registry.require("non-existent-model")

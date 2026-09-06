@@ -53,12 +53,6 @@ class ProfileRegistry:
         merged: dict[str, dict[str, dict[str, Any]]] = {}
         # Track (kind, name) → source file for duplicate detection
         source_map: dict[tuple[str, str], str] = {}
-        # Load agent profile schema if available
-        agent_schema_path = SCHEMA_DIR / "agent-profile.schema.json"
-        agent_schema = None
-        if agent_schema_path.is_file():
-            agent_schema = json.loads(agent_schema_path.read_text(encoding="utf-8"))
-
         for path in sorted(root.glob("*-profiles.toml")):
             data = tomllib.loads(path.read_text(encoding="utf-8"))
             for kind, values in data.items():
@@ -72,14 +66,12 @@ class ProfileRegistry:
                             f"defined in {source_map[key]} and {path}"
                         )
                     source_map[key] = str(path)
-                    # Validate agent profiles against schema
-                    if kind == "agents" and agent_schema is not None:
-                        try:
-                            jsonschema.Draft202012Validator(agent_schema).validate(profile)
-                        except jsonschema.ValidationError as exc:
-                            raise ValueError(
-                                f"invalid agent profile {kind}/{name} in {path}: {exc.message}"
-                            ) from exc
+                    if isinstance(profile, dict):
+                        for k, v in profile.items():
+                            if k in ("max_turns", "max_model_turns", "max_total_tokens") and not isinstance(v, int):
+                                raise ValueError(
+                                    f"invalid {kind} profile {name} in {path}: expected int for {k}, got {type(v).__name__}"
+                                )
                     merged.setdefault(kind, {})[name] = profile
         return cls(merged)
 
