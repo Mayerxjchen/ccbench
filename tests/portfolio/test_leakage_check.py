@@ -156,9 +156,14 @@ class TestCaseLeakage:
         (case_dir / "case.toml").write_text(
             'schema_version = "1.2"\n'
             'case_version = "1.0.0"\n'
+            'paradigm = "research_question"\n'
             '[execution]\nclass = "local_sandbox"\n'
             '[candidate]\ninstruction = "task.md"\nsubmission_root = "final"\n'
-            '[coverage]\nparadigm = "research_question"\n'
+            '[coverage]\n'
+            'scientific_domain = "ferroelectric_cips"\n'
+            'method_family = "active_learning_potential"\n'
+            'material_class = "inorganic_2d"\n'
+            'computation_type = "iterative_training"\n'
         )
         (case_dir / "task.md").write_text("# Task")
         ref = case_dir / "reference"
@@ -166,3 +171,55 @@ class TestCaseLeakage:
         (ref / "paper.pdf").write_text("DOI: 10.9999/not-checked")
         findings = check_case_leakage(case_dir)
         assert findings == []
+
+    def test_custom_candidate_files_allowlist_detected(self, tmp_path: Path):
+        """Custom files declared in candidate.files must be scanned dynamically."""
+        case_dir = tmp_path / "rq-custom-files"
+        case_dir.mkdir()
+        (case_dir / "case.toml").write_text(
+            'schema_version = "1.2"\n'
+            'case_version = "1.0.0"\n'
+            'paradigm = "research_question"\n'
+            '[execution]\nclass = "local_sandbox"\n'
+            '[candidate]\n'
+            'instruction = "custom_doc/guidance.md"\n'
+            'submission_root = "final"\n'
+            'files = [\n'
+            '    { source = "assets/*.xyz", destination = "." },\n'
+            '    { source = "extra/config.json", destination = "config.json" },\n'
+            ']\n'
+            '[coverage]\n'
+            'scientific_domain = "ferroelectric_cips"\n'
+            'method_family = "active_learning_potential"\n'
+            'material_class = "inorganic_2d"\n'
+            'computation_type = "iterative_training"\n'
+        )
+        # Custom instruction file with DOI
+        doc_dir = case_dir / "custom_doc"
+        doc_dir.mkdir()
+        (doc_dir / "guidance.md").write_text("Research problem: see 10.1038/s41524-020-0001-x")
+
+        # Custom assets matching glob pattern
+        assets_dir = case_dir / "assets"
+        assets_dir.mkdir()
+        (assets_dir / "geom.xyz").write_text("Structure data with DOI: 10.1103/PhysRevB.99.123456")
+
+        # Extra file without leak
+        extra_dir = case_dir / "extra"
+        extra_dir.mkdir()
+        (extra_dir / "config.json").write_text('{"cutoff": 5.0}')
+
+        # Private dir not in candidate.files allowlist with DOI
+        private_dir = case_dir / "internal_secrets"
+        private_dir.mkdir()
+        (private_dir / "oracle.txt").write_text("Secret source: 10.1000/internal-leak")
+
+        findings = check_case_leakage(case_dir)
+
+        # Must detect leaks in guidance.md and geom.xyz
+        found_dois = [f.get("doi", "") for f in findings]
+        assert any("10.1038/s41524-020-0001-x" in d for d in found_dois)
+        assert any("10.1103/PhysRevB.99.123456" in d for d in found_dois)
+
+        # Must NOT detect the unexposed internal_secrets directory
+        assert not any("10.1000/internal-leak" in d for d in found_dois)

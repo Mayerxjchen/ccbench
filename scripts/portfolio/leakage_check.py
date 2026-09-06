@@ -57,6 +57,10 @@ def _is_research_question(case_dir: Path) -> bool:
         coverage = raw.get("coverage") or {}
         if coverage.get("paradigm") == "research_question":
             return True
+        if raw.get("paradigm") == "research_question":
+            return True
+        if "research_question" in raw:
+            return True
     except Exception:
         pass
     # Also check for selection directory (research-question workflow artifact)
@@ -114,33 +118,80 @@ def check_file_for_paper_identity(file_path: Path) -> list[dict]:
     return findings
 
 
+def get_candidate_visible_files(case_dir: Path) -> set[Path]:
+    """Resolve all files visible to the candidate based on case contract allowlist.
+
+    If CaseSpec can be loaded:
+    - spec.instruction_path (candidate.instruction)
+    - All files matching spec.public_files rules (candidate.files source patterns)
+    Fallback (non-canonical cases):
+    - task.md / instruction.md
+    - input/ directory
+    """
+    visible_files: set[Path] = set()
+
+    spec = None
+    try:
+        spec = CaseSpec.load(case_dir)
+    except Exception:
+        pass
+
+    if spec is not None:
+        # 1. Instruction file
+        instr = case_dir / spec.instruction_path
+        if instr.is_file():
+            visible_files.add(instr.resolve())
+
+        # 2. Public files declared in [candidate.files] (or legacy public rule)
+        for rule in spec.public_files:
+            src_str = rule.source.strip()
+            matched_paths = list(case_dir.glob(src_str))
+            if not matched_paths:
+                direct = case_dir / src_str
+                if direct.exists():
+                    matched_paths = [direct]
+
+            for p in matched_paths:
+                if p.is_file() and not p.name.startswith("."):
+                    visible_files.add(p.resolve())
+                elif p.is_dir():
+                    for sub in p.rglob("*"):
+                        if sub.is_file() and not sub.name.startswith("."):
+                            visible_files.add(sub.resolve())
+    else:
+        # Fallback for non-canonical case directories
+        for name in ("task.md", "instruction.md"):
+            p = case_dir / name
+            if p.is_file():
+                visible_files.add(p.resolve())
+        input_dir = case_dir / "input"
+        if input_dir.is_dir():
+            for p in input_dir.rglob("*"):
+                if p.is_file() and not p.name.startswith("."):
+                    visible_files.add(p.resolve())
+
+    return visible_files
+
+
 def check_case_leakage(case_dir: Path) -> list[dict]:
     """Run leakage checks on a case's candidate-visible files.
 
+    Dynamically resolves candidate-visible files from CaseSpec (candidate.instruction
+    and candidate.files allowlist rules), preventing leakage via custom public paths.
     Only checks files that would be visible to the agent candidate:
     - instruction/task files
-    - input/ directory
+    - public allowlist files
     - NOT reference/, solution/, tests/, verifier/
     """
     if not _is_research_question(case_dir):
         return []
 
     findings = []
+    visible_files = get_candidate_visible_files(case_dir)
 
-    # Check instruction file
-    for name in ("task.md", "instruction.md"):
-        path = case_dir / name
-        if path.exists():
-            findings.extend(check_file_for_dois(path))
-            findings.extend(check_file_for_paper_identity(path))
-
-    # Check input/ directory (candidate-visible files)
-    input_dir = case_dir / "input"
-    if input_dir.is_dir():
-        for path in input_dir.rglob("*"):
-            if path.is_file() and not path.name.startswith("."):
-                findings.extend(check_file_for_dois(path))
-                findings.extend(check_file_for_paper_identity(path))
+    for path in sorted(visible_files):
+        findings.extend(check_file_for_dois(path))
+        findings.extend(check_file_for_paper_identity(path))
 
     return findings
 
