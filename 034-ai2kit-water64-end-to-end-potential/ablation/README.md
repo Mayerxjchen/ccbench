@@ -1,6 +1,10 @@
 # Ablation environment — case 034
 
-Status: **constructed (P1-P17 env gates PASS); pilots pending reference calibration.**
+> [!WARNING]
+> **ARCHIVED / OBSOLETE HISTORICAL RECORD**
+> 本文档记录的是早期的 PAgent 消融实验环境方案（已归档/废弃）。当前基准系统已全面转向基于 Claude Code 的通用 Candidate 架构与正式的发布消融协议，此文件仅作为不可变的历史追溯记录保留，**严禁作为当前操作说明或评测执行依据**。
+
+Status: **ARCHIVED / OBSOLETE (Historical PAgent ablation design, preserved for audit only)**
 
 ## Purpose
 

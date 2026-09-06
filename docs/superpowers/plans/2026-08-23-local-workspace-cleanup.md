@@ -1,5 +1,9 @@
 # Local Workspace Cleanup Implementation Plan
 
+> [!NOTE]
+> **ARCHIVED / HISTORICAL PLAN**: This implementation plan is archived for historical provenance and audit purposes. Do not treat as current operational guidelines.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Reclaim approximately 9.5–10 GB from `/Users/chenxuanjie/案例测试` without losing uncommitted source, unique Git history, Trusted HPC archives, formal evidence, hidden fixtures, or release reproducibility.

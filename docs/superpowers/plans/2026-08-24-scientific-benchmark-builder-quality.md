@@ -1,5 +1,9 @@
 # Scientific Benchmark Builder Quality Implementation Plan
 
+> [!NOTE]
+> **ARCHIVED / HISTORICAL PLAN**: This implementation plan is archived for historical provenance and audit purposes. Do not treat as current operational guidelines.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Upgrade the portable benchmark-case-builder skill with reusable Runnable Draft, Discovery, Prompt-quality, cross-layer consistency, stale-artifact, and fail-closed reference/Solution controls, then remove only its Claude Code installed copy.

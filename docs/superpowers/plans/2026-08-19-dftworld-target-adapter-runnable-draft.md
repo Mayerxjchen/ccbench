@@ -1,5 +1,9 @@
 # dftworld Target Adapter and Runnable Draft Implementation Plan
 
+> [!NOTE]
+> **ARCHIVED / HISTORICAL PLAN**: This implementation plan is archived for historical provenance and audit purposes. Do not treat as current operational guidelines.
+
+
 > For agentic workers: use subagent-driven-development or executing-plans task by task.
 
 Goal: Convert an approved Builder case-design.yaml and generic scaffold into a dftworld-executable Draft Case with task.toml v1.2 and a root Dockerfile. The generated case must pass CaseSpec, eval.load_task, Packager, Candidate audit, and an isolated Local Candidate smoke while remaining benchmark_valid=false.

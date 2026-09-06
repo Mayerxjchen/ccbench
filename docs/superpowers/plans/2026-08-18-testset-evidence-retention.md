@@ -1,5 +1,9 @@
 # Test-Set Evidence Retention Implementation Plan
 
+> [!NOTE]
+> **ARCHIVED / HISTORICAL PLAN**: This implementation plan is archived for historical provenance and audit purposes. Do not treat as current operational guidelines.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace permanent full-workspace retention with a minimal, independently re-verifiable evidence system that preserves each case's hidden evaluator once, each formal run's scientifically necessary bytes once, and enough provenance to restore and audit every `benchmark_valid` decision.

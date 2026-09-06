@@ -1,5 +1,9 @@
 # ChemGraph 025–030 Benchmark Hardening Implementation Plan
 
+> [!NOTE]
+> **ARCHIVED / HISTORICAL PLAN**: This implementation plan is archived for historical provenance and audit purposes. Do not treat as current operational guidelines.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Align the six public instructions, oracle artifacts, evaluator checks, network isolation, and validation metadata so cases 025–030 are fair and reproducible.

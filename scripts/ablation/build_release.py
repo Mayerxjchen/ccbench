@@ -31,31 +31,40 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--release", type=Path,
                     default=ROOT / "releases" / "ablation-ready-v0.json")
+    ap.add_argument("--commit", type=str, default=None,
+                    help="git commit tree to verify against or regenerate from (defaults to release source_commit)")
+    ap.add_argument("--disk", action="store_true",
+                    help="verify or regenerate directly against host disk instead of git tree")
     ap.add_argument("--apply", action="store_true",
                     help="rewrite the release file with regenerated digests")
     ap.add_argument("--verify", action="store_true",
-                    help="exit nonzero if any digest does not recompute from disk")
+                    help="exit nonzero if any digest does not recompute from target tree")
     args = ap.parse_args(argv)
 
     release = json.loads(args.release.read_text(encoding="utf-8"))
-    mismatches = release_mismatches(release, ROOT)
+    target_commit = "DISK" if args.disk else (args.commit or release.get("source_commit"))
+
+    mismatches = release_mismatches(release, ROOT, commit=target_commit)
+
+    target_label = "host disk" if target_commit == "DISK" else f"git commit {target_commit}"
 
     if args.verify:
         if mismatches:
             for component, label, want, have in mismatches:
-                print(f"  [{component}] {label}: release={have} disk={want}")
-            print(f"{len(mismatches)} digest(s) do not recompute from disk")
+                print(f"  [{component}] {label}: release={have} target={want}")
+            print(f"{len(mismatches)} digest(s) do not recompute from {target_label}")
             return 1
-        print("all digests recompute from disk")
+        print(f"all digests recompute from {target_label}")
         return 0
 
-    regenerated = regenerate_release(release, ROOT)
-    new_errors = release_mismatches(regenerated, ROOT)
+    regenerated = regenerate_release(release, ROOT, commit=target_commit)
+    new_errors = release_mismatches(regenerated, ROOT, commit=target_commit)
     if new_errors:
-        print(f"ERROR: regeneration produced {len(new_errors)} new mismatches")
+        print(f"ERROR: regeneration produced {len(new_errors)} new mismatches against {target_label}")
         return 1
 
-    print(f"source_commit  : {release.get('source_commit')}")
+    print(f"target_commit  : {target_commit}")
+    print(f"source_commit  : {release.get('source_commit')}  ->  {regenerated.get('source_commit')}")
     print(f"digests fixed  : {len(mismatches)}")
     print(f"release_digest : {release.get('release_digest')}  ->  {regenerated.get('release_digest')}")
     if args.apply:

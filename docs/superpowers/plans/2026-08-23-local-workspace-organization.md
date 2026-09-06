@@ -1,5 +1,9 @@
 # Local Workspace Organization Implementation Plan
 
+> [!NOTE]
+> **ARCHIVED / HISTORICAL PLAN**: This implementation plan is archived for historical provenance and audit purposes. Do not treat as current operational guidelines.
+
+
 > **Superseded on 2026-08-25:** Do not execute this migration plan. The approved replacement is `docs/superpowers/plans/2026-08-25-workspace-consolidation.md`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

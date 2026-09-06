@@ -1,5 +1,9 @@
 # Scientific Benchmark Case Builder Skill Implementation Plan
 
+> [!NOTE]
+> **ARCHIVED / HISTORICAL PLAN**: This implementation plan is archived for historical provenance and audit purposes. Do not treat as current operational guidelines.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the single-purpose `literature-to-mlp-spec` command with one portable Claude Code skill, `build-scientific-benchmark-case`, that owns the complete lifecycle for constructing auditable scientific-agent benchmark cases. MLP is the only category implemented in v2.0; future scientific categories plug into the same common contracts without creating new top-level skills.

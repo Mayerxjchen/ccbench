@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import subprocess
 from pathlib import Path
 
 import dftworld_bench.experiments.ablation as ablation
@@ -63,60 +64,194 @@ def tree_digest(root: Path) -> str:
     return h.hexdigest()
 
 
+def git_file_sha256(commit: str, rel_path: str, root: Path) -> str:
+    """Read file content at ``commit:rel_path`` from git and return its sha256."""
+    proc = subprocess.run(
+        ["git", "show", f"{commit}:{rel_path}"],
+        cwd=root,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        err = proc.stderr.decode("utf-8", errors="replace").strip()
+        raise FileNotFoundError(f"Cannot read {commit}:{rel_path}: {err}")
+    return hashlib.sha256(proc.stdout).hexdigest()
+
+
+def git_tree_digest(commit: str, rel_path: str, root: Path) -> str:
+    """Deterministic content digest over a directory tree at ``commit:rel_path`` from git.
+
+    Matches tree_digest: sorted relative posix paths and file_sha256 joined with
+    NUL bytes, excluding dotfiles and __pycache__.
+    """
+    proc = subprocess.run(
+        ["git", "ls-tree", "-r", "--full-name", commit, rel_path],
+        cwd=root,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        err = proc.stderr.decode("utf-8", errors="replace").strip()
+        raise FileNotFoundError(f"Cannot list {commit}:{rel_path}: {err}")
+
+    entries: list[tuple[str, str]] = []
+    for line in proc.stdout.decode("utf-8", errors="replace").splitlines():
+        if not line:
+            continue
+        meta, full_path = line.split("\t", 1)
+        parts = meta.split()
+        if len(parts) < 3:
+            continue
+        blob_sha = parts[2]
+        p = Path(full_path)
+        if p.name.startswith(".") or "__pycache__" in p.parts:
+            continue
+        rel = p.relative_to(rel_path).as_posix()
+        cat_proc = subprocess.run(
+            ["git", "cat-file", "-p", blob_sha],
+            cwd=root,
+            capture_output=True,
+        )
+        if cat_proc.returncode != 0:
+            err = cat_proc.stderr.decode("utf-8", errors="replace").strip()
+            raise FileNotFoundError(f"Cannot cat blob {blob_sha} for {full_path}: {err}")
+        digest = hashlib.sha256(cat_proc.stdout).hexdigest()
+        entries.append((rel, digest))
+
+    entries.sort()
+    h = hashlib.sha256()
+    for rel, digest in entries:
+        h.update(rel.encode("utf-8"))
+        h.update(b"\0")
+        h.update(digest.encode("ascii"))
+        h.update(b"\0")
+    return h.hexdigest()
+
+
 def disk_digests(component: str, entry: dict, root: Path) -> list[tuple[str, str, str]]:
     """(field_name, identity_label, disk_digest) for every locally verifiable
     digest a release entry must pin.  Remote-only entries (e.g. a SIF on the
     cluster) yield nothing — they cannot be checked from the host."""
+    return entry_digests(component, entry, root, commit="DISK")
+
+
+def entry_digests(
+    component: str, entry: dict, root: Path, *, commit: str | None = None
+) -> list[tuple[str, str, str]]:
+    """(field_name, identity_label, digest) computed either from a Git commit
+    tree (when ``commit`` is given and != 'DISK') or from the host disk.
+    """
+    use_git = commit is not None and commit != "DISK"
+
     if component == "cases":
-        case_dir = root / entry["case_id"]
+        case_id = entry["case_id"]
+        if use_git:
+            toml_sha = git_file_sha256(commit, f"{case_id}/task.toml", root)
+            inst_sha = git_file_sha256(commit, f"{case_id}/instruction.md", root)
+        else:
+            case_dir = root / case_id
+            toml_sha = file_sha256(case_dir / "task.toml")
+            inst_sha = file_sha256(case_dir / "instruction.md")
         return [
-            ("task_toml_sha256", "task.toml", file_sha256(case_dir / "task.toml")),
-            ("instruction_sha256", "instruction.md", file_sha256(case_dir / "instruction.md")),
+            ("task_toml_sha256", "task.toml", toml_sha),
+            ("instruction_sha256", "instruction.md", inst_sha),
         ]
+
     if component == "candidate_images":
         if "dockerfile" not in entry:
             return []
-        return [
-            ("dockerfile_sha256", entry["dockerfile"], file_sha256(root / entry["dockerfile"]))
-        ]
+        dockerfile = entry["dockerfile"]
+        if use_git:
+            df_sha = git_file_sha256(commit, dockerfile, root)
+        else:
+            df_sha = file_sha256(root / dockerfile)
+        return [("dockerfile_sha256", dockerfile, df_sha)]
+
     path = entry.get("path")
     if not path:
         return []
+
     p = root / path
-    want = tree_digest(p) if p.is_dir() else file_sha256(p)
+    if use_git:
+        # Determine if path is a directory in git or a file
+        chk = subprocess.run(
+            ["git", "cat-file", "-t", f"{commit}:{path}"],
+            cwd=root,
+            capture_output=True,
+        )
+        obj_type = chk.stdout.decode().strip()
+        if obj_type == "tree":
+            want = git_tree_digest(commit, path, root)
+        elif obj_type == "blob":
+            want = git_file_sha256(commit, path, root)
+        else:
+            raise FileNotFoundError(f"Object {commit}:{path} not found in git (type={obj_type})")
+    else:
+        want = tree_digest(p) if p.is_dir() else file_sha256(p)
+
     return [(_FIELD[component], path, want)]
 
 
-def release_mismatches(release: dict, root: Path) -> list[tuple[str, str, str, str]]:
-    """``(component, identity_label, disk_digest, release_digest)`` for every
-    digest the committed release gets wrong.  Empty list means every locally
-    verifiable digest recomputes from disk."""
+def release_mismatches(
+    release: dict, root: Path, *, commit: str | None = None
+) -> list[tuple[str, str, str, str]]:
+    """``(component, identity_label, target_digest, release_digest)`` for every
+    digest the release manifest gets wrong compared to the target tree.
+
+    Defaults to checking against ``release['source_commit']`` in Git.
+    Pass ``commit='DISK'`` to inspect against the uncommitted host disk.
+    """
+    target_commit = commit if commit is not None else release.get("source_commit")
+    if target_commit is None:
+        target_commit = "DISK"
+
     out: list[tuple[str, str, str, str]] = []
     for component, entries in release["components"].items():
         for entry in entries:
-            for field, label, want in disk_digests(component, entry, root):
+            for field, label, want in entry_digests(
+                component, entry, root, commit=target_commit
+            ):
                 have = entry.get(field)
                 if have != want:
                     out.append((component, label, want, have))
     return out
 
 
-def regenerate_components(release: dict, root: Path) -> dict:
+def regenerate_components(
+    release: dict, root: Path, *, commit: str | None = None
+) -> dict:
     """Deep copy of ``components`` with every locally verifiable digest
-    recomputed from ``root``."""
+    recomputed from ``commit`` (defaults to release source_commit)."""
+    target_commit = commit if commit is not None else release.get("source_commit")
+    if target_commit is None:
+        target_commit = "DISK"
+
     components = copy.deepcopy(release["components"])
     for component, entries in components.items():
         for entry in entries:
-            for field, _label, want in disk_digests(component, entry, root):
+            for field, _label, want in entry_digests(
+                component, entry, root, commit=target_commit
+            ):
                 entry[field] = want
     return components
 
 
-def regenerate_release(release: dict, root: Path) -> dict:
+def regenerate_release(
+    release: dict, root: Path, *, commit: str | None = None
+) -> dict:
     """Return a release with all locally verifiable digests recomputed from
-    disk and ``release_digest`` re-derived (mutable fields left as-is)."""
+    the target commit (or disk) and ``release_digest`` re-derived."""
+    target_commit = commit if commit is not None else release.get("source_commit")
     out = dict(release)
-    out["components"] = regenerate_components(release, root)
+    if target_commit and target_commit != "DISK":
+        # Resolve to full 40-character sha if valid git ref
+        rev_proc = subprocess.run(
+            ["git", "rev-parse", target_commit],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+        if rev_proc.returncode == 0:
+            out["source_commit"] = rev_proc.stdout.strip()
+    out["components"] = regenerate_components(release, root, commit=target_commit)
     out["release_digest"] = ablation.release_digest(out)
     return out
 

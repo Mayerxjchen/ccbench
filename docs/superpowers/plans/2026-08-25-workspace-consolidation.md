@@ -1,5 +1,9 @@
 # Workspace Consolidation Implementation Plan
 
+> [!NOTE]
+> **ARCHIVED / HISTORICAL PLAN**: This implementation plan is archived for historical provenance and audit purposes. Do not treat as current operational guidelines.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Consolidate `/Users/chenxuanjie/案例测试` around `dftworld2/`, retain all current 042, skill-ablation-v2, HPC cleanup, and dispatcher qualification work, and remove verified duplicate, superseded, reproducible, or unreferenced files and code.

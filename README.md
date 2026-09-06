@@ -25,11 +25,11 @@ dftworld/
 │                                  #   preflight/canary/cp2k/verify/resume；
 │                                  #   --phase resume 完成中断的 canary，绝不重提）
 │
-├── base-env-build/                # Docker 镜像构建（base/cp2k/chem/deepmd/packmol/mace/xtb/skills）
+├── base-env-build/                # Docker 镜像构建（base/cp2k/deepmd/matclaw-cips/candidate-claude-code/skills）
 │   ├── build.sh
 │   ├── skills/                    # benchmark skill bundle（→ dftworld-skills:<sha>）
 │   └── .skill-image.json          # skill 镜像锁（tag/commit/skills_sha）
-├── benchmark/sources/             # 论文溯源（chemgraph 40 条 ground_truth + matclaw + 验证器）
+├── benchmark/sources/             # 论文溯源（matclaw 论文与参考实现；旧 ChemGraph 已彻底归档废弃）
 ├── scripts/                       # infra / qualification / ablation / evidence 工具
 │   └── ablation/hpc/              # G9 参考运行脚手架（submit/fetch/common/template）
 ├── tests/                         # 架构回归测试套件（pytest testpaths=["tests"]）
@@ -75,13 +75,12 @@ uv run python eval.py --help                   # 能打印用法即 OK
 ```bash
 cd base-env-build
 bash build.sh                # 看帮助 / 已有镜像
-bash build.sh base           # 最小镜像（001–004、007）
-bash build.sh cp2k chem      # 指定若干引擎镜像
+bash build.sh base           # 最小镜像
+bash build.sh cp2k deepmd    # 指定若干引擎镜像
 bash build.sh skills         # skill bundle 镜像（--skills 运行才需要）
 ```
 
-镜像依赖树：`ubuntu:24.04 → dftworld-base → {cp2k, packmol, chem, deepmd,
-mace, xtb}`。国内拉不动 Docker Hub 时换源：
+镜像依赖树：`ubuntu:24.04 → dftworld-base → {cp2k, deepmd, matclaw-cips, deepmd-jax}`。国内拉不动 Docker Hub 时换源：
 `DFTWORLD_BASE_IMAGE=docker.m.daocloud.io/library/ubuntu:24.04 bash build.sh base`
 
 ### 第 3 步：模型 API 凭据 `.env`
@@ -153,7 +152,7 @@ jobs/<timestamp>/
     verifier-logs/          # 独立 Verifier 的输出（result.json / reward.txt）
 ```
 
-容器内任务根目录统一为 `/app`（instruction / tests / Dockerfile 同源）。eval 会把镜像 `/app` 拷进 `workspace/`，再把容器 `/app` 链到该目录；不继承 `~/.pagent` skills。
+容器内任务根目录统一为 `/app`（instruction / tests / Dockerfile 同源）。eval 会把镜像 `/app` 拷进 `workspace/`，再把容器 `/app` 链到该目录；不继承任何宿主外部 agent skills（完全与宿主 `~/.pagent`、全局技能目录及外部环境隔离解耦）。
 
 验证永远发生在**独立 Verifier 容器**里，不共享 Candidate：Agent 轮结束后先冻结并
 收集声明提交（legacy 布局排除 `.venv`/`.skills`/`_dftworld_tests`/`tests` 等运行时
@@ -163,63 +162,42 @@ legacy 兼容的 `/app`，在全新容器中跑 `tests/test.sh`（非 root `6553
 `result.json`（符合 `schemas/result.schema.json`）；缺失/损坏按 `VERIFIER_FAILURE`
 （基础设施无效），绝不当作科学失败。旧 test.sh 仍写 `reward.txt` 的按兼容路径映射。
 
-## 新案例镜像配置（025+）
+## 长周期案例镜像与运行环境
 
-新案例分两类引擎需求：ChemGraph 论文（DOI `10.1038/s42004-025-01776-9`）的 40 条
-ground-truth 实例（027–030、039–040）只用 **MACE** 与 **TBLite/GFN2-xTB**；RDKit/SMILES
-工具链（025–026、035–038、041）只用 **RDKit** 或 **RDKit + GFN2-xTB**。需要的计算镜像：
+5 个核心长案例覆盖 MatClaw CIPS、ai2kit + CP2K 和 GO-water DeePMD-JAX 科学工作流。计算环境支持容器化沙箱与 HPC 控制器架构：
 
-| 镜像 | 构建目录 | 内容 | 用途任务 |
-|------|----------|------|----------|
-| `dftworld-base-chem` | `base-env-build/chem/` | ase, rdkit | 025 / 026 / 041 |
-| `dftworld-base-mace` | `base-env-build/mace/` | ase 3.25.0, rdkit, pymatgen, mace-torch 0.3.13（bake 离线权重 `mace-mpa-0-medium.model`） | 027 / 028 / 030 |
-| `dftworld-base-xtb` | `base-env-build/xtb/` | ase 3.25.0, rdkit, tblite 0.4.0（sdist 编译）, pymatgen | 029 / 035 / 036 / 037 / 038 / 039 / 040 |
-| `dftworld-skills:<sha>` | `base-env-build/skills.Dockerfile` | `skills/` → `/opt/electromind/skills/`，非执行镜像 | `--skills` 运行时提取 |
+| 案例 | 运行时引擎 | 核心组件 | 计算场景 |
+|------|------------|----------|----------|
+| `031-matclaw-cips-active-distillation` | `matclaw-cips` | DeePMD-kit, LAMMPS, ASE | 主动学习势函数蒸馏 |
+| `032-matclaw-cips-curie-temperature` | `matclaw-cips` | DeePMD-kit, LAMMPS, ASE | 居里温度分子动力学搜索 |
+| `033-matclaw-cips-domain-wall-search` | `matclaw-cips` | DeePMD-kit, LAMMPS, ASE | 外场/温度下铁电畴壁搜索 |
+| `034-ai2kit-water64-end-to-end-potential` | `ai2kit` / `cp2k` | ai2kit, CP2K, DeePMD-kit | 水体系端到端势函数流水线 |
+| `042-go-water-dpmp` | `deepmd-jax` | JAX, DeePMD-kit, DPMP | GO–water 界面势函数复现与隐式验证 |
 
-### 构建新案例镜像
+### 任务目录约定（科学基准布局）
 
-```bash
-cd base-env-build
-bash build.sh chem mace xtb # 引擎镜像（各自 FROM dftworld-base）
-bash build.sh skills       # skill bundle + 写 .skill-image.json
-```
+长周期案例采用规范的根级目录结构：
 
-- `build.sh chem` / `mace` / `xtb` 会先确保 `dftworld-base` 存在（`expand()` 自动补依赖）。
-- `bash build.sh 027-name2opt-so2` 也能按任务 `Dockerfile` 的 `FROM dftworld-base-mace`
-  反推并构建，但新案例走 **v2 root 布局**（任务根 `Dockerfile`，非 `environment/`），
-  所以建议显式 `bash build.sh chem mace xtb` 更直接。
-- `mace` 镜像构建期会下载 MACE-MP-0 medium 权重并验证离线可加载（build 失败即停）。
-
-### 任务 Dockerfile 约定（v2 root 布局）
-
-新案例（025 起）目录结构与 001–024 不同——`Dockerfile` 直接在任务根：
-
-```
-027-name2opt-so2/
-├── Dockerfile            # FROM dftworld-base-mace
-├── public/               # COPY public/ /app/  ← 唯一进 agent 工作区的数据
-├── reference/            # 参考解（生成脚本 + original/regenerated json）
-├── solution/             # 官方解
-├── tests/                # 验收测试
-└── task.toml
-```
-
-```dockerfile
-# 027-name2opt-so2/Dockerfile
-FROM dftworld-base-mace
-COPY public/ /app/
+```text
+031-matclaw-cips-active-distillation/
+├── Dockerfile            # 容器环境定义（如适用）
+├── public/               # COPY public/ /app/  ← 注入 agent 工作区的数据
+├── reference/            # 科学参考数据与生成脚本
+├── solution/             # 官方参考解与基准流程
+├── tests/                # 独立 Verifier 验收测试（含 test.sh 与 test_outputs.py）
+├── task.toml             # 任务元数据与资源约束
+└── instruction.md        # 任务指导说明
 ```
 
 要点：
-- `FROM` 决定引擎镜像；`COPY public/ /app/` 是任务数据唯一的入口。
-- **`reference/ solution/ tests/` 绝不进 agent 视野**——eval 只从 Dockerfile
-  `COPY` 目标注入 workspace（G0 泄漏检查）。
-- `task.toml` 里 `[environment]` 的资源/超时按任务覆盖（新案例默认 2 核 / 4 GB /
-  10 GB 存储 / `allow_internet = true`）。
+- 任务数据通过 `public/` 注入 agent 工作区。
+- **`reference/ solution/ tests/` 绝不进 agent 视野**——eval 在独立只读隔离沙箱中运行验证器，杜绝信息泄漏。
+- `task.toml` 声明严格的超时控制、资源配额与评测门禁规范。
 
 ### skill bundle 与 .skill-image.json
 
 ```bash
+cd base-env-build
 bash build.sh skills
 ```
 

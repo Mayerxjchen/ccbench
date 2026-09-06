@@ -1,5 +1,9 @@
 # MatClaw amd64 GPU Runtime Completion Implementation Plan
 
+> [!NOTE]
+> **ARCHIVED / HISTORICAL PLAN**: This implementation plan is archived for historical provenance and audit purposes. Do not treat as current operational guidelines.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Produce and enforce one qualified `linux/amd64` GPU Apptainer runtime for Cases 031–033, then unblock diagnostic and formal paper execution on the A100 cluster without scoring HPC mechanics as Agent capability.

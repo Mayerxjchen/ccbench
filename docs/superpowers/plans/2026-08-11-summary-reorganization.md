@@ -1,5 +1,9 @@
 # dftworld Summary Reorganization Implementation Plan
 
+> [!NOTE]
+> **ARCHIVED / HISTORICAL PLAN**: This implementation plan is archived for historical provenance and audit purposes. Do not treat as current operational guidelines.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Generate a case-oriented `jobs/SUMMARY.md` that includes every completed case, preserves actual Skill-use information, separates MatClaw construction state from evaluated-agent outcomes, and leaves raw job records untouched.

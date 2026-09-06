@@ -85,3 +85,74 @@ def test_verifier_tree_digest_covers_test_outputs_not_just_test_sh() -> None:
     assert builder.tree_digest(ROOT / tests) != builder.file_sha256(
         ROOT / tests / "test.sh"
     )
+
+
+def test_release_verifier_fails_when_disk_matches_but_git_tree_differs(
+    tmp_path: Path,
+) -> None:
+    """Regression test: verifier must inspect source_commit's git tree, not disk.
+
+    If a manifest's digests match the host disk but disagree with the declared
+    source_commit, the verification must FAIL.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Bench Tester"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "bench@example.com"], cwd=repo, check=True)
+
+    case_dir = repo / "001-case"
+    case_dir.mkdir(parents=True)
+    toml_file = case_dir / "task.toml"
+    inst_file = case_dir / "instruction.md"
+
+    # Commit 1: initial version
+    toml_file.write_text('version = "1.0"\n', encoding="utf-8")
+    inst_file.write_text("# Case 1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "commit 1"], cwd=repo, check=True, capture_output=True)
+    c1 = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+
+    # Commit 2: update task.toml
+    toml_file.write_text('version = "2.0"\n', encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "commit 2"], cwd=repo, check=True, capture_output=True)
+    c2 = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+
+    # Build manifest claiming source_commit is Commit 1, but digests match Commit 2 (disk)
+    disk_toml_sha = builder.file_sha256(toml_file)
+    disk_inst_sha = builder.file_sha256(inst_file)
+    c1_toml_sha = builder.git_file_sha256(c1, "001-case/task.toml", repo)
+
+    assert disk_toml_sha != c1_toml_sha, "Sanity check: commit 1 and disk must differ"
+
+    manifest = {
+        "manifest_version": "1.0",
+        "release_id": "test-release-v0",
+        "source_commit": c1,  # Pinned to Commit 1
+        "components": {
+            "cases": [
+                {
+                    "case_id": "001-case",
+                    "task_toml_sha256": disk_toml_sha,  # Matches disk!
+                    "instruction_sha256": disk_inst_sha,
+                }
+            ]
+        },
+    }
+
+    # 1. Inspecting against host disk passes because disk matches
+    disk_mismatches = builder.release_mismatches(manifest, repo, commit="DISK")
+    assert disk_mismatches == [], "Expected disk inspection to see no mismatch"
+
+    # 2. Inspecting against source_commit (default) must FAIL
+    git_mismatches = builder.release_mismatches(manifest, repo)
+    assert len(git_mismatches) == 1
+    comp, label, want, have = git_mismatches[0]
+    assert comp == "cases"
+    assert label == "task.toml"
+    assert want == c1_toml_sha  # What git tree at source_commit has
+    assert have == disk_toml_sha  # What the false manifest had
+

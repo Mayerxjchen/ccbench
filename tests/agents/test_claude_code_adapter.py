@@ -190,3 +190,70 @@ def test_adapter_startup_failure_rollback_retains_topology_and_retry_close_succe
 
     asyncio.run(_test())
 
+
+def test_adapter_fallback_cleanup_retains_handles_on_docker_failure_and_retry_succeeds(tmp_path: Path) -> None:
+    """When topology manager is None and fallback direct cleanup encounters
+    docker failures, Adapter must retain the failed resource handles (not wipe them),
+    and allow a subsequent close() retry to succeed.
+    """
+    from unittest import mock
+
+    async def _test():
+        adapter = ClaudeCodeAdapter(
+            model="claude-3-7-sonnet-20250219",
+            threads_root=tmp_path / "threads",
+            task_name="sample_case",
+            case_dir=tmp_path / "case",
+        )
+        assert adapter._topology is None
+
+        adapter.container_id = "cand-cid-111"
+        adapter.sidecar_cid = "sidecar-cid-222"
+        adapter.internal_net = "net-333"
+
+        # Mock subprocess exec
+        async def fake_subprocess_exec(*cmd, **kwargs):
+            m = mock.MagicMock()
+            if cmd == ("docker", "stop", "cand-cid-111"):
+                m.returncode = 1
+                m.communicate = mock.AsyncMock(return_value=(b"", b"Error stopping container cand-cid-111"))
+            elif cmd == ("docker", "stop", "sidecar-cid-222"):
+                m.returncode = 0
+                m.communicate = mock.AsyncMock(return_value=(b"", b""))
+            elif cmd == ("docker", "network", "rm", "net-333"):
+                m.returncode = 1
+                m.communicate = mock.AsyncMock(return_value=(b"", b"network has active endpoints"))
+            else:
+                m.returncode = 0
+                m.communicate = mock.AsyncMock(return_value=(b"", b""))
+            return m
+
+        with mock.patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess_exec):
+            with pytest.raises(RuntimeError, match="Errors occurred during ClaudeCodeAdapter teardown") as exc_info:
+                await adapter.close()
+
+            err_msg = str(exc_info.value)
+            assert "docker stop candidate failed" in err_msg
+            assert "docker network rm failed" in err_msg
+
+            # Retained handles check
+            assert adapter.container_id == "cand-cid-111"
+            assert adapter.sidecar_cid is None  # Succeeded, cleared
+            assert adapter.internal_net == "net-333"
+
+        # Retry: all commands succeed
+        async def fake_subprocess_exec_retry(*cmd, **kwargs):
+            m = mock.MagicMock()
+            m.returncode = 0
+            m.communicate = mock.AsyncMock(return_value=(b"", b""))
+            return m
+
+        with mock.patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess_exec_retry):
+            await adapter.close()
+            assert adapter.container_id is None
+            assert adapter.sidecar_cid is None
+            assert adapter.internal_net is None
+
+    asyncio.run(_test())
+
+

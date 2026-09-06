@@ -1,5 +1,9 @@
 # MatClaw CIPS Cases 031–033 Implementation Plan
 
+> [!NOTE]
+> **ARCHIVED / HISTORICAL PLAN**: This implementation plan is archived for historical provenance and audit purposes. Do not treat as current operational guidelines.
+
+
 **Goal:** Build and scientifically validate the three pinned MatClaw CIPS cases.
 
 **Architecture:** One locked DeePMD/LAMMPS image supplies the common physics.

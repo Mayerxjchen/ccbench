@@ -998,39 +998,51 @@ class ClaudeCodeAdapter:
             # Fallback direct cleanup if topology manager was bypassed
             if self.container_id:
                 cid = self.container_id
-                self.container_id = None
-                proc = await asyncio.create_subprocess_exec(
-                    "docker", "stop", cid,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                _, err = await proc.communicate()
-                if proc.returncode != 0 and b"No such container" not in err:
-                    errors.append(f"docker stop candidate failed: {err.decode('utf-8', errors='replace').strip()}")
+                try:
+                    proc = await asyncio.create_subprocess_exec(
+                        "docker", "stop", cid,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
+                    _, err = await proc.communicate()
+                    if proc.returncode == 0 or b"No such container" in err:
+                        self.container_id = None
+                    else:
+                        errors.append(f"docker stop candidate failed: {err.decode('utf-8', errors='replace').strip()}")
+                except Exception as e:
+                    errors.append(f"docker stop candidate exception: {e}")
 
             if self.sidecar_cid:
                 scid = self.sidecar_cid
-                self.sidecar_cid = None
-                proc = await asyncio.create_subprocess_exec(
-                    "docker", "stop", scid,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                _, err = await proc.communicate()
-                if proc.returncode != 0 and b"No such container" not in err:
-                    errors.append(f"docker stop sidecar failed: {err.decode('utf-8', errors='replace').strip()}")
+                try:
+                    proc = await asyncio.create_subprocess_exec(
+                        "docker", "stop", scid,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
+                    _, err = await proc.communicate()
+                    if proc.returncode == 0 or b"No such container" in err:
+                        self.sidecar_cid = None
+                    else:
+                        errors.append(f"docker stop sidecar failed: {err.decode('utf-8', errors='replace').strip()}")
+                except Exception as e:
+                    errors.append(f"docker stop sidecar exception: {e}")
 
             if self.internal_net:
                 net = self.internal_net
-                self.internal_net = None
-                proc = await asyncio.create_subprocess_exec(
-                    "docker", "network", "rm", net,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                _, err = await proc.communicate()
-                if proc.returncode != 0 and b"No such network" not in err:
-                    errors.append(f"docker network rm failed: {err.decode('utf-8', errors='replace').strip()}")
+                try:
+                    proc = await asyncio.create_subprocess_exec(
+                        "docker", "network", "rm", net,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
+                    _, err = await proc.communicate()
+                    if proc.returncode == 0 or b"No such network" in err:
+                        self.internal_net = None
+                    else:
+                        errors.append(f"docker network rm failed: {err.decode('utf-8', errors='replace').strip()}")
+                except Exception as e:
+                    errors.append(f"docker network rm exception: {e}")
 
         if errors:
             raise RuntimeError(f"Errors occurred during ClaudeCodeAdapter teardown: {'; '.join(errors)}")

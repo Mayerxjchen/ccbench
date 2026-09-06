@@ -1,5 +1,9 @@
 # Scientific Benchmark Case Builder — MVP 优化计划
 
+> [!NOTE]
+> **ARCHIVED / HISTORICAL PLAN**: This implementation plan is archived for historical provenance and audit purposes. Do not treat as current operational guidelines.
+
+
 日期：2026-09-03  
 计划模型：GPT-5.6 Sol  
 目标 skill：`scientific-benchmark-case-builder-portable`

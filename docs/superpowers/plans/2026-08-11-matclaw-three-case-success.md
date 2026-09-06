@@ -1,5 +1,9 @@
 # MatClaw 031–033 Strict Construction Implementation Plan
 
+> [!NOTE]
+> **ARCHIVED / HISTORICAL PLAN**: This implementation plan is archived for historical provenance and audit purposes. Do not treat as current operational guidelines.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Turn Cases 031–033 into reproducible, fail-closed scientific benchmarks whose final status is supported by two independent paper-profile GPU reproductions of the source results.
