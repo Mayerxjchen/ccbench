@@ -48,7 +48,10 @@ def _now_utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-CANONICAL_CASE_IDS = frozenset({"001", "002", "003", "004", "005"})
+# MatClaw formal evidence writer: only cases with complete verifier + metrics
+# pipelines are admitted.  004 (AI2Kit/CP2K) and 005 (JAX/Go) will be added
+# when their own metrics extractors and evidence policies are finalized.
+CANONICAL_CASE_IDS = frozenset({"001", "002", "003"})
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -234,16 +237,20 @@ def _metrics_for_case(case_id: str, restored: Path, report: dict) -> dict:
                 "max_jobs_per_round": max(per_iteration.values()) if per_iteration else 0,
             }
         return {}
-    curve = report.get("recomputed_curve", [])
-    atom_count = None
-    result_path = restored / "result.json"
-    if result_path.is_file():
-        atom_count = json.loads(result_path.read_text(encoding="utf-8")).get("atom_count")
-    return {
-        "Tc_K": (report.get("recomputed_estimate") or {}).get("Tc_K"),
-        "temperatures_K": [row.get("temperature_K") for row in curve],
-        "atom_count": atom_count,
-    }
+    if case_id == "002":
+        curve = report.get("recomputed_curve", [])
+        atom_count = None
+        result_path = restored / "result.json"
+        if result_path.is_file():
+            atom_count = json.loads(result_path.read_text(encoding="utf-8")).get("atom_count")
+        return {
+            "Tc_K": (report.get("recomputed_estimate") or {}).get("Tc_K"),
+            "temperatures_K": [row.get("temperature_K") for row in curve],
+            "atom_count": atom_count,
+        }
+    # Should never reach here: CANONICAL_CASE_IDS gates admission.
+    print(f"warning: no metrics extractor for case {case_id!r}", file=sys.stderr)
+    return {}
 
 
 if __name__ == "__main__":

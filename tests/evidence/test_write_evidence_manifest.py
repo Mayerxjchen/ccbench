@@ -118,9 +118,9 @@ def test_writer_rejects_invalid_report(tmp_path: Path) -> None:
     assert main(argv) == 1
 
 
-@pytest.mark.parametrize("case_id", ["001", "002", "003", "004", "005"])
+@pytest.mark.parametrize("case_id", ["001", "002", "003"])
 def test_writer_extracts_canonical_case_id(tmp_path: Path, case_id: str) -> None:
-    """Canonical case IDs are extracted correctly from directory name."""
+    """Supported canonical case IDs are extracted correctly from directory name."""
     report = {"valid": True, "errors": [],
               "recomputed_final_mae_eV_A": 0.0968, "active_iterations": 2}
     argv, out_dir = _fixtures(tmp_path, report, case_id=case_id)
@@ -132,10 +132,15 @@ def test_writer_extracts_canonical_case_id(tmp_path: Path, case_id: str) -> None
     jsonschema.validate(manifest, json.loads(SCHEMA.read_text()))
 
 
-@pytest.mark.parametrize("case_dir_name", ["031-matclaw-cips-active-distillation",
-                                            "999-unknown-case"])
+@pytest.mark.parametrize("case_dir_name", [
+    "031-matclaw-cips-active-distillation",
+    "042-go-water-dpmp",
+    "004-ai2kit-water64-end-to-end-potential",
+    "005-go-water-dpmp",
+    "999-unknown-case",
+])
 def test_writer_rejects_non_canonical_case_id(tmp_path: Path, case_dir_name: str) -> None:
-    """Non-canonical case IDs (031, 999, etc.) are rejected with exit code 1."""
+    """Non-canonical and unsupported case IDs are rejected with exit code 1."""
     case_dir = tmp_path / case_dir_name
     case_dir.mkdir()
     (case_dir / "reference").mkdir()
