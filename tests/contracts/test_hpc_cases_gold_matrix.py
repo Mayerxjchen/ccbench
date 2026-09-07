@@ -161,6 +161,24 @@ def test_case_scientific_capabilities_declared(case_id: str):
         assert "deepmd-jax" in spec.scientific_capabilities.required
 
 
+@pytest.mark.parametrize("case_id", PRESERVED_HPC_CASE_IDS[:3])
+def test_matclaw_cases_do_not_bind_candidate_image(case_id: str):
+    """001-003 must not carry a concrete candidate image — infra resolves runtime."""
+    spec = CaseSpec.load(_get_case_dir(case_id))
+    assert spec.candidate_image is None
+
+
+@pytest.mark.parametrize("case_id", PRESERVED_HPC_CASE_IDS[:3])
+def test_matclaw_scientific_capabilities_frozen(case_id: str):
+    """Freeze the exact scientific capability contract for 001-003."""
+    spec = CaseSpec.load(_get_case_dir(case_id))
+    assert spec.scientific_capabilities.required == ("matclaw-cips",)
+    if case_id.startswith("001"):
+        assert spec.scientific_capabilities.optional == ("gpu-training",)
+    else:
+        assert spec.scientific_capabilities.optional == ()
+
+
 @pytest.mark.parametrize("case_id", PRESERVED_HPC_CASE_IDS)
 def test_case_submission_contract_and_timeouts(case_id: str):
     case_dir = _get_case_dir(case_id)

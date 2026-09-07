@@ -73,14 +73,6 @@ _HPC_RUNTIME: dict[int, list[tuple[str, str, str]]] = {
         ("cp2k", "cp2k", "==2025.2"),
     ],
     5: [("dpmp", "deepmd-jax", "==0.2.1")],
-    31: [("matclaw-cips", "matclaw-cips", "==2.2.11")],
-    32: [("matclaw-cips", "matclaw-cips", "==2.2.11")],
-    33: [("matclaw-cips", "matclaw-cips", "==2.2.11")],
-    34: [
-        ("ai2kit", "ai2kit", "==1.1.0"),
-        ("cp2k", "cp2k", "==2025.2"),
-    ],
-    42: [("dpmp", "deepmd-jax", "==0.2.1")],
 }
 
 # HPC case number -> scientific capabilities.  ``required`` is fixed by the
