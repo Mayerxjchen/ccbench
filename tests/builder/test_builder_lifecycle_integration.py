@@ -135,19 +135,10 @@ def test_full_builder_lifecycle_end_to_end(tmp_path: Path):
     # Provide candidate input in draft/input so package_candidate succeeds
     (run_dir / "draft" / "input" / "train.xyz").write_text("dummy-structures", encoding="utf-8")
 
+    # After build+input, runnable gate now passes automatically
+    # (verify.py was compiled during build, and all checks pass)
     state3 = derive_state(run_dir)
-    assert state3.current_state == CaseLifecycleState.DRAFT
-
-    # ── 4. Validate (Real Runnable Draft Gate) ────────────────────────
-    rc = cli_main([
-        "case", "validate",
-        "--run-dir", str(run_dir),
-    ])
-    assert rc == 0
-    assert (run_dir / "verifier-smoke" / "smoke-report.json").is_file()
-
-    state4 = derive_state(run_dir)
-    assert state4.current_state == CaseLifecycleState.RUNNABLE_DRAFT
+    assert state3.current_state == CaseLifecycleState.RUNNABLE_DRAFT
 
     # ── 5. Discovery ─────────────────────────────────────────────────
     # 5a. Direct without evidence should fail
@@ -157,13 +148,15 @@ def test_full_builder_lifecycle_end_to_end(tmp_path: Path):
     ])
     assert rc_fail != 0
 
-    # 5b. Evidence-based classification
+    # 5b. Evidence-based classification with real case_ir digest
+    import hashlib as _hashlib
+    ir_sha = _hashlib.sha256((run_dir / "design" / "case.ir.yaml").read_bytes()).hexdigest()
     metrics_dir = tmp_path / "discovery_metrics"
     metrics_dir.mkdir()
     disc_doc = {
         "run_id": "disc-001",
-        "candidate_bundle_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-        "case_ir_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "candidate_bundle_digest": "sha256:" + "a" * 64,
+        "case_ir_digest": f"sha256:{ir_sha}",
         "outcome": {"terminal_state": "COMPLETED", "candidate_exit_code": 0, "verifier_exit_code": 0},
         "metrics": {"energy_rmse": 0.03},
         "failure_class": "SUCCESS",
@@ -190,6 +183,19 @@ def test_full_builder_lifecycle_end_to_end(tmp_path: Path):
     )
     (reports_dir / "calibration-report.json").write_text(
         json.dumps({"passed": True, "thresholds": {"energy_rmse_max": 0.05}}),
+        encoding="utf-8",
+    )
+
+    # Threshold freeze (MANDATORY for release)
+    ir_sha_freeze = _hashlib.sha256((run_dir / "design" / "case.ir.yaml").read_bytes()).hexdigest()
+    cal_thresholds = {"energy_rmse_max": 0.05}
+    thresholds_digest = f"sha256:{_hashlib.sha256(json.dumps(cal_thresholds, sort_keys=True).encode('utf-8')).hexdigest()}"
+    (reports_dir / "threshold-freeze.json").write_text(
+        json.dumps({
+            "case_ir_digest": f"sha256:{ir_sha_freeze}",
+            "formal_agent_results_seen": False,
+            "thresholds_digest": thresholds_digest,
+        }),
         encoding="utf-8",
     )
 

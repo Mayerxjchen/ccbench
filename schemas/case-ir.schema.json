@@ -23,7 +23,7 @@
     },
     "identity": {
       "type": "object",
-      "required": ["title", "category"],
+      "required": ["title", "category", "case_id"],
       "additionalProperties": false,
       "properties": {
         "title": { "type": "string", "minLength": 1 },
@@ -115,7 +115,7 @@
       "properties": {
         "execution_class": {
           "type": "string",
-          "enum": ["local_sandbox", "local_container", "hpc_batch"]
+          "enum": ["local_sandbox", "hpc_controller"]
         },
         "candidate_image": { "type": "string" },
         "verifier_image": { "type": "string" },
@@ -145,6 +145,10 @@
       "required": ["layers"],
       "additionalProperties": false,
       "properties": {
+        "layer_model": {
+          "type": "string",
+          "default": "ccbench-verifier/v2"
+        },
         "layers": {
           "type": "array",
           "items": {

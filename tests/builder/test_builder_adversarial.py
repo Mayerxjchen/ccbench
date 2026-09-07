@@ -42,7 +42,7 @@ def test_gold_taint_blocks_runnable_gate(tmp_path: Path):
     # Design with input referencing secret_ground_truth.xyz
     ir_doc = {
         "schema_version": 1,
-        "identity": {"title": "Tainted", "category": "mlp", "version": "1.0"},
+        "identity": {"title": "Tainted", "category": "mlp", "version": "1.0", "case_id": "000-tainted-case"},
         "scientific_target": {"system": "Si", "objective": "Energy"},
         "selection": {"paradigm": "standard"},
         "candidate": {
@@ -96,7 +96,7 @@ def test_empty_submission_fails_verifier_smoke(tmp_path: Path):
 
     ir_doc = {
         "schema_version": 1,
-        "identity": {"title": "Smoke Fail", "category": "mlp", "version": "1.0"},
+        "identity": {"title": "Smoke Fail", "category": "mlp", "version": "1.0", "case_id": "000-smoke-fail"},
         "scientific_target": {"system": "Si", "objective": "Energy"},
         "selection": {"paradigm": "standard"},
         "candidate": {

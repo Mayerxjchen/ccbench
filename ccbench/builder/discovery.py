@@ -176,8 +176,7 @@ def record_discovery_result(
                 "Cannot record PROMOTED decision without valid evidence dictionary."
             )
         # Ensure evidence satisfies schema
-        if not evidence.get("manual"):
-            validate_discovery_evidence_doc(evidence)
+        validate_discovery_evidence_doc(evidence)
 
     disc_dir = Path(run_dir) / "discovery"
     disc_dir.mkdir(parents=True, exist_ok=True)

@@ -120,14 +120,26 @@ def test_mlp_omits_v4_plan_compile_fails():
 
 
 def test_target_case_id_mismatch_publish_fails(tmp_path: Path):
-    """target_case_id != Case IR case_id must abort publish."""
+    """target_case_id != CaseSpec case_id must abort publish."""
     run_dir = tmp_path / "run"
-    run_dir.mkdir()
-    (run_dir / "design").mkdir()
-    (run_dir / "design" / "case.ir.yaml").write_text(
-        yaml.safe_dump({"identity": {"case_id": "006-declared", "category": "mlp"}}),
+    run_dir.mkdir(parents=True)
+    draft_dir = run_dir / "draft"
+    draft_dir.mkdir()
+    (draft_dir / "task.md").write_text("# Task\n", encoding="utf-8")
+    (draft_dir / "case.toml").write_text(
+        'schema_version = "1.2"\ncase_version = "1.0"\n'
+        '[execution]\nclass = "local_sandbox"\n'
+        '[task]\nname = "006-declared"\n'
+        '[candidate]\ninstruction = "task.md"\nsubmission_root = "final"\n'
+        '[coverage]\nscientific_domain = "semiconductors"\nmethod_family = "end_to_end_potential"\nmaterial_class = "inorganic_2d"\ncomputation_type = "iterative_training"\n',
         encoding="utf-8",
     )
+    (run_dir / "design").mkdir()
+    (run_dir / "design" / "case.ir.yaml").write_text(
+        yaml.safe_dump({"identity": {"case_id": "006-declared", "category": "mlp", "title": "T"}}),
+        encoding="utf-8",
+    )
+
     with pytest.raises(PublishError, match="Identity binding mismatch"):
         publish_case(run_dir, "007-mismatched", cases_dir=tmp_path / "cases", maintainer_dir=tmp_path / "maintainer")
 

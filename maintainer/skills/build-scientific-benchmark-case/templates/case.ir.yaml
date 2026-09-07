@@ -2,6 +2,7 @@ schema_version: 1
 
 identity:
   title: "Example Benchmark Case"
+  case_id: "006-example-case"
   category: "mlp"
   version: "1.0"
 

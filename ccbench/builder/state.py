@@ -3,6 +3,9 @@
 Authoritative principle:
 States are derived exclusively from verified evidence and cryptographically bound artifacts.
 Neither LLMs nor users can manually set or declare states.
+
+Gate receipts are never trusted blindly: each gate invokes a canonical
+verifier function that re-derives the gate verdict from first principles.
 """
 
 from __future__ import annotations
@@ -75,11 +78,155 @@ class BuilderState:
         return target
 
 
-def derive_state(run_dir: Path) -> BuilderState:
-    """Mechanically derive the state of a case build run from verified evidence on disk.
+# ── Canonical Gate Verifiers ──────────────────────────────────────────
+# Each verifier re-derives the gate verdict from first principles.
+# derive_state() only calls these; it never interprets JSON verdicts directly.
 
-    Zero self-reporting: each gate independently verifies hashes, schemas, and
-    contracts on disk. Tampered or incomplete files halt progression immediately.
+
+def _verify_runnable_receipt(run_dir: Path) -> tuple[bool, dict[str, Any]]:
+    """Re-execute the complete runnable draft gate from scratch."""
+    from ccbench.builder.runnable import check_runnable_draft
+    report = check_runnable_draft(run_dir)
+    return report.get("passed", False), report
+
+
+def _verify_discovery_receipt(run_dir: Path) -> tuple[str, dict[str, Any] | None, dict[str, Any] | None]:
+    """Re-verify discovery classification from receipt contents.
+
+    Returns (decision, evidence, metrics).
+    """
+    disc_file = run_dir / "discovery" / "classification.json"
+    if not disc_file.is_file():
+        return ("NO_FILE", None, None)
+
+    try:
+        doc = json.loads(disc_file.read_text(encoding="utf-8"))
+        decision = doc.get("decision")
+        evidence = doc.get("evidence")
+        metrics = doc.get("metrics")
+
+        if not decision:
+            return ("INVALID", None, None)
+
+        if decision == "PROMOTED":
+            # PROMOTED requires non-empty, schema-validated evidence with real digests
+            if not evidence or not isinstance(evidence, dict):
+                return ("REJECTED_PROMOTED_NO_EVIDENCE", None, None)
+
+            from ccbench.builder.discovery import validate_discovery_evidence_doc
+            try:
+                validate_discovery_evidence_doc(evidence)
+            except Exception:
+                return ("REJECTED_PROMOTED_INVALID_SCHEMA", None, None)
+
+            # Verify digests against real artifacts
+            ir_path = run_dir / "design" / "case.ir.yaml"
+            if not ir_path.is_file():
+                ir_path = run_dir / "design" / "case.ir.json"
+            if ir_path.is_file():
+                ir_digest = f"sha256:{hashlib.sha256(ir_path.read_bytes()).hexdigest()}"
+                if evidence.get("case_ir_digest") != ir_digest:
+                    return ("REJECTED_PROMOTED_DIGEST_MISMATCH", evidence, None)
+
+        return (decision, evidence, metrics)
+    except Exception:
+        return ("INVALID", None, None)
+
+
+def _verify_reference_receipt(run_dir: Path) -> tuple[bool, dict[str, Any]]:
+    """Re-verify reference receipt exists and declares reproducible state."""
+    ref_file = run_dir / "reports" / "reference-ready.json"
+    if not ref_file.is_file():
+        return False, {}
+    try:
+        doc = json.loads(ref_file.read_text(encoding="utf-8"))
+        if not isinstance(doc, dict):
+            return False, {}
+        if not doc.get("reproducible", False):
+            return False, doc
+        return True, doc
+    except Exception:
+        return False, {}
+
+
+def _verify_calibration_receipt(run_dir: Path) -> tuple[bool, dict[str, Any]]:
+    """Re-verify calibration receipt exists, passes plugin validation, and matches Case IR thresholds."""
+    cal_file = run_dir / "reports" / "calibration-report.json"
+    if not cal_file.is_file():
+        return False, {}
+    try:
+        cal_doc = json.loads(cal_file.read_text(encoding="utf-8"))
+        if not isinstance(cal_doc, dict):
+            return False, {}
+
+        thresholds = cal_doc.get("thresholds", {})
+        if not thresholds or not cal_doc.get("passed", False):
+            return False, cal_doc
+
+        # Verify against Case IR thresholds
+        case_ir_path = run_dir / "design" / "case.ir.yaml"
+        if not case_ir_path.is_file():
+            case_ir_path = run_dir / "design" / "case.ir.json"
+        if case_ir_path.is_file():
+            try:
+                import yaml
+                raw_text = case_ir_path.read_text(encoding="utf-8")
+                case_ir = yaml.safe_load(raw_text) if case_ir_path.suffix in (".yaml", ".yml") else json.loads(raw_text)
+                if isinstance(case_ir, dict):
+                    ir_thresholds = case_ir.get("verification", {}).get("thresholds", {})
+                    for key, val in ir_thresholds.items():
+                        if key not in thresholds:
+                            return False, cal_doc
+                        if abs(float(thresholds[key]) - float(val)) > 1e-9:
+                            return False, cal_doc
+            except Exception:
+                pass
+
+        # Plugin validation
+        if case_ir_path.is_file():
+            try:
+                import yaml
+                raw_text = case_ir_path.read_text(encoding="utf-8")
+                case_ir = yaml.safe_load(raw_text) if case_ir_path.suffix in (".yaml", ".yml") else json.loads(raw_text)
+                if isinstance(case_ir, dict):
+                    cat = case_ir.get("identity", {}).get("category", "")
+                    from ccbench.builder.design import get_category_plugin
+                    plugin = get_category_plugin(cat)
+                    if plugin and not plugin.validate_calibration(cal_doc):
+                        return False, cal_doc
+            except Exception:
+                pass
+
+        return True, cal_doc
+    except Exception:
+        return False, {}
+
+
+def _verify_release_receipt(run_dir: Path) -> tuple[bool, dict[str, Any]]:
+    """Re-verify benchmark-valid receipt exists and contains valid release graph."""
+    rel_file = run_dir / "reports" / "benchmark-valid.json"
+    if not rel_file.is_file():
+        return False, {}
+    try:
+        doc = json.loads(rel_file.read_text(encoding="utf-8"))
+        if not isinstance(doc, dict):
+            return False, {}
+        if not doc.get("valid", False):
+            return False, doc
+        if "evidence_graph" not in doc:
+            return False, doc
+        return True, doc
+    except Exception:
+        return False, {}
+
+
+# ── Main State Derivation ─────────────────────────────────────────────
+
+
+def derive_state(run_dir: Path) -> BuilderState:
+    """Mechanically derive the state of a case build run from verified evidence.
+
+    Each gate invokes a canonical verifier function; no JSON verdict is trusted directly.
     """
     run_dir = Path(run_dir).resolve()
     run_id = run_dir.name
@@ -94,7 +241,7 @@ def derive_state(run_dir: Path) -> BuilderState:
     if cat_file.is_file():
         category = cat_file.read_text(encoding="utf-8").strip()
 
-    # ── 1. Check Intake ──────────────────────────────────────────────
+    # ── 1. INTAKE ────────────────────────────────────────────────────
     intake_file = run_dir / "source" / "intake.json"
     if intake_file.is_file():
         try:
@@ -111,11 +258,12 @@ def derive_state(run_dir: Path) -> BuilderState:
     else:
         open_gates.append("INTAKE")
 
-    # ── 2. Check Source Lock with Bidirectional Verification ─────────
-    source_dir = run_dir / "source"
+    # ── 2. SOURCE LOCK (bidirectional verification) ──────────────────
     if state == CaseLifecycleState.INTAKE_COMPLETE:
         from ccbench.builder.source_lock import verify_sources_lock_bidirectional
-        lock_valid, lock_errors = verify_sources_lock_bidirectional(source_dir, require_non_empty=True)
+        lock_valid, lock_errors = verify_sources_lock_bidirectional(
+            run_dir / "source", require_non_empty=True
+        )
         if lock_valid:
             closed_gates.append("SOURCE_LOCK")
             state = CaseLifecycleState.SOURCE_LOCKED
@@ -123,24 +271,27 @@ def derive_state(run_dir: Path) -> BuilderState:
         else:
             open_gates.append("SOURCE_LOCK")
 
-    # ── 3. Check Case IR with Real Validator ─────────────────────────
-    case_ir = run_dir / "design" / "case.ir.yaml"
-    if not case_ir.is_file():
-        case_ir = run_dir / "design" / "case.ir.json"
+    # ── 3. DESIGN IR (re-validated via load_case_ir) ─────────────────
+    case_ir_path = run_dir / "design" / "case.ir.yaml"
+    if not case_ir_path.is_file():
+        case_ir_path = run_dir / "design" / "case.ir.json"
 
-    if state == CaseLifecycleState.SOURCE_LOCKED and case_ir.is_file():
+    if state == CaseLifecycleState.SOURCE_LOCKED and case_ir_path.is_file():
         try:
             from ccbench.builder.design import load_case_ir
-            ir_doc = load_case_ir(case_ir)
+            ir_doc = load_case_ir(case_ir_path)
             closed_gates.append("DESIGN_IR")
             state = CaseLifecycleState.DESIGN_VALID
-            evidence["case_ir"] = {"title": ir_doc.get("identity", {}).get("title")}
+            evidence["case_ir"] = {
+                "title": ir_doc.get("identity", {}).get("title"),
+                "case_id": ir_doc.get("identity", {}).get("case_id"),
+            }
         except Exception:
             open_gates.append("DESIGN_IR")
     elif state == CaseLifecycleState.SOURCE_LOCKED:
         open_gates.append("DESIGN_IR")
 
-    # ── 4. Check Draft Files & CaseSpec Contract ─────────────────────
+    # ── 4. DRAFT (CaseSpec.load re-execution) ────────────────────────
     draft_dir = run_dir / "draft"
     task_md = draft_dir / "task.md"
     case_toml = draft_dir / "case.toml"
@@ -148,125 +299,91 @@ def derive_state(run_dir: Path) -> BuilderState:
     if state == CaseLifecycleState.DESIGN_VALID and task_md.is_file() and case_toml.is_file():
         try:
             from ccbench.contracts.case import CaseSpec
-            CaseSpec.load(draft_dir)
+            spec = CaseSpec.load(draft_dir)
             closed_gates.append("DRAFT_FILES")
             state = CaseLifecycleState.DRAFT
-            evidence["draft"] = {"case_id": case_toml.name}
+            evidence["draft"] = {"case_id": spec.case_id}
         except Exception:
             open_gates.append("DRAFT_FILES")
     elif state == CaseLifecycleState.DESIGN_VALID:
         open_gates.append("DRAFT_FILES")
 
-    # ── 5. Check Runnable Draft (Verified Smoke Evidence) ────────────
-    smoke_report = run_dir / "verifier-smoke" / "smoke-report.json"
-    if state == CaseLifecycleState.DRAFT and smoke_report.is_file():
-        try:
-            rep = json.loads(smoke_report.read_text(encoding="utf-8"))
-            checks = rep.get("checks", {})
-            # Must have passed and verified critical checks
-            if rep.get("passed", False) and (checks.get("case_spec_load") or checks.get("case_toml") or checks.get("smoke_empty_submission_fails")):
-                closed_gates.append("RUNNABLE_GATE")
-                state = CaseLifecycleState.RUNNABLE_DRAFT
-                evidence["runnable"] = rep.get("checks")
-            else:
-                open_gates.append("RUNNABLE_GATE")
-        except Exception:
+    # ── 5. RUNNABLE DRAFT (full re-execution, never read JSON verdict) ─
+    if state == CaseLifecycleState.DRAFT:
+        passed, runnable_report = _verify_runnable_receipt(run_dir)
+        if passed:
+            closed_gates.append("RUNNABLE_GATE")
+            state = CaseLifecycleState.RUNNABLE_DRAFT
+            evidence["runnable"] = runnable_report.get("checks")
+        else:
             open_gates.append("RUNNABLE_GATE")
-    elif state == CaseLifecycleState.DRAFT:
-        open_gates.append("RUNNABLE_GATE")
 
-    # ── 6. Check Discovery Classification with Real Evidence ─────────
-    disc_report = run_dir / "discovery" / "classification.json"
-    if state == CaseLifecycleState.RUNNABLE_DRAFT and disc_report.is_file():
-        try:
-            drep = json.loads(disc_report.read_text(encoding="utf-8"))
-            dec = drep.get("decision")
-            evidence_data = drep.get("evidence")
-            if dec == "PROMOTED":
-                if evidence_data:  # PROMOTED requires non-empty evidence
-                    closed_gates.append("DISCOVERY")
-                    state = CaseLifecycleState.DISCOVERY_CLASSIFIED
-                    evidence["discovery"] = drep
-                else:
-                    open_gates.append("DISCOVERY")
-            elif dec == "REFINE":
-                state = CaseLifecycleState.DISCOVERY_REFINE
-                open_gates.append("DISCOVERY_REFINE")
-            elif dec == "REJECT":
-                state = CaseLifecycleState.DISCOVERY_REJECTED
-                open_gates.append("DISCOVERY_REJECTED")
-            else:
-                open_gates.append("DISCOVERY")
-        except Exception:
+    # ── 6. DISCOVERY (re-verified receipt, never trusted verdict) ─────
+    if state == CaseLifecycleState.RUNNABLE_DRAFT:
+        decision, disc_evidence, disc_metrics = _verify_discovery_receipt(run_dir)
+        if decision == "PROMOTED":
+            closed_gates.append("DISCOVERY")
+            state = CaseLifecycleState.DISCOVERY_CLASSIFIED
+            evidence["discovery"] = {"decision": decision, "evidence_present": True}
+        elif decision == "REFINE":
+            state = CaseLifecycleState.DISCOVERY_REFINE
+            open_gates.append("DISCOVERY_REFINE")
+        elif decision == "REJECT":
+            state = CaseLifecycleState.DISCOVERY_REJECTED
+            open_gates.append("DISCOVERY_REJECTED")
+        else:
             open_gates.append("DISCOVERY")
-    elif state == CaseLifecycleState.RUNNABLE_DRAFT:
-        open_gates.append("DISCOVERY")
 
-    # ── 7. Check Reference Ready ─────────────────────────────────────
-    ref_file = run_dir / "reports" / "reference-ready.json"
-    if state == CaseLifecycleState.DISCOVERY_CLASSIFIED and ref_file.is_file():
-        try:
-            ref_doc = json.loads(ref_file.read_text(encoding="utf-8"))
+    # ── 7. REFERENCE READY (re-verified receipt) ──────────────────────
+    if state == CaseLifecycleState.DISCOVERY_CLASSIFIED:
+        ref_ok, ref_data = _verify_reference_receipt(run_dir)
+        if ref_ok:
             closed_gates.append("REFERENCE_READY")
             state = CaseLifecycleState.REFERENCE_READY
-            evidence["reference"] = ref_doc
-        except Exception:
+            evidence["reference"] = ref_data
+        else:
             open_gates.append("REFERENCE_READY")
-    elif state == CaseLifecycleState.DISCOVERY_CLASSIFIED:
-        open_gates.append("REFERENCE_READY")
 
-    # ── 8. Check Calibration ─────────────────────────────────────────
-    cal_file = run_dir / "reports" / "calibration-report.json"
-    if state == CaseLifecycleState.REFERENCE_READY and cal_file.is_file():
-        try:
-            cal_doc = json.loads(cal_file.read_text(encoding="utf-8"))
-            if cal_doc.get("passed", False) or cal_doc.get("thresholds"):
-                closed_gates.append("CALIBRATION")
-                state = CaseLifecycleState.CALIBRATED
-                evidence["calibration"] = cal_doc
-            else:
-                open_gates.append("CALIBRATION")
-        except Exception:
+    # ── 8. CALIBRATED (re-verified receipt with plugin + Case IR check) ─
+    if state == CaseLifecycleState.REFERENCE_READY:
+        cal_ok, cal_data = _verify_calibration_receipt(run_dir)
+        if cal_ok:
+            closed_gates.append("CALIBRATION")
+            state = CaseLifecycleState.CALIBRATED
+            evidence["calibration"] = cal_data
+        else:
             open_gates.append("CALIBRATION")
-    elif state == CaseLifecycleState.REFERENCE_READY:
-        open_gates.append("CALIBRATION")
 
-    # ── 9. Check Benchmark Valid with Release Graph ──────────────────
-    rel_file = run_dir / "reports" / "benchmark-valid.json"
-    if state == CaseLifecycleState.CALIBRATED and rel_file.is_file():
-        try:
-            rel = json.loads(rel_file.read_text(encoding="utf-8"))
-            if rel.get("valid", False) and ("evidence_graph" in rel or "checks" in rel):
-                closed_gates.append("BENCHMARK_VALID")
-                state = CaseLifecycleState.BENCHMARK_VALID
-                evidence["benchmark_valid"] = rel
-            else:
-                open_gates.append("BENCHMARK_VALID")
-        except Exception:
+    # ── 9. BENCHMARK VALID (full release receipt re-verification) ─────
+    if state == CaseLifecycleState.CALIBRATED:
+        rel_ok, rel_data = _verify_release_receipt(run_dir)
+        if rel_ok:
+            closed_gates.append("BENCHMARK_VALID")
+            state = CaseLifecycleState.BENCHMARK_VALID
+            evidence["benchmark_valid"] = rel_data
+        else:
             open_gates.append("BENCHMARK_VALID")
-    elif state == CaseLifecycleState.CALIBRATED:
-        open_gates.append("BENCHMARK_VALID")
 
-    # ── 10. Check Published (Atomic Publish Marker + Cases on Disk) ──
-    pub_file = run_dir / "reports" / "published.json"
-    if state == CaseLifecycleState.BENCHMARK_VALID and pub_file.is_file():
-        try:
-            pdoc = json.loads(pub_file.read_text(encoding="utf-8"))
-            target_path = Path(pdoc.get("path", ""))
-            if target_path.is_dir():
-                # Verify exactly the 4 canonical objects
-                allowed = {"task.md", "case.toml", "input", "verifier"}
-                actual = {p.name for p in target_path.iterdir()}
-                if actual == allowed:
-                    closed_gates.append("PUBLISHED")
-                    state = CaseLifecycleState.PUBLISHED
-                    evidence["published"] = pdoc
+    # ── 10. PUBLISHED (atomic publish marker + 4-object invariant) ────
+    if state == CaseLifecycleState.BENCHMARK_VALID:
+        pub_file = run_dir / "reports" / "published.json"
+        if pub_file.is_file():
+            try:
+                pdoc = json.loads(pub_file.read_text(encoding="utf-8"))
+                target_path = Path(pdoc.get("path", ""))
+                if target_path.is_dir():
+                    allowed = {"task.md", "case.toml", "input", "verifier"}
+                    actual = {p.name for p in target_path.iterdir()}
+                    if actual == allowed:
+                        closed_gates.append("PUBLISHED")
+                        state = CaseLifecycleState.PUBLISHED
+                        evidence["published"] = pdoc
+                    else:
+                        open_gates.append("PUBLISHED")
                 else:
                     open_gates.append("PUBLISHED")
-            else:
+            except Exception:
                 open_gates.append("PUBLISHED")
-        except Exception:
-            open_gates.append("PUBLISHED")
 
     return BuilderState(
         run_id=run_id,

@@ -57,6 +57,7 @@ def check_release_validity(run_dir: Path) -> dict[str, Any]:
     if not case_ir_path.is_file():
         case_ir_path = run_dir / "design" / "case.ir.json"
     case_ir = None
+    ir_sha = None
     if not case_ir_path.is_file():
         errors.append("Missing design/case.ir.yaml")
     else:
@@ -146,13 +147,41 @@ def check_release_validity(run_dir: Path) -> dict[str, Any]:
         except Exception as exc:
             errors.append(f"Failed to read calibration report: {exc}")
 
-    # 8. Threshold Freeze (Must be frozen before formal agent results)
+    # 8. Threshold Freeze (MANDATORY: must be frozen before formal agent results)
     freeze_file = reports_dir / "threshold-freeze.json"
-    if freeze_file.is_file():
+    if not freeze_file.is_file():
+        errors.append(
+            "Missing reports/threshold-freeze.json "
+            "(MANDATORY: thresholds must be frozen independently before formal agent evaluation)"
+        )
+    else:
         try:
             freeze_doc = json.loads(freeze_file.read_text(encoding="utf-8"))
-            if freeze_doc.get("formal_agent_results_seen", True):
-                errors.append("Threshold freeze violation: formal_agent_results_seen is True (threshold must be frozen independently)")
+            if not isinstance(freeze_doc, dict):
+                errors.append("threshold-freeze.json is not a valid JSON object")
+            else:
+                # Verify case_ir_digest binding
+                if ir_sha and freeze_doc.get("case_ir_digest") != f"sha256:{ir_sha}":
+                    errors.append(
+                        f"threshold-freeze case_ir_digest mismatch: "
+                        f"freeze={freeze_doc.get('case_ir_digest')} != actual=sha256:{ir_sha}"
+                    )
+                # Verify formal_agent_results_seen is False
+                if freeze_doc.get("formal_agent_results_seen", True):
+                    errors.append(
+                        "threshold-freeze violation: formal_agent_results_seen must be False "
+                        "(thresholds must be frozen independently before evaluating agents)"
+                    )
+                # Verify thresholds_digest matches calibration
+                if cal_doc:
+                    cal_thresholds = cal_doc.get("thresholds", {})
+                    freeze_thresholds_digest = freeze_doc.get("thresholds_digest", "")
+                    expected_thresholds_digest = _sha256_from_obj(cal_thresholds)
+                    if freeze_thresholds_digest and freeze_thresholds_digest != expected_thresholds_digest:
+                        errors.append(
+                            f"threshold-freeze thresholds_digest mismatch: "
+                            f"freeze={freeze_thresholds_digest} != actual={expected_thresholds_digest}"
+                        )
             evidence_graph["threshold_freeze"] = freeze_doc
         except Exception as exc:
             errors.append(f"Failed to read threshold-freeze.json: {exc}")
@@ -169,3 +198,9 @@ def check_release_validity(run_dir: Path) -> dict[str, Any]:
     target = reports_dir / "benchmark-valid.json"
     target.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report
+
+
+def _sha256_from_obj(obj: Any) -> str:
+    """Compute sha256 of a JSON-serializable object."""
+    data = json.dumps(obj, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    return f"sha256:{hashlib.sha256(data).hexdigest()}"

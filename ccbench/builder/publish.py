@@ -52,7 +52,20 @@ def publish_case(
     target_cases_dir = Path(cases_dir or CASES_DIR).resolve()
     target_maint_dir = Path(maintainer_dir or MAINTAINER_DIR).resolve()
 
-    # 1. Identity binding check
+    # 1. Triple identity binding: target_case_id == CaseSpec.case_id == Case IR case_id
+    from ccbench.contracts.case import CaseSpec
+    try:
+        spec = CaseSpec.load(draft_dir)
+    except Exception as exc:
+        raise PublishError(f"Failed to load CaseSpec from draft: {exc}") from exc
+
+    if spec.case_id != target_case_id:
+        raise PublishError(
+            f"Identity binding mismatch: target_case_id '{target_case_id}' != "
+            f"CaseSpec.case_id '{spec.case_id}'"
+        )
+
+    # 2. Case IR identity binding
     case_ir_path = run_dir / "design" / "case.ir.yaml"
     if not case_ir_path.is_file():
         case_ir_path = run_dir / "design" / "case.ir.json"

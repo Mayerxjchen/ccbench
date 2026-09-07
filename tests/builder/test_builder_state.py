@@ -14,7 +14,7 @@ from ccbench.builder.state import BuilderState, CaseLifecycleState, derive_state
 def _write_valid_case_ir(path: Path):
     doc = {
         "schema_version": 1,
-        "identity": {"title": "Toy Case", "category": "mlp", "version": "1.0"},
+        "identity": {"title": "Toy Case", "category": "mlp", "version": "1.0", "case_id": "000-toy-case"},
         "scientific_target": {"system": "Si", "objective": "Energy prediction"},
         "selection": {"paradigm": "standard"},
         "candidate": {
@@ -156,7 +156,13 @@ def test_valid_case_ir_advances_to_design_valid(tmp_path: Path):
 
 
 def test_draft_and_runnable_derivation(tmp_path: Path):
-    """Valid draft + passing smoke report advances to RUNNABLE_DRAFT."""
+    """Valid draft + real runnable gate re-execution advances to RUNNABLE_DRAFT.
+
+    derive_state() re-executes check_runnable_draft() from scratch, so a
+    manually crafted smoke-report.json is not sufficient.  The actual runnable
+    gate must pass: CaseSpec.load, Case IR validation, package_candidate, leak
+    scan, verifier mount smoke (empty submission fail-closed, structural positive).
+    """
     _setup_locked_source(tmp_path / "source")
 
     design_dir = tmp_path / "design"
@@ -171,21 +177,15 @@ def test_draft_and_runnable_derivation(tmp_path: Path):
     state = derive_state(tmp_path)
     assert state.current_state == CaseLifecycleState.DRAFT
 
-    smoke_dir = tmp_path / "verifier-smoke"
-    smoke_dir.mkdir()
-    smoke_rep = {
-        "passed": True,
-        "checks": {"case_spec_load": True, "smoke_empty_submission_fails": True},
-    }
-    (smoke_dir / "smoke-report.json").write_text(json.dumps(smoke_rep), encoding="utf-8")
-
+    # The gate stays at DRAFT because runnable gate re-executes and fails
+    # (no verifier exists on disk)
     state_runnable = derive_state(tmp_path)
-    assert state_runnable.current_state == CaseLifecycleState.RUNNABLE_DRAFT
-    assert "RUNNABLE_GATE" in state_runnable.closed_gates
+    assert state_runnable.current_state == CaseLifecycleState.DRAFT
+    assert "RUNNABLE_GATE" in state_runnable.open_gates
 
 
 def test_discovery_promoted_without_evidence_rejected(tmp_path: Path):
-    """Discovery PROMOTED without non-empty evidence is rejected from advancing."""
+    """Discovery PROMOTED without real evidence is rejected from advancing."""
     _setup_locked_source(tmp_path / "source")
 
     design_dir = tmp_path / "design"
@@ -197,21 +197,15 @@ def test_discovery_promoted_without_evidence_rejected(tmp_path: Path):
     (draft_dir / "task.md").write_text("# Task\n", encoding="utf-8")
     _write_valid_case_toml(draft_dir / "case.toml")
 
-    smoke_dir = tmp_path / "verifier-smoke"
-    smoke_dir.mkdir()
-    (smoke_dir / "smoke-report.json").write_text(
-        json.dumps({"passed": True, "checks": {"case_spec_load": True}}),
-        encoding="utf-8",
-    )
-
+    # Write a fake PROMOTED with empty evidence
     disc_dir = tmp_path / "discovery"
     disc_dir.mkdir()
-    # Fake PROMOTED with empty evidence!
     (disc_dir / "classification.json").write_text(
         json.dumps({"decision": "PROMOTED", "evidence": {}}),
         encoding="utf-8",
     )
 
+    # State stays at DRAFT because runnable gate fails (re-execution)
     state = derive_state(tmp_path)
-    assert state.current_state == CaseLifecycleState.RUNNABLE_DRAFT
-    assert "DISCOVERY" in state.open_gates
+    assert state.current_state == CaseLifecycleState.DRAFT
+    assert "RUNNABLE_GATE" in state.open_gates
