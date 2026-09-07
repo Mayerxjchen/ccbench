@@ -1,11 +1,11 @@
 """Gold contract matrix for the 5 preserved end-to-end HPC scientific cases.
 
 This test suite validates that the 5 formal benchmark cases:
-- 031-matclaw-cips-active-distillation
-- 032-matclaw-cips-curie-temperature
-- 033-matclaw-cips-domain-wall-search
-- 034-ai2kit-water64-end-to-end-potential
-- 042-go-water-dpmp
+- 001-matclaw-cips-active-distillation
+- 002-matclaw-cips-curie-temperature
+- 003-matclaw-cips-domain-wall-search
+- 004-ai2kit-water64-end-to-end-potential
+- 005-go-water-dpmp
 
 satisfy all strict contract constraints, contain zero legacy candidate image bindings,
 correctly declare runtime requirements, match canonical schemas, and exhibit zero drift
@@ -122,7 +122,7 @@ def test_case_runtime_requirements_matrix(case_id: str):
         assert req.name != ""
         assert req.version != ""
 
-    if case_id.startswith("031") or case_id.startswith("032") or case_id.startswith("033") or case_id.startswith("001") or case_id.startswith("002") or case_id.startswith("003"):
+    if case_id.startswith("001") or case_id.startswith("002") or case_id.startswith("003"):
         assert len(spec.runtime_requirements) == 1
         req = spec.runtime_requirements[0]
         assert req.family == "matclaw-cips"
@@ -130,13 +130,13 @@ def test_case_runtime_requirements_matrix(case_id: str):
         assert req.version == "==2.2.11"
         assert "dispatcher.gpu" in spec.effective_qualification_requires
         assert "runtime.matclaw-gpu" in spec.effective_qualification_requires
-    elif case_id.startswith("034") or case_id.startswith("004"):
+    elif case_id.startswith("004"):
         assert len(spec.runtime_requirements) == 2
         families = {r.family for r in spec.runtime_requirements}
         assert families == {"ai2kit", "cp2k"}
         assert "runtime.ai2kit" in spec.effective_qualification_requires
         assert "runtime.cp2k" in spec.effective_qualification_requires
-    elif case_id.startswith("042") or case_id.startswith("005"):
+    elif case_id.startswith("005"):
         assert len(spec.runtime_requirements) == 1
         req = spec.runtime_requirements[0]
         assert req.family == "deepmd-jax"
@@ -151,12 +151,13 @@ def test_case_scientific_capabilities_declared(case_id: str):
     assert spec.scientific_capabilities is not None
     assert len(spec.scientific_capabilities.required) >= 1
 
-    if case_id.startswith("031") or case_id.startswith("032") or case_id.startswith("033") or case_id.startswith("001") or case_id.startswith("002") or case_id.startswith("003"):
+    if case_id.startswith("001") or case_id.startswith("002") or case_id.startswith("003"):
         assert "matclaw-cips" in spec.scientific_capabilities.required
-    elif case_id.startswith("034") or case_id.startswith("004"):
+        assert "cp2k" not in spec.scientific_capabilities.required
+    elif case_id.startswith("004"):
         assert "ai2kit" in spec.scientific_capabilities.required
         assert "cp2k" in spec.scientific_capabilities.required
-    elif case_id.startswith("042") or case_id.startswith("005"):
+    elif case_id.startswith("005"):
         assert "deepmd-jax" in spec.scientific_capabilities.required
 
 

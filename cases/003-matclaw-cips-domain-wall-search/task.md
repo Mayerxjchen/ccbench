@@ -17,7 +17,7 @@ propagation. Do not use network access or commercial software.
 ## Execution
 
 A remote HPC capability exists in the sandbox. Discover and use the available
-infrastructure yourself. Long-running scientific work (DeePMD training and MD
-sampling) must use the remote scheduler; the sandbox is the control layer.
+infrastructure yourself. Long-running molecular-dynamics search and sampling
+must use the remote scheduler; the sandbox is the control layer.
 Fetch every run's artifacts back under `/app` so the deliverables above are
 complete in the graded workspace.

@@ -88,16 +88,11 @@ _HPC_RUNTIME: dict[int, list[tuple[str, str, str]]] = {
 # GPU DPMP training).  Category plugins consume these; they are capability
 # checks, never a second image-selection mechanism.
 _HPC_SCOPES: dict[int, dict[str, list[str]]] = {
-    1: {"required": ["matclaw-cips", "cp2k"], "optional": ["gpu-training"]},
-    2: {"required": ["matclaw-cips", "cp2k"], "optional": ["gpu-training"]},
-    3: {"required": ["matclaw-cips", "cp2k"], "optional": ["gpu-training"]},
+    1: {"required": ["matclaw-cips"], "optional": ["gpu-training"]},
+    2: {"required": ["matclaw-cips"], "optional": []},
+    3: {"required": ["matclaw-cips"], "optional": []},
     4: {"required": ["ai2kit", "cp2k"], "optional": ["gpu-training"]},
     5: {"required": ["cp2k"], "optional": ["gpu-training", "jax-md-gpu"]},
-    31: {"required": ["matclaw-cips", "cp2k"], "optional": ["gpu-training"]},
-    32: {"required": ["matclaw-cips", "cp2k"], "optional": ["gpu-training"]},
-    33: {"required": ["matclaw-cips", "cp2k"], "optional": ["gpu-training"]},
-    34: {"required": ["ai2kit", "cp2k"], "optional": ["gpu-training"]},
-    42: {"required": ["cp2k"], "optional": ["gpu-training", "jax-md-gpu"]},
 }
 
 

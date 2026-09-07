@@ -8,7 +8,6 @@ class = "hpc_controller"
 instruction = "task.md"
 submission_root = "final"
 legacy_submission_layout = false
-image = "dftworld-base-matclaw-cips:2.2.11-cpu"
 files = [{ destination = ".", source = "input/**", strip_prefix = "input" }]
 
 [hpc]
@@ -19,8 +18,7 @@ required_capabilities = ["batch_jobs", "gpu", "artifact_fetch"]
 requires = ["dispatcher.gpu", "runtime.matclaw-gpu"]
 
 [hpc.scientific_capabilities]
-required = ["matclaw-cips", "cp2k"]
-optional = ["gpu-training"]
+required = ["matclaw-cips"]
 
 [runtime]
 requirements = [{ family = "matclaw-cips", name = "matclaw-cips", version = "==2.2.11" }]
