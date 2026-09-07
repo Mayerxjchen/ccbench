@@ -84,9 +84,9 @@ class BuilderState:
 
 
 def _verify_runnable_receipt(run_dir: Path) -> tuple[bool, dict[str, Any]]:
-    """Re-execute the complete runnable draft gate from scratch."""
-    from ccbench.builder.runnable import check_runnable_draft
-    report = check_runnable_draft(run_dir)
+    """Re-execute the complete runnable draft gate from scratch (pure, no side-effects)."""
+    from ccbench.builder.runnable import evaluate_runnable_draft
+    report = evaluate_runnable_draft(run_dir)
     return report.get("passed", False), report
 
 
@@ -126,10 +126,14 @@ def _verify_reference_receipt(run_dir: Path) -> tuple[bool, dict[str, Any]]:
 
 
 def _verify_calibration_receipt(run_dir: Path) -> tuple[bool, dict[str, Any]]:
-    """Re-verify calibration receipt exists, passes plugin validation, and matches Case IR thresholds."""
+    """Re-verify calibration receipt exists, passes plugin validation, and matches Case IR thresholds.
+
+    Fail-closed: any parsing or validation error returns False.
+    """
     cal_file = run_dir / "reports" / "calibration-report.json"
     if not cal_file.is_file():
         return False, {}
+
     try:
         cal_doc = json.loads(cal_file.read_text(encoding="utf-8"))
         if not isinstance(cal_doc, dict):
@@ -139,39 +143,32 @@ def _verify_calibration_receipt(run_dir: Path) -> tuple[bool, dict[str, Any]]:
         if not thresholds or not cal_doc.get("passed", False):
             return False, cal_doc
 
-        # Verify against Case IR thresholds
+        # Load Case IR for threshold comparison and plugin validation
         case_ir_path = run_dir / "design" / "case.ir.yaml"
         if not case_ir_path.is_file():
             case_ir_path = run_dir / "design" / "case.ir.json"
-        if case_ir_path.is_file():
-            try:
-                import yaml
-                raw_text = case_ir_path.read_text(encoding="utf-8")
-                case_ir = yaml.safe_load(raw_text) if case_ir_path.suffix in (".yaml", ".yml") else json.loads(raw_text)
-                if isinstance(case_ir, dict):
-                    ir_thresholds = case_ir.get("verification", {}).get("thresholds", {})
-                    for key, val in ir_thresholds.items():
-                        if key not in thresholds:
-                            return False, cal_doc
-                        if abs(float(thresholds[key]) - float(val)) > 1e-9:
-                            return False, cal_doc
-            except Exception:
-                pass
 
-        # Plugin validation
         if case_ir_path.is_file():
-            try:
-                import yaml
-                raw_text = case_ir_path.read_text(encoding="utf-8")
-                case_ir = yaml.safe_load(raw_text) if case_ir_path.suffix in (".yaml", ".yml") else json.loads(raw_text)
-                if isinstance(case_ir, dict):
-                    cat = case_ir.get("identity", {}).get("category", "")
-                    from ccbench.builder.design import get_category_plugin
-                    plugin = get_category_plugin(cat)
-                    if plugin and not plugin.validate_calibration(cal_doc):
-                        return False, cal_doc
-            except Exception:
-                pass
+            import yaml
+            raw_text = case_ir_path.read_text(encoding="utf-8")
+            case_ir = yaml.safe_load(raw_text) if case_ir_path.suffix in (".yaml", ".yml") else json.loads(raw_text)
+            if not isinstance(case_ir, dict):
+                return False, cal_doc
+
+            # Verify calibration thresholds match Case IR thresholds
+            ir_thresholds = case_ir.get("verification", {}).get("thresholds", {})
+            for key, val in ir_thresholds.items():
+                if key not in thresholds:
+                    return False, cal_doc
+                if abs(float(thresholds[key]) - float(val)) > 1e-9:
+                    return False, cal_doc
+
+            # Plugin validation
+            cat = case_ir.get("identity", {}).get("category", "")
+            from ccbench.builder.design import get_category_plugin
+            plugin = get_category_plugin(cat)
+            if plugin and not plugin.validate_calibration(cal_doc):
+                return False, cal_doc
 
         return True, cal_doc
     except Exception:
@@ -190,6 +187,60 @@ def _verify_release_receipt(run_dir: Path) -> tuple[bool, dict[str, Any]]:
     try:
         result = evaluate_release_validity(run_dir)
         return result["valid"], result
+    except Exception:
+        return False, {}
+
+
+
+def _verify_published_state(run_dir: Path) -> tuple[bool, dict[str, Any]]:
+    """Re-verify published state from first principles.
+
+    Never trusts published.json verdict; re-verifies:
+    1. published.json exists and contains valid path
+    2. Target directory exists with exactly 4 canonical objects
+    3. CaseSpec loads from published directory
+    4. CaseSpec.case_id matches the expected case_id from Case IR
+    5. Maintainer archive exists
+    """
+    pub_file = run_dir / "reports" / "published.json"
+    if not pub_file.is_file():
+        return False, {}
+
+    try:
+        pdoc = json.loads(pub_file.read_text(encoding="utf-8"))
+        target_path = Path(pdoc.get("path", ""))
+        maintainer_path = Path(pdoc.get("maintainer_path", ""))
+        target_case_id = pdoc.get("target_case_id", "")
+
+        if not target_path.is_dir():
+            return False, {"error": "published target directory does not exist"}
+
+        # 4-object invariant
+        allowed = {"task.md", "case.toml", "input", "verifier"}
+        actual = {p.name for p in target_path.iterdir()}
+        if actual != allowed:
+            return False, {"error": f"non-canonical objects: {actual - allowed}"}
+
+        # CaseSpec loads and identity binding
+        from ccbench.contracts.case import CaseSpec
+        try:
+            spec = CaseSpec.load(target_path)
+            if target_case_id and spec.case_id != target_case_id:
+                return False, {
+                    "error": f"identity mismatch: published case_id={spec.case_id} != expected={target_case_id}"
+                }
+        except Exception as exc:
+            return False, {"error": f"CaseSpec.load failed on published case: {exc}"}
+
+        # Maintainer archive exists
+        if not maintainer_path.is_dir():
+            return False, {"error": "maintainer archive missing"}
+
+        return True, {
+            "target_case_id": target_case_id,
+            "path": str(target_path),
+            "maintainer_path": str(maintainer_path),
+        }
     except Exception:
         return False, {}
 
@@ -338,26 +389,15 @@ def derive_state(run_dir: Path) -> BuilderState:
         else:
             open_gates.append("BENCHMARK_VALID")
 
-    # ── 10. PUBLISHED (atomic publish marker + 4-object invariant) ────
+    # ── 10. PUBLISHED (full re-verification, never trust published.json) ──
     if state == CaseLifecycleState.BENCHMARK_VALID:
-        pub_file = run_dir / "reports" / "published.json"
-        if pub_file.is_file():
-            try:
-                pdoc = json.loads(pub_file.read_text(encoding="utf-8"))
-                target_path = Path(pdoc.get("path", ""))
-                if target_path.is_dir():
-                    allowed = {"task.md", "case.toml", "input", "verifier"}
-                    actual = {p.name for p in target_path.iterdir()}
-                    if actual == allowed:
-                        closed_gates.append("PUBLISHED")
-                        state = CaseLifecycleState.PUBLISHED
-                        evidence["published"] = pdoc
-                    else:
-                        open_gates.append("PUBLISHED")
-                else:
-                    open_gates.append("PUBLISHED")
-            except Exception:
-                open_gates.append("PUBLISHED")
+        pub_ok, pub_data = _verify_published_state(run_dir)
+        if pub_ok:
+            closed_gates.append("PUBLISHED")
+            state = CaseLifecycleState.PUBLISHED
+            evidence["published"] = pub_data
+        else:
+            open_gates.append("PUBLISHED")
 
     return BuilderState(
         run_id=run_id,

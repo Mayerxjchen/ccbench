@@ -2,9 +2,20 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import shutil
 from pathlib import Path
 from typing import Any
+
+
+def _hash_file(path: Path) -> str:
+    """Compute sha256 checksum of a file."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        while chunk := f.read(65536):
+            h.update(chunk)
+    return f"sha256:{h.hexdigest()}"
 
 
 def compile_case_ir_to_draft(
@@ -27,6 +38,8 @@ def compile_case_ir_to_draft(
     target = case_ir["scientific_target"]
 
     # Materialize candidate inputs from source_dir if provided
+    # and generate candidate-inputs.lock.json for provenance binding
+    input_lock_entries = []
     if source_dir:
         source_dir = Path(source_dir)
         for inp in cand.get("inputs", []):
@@ -39,6 +52,23 @@ def compile_case_ir_to_draft(
                 dest_input = input_dir / rel_cand_path
                 dest_input.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src_candidate, dest_input)
+                # Record source→candidate hash binding
+                source_hash = _hash_file(src_candidate)
+                candidate_hash = _hash_file(dest_input)
+                input_lock_entries.append({
+                    "source_path": str(source_ref),
+                    "source_sha256": source_hash,
+                    "candidate_path": f"input/{rel_cand_path}",
+                    "candidate_sha256": candidate_hash,
+                })
+
+    # Write candidate-inputs.lock.json
+    if input_lock_entries:
+        import json as _json
+        lock_doc = {"schema_version": 1, "inputs": input_lock_entries}
+        lock_path = draft_dir / "candidate-inputs.lock.json"
+        lock_path.write_text(_json.dumps(lock_doc, indent=2), encoding="utf-8")
+        artifacts["candidate_inputs_lock"] = lock_path
     task_content = f"""# {case_ir['identity']['title']}
 
 ## Scientific Objective

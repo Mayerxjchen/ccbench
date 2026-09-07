@@ -101,6 +101,10 @@ def publish_case(
     if dest_case_dir.exists() and not force:
         raise PublishError(f"Case destination already exists: {dest_case_dir}. Use force=True to safely replace.")
 
+    # Track pre-existing state BEFORE entering transaction (for rollback)
+    had_public = dest_case_dir.exists()
+    had_maint = dest_maint_dir.exists()
+
     # ── Transaction staging ──────────────────────────────────────────
     staging_token = uuid.uuid4().hex[:8]
     staging_public = target_cases_dir / f".staging-cases-{target_case_id}-{staging_token}"
@@ -153,10 +157,6 @@ def publish_case(
                 shutil.copytree(sdir, staging_maint / subdir)
 
         # ── Commit Phase ─────────────────────────────────────────────
-        # Track whether this is a new case (no pre-existing dest)
-        had_public = dest_case_dir.exists()
-        had_maint = dest_maint_dir.exists()
-
         # 1. Backup existing public case if replacing
         if had_public:
             os.rename(str(dest_case_dir), str(backup_public))

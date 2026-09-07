@@ -132,11 +132,10 @@ def test_full_builder_lifecycle_end_to_end(tmp_path: Path):
     assert (run_dir / "verifier" / "verify.py").is_file()
     assert (run_dir / "verifier" / "test.sh").is_file()
 
-    # Provide candidate input in draft/input so package_candidate succeeds
-    (run_dir / "draft" / "input" / "train.xyz").write_text("dummy-structures", encoding="utf-8")
+    # Candidate inputs were already materialized by scaffold from source/
+    # No need to manually write them — candidate-inputs.lock.json binds the hashes.
 
-    # After build+input, runnable gate now passes automatically
-    # (verify.py was compiled during build, and all checks pass)
+    # After build, runnable gate passes automatically
     state3 = derive_state(run_dir)
     assert state3.current_state == CaseLifecycleState.RUNNABLE_DRAFT
 

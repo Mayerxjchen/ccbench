@@ -1,5 +1,9 @@
 """Authoritative Runnable Draft (L1) Gate for CCBench Case Builder.
 
+Public API:
+    evaluate_runnable_draft(run_dir) -> dict   Pure evaluation, no side-effects.
+    check_runnable_draft(run_dir)    -> dict   Evaluate + write receipt.
+
 Performs:
 1. Real CaseSpec.load() contract validation against schema.
 2. Case IR & Category plugin semantic validation.
@@ -33,8 +37,11 @@ class RunnableGateError(Exception):
     """Raised when runnable draft verification fails."""
 
 
-def check_runnable_draft(run_dir: Path) -> dict[str, Any]:
-    """Execute complete mechanical Runnable Draft gate checks."""
+def evaluate_runnable_draft(run_dir: Path) -> dict[str, Any]:
+    """Pure evaluation of runnable draft gate. No file writes.
+
+    Returns dict with keys: passed, errors, checks.
+    """
     run_dir = Path(run_dir).resolve()
     draft_dir = run_dir / "draft"
     verifier_dir = run_dir / "verifier" if (run_dir / "verifier").is_dir() else draft_dir / "verifier"
@@ -52,7 +59,7 @@ def check_runnable_draft(run_dir: Path) -> dict[str, Any]:
         errors.append(f"Missing executable verifier at {verifier_dir}")
 
     if errors:
-        return _record_smoke_report(run_dir, False, errors, checks)
+        return {"passed": False, "errors": errors, "checks": checks}
 
     # 2. Real CaseSpec load
     try:
@@ -60,7 +67,7 @@ def check_runnable_draft(run_dir: Path) -> dict[str, Any]:
         checks["case_spec_load"] = True
     except Exception as exc:
         errors.append(f"CaseSpec.load failed: {exc}")
-        return _record_smoke_report(run_dir, False, errors, checks)
+        return {"passed": False, "errors": errors, "checks": checks}
 
     # 3. Case IR & Category Plugin validation
     case_ir_path = run_dir / "design" / "case.ir.yaml"
@@ -79,10 +86,36 @@ def check_runnable_draft(run_dir: Path) -> dict[str, Any]:
                 if not cand_file.is_file() and not (draft_dir / inp["path"]).is_file():
                     errors.append(f"Candidate input declared in Case IR missing on disk: {inp['path']}")
             if errors:
-                return _record_smoke_report(run_dir, False, errors, checks)
+                return {"passed": False, "errors": errors, "checks": checks}
+
+            # Verify candidate-inputs.lock.json (source→candidate hash binding)
+            input_lock = draft_dir / "candidate-inputs.lock.json"
+            if input_lock.is_file():
+                try:
+                    lock_doc = json.loads(input_lock.read_text(encoding="utf-8"))
+                    for entry in lock_doc.get("inputs", []):
+                        cand_path = draft_dir / entry["candidate_path"]
+                        if not cand_path.is_file():
+                            errors.append(f"candidate-inputs.lock references missing file: {entry['candidate_path']}")
+                        else:
+                            from ccbench.builder.source_lock import hash_file
+                            actual_hash = hash_file(cand_path)
+                            if actual_hash != entry["candidate_sha256"]:
+                                errors.append(
+                                    f"Candidate input tampered: {entry['candidate_path']} "
+                                    f"(lock={entry['candidate_sha256']} != disk={actual_hash})"
+                                )
+                    checks["candidate_inputs_lock"] = True
+                except Exception as exc:
+                    errors.append(f"Failed to verify candidate-inputs.lock.json: {exc}")
+            else:
+                checks["candidate_inputs_lock"] = "missing"
+
+            if errors:
+                return {"passed": False, "errors": errors, "checks": checks}
         except Exception as exc:
             errors.append(f"Case IR validation failed: {exc}")
-            return _record_smoke_report(run_dir, False, errors, checks)
+            return {"passed": False, "errors": errors, "checks": checks}
 
     # 4. Real Candidate packaging into temporary isolated directory
     with tempfile.TemporaryDirectory() as tmp_str:
@@ -98,7 +131,7 @@ def check_runnable_draft(run_dir: Path) -> dict[str, Any]:
             }
         except PackageError as exc:
             errors.append(f"package_candidate failed: {exc}")
-            return _record_smoke_report(run_dir, False, errors, checks)
+            return {"passed": False, "errors": errors, "checks": checks}
 
         # 5. Anti-leakage and gold-taint check
         sources_lock_path = run_dir / "source" / "sources.lock.json"
@@ -111,17 +144,17 @@ def check_runnable_draft(run_dir: Path) -> dict[str, Any]:
                 leak_violations = check_gold_leakage(candidate_paths, manifest, lineage)
                 if leak_violations:
                     errors.extend(leak_violations)
-                    return _record_smoke_report(run_dir, False, errors, checks)
+                    return {"passed": False, "errors": errors, "checks": checks}
                 checks["gold_taint_check"] = True
             except Exception as exc:
                 errors.append(f"Failed to check gold taint: {exc}")
-                return _record_smoke_report(run_dir, False, errors, checks)
+                return {"passed": False, "errors": errors, "checks": checks}
 
         # Research question paper DOI isolation check
         leak_ok, leak_violations = check_case_leakage(draft_dir)
         if not leak_ok:
             errors.extend(leak_violations)
-            return _record_smoke_report(run_dir, False, errors, checks)
+            return {"passed": False, "errors": errors, "checks": checks}
         checks["doi_isolation"] = True
 
         # 6. Verifier mount smoke in faithful isolated layout
@@ -139,14 +172,13 @@ def check_runnable_draft(run_dir: Path) -> dict[str, Any]:
         )
         if proc_empty.returncode == 0:
             errors.append("Verifier mount smoke failed: empty submission passed (must fail closed)")
-            return _record_smoke_report(run_dir, False, errors, checks)
+            return {"passed": False, "errors": errors, "checks": checks}
         checks["smoke_empty_submission_fails"] = True
 
         # 6b. Negative fixture 2: Missing required artifact MUST FAIL
         corrupted_sub = tmp / "corrupted_submission"
         sub_root_c = corrupted_sub / spec.submission_root
         sub_root_c.mkdir(parents=True, exist_ok=True)
-        # Empty root folder with no required artifacts
         proc_corrupt = subprocess.run(
             run_cmd + [str(corrupted_sub), "--profile", "structural"],
             cwd=tmp,
@@ -155,7 +187,7 @@ def check_runnable_draft(run_dir: Path) -> dict[str, Any]:
         )
         if proc_corrupt.returncode == 0:
             errors.append("Verifier mount smoke failed: missing required artifacts passed (must fail closed)")
-            return _record_smoke_report(run_dir, False, errors, checks)
+            return {"passed": False, "errors": errors, "checks": checks}
         checks["smoke_negative_missing_artifact_fails"] = True
 
         # 6c. Structural positive submission: MUST PASS V0/V1 under structural profile
@@ -163,7 +195,6 @@ def check_runnable_draft(run_dir: Path) -> dict[str, Any]:
         sub_root = valid_sub / spec.submission_root
         sub_root.mkdir(parents=True, exist_ok=True)
 
-        # Create dummy artifacts declared in submission contract
         sub_contract_path = draft_dir / "submission-contract.json"
         if sub_contract_path.is_file():
             try:
@@ -194,33 +225,39 @@ def check_runnable_draft(run_dir: Path) -> dict[str, Any]:
                 f"Verifier mount smoke failed on valid structural submission (exit {proc_valid.returncode}): "
                 f"{proc_valid.stderr.strip()}"
             )
-            return _record_smoke_report(run_dir, False, errors, checks)
+            return {"passed": False, "errors": errors, "checks": checks}
 
         # 6d. Verify verifier_result.json existence and schema (FAIL-CLOSED)
         result_json_path = tmp / "verifier_result.json"
         if not result_json_path.is_file():
             errors.append("Verifier exited 0 but failed to produce verifier_result.json (hard fail)")
-            return _record_smoke_report(run_dir, False, errors, checks)
+            return {"passed": False, "errors": errors, "checks": checks}
 
         try:
             res_doc = json.loads(result_json_path.read_text(encoding="utf-8"))
             if not isinstance(res_doc, dict):
                 errors.append("verifier_result.json is not a valid JSON object")
-                return _record_smoke_report(run_dir, False, errors, checks)
+                return {"passed": False, "errors": errors, "checks": checks}
             if not res_doc.get("passed", False):
                 errors.append(f"Verifier result declared not passed on valid submission: {res_doc}")
-                return _record_smoke_report(run_dir, False, errors, checks)
+                return {"passed": False, "errors": errors, "checks": checks}
             layers = res_doc.get("layers", {})
             if not layers.get("V0", False) or not layers.get("V1", False):
                 errors.append(f"Mandatory structural layers V0/V1 did not pass in verifier_result: {layers}")
-                return _record_smoke_report(run_dir, False, errors, checks)
+                return {"passed": False, "errors": errors, "checks": checks}
             checks["verifier_result_valid"] = True
         except Exception as exc:
             errors.append(f"Failed to parse verifier_result.json: {exc}")
-            return _record_smoke_report(run_dir, False, errors, checks)
+            return {"passed": False, "errors": errors, "checks": checks}
 
-    passed = len(errors) == 0
-    return _record_smoke_report(run_dir, passed, errors, checks)
+    return {"passed": len(errors) == 0, "errors": errors, "checks": checks}
+
+
+def check_runnable_draft(run_dir: Path) -> dict[str, Any]:
+    """Execute runnable draft gate and write the receipt file."""
+    result = evaluate_runnable_draft(run_dir)
+    _record_smoke_report(run_dir, result["passed"], result["errors"], result["checks"])
+    return result
 
 
 def _record_smoke_report(

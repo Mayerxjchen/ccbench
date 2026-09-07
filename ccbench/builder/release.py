@@ -15,7 +15,7 @@ from typing import Any
 
 from ccbench.contracts.case import CaseSpec, validate_coverage_tags
 from ccbench.builder.design import get_category_plugin, load_case_ir
-from ccbench.builder.runnable import check_runnable_draft
+from ccbench.builder.runnable import evaluate_runnable_draft
 from ccbench.builder.source_lock import check_gold_leakage, verify_sources_lock_bidirectional
 
 
@@ -91,8 +91,8 @@ def evaluate_release_validity(run_dir: Path) -> dict[str, Any]:
         except Exception as exc:
             errors.append(f"Source lock parsing failed: {exc}")
 
-    # 4. Runnable Draft gate (full re-execution)
-    smoke_res = check_runnable_draft(run_dir)
+    # 4. Runnable Draft gate (pure evaluation, no side-effects)
+    smoke_res = evaluate_runnable_draft(run_dir)
     if not smoke_res.get("passed", False):
         errors.append(f"Runnable Draft gate failed: {smoke_res.get('errors')}")
     else:
@@ -136,6 +136,17 @@ def evaluate_release_validity(run_dir: Path) -> dict[str, Any]:
                 plugin = get_category_plugin(cat)
                 if plugin and not plugin.validate_calibration(cal_doc):
                     errors.append(f"Category plugin '{cat}' rejected calibration (invalid thresholds)")
+                # Verify calibration thresholds match Case IR thresholds
+                cal_thresholds = cal_doc.get("thresholds", {})
+                ir_thresholds = case_ir.get("verification", {}).get("thresholds", {})
+                for key, val in ir_thresholds.items():
+                    if key not in cal_thresholds:
+                        errors.append(f"Calibration missing Case IR threshold '{key}'")
+                    elif abs(float(cal_thresholds[key]) - float(val)) > 1e-9:
+                        errors.append(
+                            f"Calibration threshold mismatch for '{key}': "
+                            f"cal={cal_thresholds[key]} != ir={val}"
+                        )
             evidence_graph["calibration"] = cal_doc
         except Exception as exc:
             errors.append(f"Failed to read calibration report: {exc}")
