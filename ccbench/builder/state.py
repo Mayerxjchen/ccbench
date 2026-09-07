@@ -91,46 +91,22 @@ def _verify_runnable_receipt(run_dir: Path) -> tuple[bool, dict[str, Any]]:
 
 
 def _verify_discovery_receipt(run_dir: Path) -> tuple[str, dict[str, Any] | None, dict[str, Any] | None]:
-    """Re-verify discovery classification from receipt contents.
+    """Canonical verification of discovery classification.
 
-    Returns (decision, evidence, metrics).
+    Uses verify_discovery_classification() which re-derives the decision
+    from evidence, validates schema, verifies case_ir_digest and
+    candidate_bundle_digest bindings, and checks recorded == derived decision.
     """
-    disc_file = run_dir / "discovery" / "classification.json"
-    if not disc_file.is_file():
-        return ("NO_FILE", None, None)
+    from ccbench.builder.discovery import verify_discovery_classification
 
-    try:
-        doc = json.loads(disc_file.read_text(encoding="utf-8"))
-        decision = doc.get("decision")
-        evidence = doc.get("evidence")
-        metrics = doc.get("metrics")
+    ok, result = verify_discovery_classification(run_dir, verify_candidate_digest=True)
+    if not ok:
+        return ("REJECTED", None, None)
 
-        if not decision:
-            return ("INVALID", None, None)
-
-        if decision == "PROMOTED":
-            # PROMOTED requires non-empty, schema-validated evidence with real digests
-            if not evidence or not isinstance(evidence, dict):
-                return ("REJECTED_PROMOTED_NO_EVIDENCE", None, None)
-
-            from ccbench.builder.discovery import validate_discovery_evidence_doc
-            try:
-                validate_discovery_evidence_doc(evidence)
-            except Exception:
-                return ("REJECTED_PROMOTED_INVALID_SCHEMA", None, None)
-
-            # Verify digests against real artifacts
-            ir_path = run_dir / "design" / "case.ir.yaml"
-            if not ir_path.is_file():
-                ir_path = run_dir / "design" / "case.ir.json"
-            if ir_path.is_file():
-                ir_digest = f"sha256:{hashlib.sha256(ir_path.read_bytes()).hexdigest()}"
-                if evidence.get("case_ir_digest") != ir_digest:
-                    return ("REJECTED_PROMOTED_DIGEST_MISMATCH", evidence, None)
-
-        return (decision, evidence, metrics)
-    except Exception:
-        return ("INVALID", None, None)
+    decision = result.get("decision", "INVALID")
+    evidence = result.get("evidence")
+    metrics = result.get("metrics")
+    return (decision, evidence, metrics)
 
 
 def _verify_reference_receipt(run_dir: Path) -> tuple[bool, dict[str, Any]]:
@@ -203,19 +179,17 @@ def _verify_calibration_receipt(run_dir: Path) -> tuple[bool, dict[str, Any]]:
 
 
 def _verify_release_receipt(run_dir: Path) -> tuple[bool, dict[str, Any]]:
-    """Re-verify benchmark-valid receipt exists and contains valid release graph."""
-    rel_file = run_dir / "reports" / "benchmark-valid.json"
-    if not rel_file.is_file():
-        return False, {}
+    """Re-execute the full release validation from first principles.
+
+    Never trusts the benchmark-valid.json verdict; re-derives it by calling
+    evaluate_release_validity() which re-checks CaseSpec, Case IR, source
+    lock, runnable gate, discovery, reference, calibration, and threshold
+    freeze.
+    """
+    from ccbench.builder.release import evaluate_release_validity
     try:
-        doc = json.loads(rel_file.read_text(encoding="utf-8"))
-        if not isinstance(doc, dict):
-            return False, {}
-        if not doc.get("valid", False):
-            return False, doc
-        if "evidence_graph" not in doc:
-            return False, doc
-        return True, doc
+        result = evaluate_release_validity(run_dir)
+        return result["valid"], result
     except Exception:
         return False, {}
 

@@ -153,15 +153,19 @@ def publish_case(
                 shutil.copytree(sdir, staging_maint / subdir)
 
         # ── Commit Phase ─────────────────────────────────────────────
+        # Track whether this is a new case (no pre-existing dest)
+        had_public = dest_case_dir.exists()
+        had_maint = dest_maint_dir.exists()
+
         # 1. Backup existing public case if replacing
-        if dest_case_dir.exists():
+        if had_public:
             os.rename(str(dest_case_dir), str(backup_public))
 
         # 2. Atomic rename of staging -> final public
         os.rename(str(staging_public), str(dest_case_dir))
 
         # 3. Backup existing maintainer archive if replacing
-        if dest_maint_dir.exists():
+        if had_maint:
             os.rename(str(dest_maint_dir), str(backup_maint))
 
         # 4. Atomic rename of staging -> final maintainer
@@ -180,17 +184,24 @@ def publish_case(
         if staging_maint.exists():
             shutil.rmtree(staging_maint, ignore_errors=True)
 
-        # Restore public backup if it was moved
+        # Restore public backup if it was moved (replacing existing case)
         if backup_public.exists():
             if dest_case_dir.exists():
                 shutil.rmtree(dest_case_dir, ignore_errors=True)
             os.rename(str(backup_public), str(dest_case_dir))
+        elif not had_public and dest_case_dir.exists():
+            # New case: no backup exists, but dest was created in this transaction
+            # Roll back by removing the orphaned public case
+            shutil.rmtree(dest_case_dir, ignore_errors=True)
 
-        # Restore maintainer backup if it was moved
+        # Restore maintainer backup if it was moved (replacing existing archive)
         if backup_maint.exists():
             if dest_maint_dir.exists():
                 shutil.rmtree(dest_maint_dir, ignore_errors=True)
             os.rename(str(backup_maint), str(dest_maint_dir))
+        elif not had_maint and dest_maint_dir.exists():
+            # New case: no backup exists, but maintainer was created in this transaction
+            shutil.rmtree(dest_maint_dir, ignore_errors=True)
 
         raise PublishError(f"Publish transaction aborted and rolled back: {exc}") from exc
 

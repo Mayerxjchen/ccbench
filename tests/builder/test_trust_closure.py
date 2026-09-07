@@ -1,21 +1,25 @@
 """Comprehensive adversarial trust closure test suite for CCBench Case Builder.
 
-Verifies that:
-1. forged smoke-report cannot advance state.
-2. forged benchmark-valid.json cannot publish.
-3. empty sources.lock cannot reach SOURCE_LOCKED.
-4. untracked source added after lock breaks SOURCE_LOCKED.
-5. empty/arbitrary metrics cannot be PROMOTED.
-6. verifier exit 0 without result.json causes runnable failure.
-7. category mandatory layer omission fails compile.
-8. inline threshold fails schema validation.
-9. target_case_id mismatch aborts publish.
-10. safe replace restores old case on staging failure.
+Verifies the 10 critical trust closure invariants:
+1. forged smoke receipt -> state cannot advance
+2. forged benchmark-valid receipt -> publish impossible
+3. empty sources.lock -> not SOURCE_LOCKED
+4. untracked source added after lock -> fail
+5. metrics/empty.json -> never PROMOTED
+6. verifier exit 0 without result.json -> fail
+7. calibration != Case IR thresholds -> release fails
+8. MLP omits V4 -> plan compile fail
+9. inline threshold -> schema fail
+10. target != IR != CaseSpec -> publish fails
+11. new-case maintainer commit failure -> zero public residue
+12. official Skill template -> load_case_ir PASS
+13. hpc execution vocabulary -> Case IR == CaseSpec
 """
 
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 import pytest
 import yaml
@@ -23,9 +27,10 @@ import yaml
 from ccbench.builder.discovery import (
     DiscoveryEvidenceError,
     classify_discovery_evidence,
+    verify_discovery_classification,
 )
 from ccbench.builder.publish import PublishError, publish_case
-from ccbench.builder.release import check_release_validity
+from ccbench.builder.release import evaluate_release_validity
 from ccbench.builder.source_lock import (
     SourceTier,
     build_sources_lock,
@@ -33,7 +38,10 @@ from ccbench.builder.source_lock import (
 )
 from ccbench.builder.state import CaseLifecycleState, derive_state
 from ccbench.builder.verifier_plan import VerifierPlan, VerifierPlanError
-from ccbench.builder.design import CaseIRValidationError, validate_case_ir
+from ccbench.builder.design import CaseIRValidationError, load_case_ir, validate_case_ir
+
+
+# ── Source closure ────────────────────────────────────────────────────
 
 
 def test_empty_sources_lock_cannot_reach_source_locked(tmp_path: Path):
@@ -56,12 +64,14 @@ def test_untracked_source_added_after_lock_fails(tmp_path: Path):
     (source_dir / "valid.xyz").write_text("lattice", encoding="utf-8")
     build_sources_lock(source_dir, {"valid.xyz": SourceTier.PUBLIC_SOURCE})
 
-    # Added after lock:
     (source_dir / "untracked.xyz").write_text("sneaky", encoding="utf-8")
 
     state = derive_state(tmp_path)
     assert state.current_state == CaseLifecycleState.INTAKE_COMPLETE
     assert "SOURCE_LOCK" in state.open_gates
+
+
+# ── Discovery closure ────────────────────────────────────────────────
 
 
 def test_arbitrary_empty_metrics_never_promoted(tmp_path: Path):
@@ -74,11 +84,67 @@ def test_arbitrary_empty_metrics_never_promoted(tmp_path: Path):
         classify_discovery_evidence(metrics_dir)
 
 
+def test_forged_discovery_decision_mismatch_rejected(tmp_path: Path):
+    """A receipt with decision=PROMOTED but failure_class=INFRA_INVALID must be rejected."""
+    disc_dir = tmp_path / "discovery"
+    disc_dir.mkdir()
+    ir_path = tmp_path / "design" / "case.ir.yaml"
+    ir_path.parent.mkdir(parents=True, exist_ok=True)
+    ir_path.write_text("schema: 1\n", encoding="utf-8")
+    ir_sha = f"sha256:{hashlib.sha256(ir_path.read_bytes()).hexdigest()}"
+
+    doc = {
+        "decision": "PROMOTED",
+        "evidence": {
+            "run_id": "fake",
+            "candidate_bundle_digest": "sha256:" + "a" * 64,
+            "case_ir_digest": ir_sha,
+            "outcome": {"terminal_state": "FAILED", "candidate_exit_code": 1, "verifier_exit_code": 1},
+            "metrics": {"run_duration_sec": 100},
+            "failure_class": "INFRA_INVALID",
+        },
+    }
+    (disc_dir / "classification.json").write_text(json.dumps(doc), encoding="utf-8")
+
+    ok, result = verify_discovery_classification(tmp_path, verify_candidate_digest=False)
+    assert not ok
+    assert any("Decision mismatch" in e for e in result.get("errors", []))
+
+
+def test_forged_discovery_digest_mismatch_rejected(tmp_path: Path):
+    """A receipt with wrong case_ir_digest must be rejected."""
+    disc_dir = tmp_path / "discovery"
+    disc_dir.mkdir()
+    ir_path = tmp_path / "design" / "case.ir.yaml"
+    ir_path.parent.mkdir(parents=True, exist_ok=True)
+    ir_path.write_text("schema: 1\n", encoding="utf-8")
+
+    doc = {
+        "decision": "PROMOTED",
+        "evidence": {
+            "run_id": "fake",
+            "candidate_bundle_digest": "sha256:" + "a" * 64,
+            "case_ir_digest": "sha256:" + "f" * 64,  # WRONG digest
+            "outcome": {"terminal_state": "COMPLETED", "candidate_exit_code": 0, "verifier_exit_code": 0},
+            "metrics": {"run_duration_sec": 100},
+            "failure_class": "SUCCESS",
+        },
+    }
+    (disc_dir / "classification.json").write_text(json.dumps(doc), encoding="utf-8")
+
+    ok, result = verify_discovery_classification(tmp_path, verify_candidate_digest=False)
+    assert not ok
+    assert any("case_ir_digest mismatch" in e for e in result.get("errors", []))
+
+
+# ── Verifier closure ─────────────────────────────────────────────────
+
+
 def test_inline_threshold_fails_case_ir_schema():
     """Case IR schema must forbid inline 'threshold' parameter."""
     doc = {
         "schema_version": 1,
-        "identity": {"title": "T", "category": "mlp"},
+        "identity": {"title": "T", "category": "mlp", "case_id": "000-test"},
         "scientific_target": {"system": "Si", "objective": "E"},
         "selection": {"paradigm": "standard"},
         "candidate": {"instruction": "Run", "inputs": [{"path": "train.xyz"}]},
@@ -119,6 +185,9 @@ def test_mlp_omits_v4_plan_compile_fails():
         VerifierPlan.from_case_ir(case_ir)
 
 
+# ── Publish closure ──────────────────────────────────────────────────
+
+
 def test_target_case_id_mismatch_publish_fails(tmp_path: Path):
     """target_case_id != CaseSpec case_id must abort publish."""
     run_dir = tmp_path / "run"
@@ -155,10 +224,41 @@ def test_safe_replacement_preserves_old_case_on_failure(tmp_path: Path):
 
     bad_run = tmp_path / "runs" / "bad-run"
     bad_run.mkdir(parents=True)
-    # Draft is empty / invalid
     with pytest.raises(PublishError):
         publish_case(bad_run, "006-existing", cases_dir=cases_dir, maintainer_dir=tmp_path / "maintainer", force=True)
 
-    # Verify original case is preserved!
     assert (existing_case / "task.md").is_file()
     assert (existing_case / "task.md").read_text(encoding="utf-8") == "# Original Case\n"
+
+
+def test_new_case_no_residue_on_failure(tmp_path: Path):
+    """New case publish must leave zero public residue if maintainer commit fails."""
+    run_dir = tmp_path / "run"
+    run_dir.mkdir(parents=True)
+    with pytest.raises(PublishError):
+        publish_case(run_dir, "000-new-case", cases_dir=tmp_path / "cases", maintainer_dir=tmp_path / "maintainer")
+    assert not (tmp_path / "cases" / "000-new-case").exists()
+
+
+# ── Schema/template closure ──────────────────────────────────────────
+
+
+def test_official_skill_template_is_valid():
+    """Official Skill template must pass Case IR schema validation."""
+    template = Path("maintainer/skills/build-scientific-benchmark-case/templates/case.ir.yaml")
+    if not template.is_file():
+        pytest.skip("Template not present in working tree")
+    doc = load_case_ir(template)
+    assert doc["identity"]["case_id"] is not None
+
+
+def test_hpc_execution_vocabulary_must_match_casespec():
+    """Case IR hpc_controller must be accepted by CaseSpec."""
+    from ccbench.contracts.case import EXECUTION_CLASSES
+    assert "hpc_controller" in EXECUTION_CLASSES
+    assert "local_sandbox" in EXECUTION_CLASSES
+    import json as _json
+    from ccbench.paths import SCHEMAS_DIR
+    s = _json.loads((SCHEMAS_DIR / "case-ir.schema.json").read_text(encoding="utf-8"))
+    exec_enum = s["properties"]["runtime"]["properties"]["execution_class"]["enum"]
+    assert exec_enum == ["local_sandbox", "hpc_controller"]

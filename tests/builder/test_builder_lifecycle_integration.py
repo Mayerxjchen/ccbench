@@ -148,14 +148,25 @@ def test_full_builder_lifecycle_end_to_end(tmp_path: Path):
     ])
     assert rc_fail != 0
 
-    # 5b. Evidence-based classification with real case_ir digest
+    # 5b. Evidence-based classification with real digests
     import hashlib as _hashlib
+    from ccbench.contracts.case import CaseSpec as _CaseSpec
+    from ccbench.core.packager import package_candidate as _package_candidate
+    import tempfile as _tempfile
+
     ir_sha = _hashlib.sha256((run_dir / "design" / "case.ir.yaml").read_bytes()).hexdigest()
+
+    # Compute real candidate bundle digest
+    spec = _CaseSpec.load(run_dir / "draft")
+    with _tempfile.TemporaryDirectory() as tmp_str:
+        bundle = _package_candidate(spec, Path(tmp_str))
+        real_cb_digest = f"sha256:{bundle.public_digest}"
+
     metrics_dir = tmp_path / "discovery_metrics"
     metrics_dir.mkdir()
     disc_doc = {
         "run_id": "disc-001",
-        "candidate_bundle_digest": "sha256:" + "a" * 64,
+        "candidate_bundle_digest": real_cb_digest,
         "case_ir_digest": f"sha256:{ir_sha}",
         "outcome": {"terminal_state": "COMPLETED", "candidate_exit_code": 0, "verifier_exit_code": 0},
         "metrics": {"energy_rmse": 0.03},
@@ -188,11 +199,13 @@ def test_full_builder_lifecycle_end_to_end(tmp_path: Path):
 
     # Threshold freeze (MANDATORY for release)
     ir_sha_freeze = _hashlib.sha256((run_dir / "design" / "case.ir.yaml").read_bytes()).hexdigest()
+    ref_sha = _hashlib.sha256((reports_dir / "reference-ready.json").read_bytes()).hexdigest()
     cal_thresholds = {"energy_rmse_max": 0.05}
     thresholds_digest = f"sha256:{_hashlib.sha256(json.dumps(cal_thresholds, sort_keys=True).encode('utf-8')).hexdigest()}"
     (reports_dir / "threshold-freeze.json").write_text(
         json.dumps({
             "case_ir_digest": f"sha256:{ir_sha_freeze}",
+            "reference_digest": f"sha256:{ref_sha}",
             "formal_agent_results_seen": False,
             "thresholds_digest": thresholds_digest,
         }),
@@ -200,20 +213,11 @@ def test_full_builder_lifecycle_end_to_end(tmp_path: Path):
     )
 
     state6 = derive_state(run_dir)
-    assert state6.current_state == CaseLifecycleState.CALIBRATED
+    # With all reports in place (reference, calibration, threshold-freeze),
+    # derive_state re-executes the full release check and reaches BENCHMARK_VALID
+    assert state6.current_state == CaseLifecycleState.BENCHMARK_VALID
 
-    # ── 7. Release Check ─────────────────────────────────────────────
-    rc = cli_main([
-        "case", "release-check",
-        "--run-dir", str(run_dir),
-    ])
-    assert rc == 0
-    assert (reports_dir / "benchmark-valid.json").is_file()
-
-    state7 = derive_state(run_dir)
-    assert state7.current_state == CaseLifecycleState.BENCHMARK_VALID
-
-    # ── 8. Atomic Publish ────────────────────────────────────────────
+    # ── 7. Atomic Publish ────────────────────────────────────────────
     from ccbench.builder.publish import publish_case
     published = publish_case(
         run_dir,

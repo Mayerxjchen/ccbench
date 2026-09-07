@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -175,7 +177,6 @@ def record_discovery_result(
             raise DiscoveryEvidenceError(
                 "Cannot record PROMOTED decision without valid evidence dictionary."
             )
-        # Ensure evidence satisfies schema
         validate_discovery_evidence_doc(evidence)
 
     disc_dir = Path(run_dir) / "discovery"
@@ -190,3 +191,139 @@ def record_discovery_result(
     target = disc_dir / "classification.json"
     target.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return target
+
+
+# ── Canonical Discovery Verifier ──────────────────────────────────────
+
+SHA256_HEX_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+
+
+def verify_discovery_classification(
+    run_dir: Path,
+    *,
+    verify_candidate_digest: bool = True,
+) -> tuple[bool, dict[str, Any]]:
+    """Canonical verification of discovery classification.
+
+    Re-derives the decision from evidence, validates schema, verifies
+    case_ir_digest and candidate_bundle_digest bindings, and checks
+    that the recorded decision matches the derived decision.
+
+    Returns (ok, result_dict).
+    """
+    import re as _re
+    run_dir = Path(run_dir).resolve()
+    disc_file = run_dir / "discovery" / "classification.json"
+
+    if not disc_file.is_file():
+        return False, {"errors": ["Missing discovery/classification.json"]}
+
+    try:
+        doc = json.loads(disc_file.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, {"errors": [f"Failed to parse classification.json: {exc}"]}
+
+    recorded_decision = doc.get("decision")
+    evidence = doc.get("evidence")
+    errors: list[str] = []
+
+    if not recorded_decision:
+        return False, {"errors": ["classification.json missing 'decision' field"]}
+
+    # 1. Evidence schema validation
+    if not evidence or not isinstance(evidence, dict):
+        return False, {"errors": ["PROMOTED decision lacks evidence dictionary"]}
+
+    try:
+        validate_discovery_evidence_doc(evidence)
+    except DiscoveryEvidenceError as exc:
+        return False, {"errors": [f"Evidence schema invalid: {exc}"]}
+
+    # 2. Verify digests format (strict sha256 hex)
+    cb_digest = str(evidence.get("candidate_bundle_digest", ""))
+    ir_digest = str(evidence.get("case_ir_digest", ""))
+
+    if not SHA256_HEX_RE.match(cb_digest):
+        errors.append(f"candidate_bundle_digest is not valid sha256 hex: {cb_digest!r}")
+    if not SHA256_HEX_RE.match(ir_digest):
+        errors.append(f"case_ir_digest is not valid sha256 hex: {ir_digest!r}")
+
+    # 3. Verify case_ir_digest binding against real artifact
+    case_ir_path = run_dir / "design" / "case.ir.yaml"
+    if not case_ir_path.is_file():
+        case_ir_path = run_dir / "design" / "case.ir.json"
+
+    if case_ir_path.is_file() and SHA256_HEX_RE.match(ir_digest):
+        actual_ir_digest = f"sha256:{hashlib.sha256(case_ir_path.read_bytes()).hexdigest()}"
+        if ir_digest != actual_ir_digest:
+            errors.append(
+                f"case_ir_digest mismatch: receipt={ir_digest} != actual={actual_ir_digest}"
+            )
+
+    # 4. Verify candidate_bundle_digest binding against real package
+    if verify_candidate_digest and SHA256_HEX_RE.match(cb_digest):
+        try:
+            from ccbench.contracts.case import CaseSpec
+            from ccbench.core.packager import package_candidate
+            import tempfile
+
+            draft_dir = run_dir / "draft"
+            spec = CaseSpec.load(draft_dir)
+            with tempfile.TemporaryDirectory() as tmp_str:
+                bundle = package_candidate(spec, Path(tmp_str))
+                actual_cb_digest = bundle.public_digest
+            # Normalize: strip sha256: prefix for comparison
+            receipt_hex = cb_digest.removeprefix("sha256:")
+            actual_hex = actual_cb_digest.removeprefix("sha256:")
+            if receipt_hex != actual_hex:
+                errors.append(
+                    f"candidate_bundle_digest mismatch: receipt={cb_digest} != actual=sha256:{actual_hex}"
+                )
+        except Exception as exc:
+            errors.append(f"Failed to verify candidate_bundle_digest: {exc}")
+
+    # 5. Re-derive decision from failure_class
+    derived_decision = _derive_decision_from_evidence(evidence)
+    if recorded_decision != derived_decision.value:
+        errors.append(
+            f"Decision mismatch: recorded={recorded_decision} != derived={derived_decision.value} "
+            f"(evidence failure_class={evidence.get('failure_class', 'N/A')})"
+        )
+
+    if errors:
+        return False, {"errors": errors}
+
+    return True, {
+        "decision": recorded_decision,
+        "derived_decision": derived_decision.value,
+        "evidence": evidence,
+        "metrics": doc.get("metrics", {}),
+    }
+
+
+def _derive_decision_from_evidence(evidence: dict[str, Any]) -> DiscoveryDecision:
+    """Re-derive decision from evidence failure_class and outcome."""
+    fclass_str = evidence.get("failure_class", "")
+
+    if fclass_str:
+        try:
+            fclass = FailureClass(fclass_str)
+        except ValueError:
+            return DiscoveryDecision.REJECT
+    else:
+        outcome = evidence.get("outcome", {})
+        c_code = outcome.get("candidate_exit_code", -1)
+        v_code = outcome.get("verifier_exit_code", -1)
+        if c_code == 0 and v_code == 0:
+            fclass = FailureClass.SUCCESS
+        elif c_code == 0 and v_code != 0:
+            fclass = FailureClass.AGENT_LIMITATION
+        else:
+            fclass = FailureClass.INFRA_INVALID
+
+    if fclass in (FailureClass.SUCCESS, FailureClass.AGENT_LIMITATION):
+        return DiscoveryDecision.PROMOTED
+    elif fclass in (FailureClass.SOURCE_BLOCKED, FailureClass.RUNTIME_BLOCKED, FailureClass.CASE_DESIGN_BLOCKED):
+        return DiscoveryDecision.REFINE
+    else:
+        return DiscoveryDecision.REJECT
