@@ -76,10 +76,24 @@ def test_active_tree_has_no_legacy_runtime_paths():
 
 
 def test_scripts_evidence_is_actively_scanned_without_exemption():
-    """Ensure scripts/evidence/ is actively covered by SSOT scanners and free of legacy IDs."""
-    text = (ROOT / "scripts" / "evidence" / "write_evidence_manifest.py").read_text(encoding="utf-8")
-    for legacy_id in ("031", "032", "033", "034", "042"):
-        assert legacy_id not in text, f"Found legacy id {legacy_id} in scripts/evidence/write_evidence_manifest.py"
+    """Ensure scripts/evidence/ is actively covered by SSOT scanners and free of legacy IDs.
+
+    Scans all Python files under scripts/evidence/ for bare legacy case IDs
+    (031, 032, 033, 034, 042) as standalone tokens — catches both string literals
+    like ``"031"`` and code references like ``_metrics_031``.
+    """
+    import re
+    legacy_ids = ("031", "032", "033", "034", "042")
+    # Match legacy IDs as standalone tokens (word boundaries) to avoid
+    # false positives on substrings like "1031" or "0310".
+    id_pattern = re.compile(r"\b(?:" + "|".join(legacy_ids) + r")\b")
+    scripts_dir = ROOT / "scripts" / "evidence"
+    for py_file in sorted(scripts_dir.glob("*.py")):
+        text = py_file.read_text(encoding="utf-8")
+        matches = id_pattern.findall(text)
+        assert not matches, (
+            f"Found legacy id(s) {sorted(set(matches))} in {py_file.relative_to(ROOT)}"
+        )
 
 
 def test_all_runtime_locks_validate_against_schema():

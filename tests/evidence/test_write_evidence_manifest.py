@@ -25,7 +25,7 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _identity() -> dict[str, str]:
+def _identity(case_id: str = "001") -> dict[str, str]:
     return {
         "--seed": "2026081201", "--run-id": "run-1",
         "--git-commit": "4da3d31", "--git-clean": "true",
@@ -33,24 +33,24 @@ def _identity() -> dict[str, str]:
         "--gpu-image-digest": "sha256:" + "99" * 32,
         "--cpu-verifier-image": "/runtime/matclaw-cips-2.2.11-cpu-amd64.sif",
         "--cpu-verifier-image-digest": "sha256:" + "f1" * 32,
-        "--workspace-identity": "031-2026081201",
+        "--workspace-identity": f"{case_id}-2026081201",
         "--hardware-json": '{"node": "<site-node-gpu3>"}',
         "--software-json": '{"deepmd": "2.2.11"}',
     }
 
 
-def _fixtures(tmp_path: Path, report: dict) -> tuple[list[str], Path]:
+def _fixtures(tmp_path: Path, report: dict, case_id: str = "001") -> tuple[list[str], Path]:
     """Minimal case dir, restored tree, files list, bundle descriptor, report.
     Returns argv + the dir that will receive the written manifest
     (the writer emits it at ``restored.parent / manifest.json``)."""
     # case_id is derived from the case-dir basename ("001-matclaw-…" -> "001")
-    case_dir = tmp_path / "001-matclaw-cips-active-distillation"
+    case_dir = tmp_path / f"{case_id}-matclaw-cips-active-distillation"
     (case_dir / "reference").mkdir(parents=True)
     (case_dir / "reference" / "evidence-policy.json").write_text(
-        json.dumps({"schema_version": "1", "case_id": "001",
+        json.dumps({"schema_version": "1", "case_id": case_id,
                     "state": "benchmark_valid", "finalization_allowed": True}))
     (case_dir / "evaluator-manifest.json").write_text(
-        json.dumps({"schema_version": "1", "case_id": "001",
+        json.dumps({"schema_version": "1", "case_id": case_id,
                     "bundle_sha256": "ab" * 32, "files": []}))
 
     restored = tmp_path / "restored"
@@ -82,7 +82,7 @@ def _fixtures(tmp_path: Path, report: dict) -> tuple[list[str], Path]:
         "--files-json", str(files_json), "--verifier-report", str(report_json),
         "--bundle-json", str(bundle_json),
     ]
-    for key, val in _identity().items():
+    for key, val in _identity(case_id).items():
         argv += [key, val]
     return argv, tmp_path
 
@@ -115,4 +115,76 @@ def test_writer_keeps_recomputed_estimate_when_present(tmp_path: Path) -> None:
 
 def test_writer_rejects_invalid_report(tmp_path: Path) -> None:
     argv, _ = _fixtures(tmp_path, {"valid": False, "errors": ["bad"]})
+    assert main(argv) == 1
+
+
+@pytest.mark.parametrize("case_id", ["001", "002", "003", "004", "005"])
+def test_writer_extracts_canonical_case_id(tmp_path: Path, case_id: str) -> None:
+    """Canonical case IDs are extracted correctly from directory name."""
+    report = {"valid": True, "errors": [],
+              "recomputed_final_mae_eV_A": 0.0968, "active_iterations": 2}
+    argv, out_dir = _fixtures(tmp_path, report, case_id=case_id)
+
+    assert main(argv) == 0
+    manifest = json.loads((out_dir / "manifest.json").read_text())
+    assert manifest["case"] == case_id
+    assert manifest["workspace_identity"] == f"{case_id}-2026081201"
+    jsonschema.validate(manifest, json.loads(SCHEMA.read_text()))
+
+
+@pytest.mark.parametrize("case_dir_name", ["031-matclaw-cips-active-distillation",
+                                            "999-unknown-case"])
+def test_writer_rejects_non_canonical_case_id(tmp_path: Path, case_dir_name: str) -> None:
+    """Non-canonical case IDs (031, 999, etc.) are rejected with exit code 1."""
+    case_dir = tmp_path / case_dir_name
+    case_dir.mkdir()
+    (case_dir / "reference").mkdir()
+    (case_dir / "reference" / "evidence-policy.json").write_text(
+        json.dumps({"schema_version": "1", "case_id": "031",
+                    "state": "benchmark_valid", "finalization_allowed": True}))
+
+    restored = tmp_path / "restored"
+    restored.mkdir()
+    (restored / "result.json").write_text(json.dumps({"final_force_mae_eV_A": 0.0968}))
+
+    files_json = tmp_path / "files.json"
+    files_json.write_text(json.dumps([{
+        "path": "result.json", "role": "scoring_required",
+        "size_bytes": (restored / "result.json").stat().st_size,
+        "sha256": _sha256(restored / "result.json"),
+    }]))
+
+    bundle_json = tmp_path / "bundle.json"
+    bundle_json.write_text(json.dumps({
+        "format": "tar.zst", "sha256": "c4" * 32, "size_bytes": 123,
+        "primary_uri": "cas+file:///store/primary/sha256/c4/cccc.tar.zst",
+        "primary_version": "immutable",
+        "replica_uri": "cas+file:///store/replica/sha256/c4/cccc.tar.zst",
+        "replica_version": "immutable",
+        "verified_at": "2026-08-18T00:00:00Z",
+    }))
+
+    report_json = tmp_path / "report.json"
+    report_json.write_text(json.dumps({"valid": True, "errors": []}))
+
+    argv = [
+        "--case-dir", str(case_dir), "--restored", str(restored),
+        "--files-json", str(files_json), "--verifier-report", str(report_json),
+        "--bundle-json", str(bundle_json),
+    ]
+    # Use a generic identity that doesn't match the case_id
+    identity = {
+        "--seed": "2026081201", "--run-id": "run-1",
+        "--git-commit": "4da3d31", "--git-clean": "true",
+        "--gpu-image": "/runtime/matclaw-cips-2.2.11-gpu-amd64.sif",
+        "--gpu-image-digest": "sha256:" + "99" * 32,
+        "--cpu-verifier-image": "/runtime/matclaw-cips-2.2.11-cpu-amd64.sif",
+        "--cpu-verifier-image-digest": "sha256:" + "f1" * 32,
+        "--workspace-identity": "001-2026081201",  # Use 001 to avoid validation issues
+        "--hardware-json": '{"node": "<site-node-gpu3>"}',
+        "--software-json": '{"deepmd": "2.2.11"}',
+    }
+    for key, val in identity.items():
+        argv += [key, val]
+
     assert main(argv) == 1

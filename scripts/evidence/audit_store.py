@@ -16,7 +16,7 @@ audited against the live cluster stores without copying bytes.
 Usage::
 
     python scripts/evidence/audit_store.py --all-manifests [--via-ssh <site-alias>]
-    python scripts/evidence/audit_store.py --case 031 --via-ssh <site-alias>
+    python scripts/evidence/audit_store.py --case 001 --via-ssh <site-alias>
 
 Exit 0 iff every audited run is ``complete``. JSON report on stdout (fit for Run
 Record attachment).
@@ -103,7 +103,7 @@ def audit_store(evidence_root: Path = DEFAULT_EVIDENCE_ROOT,
             continue
         bundle = data.get("bundle")
         if not bundle or not bundle.get("sha256"):
-            continue  # not a sealed v2 run (e.g. 033) — nothing to audit
+            continue  # not a sealed v2 run — nothing to audit
         digest, size = bundle["sha256"], int(bundle["size_bytes"])
         pri = _check_object(_object_path_from_uri(bundle["primary_uri"]),
                             digest, size, via_ssh)

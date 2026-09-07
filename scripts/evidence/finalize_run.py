@@ -48,7 +48,7 @@ class SlurmVerifierRuntime:
     The finalize transaction itself runs on the cluster login node (python3 +
     numpy + zstd, no ase); the frozen CPU verifier SIF can only ``apptainer
     exec`` on a compute node. Each ``run()`` renders a slurm script mirroring
-    the 031 formal template's verifier invocation, submits it with ``sbatch
+    the formal template's verifier invocation, submits it with ``sbatch
     --wait``, and reads ``verifier_report.json`` from the job's out dir. The
     submission, tests, and SIF all live on the cluster filesystem — no bytes
     cross the host<->cluster link.

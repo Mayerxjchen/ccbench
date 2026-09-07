@@ -18,7 +18,7 @@ Usage::
         --case-dir $PAYLOAD/cases/001-matclaw-cips-active-distillation \\
         --verifier-slurm \\
         --verifier-sif …/matclaw-cips-2.2.11-cpu-amd64.sif \\
-        --verifier-tests $PAYLOAD/cases/001-matclaw-cips-active-distillation/tests \\
+        --verifier-tests $PAYLOAD/cases/001-matclaw-cips-active-distillation/verifier \\
         --verifier-apptainer /public/software/apptainer/bin/apptainer \\
         --verifier-scratch …/verify-scratch \\
         --verifier-partition cpu --verifier-gres '' --verifier-account acct-blocked
@@ -124,7 +124,7 @@ def recover_and_verify(case_id: str, run_id: str, evidence_root: Path,
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--case", required=True, choices=("001", "002", "003", "004", "005", "031", "032", "033"))
+    ap.add_argument("--case", required=True, choices=("001", "002", "003", "004", "005"))
     ap.add_argument("--run", required=True, choices=("run-1", "run-2"))
     ap.add_argument("--evidence-root", type=Path, default=DEFAULT_EVIDENCE_ROOT)
     ap.add_argument("--case-dir", type=Path, required=True)

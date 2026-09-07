@@ -71,7 +71,7 @@ def _result(workspace: Path) -> dict[str, Any]:
     return json.loads(result_path.read_text(encoding="utf-8"))
 
 
-def _metrics_031(workspace: Path, report: dict[str, Any]) -> dict[str, Any]:
+def _metrics_001(workspace: Path, report: dict[str, Any]) -> dict[str, Any]:
     return {
         "valid": report.get("valid"),
         "final_force_mae_eV_A": report.get("recomputed_final_mae_eV_A"),
@@ -80,7 +80,7 @@ def _metrics_031(workspace: Path, report: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _metrics_032(workspace: Path, report: dict[str, Any]) -> dict[str, Any]:
+def _metrics_002(workspace: Path, report: dict[str, Any]) -> dict[str, Any]:
     return {
         "valid": report.get("valid"),
         "Tc_K": (report.get("recomputed_estimate") or {}).get("Tc_K"),
@@ -90,7 +90,7 @@ def _metrics_032(workspace: Path, report: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _metrics_033(workspace: Path, report: dict[str, Any]) -> dict[str, Any]:
+def _metrics_003(workspace: Path, report: dict[str, Any]) -> dict[str, Any]:
     result = _result(workspace)
     best = result.get("best") or {}
     history = result.get("history", [])
@@ -111,9 +111,9 @@ def _metrics_033(workspace: Path, report: dict[str, Any]) -> dict[str, Any]:
 
 
 _CASE_METRIC_EXTRACTORS = {
-    "031": _metrics_031,
-    "032": _metrics_032,
-    "033": _metrics_033,
+    "001": _metrics_001,
+    "002": _metrics_002,
+    "003": _metrics_003,
 }
 
 

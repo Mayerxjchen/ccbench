@@ -1,5 +1,5 @@
 """Shared ER5/ER6 test fixtures: a policy-faithful verifier runtime and small
-positive workspaces for 031/032/033. Placed in the same directory as the
+positive workspaces for 001/002/003. Placed in the same directory as the
 tests so ``import support`` works under pytest's prepend import mode.
 """
 
@@ -16,17 +16,13 @@ CASES = {
     "001": ROOT / "cases" / "001-matclaw-cips-active-distillation" if (ROOT / "cases" / "001-matclaw-cips-active-distillation").is_dir() else ROOT / "001-matclaw-cips-active-distillation",
     "002": ROOT / "cases" / "002-matclaw-cips-curie-temperature" if (ROOT / "cases" / "002-matclaw-cips-curie-temperature").is_dir() else ROOT / "002-matclaw-cips-curie-temperature",
     "003": ROOT / "cases" / "003-matclaw-cips-domain-wall-search" if (ROOT / "cases" / "003-matclaw-cips-domain-wall-search").is_dir() else ROOT / "003-matclaw-cips-domain-wall-search",
-    "031": ROOT / "cases" / "001-matclaw-cips-active-distillation" if (ROOT / "cases" / "001-matclaw-cips-active-distillation").is_dir() else ROOT / "001-matclaw-cips-active-distillation",
-    "032": ROOT / "cases" / "002-matclaw-cips-curie-temperature" if (ROOT / "cases" / "002-matclaw-cips-curie-temperature").is_dir() else ROOT / "002-matclaw-cips-curie-temperature",
-    "033": ROOT / "cases" / "003-matclaw-cips-domain-wall-search" if (ROOT / "cases" / "003-matclaw-cips-domain-wall-search").is_dir() else ROOT / "003-matclaw-cips-domain-wall-search",
 }
 
 
 def _find_evidence_policy(case_key: str) -> Path:
-    num = {"031": "001", "032": "002", "033": "003"}.get(case_key, case_key)
     cands = [
-        ROOT / "maintainer" / "cases" / num / "reference" / "evidence-policy.json",
-        ROOT / "maintainer" / "cases" / num / "baseline" / "evidence-policy.json",
+        ROOT / "maintainer" / "cases" / case_key / "reference" / "evidence-policy.json",
+        ROOT / "maintainer" / "cases" / case_key / "baseline" / "evidence-policy.json",
         CASES[case_key] / "reference" / "evidence-policy.json",
     ]
     return next((c for c in cands if c.is_file()), cands[0])
@@ -84,7 +80,7 @@ def build_workspace(tmp_path: Path, case_id: str) -> Path:
     ws = tmp_path / case_id / "workspace"
     ws.mkdir(parents=True)
     declared: dict[str, str] = {}
-    if case_id == "032":
+    if case_id == "002":
         files: dict[str, bytes | str] = {
             "result.json": json.dumps({
                 "profile": "paper", "atom_count": 360, "Tc_K": 259.44,
@@ -106,7 +102,7 @@ def build_workspace(tmp_path: Path, case_id: str) -> Path:
         result["declared_sha256"] = declared
         files["result.json"] = json.dumps(result)
         _write_tree(ws, files)
-    elif case_id == "031":
+    elif case_id == "001":
         files = {
             "result.json": json.dumps({
                 "profile": "paper", "final_force_mae_eV_A": 0.07,
@@ -136,7 +132,7 @@ def build_workspace(tmp_path: Path, case_id: str) -> Path:
         result["declared_sha256"] = declared
         files["result.json"] = json.dumps(result)
         _write_tree(ws, files)
-    else:  # 033
+    else:  # 003
         files = {
             "result.json": json.dumps({
                 "profile": "paper",

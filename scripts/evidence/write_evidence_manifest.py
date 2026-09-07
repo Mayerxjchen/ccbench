@@ -160,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"bundle descriptor missing key: {key}", file=sys.stderr)
             return 1
 
-    case_id = args.case_dir.name.split("-matclaw-")[0] if "-matclaw-" in args.case_dir.name else args.case_dir.name
+    case_id = case_num
     metrics = _metrics_for_case(case_id, restored, report)
     started_at = args.started_at or _now_utc()
     finished_at = args.finished_at or _now_utc()

@@ -3,7 +3,7 @@
 The finalize transaction runs on the cluster login node (python3.9 + numpy +
 zstd, no ase); the frozen CPU verifier SIF can only exec on a compute node, so
 each verification is one ``sbatch --wait`` job. The runtime renders a slurm
-script mirroring the 031 formal template's verifier invocation, submits it, and
+script mirroring the formal template's verifier invocation, submits it, and
 reads ``verifier_report.json`` from the job's out dir. No host<->cluster byte
 transfer is involved — submission, tests, and SIF all live on the cluster.
 """
@@ -70,7 +70,7 @@ def _fake_sbatch(tmp_path: Path) -> Path:
 
     Reads the rendered slurm script, locates the out dir from the ``--bind
     <dir>:/out:rw`` mount, and writes a valid report there. Emulates the frozen
-    verifier's shape for case 032 (13-value grid, Tc_K within tolerance).
+    verifier's shape for case 002 (13-value grid, Tc_K within tolerance).
     """
     fake_dir = tmp_path / "bin"
     fake_dir.mkdir()

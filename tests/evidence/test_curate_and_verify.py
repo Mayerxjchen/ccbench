@@ -30,7 +30,7 @@ from support import CASES, POLICY, ScriptableVerifierRuntime, build_workspace, s
 ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.parametrize("case_id", ["031", "032", "033"])
+@pytest.mark.parametrize("case_id", ["001", "002", "003"])
 def test_curated_tree_reproduces_verifier_metrics(case_id: str, tmp_path: Path) -> None:
     ws = build_workspace(tmp_path, case_id)
     evidence = curate_and_verify(CASES[case_id], ws, POLICY[case_id],
@@ -46,13 +46,13 @@ def test_curated_tree_reproduces_verifier_metrics(case_id: str, tmp_path: Path) 
     assert evidence.original_report == evidence.curated_report
 
 
-@pytest.mark.parametrize("case_id", ["031", "032", "033"])
+@pytest.mark.parametrize("case_id", ["001", "002", "003"])
 def test_missing_required_file_fails_closed(case_id: str, tmp_path: Path) -> None:
     ws = build_workspace(tmp_path, case_id)
     victim = {
-        "031": "models/model_1.pb",
-        "032": "md/pilot_350K.traj",
-        "033": "traj_1.traj",
+        "001": "models/model_1.pb",
+        "002": "md/pilot_350K.traj",
+        "003": "traj_1.traj",
     }[case_id]
     (ws / victim).unlink()
     with pytest.raises(EvidencePolicyError):
@@ -60,13 +60,13 @@ def test_missing_required_file_fails_closed(case_id: str, tmp_path: Path) -> Non
                           ScriptableVerifierRuntime(POLICY[case_id]))
 
 
-@pytest.mark.parametrize("case_id", ["031", "032", "033"])
+@pytest.mark.parametrize("case_id", ["001", "002", "003"])
 def test_tampered_required_file_refuses_bundle(case_id: str, tmp_path: Path) -> None:
     ws = build_workspace(tmp_path, case_id)
     victim = {
-        "031": "exploration/e_1.traj",
-        "032": "md/0K.traj",
-        "033": "best_trajectory.traj",
+        "001": "exploration/e_1.traj",
+        "002": "md/0K.traj",
+        "003": "best_trajectory.traj",
     }[case_id]
     (ws / victim).write_text("tampered-bytes")
     with pytest.raises(CurateError, match="rejects|diverges"):
@@ -82,15 +82,15 @@ def test_local_runtime_requires_case_verifier(tmp_path: Path) -> None:
 def test_v2_manifest_writer_emits_curated_artifacts_and_bundle(tmp_path: Path) -> None:
     """ER5 Step 4: manifest references the curated list + stored bundle, not the
     full workspace scan; output satisfies the v2 schema."""
-    ws = build_workspace(tmp_path, "032")
-    evidence = curate_and_verify(CASES["032"], ws, POLICY["032"],
-                                 ScriptableVerifierRuntime(POLICY["032"]))
+    ws = build_workspace(tmp_path, "002")
+    evidence = curate_and_verify(CASES["002"], ws, POLICY["002"],
+                                 ScriptableVerifierRuntime(POLICY["002"]))
     files_json = [{"path": f.path, "role": f.role,
                    "size_bytes": f.size_bytes, "sha256": f.sha256} for f in evidence.files]
     files_listing = tmp_path / "curated_files.json"
     files_listing.write_text(json.dumps(files_json))
 
-    restored = tmp_path / "032" / "restored"
+    restored = tmp_path / "002" / "restored"
     restored.mkdir(parents=True)
     for entry in evidence.files:
         target = restored / entry.path
@@ -112,7 +112,7 @@ def test_v2_manifest_writer_emits_curated_artifacts_and_bundle(tmp_path: Path) -
 
     from scripts.evidence.write_evidence_manifest import main as write_manifest
     rc = write_manifest([
-        "--case-dir", str(CASES["032"]),
+        "--case-dir", str(CASES["002"]),
         "--restored", str(restored),
         "--files-json", str(files_listing),
         "--verifier-report", str(report_path),
@@ -120,7 +120,7 @@ def test_v2_manifest_writer_emits_curated_artifacts_and_bundle(tmp_path: Path) -
         "--git-commit", "71078a4", "--git-clean", "true",
         "--gpu-image", "img", "--gpu-image-digest", "sha256:" + "11" * 32,
         "--cpu-verifier-image", "img", "--cpu-verifier-image-digest", "sha256:" + "22" * 32,
-        "--workspace-identity", "032-2026081206",
+        "--workspace-identity", "002-2026081206",
         "--started-at", "2026-08-18T11:36:27Z", "--finished-at", "2026-08-18T12:12:34Z",
         "--bundle-json", str(bundle_listing),
     ])
@@ -143,8 +143,8 @@ def test_v2_manifest_writer_emits_curated_artifacts_and_bundle(tmp_path: Path) -
 
 
 def test_v2_manifest_writer_rejects_nonvalid_report(tmp_path: Path) -> None:
-    ws = build_workspace(tmp_path, "032")
-    restored = tmp_path / "032" / "restored"
+    ws = build_workspace(tmp_path, "002")
+    restored = tmp_path / "002" / "restored"
     restored.mkdir(parents=True)
     files_listing = tmp_path / "curated.json"
     files_listing.write_text("[]")
@@ -159,7 +159,7 @@ def test_v2_manifest_writer_rejects_nonvalid_report(tmp_path: Path) -> None:
 
     from scripts.evidence.write_evidence_manifest import main as write_manifest
     rc = write_manifest([
-        "--case-dir", str(CASES["032"]), "--restored", str(restored),
+        "--case-dir", str(CASES["002"]), "--restored", str(restored),
         "--files-json", str(files_listing),
         "--verifier-report", str(bad_report),
         "--seed", "1", "--run-id", "run-1", "--git-commit", "x", "--git-clean", "true",
