@@ -84,7 +84,7 @@ def test_profiles_and_source_locks_are_explicit() -> None:
         assert len(lock["teacher_model"]["sha256"]) == 64
 
 
-def test_case_033_public_profile_does_not_reveal_answer_or_future_path() -> None:
+def test_case_003_public_profile_does_not_reveal_answer_or_future_path() -> None:
     """The adaptive-search answer and precomputed path must stay hidden in solution/.
 
     The paper protocol is a *sequential* search: each round's proposal may depend only on
@@ -153,7 +153,7 @@ def test_reference_manifest_does_not_scan_full_workspace() -> None:
     assert "finalize_run.py" in runner
 
 
-def test_031_formal_harness_keeps_hidden_verifier_out_of_solver_stage() -> None:
+def test_001_formal_harness_keeps_hidden_verifier_out_of_solver_stage() -> None:
     harness = (ROOT / "evidence/matclaw/formal/031-formal-run-template.slurm").read_text()
     solve_call = '"$GPU_SIF" /solution/solve.sh'
     verifier_mount = '--bind "$WORKSPACE:/app:ro" --bind "$TESTS:/tests:ro"'
@@ -161,7 +161,7 @@ def test_031_formal_harness_keeps_hidden_verifier_out_of_solver_stage() -> None:
     assert '--bind "$TESTS:/tests:ro"' not in harness[: harness.index(solve_call)]
 
 
-def test_031_formal_harness_manifests_only_hidden_verifier_success() -> None:
+def test_001_formal_harness_manifests_only_hidden_verifier_success() -> None:
     harness = (ROOT / "evidence/matclaw/formal/031-formal-run-template.slurm").read_text()
     assert 'if test "$VERIFY_EXIT" -ne 0' in harness
     assert 'report.get("valid") is not True' in harness
@@ -170,7 +170,7 @@ def test_031_formal_harness_manifests_only_hidden_verifier_success() -> None:
     assert 'run / "private" / "tests"' in harness
 
 
-def test_031_formal_harness_uses_the_site_accepted_qualified_gpu_request() -> None:
+def test_001_formal_harness_uses_the_site_accepted_qualified_gpu_request() -> None:
     harness = (ROOT / "evidence/matclaw/formal/031-formal-run-template.slurm").read_text()
     assert "#SBATCH --partition=gpu" in harness
     assert "#SBATCH --gres=gpu:1" in harness
@@ -178,7 +178,7 @@ def test_031_formal_harness_uses_the_site_accepted_qualified_gpu_request() -> No
     assert '"gres": "gpu:1"' in harness
 
 
-def test_031_verifier_recomputes_every_solver_exploration_frame() -> None:
+def test_001_verifier_recomputes_every_solver_exploration_frame() -> None:
     """Solver and verifier must agree that ASE's saved initial frame is a candidate."""
     c1 = _case_dir("001-matclaw-cips-active-distillation")
     v_path = c1 / "verifier" / "verifier.py" if (c1 / "verifier" / "verifier.py").is_file() else c1 / "tests" / "verifier.py"
@@ -187,7 +187,7 @@ def test_031_verifier_recomputes_every_solver_exploration_frame() -> None:
     assert "list(Trajectory(str(path)))[1:]" not in verifier
 
 
-def test_031_alternative_scores_every_exploration_frame() -> None:
+def test_001_alternative_scores_every_exploration_frame() -> None:
     m1 = _maintainer_dir("001-matclaw-cips-active-distillation")
     alt_path = m1 / "solution" / "alt_distillation.py" if (m1 / "solution" / "alt_distillation.py").is_file() else _case_dir("001-matclaw-cips-active-distillation") / "solution" / "alt_distillation.py"
     alternative = alt_path.read_text()
@@ -197,7 +197,7 @@ def test_031_alternative_scores_every_exploration_frame() -> None:
     assert "trajectory)[1:]" not in alternative
 
 
-def test_031_alternative_heldout_excludes_shared_pre_dynamics_frame() -> None:
+def test_001_alternative_heldout_excludes_shared_pre_dynamics_frame() -> None:
     """Held-out data must not contain the identical frame zero shared by all MD runs."""
     m1 = _maintainer_dir("001-matclaw-cips-active-distillation")
     alt_path = m1 / "solution" / "alt_distillation.py" if (m1 / "solution" / "alt_distillation.py").is_file() else _case_dir("001-matclaw-cips-active-distillation") / "solution" / "alt_distillation.py"

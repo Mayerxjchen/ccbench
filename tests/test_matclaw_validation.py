@@ -21,9 +21,9 @@ CASE_NAMES = {
     "001": "001-matclaw-cips-active-distillation",
     "002": "002-matclaw-cips-curie-temperature",
     "003": "003-matclaw-cips-domain-wall-search",
-    "031": "001-matclaw-cips-active-distillation",
-    "032": "002-matclaw-cips-curie-temperature",
-    "033": "003-matclaw-cips-domain-wall-search",
+    "001": "001-matclaw-cips-active-distillation",
+    "002": "002-matclaw-cips-curie-temperature",
+    "003": "003-matclaw-cips-domain-wall-search",
 }
 TEMPERATURES = [100, 150, 200, 250, 275, 300, 325, 350, 375, 400, 450, 500, 600]
 
@@ -33,9 +33,9 @@ def sha256_bytes(payload: bytes) -> str:
 
 
 def metrics_for(case_id: str) -> dict:
-    if case_id == "031":
+    if case_id == "001":
         return {"final_force_mae_eV_A": 0.099, "active_iterations": 1}
-    if case_id == "032":
+    if case_id == "002":
         return {"Tc_K": 261.3, "temperatures_K": TEMPERATURES, "atom_count": 360}
     return {
         "best_Ez_V_A": -0.16,
@@ -49,7 +49,7 @@ def metrics_for(case_id: str) -> dict:
 
 def write_manifest(
     root: Path,
-    case_id: str = "031",
+    case_id: str = "001",
     run_id: str = "run-1",
     seed: int = 101,
     evidence_class: str = "formal",
@@ -101,7 +101,7 @@ def case_fixture(tmp_path: Path, case_id: str) -> Path:
 
 def test_missing_formal_bundle_forces_false(tmp_path: Path) -> None:
     report = derive_case(
-        case_dir=case_fixture(tmp_path, "031"),
+        case_dir=case_fixture(tmp_path, "001"),
         evidence_root=tmp_path / "formal",
         policy_path=POLICY,
     )
@@ -113,7 +113,7 @@ def test_missing_formal_bundle_forces_false(tmp_path: Path) -> None:
 
 def test_diagnostic_manifest_is_never_formal(tmp_path: Path) -> None:
     manifest = write_manifest(tmp_path, evidence_class="diagnostic")
-    result = validate_run_manifest(manifest, "031", load_policy(POLICY))
+    result = validate_run_manifest(manifest, "001", load_policy(POLICY))
     assert result["eligible"] is False
     assert "evidence_class" in result["errors"]
 
@@ -121,7 +121,7 @@ def test_diagnostic_manifest_is_never_formal(tmp_path: Path) -> None:
 def test_digest_tampering_forces_false(tmp_path: Path) -> None:
     manifest = write_manifest(tmp_path)
     (manifest.parent / "artifacts/result.json").write_text("{}", encoding="utf-8")
-    result = validate_run_manifest(manifest, "031", load_policy(POLICY))
+    result = validate_run_manifest(manifest, "001", load_policy(POLICY))
     assert result["eligible"] is False
     assert any("sha256" in error for error in result["errors"])
 
@@ -131,14 +131,14 @@ def test_manifest_rejects_unsafe_artifact_path(tmp_path: Path) -> None:
     data = json.loads(manifest.read_text())
     data["artifacts"][0]["path"] = "../outside.json"
     manifest.write_text(json.dumps(data), encoding="utf-8")
-    result = validate_run_manifest(manifest, "031", load_policy(POLICY))
+    result = validate_run_manifest(manifest, "001", load_policy(POLICY))
     assert result["eligible"] is False
     assert "unsafe artifact path" in result["errors"]
 
 
 def write_v2_manifest(
     root: Path,
-    case_id: str = "031",
+    case_id: str = "001",
     run_id: str = "run-1",
     seed: int = 101,
     metrics: dict | None = None,
@@ -193,13 +193,13 @@ def write_v2_manifest(
 def test_v2_manifest_validates_on_record_path_without_adjacent_bytes(tmp_path: Path) -> None:
     """v2 restored/ bytes live in the store; the record path must not demand them."""
     manifest = write_v2_manifest(tmp_path)
-    result = validate_run_manifest(manifest, "031", load_policy(POLICY))
+    result = validate_run_manifest(manifest, "001", load_policy(POLICY))
     assert result["eligible"] is True, result["errors"]
 
 
 def test_v2_manifest_requires_bundle_descriptor_on_record_path(tmp_path: Path) -> None:
     manifest = write_v2_manifest(tmp_path, bundle=False)
-    result = validate_run_manifest(manifest, "031", load_policy(POLICY))
+    result = validate_run_manifest(manifest, "001", load_policy(POLICY))
     assert result["eligible"] is False
     assert "bundle descriptor" in result["errors"]
 
@@ -210,7 +210,7 @@ def test_v2_manifest_byte_checks_on_restore_path(tmp_path: Path) -> None:
     restored = tmp_path / "restored"
     (restored / "workspace").mkdir(parents=True)
     (restored / "workspace" / "result.json").write_bytes(b"wrong-bytes")
-    result = validate_run_manifest(manifest, "031", load_policy(POLICY),
+    result = validate_run_manifest(manifest, "001", load_policy(POLICY),
                                    artifact_base=tmp_path)
     assert result["eligible"] is False
     assert any("sha256" in error for error in result["errors"])
@@ -233,7 +233,7 @@ def test_manifest_rejects_nonformal_identity(
     data = json.loads(manifest.read_text())
     data[field] = value
     manifest.write_text(json.dumps(data), encoding="utf-8")
-    result = validate_run_manifest(manifest, "031", load_policy(POLICY))
+    result = validate_run_manifest(manifest, "001", load_policy(POLICY))
     assert result["eligible"] is False
     assert error in result["errors"]
 
@@ -241,12 +241,12 @@ def test_manifest_rejects_nonformal_identity(
 @pytest.mark.parametrize(
     ("case_id", "bad_metrics", "error_fragment"),
     [
-        ("031", {"final_force_mae_eV_A": 0.101, "active_iterations": 1}, "MAE"),
-        ("031", {"final_force_mae_eV_A": 0.099, "active_iterations": 0}, "active"),
-        ("032", {"Tc_K": 272.0, "temperatures_K": TEMPERATURES, "atom_count": 360}, "Tc"),
-        ("032", {"Tc_K": 261.3, "temperatures_K": TEMPERATURES[:-1], "atom_count": 360}, "temperature grid"),
-        ("033", {**metrics_for("033"), "best_Ez_V_A": -0.10}, "field"),
-        ("033", {**metrics_for("033"), "slope_ps_per_site": 0.3}, "slope"),
+        ("001", {"final_force_mae_eV_A": 0.101, "active_iterations": 1}, "MAE"),
+        ("001", {"final_force_mae_eV_A": 0.099, "active_iterations": 0}, "active"),
+        ("002", {"Tc_K": 272.0, "temperatures_K": TEMPERATURES, "atom_count": 360}, "Tc"),
+        ("002", {"Tc_K": 261.3, "temperatures_K": TEMPERATURES[:-1], "atom_count": 360}, "temperature grid"),
+        ("003", {**metrics_for("003"), "best_Ez_V_A": -0.10}, "field"),
+        ("003", {**metrics_for("003"), "slope_ps_per_site": 0.3}, "slope"),
     ],
 )
 def test_case_science_thresholds_fail_closed(
@@ -262,17 +262,17 @@ def test_case_science_thresholds_fail_closed(
     ("rounds", "jobs"),
     [
         (7, 14),  # full paper trajectory (paper_rounds/paper_jobs in acceptance.json)
-        (5, 10),  # early-stop after the band is reached (as the 033 GPU diagnostic did)
+        (5, 10),  # early-stop after the band is reached (as the 003 GPU diagnostic did)
         (3, 6),   # earliest plausible stop
     ],
 )
-def test_033_early_stop_paths_are_valid(tmp_path: Path, rounds: int, jobs: int) -> None:
+def test_003_early_stop_paths_are_valid(tmp_path: Path, rounds: int, jobs: int) -> None:
     """The paper profile's early-stop rule makes short adaptive paths valid."""
     manifest = write_manifest(
-        tmp_path, case_id="033",
-        metrics={**metrics_for("033"), "rounds": rounds, "jobs": jobs},
+        tmp_path, case_id="003",
+        metrics={**metrics_for("003"), "rounds": rounds, "jobs": jobs},
     )
-    result = validate_run_manifest(manifest, "033", load_policy(POLICY))
+    result = validate_run_manifest(manifest, "003", load_policy(POLICY))
     assert result["eligible"] is True
 
 
@@ -288,7 +288,7 @@ def valid_pair(tmp_path: Path, case_id: str) -> tuple[dict, dict]:
     return left, right
 
 
-@pytest.mark.parametrize("case_id", ["031", "032", "033"])
+@pytest.mark.parametrize("case_id", ["001", "002", "003"])
 def test_valid_independent_pairs_pass(case_id: str, tmp_path: Path) -> None:
     left, right = valid_pair(tmp_path, case_id)
     comparison = compare_formal_runs(case_id, left, right, load_policy(POLICY))
@@ -302,18 +302,18 @@ def test_valid_independent_pairs_pass(case_id: str, tmp_path: Path) -> None:
         ({"seed": 101}, "distinct seeds"),
         ({"git_commit": "d" * 40}, "git commit"),
         ({"gpu_image_digest": "sha256:" + "e" * 64}, "GPU image"),
-        ({"workspace_identity": "workspace-031-run-1"}, "workspace"),
+        ({"workspace_identity": "workspace-001-run-1"}, "workspace"),
     ],
 )
 def test_pair_identity_must_be_independent_and_frozen(
     tmp_path: Path, change: dict, error_fragment: str
 ) -> None:
     policy = load_policy(POLICY)
-    left = validate_run_manifest(write_manifest(tmp_path, "031", "run-1", 101), "031", policy)
+    left = validate_run_manifest(write_manifest(tmp_path, "001", "run-1", 101), "001", policy)
     kwargs = {"seed": 102, **change}
-    right_path = write_manifest(tmp_path, "031", "run-2", **kwargs)
-    right = validate_run_manifest(right_path, "031", policy)
-    comparison = compare_formal_runs("031", left, right, policy)
+    right_path = write_manifest(tmp_path, "001", "run-2", **kwargs)
+    right = validate_run_manifest(right_path, "001", policy)
+    comparison = compare_formal_runs("001", left, right, policy)
     assert comparison["valid"] is False
     assert any(error_fragment in error for error in comparison["errors"])
 
@@ -321,9 +321,9 @@ def test_pair_identity_must_be_independent_and_frozen(
 @pytest.mark.parametrize(
     ("case_id", "right_metrics", "error_fragment"),
     [
-        ("031", {"final_force_mae_eV_A": 0.088, "active_iterations": 1}, "MAE difference"),
-        ("032", {"Tc_K": 250.0, "temperatures_K": TEMPERATURES, "atom_count": 360}, "Tc difference"),
-        ("033", {**metrics_for("033"), "best_Ez_V_A": -0.12}, "Ez difference"),
+        ("001", {"final_force_mae_eV_A": 0.088, "active_iterations": 1}, "MAE difference"),
+        ("002", {"Tc_K": 250.0, "temperatures_K": TEMPERATURES, "atom_count": 360}, "Tc difference"),
+        ("003", {**metrics_for("003"), "best_Ez_V_A": -0.12}, "Ez difference"),
     ],
 )
 def test_cross_run_science_disagreement_fails(
@@ -342,14 +342,14 @@ def test_cross_run_science_disagreement_fails(
 
 
 def test_derive_writes_matching_fail_closed_outputs(tmp_path: Path, monkeypatch) -> None:
-    case = case_fixture(tmp_path, "031")
+    case = case_fixture(tmp_path, "001")
     monkeypatch.setattr(
         "sys.argv",
         [
             "matclaw_validation.py",
             "derive",
             "--case",
-            "031",
+            "001",
             "--repo-root",
             str(tmp_path),
             "--policy",
@@ -364,7 +364,7 @@ def test_derive_writes_matching_fail_closed_outputs(tmp_path: Path, monkeypatch)
     summary = json.loads((case / "benchmark_valid.json").read_text())
     assert validation["benchmark_valid"] is False
     assert summary == {
-        "benchmark_id": CASE_NAMES["031"],
+        "benchmark_id": CASE_NAMES["001"],
         "benchmark_valid": False,
         "state": "constructed",
         "reasons": ["two formal runs required"],

@@ -1,9 +1,9 @@
 """ER8: manifest writer omits absent ``recomputed_estimate`` (case-specific).
 
-Case 031 (active distillation) has no Tc; its verifier report carries only
+Case 001 (active distillation) has no Tc; its verifier report carries only
 ``metrics``. The writer must not emit a ``null`` ``recomputed_estimate`` —
 the v2 schema types it ``object``, so null fails validation. The key is
-optional; omit it. Cases that do have an estimate (032) keep it.
+optional; omit it. Cases that do have an estimate (002) keep it.
 """
 
 from __future__ import annotations
@@ -88,7 +88,7 @@ def _fixtures(tmp_path: Path, report: dict, case_id: str = "001") -> tuple[list[
 
 
 def test_writer_omits_absent_recomputed_estimate(tmp_path: Path) -> None:
-    """031-style report (metrics only) must produce a schema-valid manifest
+    """001-style report (metrics only) must produce a schema-valid manifest
     without a null recomputed_estimate key."""
     report = {"valid": True, "errors": [],
               "recomputed_final_mae_eV_A": 0.0968, "active_iterations": 2}
@@ -102,7 +102,7 @@ def test_writer_omits_absent_recomputed_estimate(tmp_path: Path) -> None:
 
 
 def test_writer_keeps_recomputed_estimate_when_present(tmp_path: Path) -> None:
-    """032-style report keeps its estimate."""
+    """002-style report keeps its estimate."""
     report = {"valid": True, "errors": [], "recomputed_estimate": {"Tc_K": 259.44},
               "recomputed_curve": [{"temperature_K": 100}]}
     argv, out_dir = _fixtures(tmp_path, report)

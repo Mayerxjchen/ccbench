@@ -74,14 +74,14 @@ def test_bundle_embeds_manifest_copy(tmp_path: Path) -> None:
     ws.mkdir()
     (ws / "result.json").write_text('{"x":1}')
     descriptor = build_bundle(_files(ws), tmp_path / "b.tar.zst",
-                              manifest={"schema_version": "2.0", "case": "032"}, base_dir=ws)
-    assert descriptor.manifest["case"] == "032"
+                              manifest={"schema_version": "2.0", "case": "002"}, base_dir=ws)
+    assert descriptor.manifest["case"] == "002"
     with _open_tar_zst(tmp_path / "b.tar.zst") as tf:
         names = tf.getnames()
         assert "evidence-manifest.json" in names
         m = tf.extractfile("evidence-manifest.json")
         import json
-        assert json.loads(m.read())["case"] == "032"
+        assert json.loads(m.read())["case"] == "002"
 
 
 def test_extraction_matches_per_file_digests(tmp_path: Path) -> None:

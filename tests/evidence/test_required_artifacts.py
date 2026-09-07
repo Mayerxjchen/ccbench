@@ -2,7 +2,7 @@
 
 Positive fixtures prove every file the hidden verifier reads resolves; a
 removed referenced artifact raises EvidencePolicyError; unreferenced scratch is
-excluded; 034 refuses finalization.
+excluded; 004 refuses finalization.
 """
 
 from __future__ import annotations
@@ -23,18 +23,13 @@ CASE_POLICIES = {
     "002": ROOT / "002-matclaw-cips-curie-temperature" / "reference" / "evidence-policy.json",
     "003": ROOT / "003-matclaw-cips-domain-wall-search" / "reference" / "evidence-policy.json",
     "004": ROOT / "004-ai2kit-water64-end-to-end-potential" / "reference" / "evidence-policy.json",
-    "031": ROOT / "001-matclaw-cips-active-distillation" / "reference" / "evidence-policy.json",
-    "032": ROOT / "002-matclaw-cips-curie-temperature" / "reference" / "evidence-policy.json",
-    "033": ROOT / "003-matclaw-cips-domain-wall-search" / "reference" / "evidence-policy.json",
-    "034": ROOT / "004-ai2kit-water64-end-to-end-potential" / "reference" / "evidence-policy.json",
 }
 
 
 def _policy(case: str) -> dict:
-    num = {"031": "001", "032": "002", "033": "003", "034": "004"}.get(case, case)
     cands = [
-        ROOT / "maintainer" / "cases" / num / "reference" / "evidence-policy.json",
-        ROOT / "maintainer" / "cases" / num / "baseline" / "evidence-policy.json",
+        ROOT / "maintainer" / "cases" / case / "reference" / "evidence-policy.json",
+        ROOT / "maintainer" / "cases" / case / "baseline" / "evidence-policy.json",
         CASE_POLICIES[case],
     ]
     p = next((c for c in cands if c.is_file()), cands[-1])
@@ -48,7 +43,7 @@ def _mk(workspace: Path, rel: str, data: str = "x") -> None:
 
 
 @pytest.fixture
-def ws_032(tmp_path: Path) -> Path:
+def ws_002(tmp_path: Path) -> Path:
     ws = tmp_path / "ws"
     temps = [100, 150, 200, 250, 275, 300, 325, 350, 375, 400, 450, 500, 600]
     records = []
@@ -74,7 +69,7 @@ def ws_032(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def ws_033(tmp_path: Path) -> Path:
+def ws_003(tmp_path: Path) -> Path:
     ws = tmp_path / "ws"
     history = []
     for i in range(1, 5):
@@ -94,7 +89,7 @@ def ws_033(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def ws_031(tmp_path: Path) -> Path:
+def ws_001(tmp_path: Path) -> Path:
     ws = tmp_path / "ws"
     _mk(ws, "result.json")
     _mk(ws, "checkpoint.json")
@@ -127,8 +122,8 @@ def ws_031(tmp_path: Path) -> Path:
     return ws
 
 
-def test_032_resolves_verifier_read_set(ws_032: Path) -> None:
-    files = resolve_required_artifacts(ws_032, _policy("032"))
+def test_002_resolves_verifier_read_set(ws_002: Path) -> None:
+    files = resolve_required_artifacts(ws_002, _policy("002"))
     paths = {f.path for f in files}
     assert "result.json" in paths
     assert "md/pilot_350K.traj" in paths
@@ -140,14 +135,14 @@ def test_032_resolves_verifier_read_set(ws_032: Path) -> None:
     assert "scratch.bin" not in paths
 
 
-def test_032_missing_trajectory_fails_closed(ws_032: Path) -> None:
-    (ws_032 / "md/production_100K.traj").unlink()
+def test_002_missing_trajectory_fails_closed(ws_002: Path) -> None:
+    (ws_002 / "md/production_100K.traj").unlink()
     with pytest.raises(EvidencePolicyError, match="missing referenced artifact"):
-        resolve_required_artifacts(ws_032, _policy("032"))
+        resolve_required_artifacts(ws_002, _policy("002"))
 
 
-def test_033_resolves_verifier_read_set(ws_033: Path) -> None:
-    files = resolve_required_artifacts(ws_033, _policy("033"))
+def test_003_resolves_verifier_read_set(ws_003: Path) -> None:
+    files = resolve_required_artifacts(ws_003, _policy("003"))
     paths = {f.path for f in files}
     assert "result.json" in paths
     assert "teacher_model.pb" in paths
@@ -159,14 +154,14 @@ def test_033_resolves_verifier_read_set(ws_033: Path) -> None:
     assert "scratch.bin" not in paths
 
 
-def test_033_missing_best_trajectory_fails_closed(ws_033: Path) -> None:
-    (ws_033 / "best_trajectory.traj").unlink()
+def test_003_missing_best_trajectory_fails_closed(ws_003: Path) -> None:
+    (ws_003 / "best_trajectory.traj").unlink()
     with pytest.raises(EvidencePolicyError, match="missing referenced artifact"):
-        resolve_required_artifacts(ws_033, _policy("033"))
+        resolve_required_artifacts(ws_003, _policy("003"))
 
 
-def test_031_resolves_refs_globs_and_artifact_hashes(ws_031: Path) -> None:
-    files = resolve_required_artifacts(ws_031, _policy("031"))
+def test_001_resolves_refs_globs_and_artifact_hashes(ws_001: Path) -> None:
+    files = resolve_required_artifacts(ws_001, _policy("001"))
     paths = {f.path for f in files}
     assert "models/iteration_0/member_0/student.pb" in paths
     assert "models/iteration_0/member_1/student.pb" in paths
@@ -177,41 +172,42 @@ def test_031_resolves_refs_globs_and_artifact_hashes(ws_031: Path) -> None:
     assert "active_learning/history.json" in paths
 
 
-def test_031_missing_referenced_model_fails_closed(ws_031: Path) -> None:
-    (ws_031 / "models/iteration_0/member_0/student.pb").unlink()
+def test_001_missing_referenced_model_fails_closed(ws_001: Path) -> None:
+    (ws_001 / "models/iteration_0/member_0/student.pb").unlink()
     with pytest.raises(EvidencePolicyError, match="missing referenced artifact"):
-        resolve_required_artifacts(ws_031, _policy("031"))
+        resolve_required_artifacts(ws_001, _policy("001"))
 
 
-def test_034_refuses_finalization(tmp_path: Path) -> None:
+def test_004_refuses_finalization(tmp_path: Path) -> None:
     ws = tmp_path / "ws"
     ws.mkdir()
     with pytest.raises(EvidencePolicyError, match="may not finalize"):
-        resolve_required_artifacts(ws, _policy("034"))
+        resolve_required_artifacts(ws, _policy("004"))
 
 
-def test_double_role_is_rejected(ws_032: Path) -> None:
-    policy = _policy("032")
+def test_double_role_is_rejected(ws_002: Path) -> None:
+    policy = _policy("002")
     policy["reproduction_required"] = [
         {"path": "result.json", "role": "reproduction_required"}]
     with pytest.raises(EvidencePolicyError, match="two roles"):
-        resolve_required_artifacts(ws_032, policy)
+        resolve_required_artifacts(ws_002, policy)
 
 
-def test_escaping_ref_is_rejected(ws_032: Path) -> None:
-    policy = _policy("032")
+def test_escaping_ref_is_rejected(ws_002: Path) -> None:
+    policy = _policy("002")
     policy["scoring_required"].append(
         {"path": "../outside.bin", "role": "scoring_required"})
     with pytest.raises(EvidencePolicyError, match="unsafe reference path"):
-        resolve_required_artifacts(ws_032, policy)
+        resolve_required_artifacts(ws_002, policy)
 
 
-def test_real_031_workspace_resolves(ws_031: Path) -> None:
-    """The positive fixture mirrors the real 031 shape; the real workspace must
+def test_real_001_workspace_resolves(ws_001: Path) -> None:
+    """The positive fixture mirrors the real 001 shape; the real workspace must
     also resolve completely (it is the migration source in ER8)."""
+    # Historical evidence tree still uses legacy directory name 031.
     real = ROOT / "evidence/matclaw/formal/031/run-1/workspace"
     if not (real / "result.json").is_file():
-        pytest.skip("031 evidence not present locally")
-    files = resolve_required_artifacts(real, _policy("031"))
+        pytest.skip("001 evidence not present locally")
+    files = resolve_required_artifacts(real, _policy("001"))
     assert files
     assert all(f.role in ("scoring_required", "reproduction_required") for f in files)

@@ -22,7 +22,7 @@ if str(_ROOT) not in sys.path:
 SCHEMA_PATH = _ROOT / "schemas" / "compshare-image-recipe.schema.json"
 
 FORBIDDEN_CAPABILITIES = frozenset({"jax", "deepmd-jax", "ai2kit", "cp2k"})
-FORBIDDEN_CASES = frozenset({"004", "031", "032", "033", "034", "042"})
+FORBIDDEN_CASES = frozenset({"031", "032", "033", "034", "042"})
 
 
 class RecipeAuditError(ValueError):

@@ -74,7 +74,7 @@ def _policy_sha(case_dir: Path) -> str:
     if not policy_path.is_file():
         num = case_dir.name.split("-")[0]
         root = case_dir.parent.parent if case_dir.parent.name == "cases" else case_dir.parent
-        id_map = {"001": "001", "002": "002", "003": "003", "004": "004", "005": "005", "031": "001", "032": "002", "033": "003", "034": "004", "042": "005"}
+        id_map = {"001": "001", "002": "002", "003": "003", "004": "004", "005": "005", "001": "001", "002": "002", "003": "003", "004": "004", "005": "005"}
         alt = root / "maintainer" / "cases" / id_map.get(num, num) / "reference" / "evidence-policy.json"
         if alt.is_file():
             policy_path = alt
@@ -90,7 +90,7 @@ def _evaluator_sha(case_dir: Path) -> str | None:
     if not manifest.is_file():
         num = case_dir.name.split("-")[0]
         root = case_dir.parent.parent if case_dir.parent.name == "cases" else case_dir.parent
-        id_map = {"001": "001", "002": "002", "003": "003", "004": "004", "005": "005", "031": "001", "032": "002", "033": "003", "034": "004", "042": "005"}
+        id_map = {"001": "001", "002": "002", "003": "003", "004": "004", "005": "005", "001": "001", "002": "002", "003": "003", "004": "004", "005": "005"}
         alt = root / "maintainer" / "cases" / id_map.get(num, num) / "evaluator-manifest.json"
         if alt.is_file():
             manifest = alt
@@ -121,7 +121,7 @@ def _local_verdict(run_dir: Path, case_id: str, policy: dict[str, Any],
         elif digest and _sha256_file(target) != digest:
             errors.append(f"artifact hash mismatch: {rel}")
 
-    # timestamp order sanity (032 run-1 finished_at predated started_at)
+    # timestamp order sanity (002 run-1 finished_at predated started_at)
     started_raw = manifest.get("started_at")
     finished_raw = manifest.get("finished_at")
     if not started_raw or not finished_raw:
@@ -287,7 +287,7 @@ def _validate_run(case_id: str, run_dir: Path, policy: dict[str, Any],
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--case", required=True, choices=("031", "032", "033"))
+    ap.add_argument("--case", required=True, choices=("001", "002", "003"))
     ap.add_argument("--evidence-root", type=Path,
                     default=ROOT / "evidence" / "matclaw" / "formal")
     ap.add_argument("--restore", choices=("auto", "always", "never"), default="auto")

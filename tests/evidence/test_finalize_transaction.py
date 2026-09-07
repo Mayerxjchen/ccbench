@@ -33,7 +33,7 @@ MANIFEST_ARGS = {
     "gpu_image_digest": "sha256:" + "34" * 32,
     "cpu_verifier_image": "dftworld-base-matclaw-cips:2.2.11-cpu-amd64",
     "cpu_verifier_image_digest": "sha256:" + "f3" * 32,
-    "workspace_identity": "032-2026081206",
+    "workspace_identity": "002-2026081206",
     "started_at": "2026-08-18T11:36:27Z",
     "finished_at": "2026-08-18T12:12:34Z",
     "hardware_json": json.dumps({"job": "3567687", "node": "<site-node-gpu3>"}),
@@ -46,8 +46,8 @@ def _make_transaction(ws: Path, tmp_path: Path, run_dir: Path, *, fail_after: st
     primary = tmp_path / "store" / "primary"
     replica = tmp_path / "store" / "replica"
     return FinalizeTransaction(
-        run_dir=run_dir, workspace=ws, case_dir=CASES["032"],
-        policy=POLICY["032"], verifier_runtime=ScriptableVerifierRuntime(POLICY["032"]),
+        run_dir=run_dir, workspace=ws, case_dir=CASES["002"],
+        policy=POLICY["002"], verifier_runtime=ScriptableVerifierRuntime(POLICY["002"]),
         primary_uri=f"cas+file://{primary}", replica_uri=f"cas+file://{replica}",
         manifest_args=dict(MANIFEST_ARGS), fail_after=fail_after)
 
@@ -59,7 +59,7 @@ def _count_objects(store_root: Path) -> int:
 @pytest.mark.parametrize("failed_state", list(STATES[:-1]))
 def test_resume_after_every_state_produces_one_of_everything(failed_state: str, tmp_path: Path) -> None:
     run_dir = tmp_path / "runs" / failed_state
-    ws = build_workspace(tmp_path, "032"); tx = _make_transaction(ws, tmp_path, run_dir, fail_after=failed_state)
+    ws = build_workspace(tmp_path, "002"); tx = _make_transaction(ws, tmp_path, run_dir, fail_after=failed_state)
     with pytest.raises(FinalizeError, match="injected failure"):
         tx.run()
     assert tx.current() == failed_state
@@ -83,7 +83,7 @@ def test_resume_after_every_state_produces_one_of_everything(failed_state: str, 
 
 def test_sealed_object_is_not_overwritten(tmp_path: Path) -> None:
     run_dir = tmp_path / "runs" / "sealed"
-    ws = build_workspace(tmp_path, "032")
+    ws = build_workspace(tmp_path, "002")
     _make_transaction(ws, tmp_path, run_dir).run()
     before = (run_dir / "manifest.json").read_bytes()
     with pytest.raises(SealedObjectError):
@@ -94,7 +94,7 @@ def test_sealed_object_is_not_overwritten(tmp_path: Path) -> None:
 
 def test_crash_mid_primary_leaves_replica_empty(tmp_path: Path) -> None:
     run_dir = tmp_path / "runs" / "mid-primary"
-    ws = build_workspace(tmp_path, "032"); tx = _make_transaction(ws, tmp_path, run_dir, fail_after="PRIMARY_VERIFIED")
+    ws = build_workspace(tmp_path, "002"); tx = _make_transaction(ws, tmp_path, run_dir, fail_after="PRIMARY_VERIFIED")
     with pytest.raises(FinalizeError):
         tx.run()
     # primary written + verified, replica untouched until its own step
@@ -106,7 +106,7 @@ def test_crash_mid_primary_leaves_replica_empty(tmp_path: Path) -> None:
 
 def test_resume_reuses_staged_curation(tmp_path: Path) -> None:
     run_dir = tmp_path / "runs" / "staging"
-    ws = build_workspace(tmp_path, "032"); tx = _make_transaction(ws, tmp_path, run_dir, fail_after="CURATED")
+    ws = build_workspace(tmp_path, "002"); tx = _make_transaction(ws, tmp_path, run_dir, fail_after="CURATED")
     with pytest.raises(FinalizeError):
         tx.run()
     staging = Path(tx.state["staging"])

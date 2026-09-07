@@ -4,21 +4,35 @@
   "same_commit_required": true,
   "same_gpu_image_digest_required": true,
   "distinct_seed_required": true,
-  "031": {
+  "001": {
     "source_mae_eV_A": 0.098,
-    "max_mae_eV_A": 0.10,
+    "max_mae_eV_A": 0.1,
     "max_source_relative_error": 0.25,
     "max_cross_run_mae_eV_A": 0.01,
     "min_active_iterations": 1
   },
-  "032": {
+  "002": {
     "source_Tc_K": 261.3,
     "max_source_abs_error_K": 10.0,
     "max_cross_run_abs_error_K": 10.0,
-    "temperatures_K": [100, 150, 200, 250, 275, 300, 325, 350, 375, 400, 450, 500, 600],
+    "temperatures_K": [
+      100,
+      150,
+      200,
+      250,
+      275,
+      300,
+      325,
+      350,
+      375,
+      400,
+      450,
+      500,
+      600
+    ],
     "atom_count": 360
   },
-  "033": {
+  "003": {
     "source_Ez_V_A": -0.16,
     "max_Ez_abs_error_V_A": 0.02,
     "source_temperature_K": 50,

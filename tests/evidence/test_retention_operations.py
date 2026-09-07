@@ -102,7 +102,7 @@ def complete_evidence(tmp_path: Path) -> tuple[Path, Path, EvidenceStore, str]:
     primary, replica, store = _store(tmp_path)
     obj = _put(store, b"bundle-bytes-for-audit" * 10)
     evidence_root = tmp_path / "evidence"
-    _write_manifest(evidence_root, "031", "run-1", obj)
+    _write_manifest(evidence_root, "001", "run-1", obj)
     return evidence_root, primary, replica, obj.sha256
 
 
@@ -120,7 +120,7 @@ def test_audit_complete_when_both_stores_ok(complete_evidence: tuple) -> None:
     evidence_root, primary, replica, digest = complete_evidence
     audit_store = _import("audit_store")
     report = audit_store.audit_store(evidence_root)
-    run = report["cases"]["031"]["runs"]["run-1"]
+    run = report["cases"]["001"]["runs"]["run-1"]
     assert run["status"] == "complete"
     assert run["primary_ok"] is True
     assert run["replica_ok"] is True
@@ -134,7 +134,7 @@ def test_audit_reports_degraded_when_replica_missing(complete_evidence: tuple) -
     (replica / "sha256" / digest[:2] / f"{digest}.tar.zst").unlink()
     audit_store = _import("audit_store")
     report = audit_store.audit_store(evidence_root)
-    run = report["cases"]["031"]["runs"]["run-1"]
+    run = report["cases"]["001"]["runs"]["run-1"]
     assert run["status"] == "degraded"
     assert run["primary_ok"] is True
     assert run["replica_ok"] is False
@@ -149,7 +149,7 @@ def test_audit_unavailable_blocks_benchmark_validity(complete_evidence: tuple) -
         (store / "sha256" / digest[:2] / f"{digest}.tar.zst").unlink()
     audit_store = _import("audit_store")
     report = audit_store.audit_store(evidence_root)
-    run = report["cases"]["031"]["runs"]["run-1"]
+    run = report["cases"]["001"]["runs"]["run-1"]
     assert run["status"] == "unavailable"
     assert report["any_unavailable"] is True
     assert report["blocks_benchmark_valid"] is True
@@ -161,7 +161,7 @@ def test_audit_detects_corrupt_object(complete_evidence: tuple) -> None:
     target.write_bytes(b"tampered-bytes")
     audit_store = _import("audit_store")
     report = audit_store.audit_store(evidence_root)
-    run = report["cases"]["031"]["runs"]["run-1"]
+    run = report["cases"]["001"]["runs"]["run-1"]
     assert run["sha256_ok"] is False
     assert run["status"] == "corrupt"
     assert run["errors"]
@@ -266,7 +266,7 @@ def test_recovery_drill_restores_and_verifies(tmp_path: Path) -> None:
     restored tree, reporting a JSON result with the restored digest check."""
     evidence_root = tmp_path / "evidence"
     obj, artifact = _real_bundle(tmp_path)
-    _write_manifest(evidence_root, "031", "run-1", obj, artifacts=[artifact])
+    _write_manifest(evidence_root, "001", "run-1", obj, artifacts=[artifact])
     recovery_drill = _import("recovery_drill")
 
     class FakeRuntime:
@@ -281,8 +281,8 @@ def test_recovery_drill_restores_and_verifies(tmp_path: Path) -> None:
 
     runtime = FakeRuntime()
     report = recovery_drill.recover_and_verify(
-        case_id="031", run_id="run-1", evidence_root=evidence_root,
-        case_dir=tmp_path / "case", policy={"case_id": "031"},
+        case_id="001", run_id="run-1", evidence_root=evidence_root,
+        case_dir=tmp_path / "case", policy={"case_id": "001"},
         verifier_runtime=runtime,  # type: ignore[arg-type]
     )
     assert report["restored"]["sha256_ok"] is True

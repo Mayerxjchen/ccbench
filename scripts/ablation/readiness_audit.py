@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""10-gate read-only readiness audit for Cases 031–034.
+"""10-gate read-only readiness audit for Cases 001–004.
 
 Executable translation of the project-lead readiness directive: before any
-pilot and before Task 14 freeze, each of 031–034 must be checked against ten
+pilot and before Task 14 freeze, each of 001–004 must be checked against ten
 gates.  Every gate is *derived from evidence on disk* — never from a
 hand-written ``VALIDATION.json``/``benchmark_valid.json`` boolean.
 
 Gate engines:
 
-- 031/032/033: ``matclaw_validation.derive_case`` (the fail-closed derive
+- 001/002/003: ``matclaw_validation.derive_case`` (the fail-closed derive
   engine; it never reads the hand-written gate booleans).  The ten directive
   gates are mapped onto the derived G0–G12 gates plus the release manifest.
-- 034: no derive engine exists yet (new HPC contract).  Its A–R acceptance
+- 004: no derive engine exists yet (new HPC contract).  Its A–R acceptance
   board is SELF-REPORTED: the audit reports ``engine: "board"`` and treats
   the board booleans as evidence of the *current declared state*, never as a
   substitute for evidence-derived validity.
@@ -31,7 +31,7 @@ The ten directive gates:
 
 Usage::
 
-    python scripts/ablation/readiness_audit.py [--case all|031|032|033|034]
+    python scripts/ablation/readiness_audit.py [--case all|001|002|003|004]
 
 Writes nothing; prints a per-case JSON report.  Exit 0.  This is a
 diagnostic, never a gate itself — the pilot/freeze decision is the lead's.
@@ -56,7 +56,7 @@ from scripts.matclaw_validation import (  # noqa: E402
     validate_run_manifest,
 )
 
-DIRECTIVE_CASES = ("031", "032", "033", "034")
+DIRECTIVE_CASES = ("001", "002", "003", "004")
 RELEASE_FILE = ROOT / "releases" / "ablation-ready-v0.json"
 EVIDENCE_ROOT = ROOT / "evidence" / "matclaw" / "formal"
 POLICY = ROOT / "benchmark" / "sources" / "matclaw" / "acceptance.json"
@@ -64,10 +64,10 @@ POLICY = ROOT / "benchmark" / "sources" / "matclaw" / "acceptance.json"
 CONSTRUCTION_GATES = ("G0", "G1", "G2", "G3", "G4", "G5", "G6", "G9", "G10", "G11")
 
 CASE_DIRS = {
-    "031": "001-matclaw-cips-active-distillation",
-    "032": "002-matclaw-cips-curie-temperature",
-    "033": "003-matclaw-cips-domain-wall-search",
-    "034": "004-ai2kit-water64-end-to-end-potential",
+    "001": "001-matclaw-cips-active-distillation",
+    "002": "002-matclaw-cips-curie-temperature",
+    "003": "003-matclaw-cips-domain-wall-search",
+    "004": "004-ai2kit-water64-end-to-end-potential",
 }
 
 GATE_LABELS = {
@@ -86,11 +86,11 @@ GATE_LABELS = {
 # Documented open items per case.  These are annotations for the report;
 # whether they block a directive gate is judged from evidence, not assumed.
 KNOWN_NOTES = {
-    "031": "agent SSH transport tension (SSH socket vs gateway HTTP) is a "
+    "001": "agent SSH transport tension (SSH socket vs gateway HTTP) is a "
            "pilot finding, not an oracle gate blocker",
-    "032": "agent SSH transport tension (same as 031); pilot case selected",
-    "033": "agent SSH transport tension (same as 031)",
-    "034": "GPU-amd64 SIF still in build; runtime not validated on real HPC",
+    "002": "agent SSH transport tension (same as 001); pilot case selected",
+    "003": "agent SSH transport tension (same as 001)",
+    "004": "GPU-amd64 SIF still in build; runtime not validated on real HPC",
 }
 
 
@@ -120,10 +120,10 @@ def _component_for(release: dict[str, Any], key: str, case_dir: str) -> dict | N
 
 
 MAINTAINER_CASE_DIRS = {
-    "031": "001",
-    "032": "002",
-    "033": "003",
-    "034": "004",
+    "001": "001",
+    "002": "002",
+    "003": "003",
+    "004": "004",
 }
 
 
@@ -141,10 +141,10 @@ def _get_maintainer_dir(case_id: str) -> Path:
 def _release_freeze_gates(release: dict[str, Any], case_id: str,
                           case_dir: Path) -> dict[str, dict]:
     HISTORICAL_CASE_DIRS = {
-        "031": "031-matclaw-cips-active-distillation",
-        "032": "032-matclaw-cips-curie-temperature",
-        "033": "033-matclaw-cips-domain-wall-search",
-        "034": "034-ai2kit-water64-end-to-end-potential",
+        "001": "001-matclaw-cips-active-distillation",
+        "002": "002-matclaw-cips-curie-temperature",
+        "003": "003-matclaw-cips-domain-wall-search",
+        "004": "004-ai2kit-water64-end-to-end-potential",
     }
     dir_name = HISTORICAL_CASE_DIRS.get(case_id, CASE_DIRS.get(case_id, ""))
     out: dict[str, dict] = {}
@@ -368,7 +368,7 @@ def main(argv: list[str] | None = None) -> int:
     reports: list[dict[str, Any]] = []
 
     for case_id in cases:
-        if case_id in ("031", "032", "033"):
+        if case_id in ("001", "002", "003"):
             gates, source = _derive_gates(case_id, release)
             engine = "derive"
             reasons = source.get("reasons", [])

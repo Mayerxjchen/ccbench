@@ -26,7 +26,7 @@ def validate(instance: dict, schema_name: str) -> None:
 def valid_manifest() -> dict:
     return {
         "schema_version": "2.0",
-        "case": "032",
+        "case": "002",
         "case_version": "2.2.11",
         "run_id": "run-1",
         "seed": 2026081206,
@@ -44,7 +44,7 @@ def valid_manifest() -> dict:
         "hardware": {"job": "3567687", "node": "<site-node-gpu3>"},
         "software": {"apptainer_sif_sha256": "99" * 32},
         "command": "formal round 1 seed 2026081206",
-        "workspace_identity": "032-2026081206",
+        "workspace_identity": "002-2026081206",
         "evaluator_bundle_sha256": "ab" * 32,
         "artifact_policy_sha256": "cd" * 32,
         "artifacts": [
@@ -73,7 +73,7 @@ def valid_manifest() -> dict:
 def valid_policy() -> dict:
     return {
         "schema_version": "1",
-        "case_id": "032",
+        "case_id": "002",
         "state": "benchmark_valid",
         "finalization_allowed": True,
         "scoring_required": [
@@ -91,7 +91,7 @@ def valid_evaluator() -> dict:
     # build_evaluator_manifest.py emits both keys; the schema requires both.
     return {
         "schema_version": "1",
-        "case_id": "032",
+        "case_id": "002",
         "bundle_sha256": "ab" * 32,
         "evaluator_bundle_sha256": "ab" * 32,
         "files": [

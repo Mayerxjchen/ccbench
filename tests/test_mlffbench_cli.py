@@ -55,9 +55,9 @@ def test_site_qualify_forwards_to_qualify_case(monkeypatch):
 
     monkeypatch.setattr(qualify_case, "main", fake_main)
     assert cli.main([
-        "site", "qualify", "--profile", "/tmp/p.toml", "--case", "034", "--dry-run",
+        "site", "qualify", "--profile", "/tmp/p.toml", "--case", "004", "--dry-run",
     ]) == 7
-    assert seen[0] == ["--profile", "/tmp/p.toml", "--case", "034", "--dry-run"]
+    assert seen[0] == ["--profile", "/tmp/p.toml", "--case", "004", "--dry-run"]
 
 
 def test_report_forwards_to_verify_evidence(monkeypatch):
@@ -85,9 +85,9 @@ def test_run_forwards_argv_to_eval_main(monkeypatch):
         seen.append(list(sys.argv))
 
     monkeypatch.setattr(eval_mod, "main", fake_main)
-    assert cli.main(["run", "034-ai2kit-water64-end-to-end-potential", "--skills"]) == 0
+    assert cli.main(["run", "004-ai2kit-water64-end-to-end-potential", "--skills"]) == 0
     assert seen[0] == [
-        "ccbench run", "034-ai2kit-water64-end-to-end-potential", "--skills",
+        "ccbench run", "004-ai2kit-water64-end-to-end-potential", "--skills",
     ]
 
 
@@ -219,11 +219,11 @@ def test_run_translates_compute_flag(monkeypatch):
         seen.append(list(sys.argv))
 
     monkeypatch.setattr(eval_mod, "main", fake_main)
-    code = cli.main(["run", "034-ai2kit-water64-end-to-end-potential", "--compute", "my-profile.json"])
+    code = cli.main(["run", "004-ai2kit-water64-end-to-end-potential", "--compute", "my-profile.json"])
     assert code == 0
     assert seen[0] == [
         "ccbench run",
-        "034-ai2kit-water64-end-to-end-potential",
+        "004-ai2kit-water64-end-to-end-potential",
         "--compute-profile",
         "my-profile.json",
     ]
@@ -239,11 +239,11 @@ def test_run_translates_site_flag(monkeypatch):
         seen.append(list(sys.argv))
 
     monkeypatch.setattr(eval_mod, "main", fake_main)
-    code = cli.main(["run", "034-ai2kit-water64-end-to-end-potential", "--site", "my-site.json"])
+    code = cli.main(["run", "004-ai2kit-water64-end-to-end-potential", "--site", "my-site.json"])
     assert code == 0
     assert seen[0] == [
         "ccbench run",
-        "034-ai2kit-water64-end-to-end-potential",
+        "004-ai2kit-water64-end-to-end-potential",
         "--site-profile",
         "my-site.json",
     ]

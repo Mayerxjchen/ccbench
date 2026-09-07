@@ -1,4 +1,4 @@
-"""Fail-closed validation derivation for MatClaw cases 031-033.
+"""Fail-closed validation derivation for MatClaw cases 001-003.
 
 A case's status is *derived* from formal-run evidence manifests, never from
 hand-written gate booleans. Missing evidence, digest mismatches, dirty source
@@ -10,7 +10,7 @@ Manifest layout on disk (each formal run):
     <evidence_root>/<case_id>/<run_id>/artifacts/...
 
 ``run_id`` is ``run-1`` or ``run-2``; ``case_id`` is the short form
-(``031``, ``032``, ``033``). Artifact paths inside a manifest are resolved
+(``001``, ``002``, ``003``). Artifact paths inside a manifest are resolved
 relative to the manifest's own directory and must stay inside it.
 """
 
@@ -27,11 +27,8 @@ CASE_NAMES = {
     "001": "001-matclaw-cips-active-distillation",
     "002": "002-matclaw-cips-curie-temperature",
     "003": "003-matclaw-cips-domain-wall-search",
-    "031": "001-matclaw-cips-active-distillation",
-    "032": "002-matclaw-cips-curie-temperature",
-    "033": "003-matclaw-cips-domain-wall-search",
 }
-CASE_IDS = {"031", "032", "033"}
+CASE_IDS = {"001", "002", "003"}
 
 RUN_IDS = ("run-1", "run-2")
 
@@ -87,54 +84,54 @@ def _science_errors(case_id: str, metrics: dict[str, Any], policy: dict[str, Any
     errors: list[str] = []
     thresholds = policy[case_id]
 
-    if case_id == "031":
+    if case_id == "001":
         mae = metrics.get("final_force_mae_eV_A")
         if mae is None:
-            errors.append("031: missing final_force_mae_eV_A")
+            errors.append("001: missing final_force_mae_eV_A")
         elif mae > thresholds["max_mae_eV_A"]:
             errors.append(
-                f"031: final force MAE {mae} exceeds max {thresholds['max_mae_eV_A']} (MAE)"
+                f"001: final force MAE {mae} exceeds max {thresholds['max_mae_eV_A']} (MAE)"
             )
         else:
             rel = abs(mae - thresholds["source_mae_eV_A"]) / thresholds["source_mae_eV_A"]
             if rel > thresholds["max_source_relative_error"]:
                 errors.append(
-                    f"031: source-relative MAE error {rel:.3f} exceeds "
+                    f"001: source-relative MAE error {rel:.3f} exceeds "
                     f"{thresholds['max_source_relative_error']} (MAE)"
                 )
         active = metrics.get("active_iterations")
         if active is None or active < thresholds["min_active_iterations"]:
             errors.append(
-                f"031: active iterations {active} < {thresholds['min_active_iterations']} (active)"
+                f"001: active iterations {active} < {thresholds['min_active_iterations']} (active)"
             )
 
-    elif case_id == "032":
+    elif case_id == "002":
         tc = metrics.get("Tc_K")
         if tc is None:
-            errors.append("032: missing Tc_K")
+            errors.append("002: missing Tc_K")
         elif abs(tc - thresholds["source_Tc_K"]) > thresholds["max_source_abs_error_K"]:
             errors.append(
-                f"032: Tc {tc} outside source {thresholds['source_Tc_K']} +/- "
+                f"002: Tc {tc} outside source {thresholds['source_Tc_K']} +/- "
                 f"{thresholds['max_source_abs_error_K']} (Tc)"
             )
         grid = metrics.get("temperatures_K")
         if grid != thresholds["temperatures_K"]:
             errors.append(
-                "032: temperature grid does not match the locked 13-value grid (temperature grid)"
+                "002: temperature grid does not match the locked 13-value grid (temperature grid)"
             )
         atom_count = metrics.get("atom_count")
         if atom_count != thresholds["atom_count"]:
             errors.append(
-                f"032: atom count {atom_count} != {thresholds['atom_count']} (atom count)"
+                f"002: atom count {atom_count} != {thresholds['atom_count']} (atom count)"
             )
 
-    elif case_id == "033":
+    elif case_id == "003":
         ez = metrics.get("best_Ez_V_A")
         if ez is None:
-            errors.append("033: missing best_Ez_V_A")
+            errors.append("003: missing best_Ez_V_A")
         elif abs(ez - thresholds["source_Ez_V_A"]) > thresholds["max_Ez_abs_error_V_A"]:
             errors.append(
-                f"033: best field {ez} outside {thresholds['source_Ez_V_A']} +/- "
+                f"003: best field {ez} outside {thresholds['source_Ez_V_A']} +/- "
                 f"{thresholds['max_Ez_abs_error_V_A']} (field)"
             )
         temp = metrics.get("best_temperature_K")
@@ -142,13 +139,13 @@ def _science_errors(case_id: str, metrics: dict[str, Any], policy: dict[str, Any
             "max_temperature_abs_error_K"
         ]:
             errors.append(
-                f"033: best temperature {temp} outside {thresholds['source_temperature_K']} +/- "
+                f"003: best temperature {temp} outside {thresholds['source_temperature_K']} +/- "
                 f"{thresholds['max_temperature_abs_error_K']} (temperature)"
             )
         slope = metrics.get("slope_ps_per_site")
         if slope is None or slope <= thresholds["min_slope_ps_per_site"]:
             errors.append(
-                f"033: best slope {slope} not > {thresholds['min_slope_ps_per_site']} (slope)"
+                f"003: best slope {slope} not > {thresholds['min_slope_ps_per_site']} (slope)"
             )
         # The paper profile is an evidence-adaptive search with an early-stop rule:
         # measuring a valid in-band sequential-propagation row ends the protocol, so a
@@ -162,16 +159,16 @@ def _science_errors(case_id: str, metrics: dict[str, Any], policy: dict[str, Any
         jobs = metrics.get("jobs")
         if rounds is None or not 1 <= int(rounds) <= thresholds["paper_rounds"]:
             errors.append(
-                f"033: rounds {rounds} outside 1..{thresholds['paper_rounds']} (rounds)"
+                f"003: rounds {rounds} outside 1..{thresholds['paper_rounds']} (rounds)"
             )
         if jobs is None or jobs != 2 * (rounds or 0):
             errors.append(
-                f"033: jobs {jobs} != 2 per round for {rounds} rounds (jobs)"
+                f"003: jobs {jobs} != 2 per round for {rounds} rounds (jobs)"
             )
         max_jobs = metrics.get("max_jobs_per_round")
         if max_jobs is None or max_jobs > thresholds["max_jobs_per_round"]:
             errors.append(
-                f"033: max jobs per round {max_jobs} exceeds "
+                f"003: max jobs per round {max_jobs} exceeds "
                 f"{thresholds['max_jobs_per_round']} (jobs per round)"
             )
 
@@ -266,15 +263,15 @@ def compare_formal_runs(
     right_metrics = right_m["verifier_report"].get("metrics", {})
     thresholds = policy[case_id]
 
-    if case_id == "031":
+    if case_id == "001":
         diff = abs(left_metrics.get("final_force_mae_eV_A", 0.0) - right_metrics.get("final_force_mae_eV_A", 0.0))
         if diff > thresholds["max_cross_run_mae_eV_A"]:
             errors.append(f"cross-run MAE difference {diff} exceeds {thresholds['max_cross_run_mae_eV_A']}")
-    elif case_id == "032":
+    elif case_id == "002":
         diff = abs(left_metrics.get("Tc_K", 0.0) - right_metrics.get("Tc_K", 0.0))
         if diff > thresholds["max_cross_run_abs_error_K"]:
             errors.append(f"cross-run Tc difference {diff} exceeds {thresholds['max_cross_run_abs_error_K']}")
-    elif case_id == "033":
+    elif case_id == "003":
         diff = abs(left_metrics.get("best_Ez_V_A", 0.0) - right_metrics.get("best_Ez_V_A", 0.0))
         if diff > thresholds["max_cross_run_Ez_abs_error_V_A"]:
             errors.append(f"cross-run Ez difference {diff} exceeds {thresholds['max_cross_run_Ez_abs_error_V_A']}")
@@ -285,11 +282,11 @@ def compare_formal_runs(
 ROOT = Path(__file__).resolve().parents[1]
 
 ID_TO_EVIDENCE = {
-    "001": "031",
-    "002": "032",
-    "003": "033",
-    "004": "034",
-    "005": "042",
+    "001": "001",
+    "002": "002",
+    "003": "003",
+    "004": "004",
+    "005": "005",
 }
 
 
