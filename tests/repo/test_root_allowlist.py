@@ -41,6 +41,7 @@ ALLOWED_ROOT_DIRS = {
     "evidence",
     "examples",
     "experiments",
+    "jobs",  # ignored local run artifacts produced by the legacy/formal harness
     "maintainer",
     "releases",
     "runs",
