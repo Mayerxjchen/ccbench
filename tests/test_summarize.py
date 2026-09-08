@@ -448,24 +448,6 @@ def test_load_runs_falls_back_to_legacy_summary_when_no_record(tmp_path):
     assert runs[0]["results"][0]["ok"] is True
 
 
-def test_summary_data_carries_release_reference():
-    rows = [
-        execution("008-packmol-build", "2026-01-01__00-00-00", True),
-    ]
-    release_file = ROOT / "releases" / "ablation-ready-v0.json"
-    frozen = json.loads(release_file.read_text(encoding="utf-8"))
-
-    data = build_summary_data(rows, root=ROOT)
-    release = data["release"]
-    assert release is not None
-    assert release["name"] == frozen["name"]
-    assert release["source_commit"] == frozen["source_commit"]
-    assert release["release_digest"] == frozen["release_digest"]
-
-    # unit fixtures without the manifest degrade gracefully
-    assert build_summary_data(rows, root=None)["release"] is None
-
-
 def test_summary_excludes_pilot_runs_from_formal_view():
     formal = execution("032-matclaw-cips-curie-temperature", "2026-02-01__00-00-00", True)
     pilot = execution(

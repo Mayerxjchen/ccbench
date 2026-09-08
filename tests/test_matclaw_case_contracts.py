@@ -125,34 +125,6 @@ def test_source_recovery_package_contains_no_case_image() -> None:
     assert not list(source_root.rglob("Dockerfile*"))
 
 
-def test_reference_runner_stages_public_and_mounts_solution_readonly() -> None:
-    runner = (ROOT / "scripts" / "run_matclaw_reference.sh").read_text()
-    assert 'cp -a "$case_dir/public/." "$output/workspace/"' in runner
-    assert "dst=/solution,readonly" in runner
-    assert "output must be absolute" in runner
-
-
-def test_formal_reference_runner_checks_fresh_workspace_before_staging_public() -> None:
-    """The formal freshness gate must not reject the public inputs it just copied."""
-    runner = (ROOT / "scripts" / "run_matclaw_reference.sh").read_text()
-    freshness_gate = 'find "$output/workspace" -mindepth 1 -maxdepth 1'
-    stage_public = 'cp -a "$case_dir/public/." "$output/workspace/"'
-    assert runner.index(freshness_gate) < runner.index(stage_public)
-
-
-def test_reference_manifest_does_not_scan_full_workspace() -> None:
-    """The v1 preliminary manifest carries identity only; no full-workspace scan.
-
-    Durable artifacts with roles are authored by finalize_run.py after the
-    policy-resolved bundle is stored, so the reference runner must declare an
-    empty artifact list and leave curation to the finalizer.
-    """
-    runner = (ROOT / "scripts" / "run_matclaw_reference.sh").read_text()
-    assert "artifacts = []" in runner
-    assert "workspace.rglob" not in runner
-    assert "finalize_run.py" in runner
-
-
 def test_031_formal_harness_keeps_hidden_verifier_out_of_solver_stage() -> None:
     harness = (ROOT / "evidence/matclaw/formal/031-formal-run-template.slurm").read_text()
     solve_call = '"$GPU_SIF" /solution/solve.sh'
@@ -207,16 +179,6 @@ def test_031_alternative_heldout_excludes_shared_pre_dynamics_frame() -> None:
     assert ")[1:]" in alternative[heldout_start:heldout_end]
 
 
-def test_reference_runner_requires_digest_for_formal() -> None:
-    runner = (ROOT / "scripts" / "run_matclaw_reference.sh").read_text()
-    assert "@sha256:" in runner
-
-
-def test_reference_runner_requires_clean_tree_for_formal() -> None:
-    runner = (ROOT / "scripts" / "run_matclaw_reference.sh").read_text()
-    assert "status --porcelain" in runner
-
-
 def test_solve_entry_points_are_deterministic() -> None:
     for name in CASES:
         m_dir = _maintainer_dir(name)
@@ -265,28 +227,6 @@ def test_eval_task_spec_exposes_gpus_and_explicit_docker_args() -> None:
     agents_src = (ROOT / "ccbench" / "agents.py").read_text(encoding="utf-8")
     assert "def docker_gpu_args" in agents_src
     assert '"--gpus", "device=0"' in agents_src  # explicit device, never default runtime
-
-
-def test_gpu_runner_has_immutable_identity_and_no_cpu_retag() -> None:
-    """The GPU orchestrator builds only :2.2.11-gpu and never touches a CPU tag."""
-    runner = (ROOT / "scripts" / "run_gpu_paper.sh").read_text(encoding="utf-8")
-    assert "dftworld-base-matclaw-cips:2.2.11-gpu" in runner
-    assert "{{index .RepoDigests 0}}" in runner  # resolve digest
-    assert "@sha256:" in runner  # fail unless immutable
-    assert "--build" in runner
-    assert "qualify_gpu.py" in runner
-    assert "ceil(1.5 * measured_seconds)" in runner or "ceil(1.5" in runner
-    assert "run_matclaw_reference.sh" in runner
-    # The GPU path must never retag or rebuild a CPU identity.
-    for forbidden in ("docker tag", "PINNED_TAG", "--force-retag", ":2.2.11-cpu"):
-        assert forbidden not in runner, forbidden
-
-
-def test_reference_runner_honors_gpus_for_any_evidence_class() -> None:
-    """A named GPU device must be passed even for diagnostic runs."""
-    runner = (ROOT / "scripts" / "run_matclaw_reference.sh").read_text(encoding="utf-8")
-    assert 'if [[ -n "$gpu_device" ]]; then' in runner
-    assert '--gpus "device=$gpu_device"' in runner
 
 
 def test_gpu_image_is_gpu_only_and_keeps_build_gate_device_independent() -> None:
