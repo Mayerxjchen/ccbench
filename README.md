@@ -84,32 +84,38 @@ CCBENCH_API_KEY=your_api_key_here
 CCBENCH_BASE_URL=https://api.deepseek.com
 ```
 
-### 第 4 步：运行基准案例
+### 第 4 步：运行 MVP 案例（推荐）
 
 > [!NOTE]
 > 评测案例的离线合同测试与冒烟套件可直接在本地环境执行；如需调度真实的远程 HPC 算力或云端 GPU 执行生产计算，请挂载对应的操作员运行时（Operator-Provided Runtime）与 Site Profile。
 
-你可以通过统一的 `ccbench` 命令或标准 `eval.py` 执行评测：
+当前案例开发优先使用宿主/云主机上的 Claude Code，不把 Claude Code
+封装进科学运行时镜像。先导出物理隔离的公开工作区：
 
 ```bash
-# 运行单个科学案例（默认在隔离沙箱内启动 Candidate Agent）
-uv run ccbench run 001-matclaw-cips-active-distillation
-
-# 或者使用 eval.py 入口
-uv run python eval.py 001-matclaw-cips-active-distillation
-
-# 启用 Benchmark Skills 辅助
-uv run ccbench run 001-matclaw-cips-active-distillation --skills
-
-# 运行完整评测矩阵（建议配置并行沙箱）
-uv run ccbench run --all
+uv run ccbench mvp export --case 002 --out /private/tmp/ccbench-runs/002-run-001
+cd /private/tmp/ccbench-runs/002-run-001
+claude
 ```
 
-评测产物与轨迹统一落盘至 `jobs/<run_id>/` 目录。使用以下命令生成聚合报表：
+GPU 计算直接在维护者创建的 CompShare 实例内完成；CPU 请求由维护者通过
+`ikkem-slurm` 提交嘉庚。Candidate 不接触云管理密钥或 SSH 私钥。取回结果后，
+先核对公开字节，再只封存 `final/`：
 
 ```bash
-uv run python summarize.py
+uv run ccbench mvp check --bundle /private/tmp/ccbench-runs/002-run-001
+uv run ccbench mvp freeze \
+  --bundle /private/tmp/ccbench-runs/002-run-001 \
+  --out /private/tmp/ccbench-runs/002-run-001.sealed
+uv run ccbench mvp evaluate \
+  --case 002 \
+  --submission /private/tmp/ccbench-runs/002-run-001.sealed \
+  --logs /private/tmp/ccbench-runs/002-run-001.verifier-logs
 ```
+
+完整操作、CPU handoff JSON 契约和完成门禁见
+[`docs/mvp-test-infra.md`](docs/mvp-test-infra.md)。旧的 `ccbench run` /
+`eval.py` formal harness 保留用于后续自治 qualification，不是当前案例开发的必经路径。
 
 ---
 
@@ -133,7 +139,7 @@ cases/<case-name>/
 | `004-ai2kit-water64-end-to-end-potential` | 全自动势函数管线 | `ai2kit` + `cp2k` | 构建端到端基于第一性原理的主动学习流水线 |
 | `005-go-water-dpmp` | 界面化学计算 | `deepmd-jax` / `jax-gpu` | 氧化石墨烯-水界面 DP-MP 势函数复现与 MD 验证 |
 
-> **隔离与防作弊机制**：评测执行期间，Agent 只能访问注入工作区的 `input/` 内容；`verifier/` 验收脚本与测试用例运行在**独立、非特权、网络隔离（`--network none`）**的只读容器中，彻底杜绝作弊与训练集污染。
+> **隔离与防作弊机制**：MVP 导出采用文件 allowlist，并把 operator lock 保留在 Candidate 环境之外。Candidate 工作区物理上不包含 solution、reference、hidden verifier、Git 历史、旧运行或管理凭据。`CLAUDE.md` 是行为约束，不被当作安全边界；提交封存后，verifier 才在网络隔离的只读容器中挂载隐藏材料。
 
 ---
 
@@ -147,15 +153,14 @@ cd runtimes/recipes
 # 查看可用构建目标
 bash build.sh -h
 
-# 构建 Claude Code 候选智能体隔离沙箱
-bash build.sh agent-claude-code
-
 # 构建 MatClaw CIPS 计算镜像
 bash build.sh matclaw-cips
 
 # 按案例依赖自动解析并构建对应镜像
 bash build.sh 001
 ```
+
+科学运行时镜像只封装计算依赖并复用；MVP 不要求在镜像内安装 Claude Code。
 
 ### 运行时真实性与资格化状态说明 (Qualification Truthfulness)
 
@@ -172,4 +177,3 @@ CCBench 对环境与资格化证明执行严格的密码学单一真相源（SSO
 ## 许可证与贡献指南 (License & Contributing)
 
 本项目遵循 Apache 2.0 开源许可。详细开发者维护指南请参阅 `maintainer/` 目录。
-

@@ -454,6 +454,32 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--quiet", "--report-only", dest="quiet", action="store_true")
     doctor.add_argument("--json", action="store_true")
 
+    mvp = sub.add_parser("mvp", help="direct-Claude-Code MVP run workflow")
+    mvp_sub = mvp.add_subparsers(dest="mvp_command", required=True)
+    mvp_export = mvp_sub.add_parser("export", help="export a public Candidate workspace")
+    mvp_export.add_argument("--case", required=True)
+    mvp_export.add_argument("--out", type=Path, required=True)
+    mvp_export.add_argument("--lock", type=Path, default=None)
+    mvp_check = mvp_sub.add_parser("check", help="verify immutable public workspace bytes")
+    mvp_check.add_argument("--bundle", type=Path, required=True)
+    mvp_check.add_argument("--lock", type=Path, default=None)
+    mvp_freeze = mvp_sub.add_parser("freeze", help="seal only the Candidate final directory")
+    mvp_freeze.add_argument("--bundle", type=Path, required=True)
+    mvp_freeze.add_argument("--out", type=Path, required=True)
+    mvp_freeze.add_argument("--lock", type=Path, default=None)
+    mvp_eval = mvp_sub.add_parser("evaluate", help="run the hidden isolated verifier")
+    mvp_eval.add_argument("--case", required=True)
+    mvp_eval.add_argument("--submission", type=Path, required=True)
+    mvp_eval.add_argument("--logs", type=Path, required=True)
+    mvp_eval.add_argument("--image", default=None)
+    mvp_eval.add_argument("--run-id", default=None)
+    mvp_compute = mvp_sub.add_parser(
+        "compute-check", help="validate a CPU/GPU operator handoff request"
+    )
+    mvp_compute.add_argument("--bundle", type=Path, required=True)
+    mvp_compute.add_argument("--request", type=Path, required=True)
+    mvp_compute.add_argument("--lock", type=Path, default=None)
+
     return parser
 
 
@@ -492,6 +518,47 @@ def main(argv: list[str] | None = None) -> int:
             return _portfolio(argv[1:])
         if command == "runtime":
             return _runtime(argv[1:])
+        if command == "mvp":
+            from ccbench.core.packager import PackageError
+            from ccbench.core.quarantine import QuarantineError
+            from ccbench.mvp import (
+                MvpError,
+                check_bundle,
+                evaluate_submission,
+                export_case,
+                freeze_submission,
+                seal_to_dict,
+                validate_compute_request,
+            )
+
+            args = build_parser().parse_args(argv)
+            try:
+                if args.mvp_command == "export":
+                    payload = export_case(args.case, args.out, lock_path=args.lock)
+                elif args.mvp_command == "check":
+                    payload = check_bundle(args.bundle, lock_path=args.lock)
+                elif args.mvp_command == "freeze":
+                    payload = seal_to_dict(
+                        freeze_submission(args.bundle, args.out, lock_path=args.lock)
+                    )
+                elif args.mvp_command == "evaluate":
+                    payload = evaluate_submission(
+                        args.case,
+                        args.submission,
+                        args.logs,
+                        image=args.image,
+                        run_id=args.run_id,
+                    )
+                elif args.mvp_command == "compute-check":
+                    payload = validate_compute_request(
+                        args.bundle, args.request, lock_path=args.lock
+                    )
+                else:  # pragma: no cover - argparse owns this boundary
+                    raise MvpError(f"unknown mvp command: {args.mvp_command}")
+                print(json.dumps(payload, indent=2, sort_keys=True))
+                return 0
+            except (MvpError, PackageError, QuarantineError) as exc:
+                raise CliError(str(exc)) from exc
         if command == "site":
             site_command = argv[1] if len(argv) > 1 else ""
             if site_command == "configure":

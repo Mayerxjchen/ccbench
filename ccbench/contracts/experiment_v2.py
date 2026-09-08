@@ -91,6 +91,7 @@ class ExperimentSpecV2:
     schema_version: int
     experiment_id: str
     description: str
+    mode: str
     cases: list[str]
     models: list[str]
     skills: list[str]
@@ -113,6 +114,7 @@ class ExperimentSpecV2:
             schema_version=data["schema_version"],
             experiment_id=data["experiment_id"],
             description=data.get("description", ""),
+            mode=data.get("mode", "formal"),
             cases=list(data["cases"]),
             models=list(data["models"]),
             skills=list(data["skills"]),
@@ -217,6 +219,7 @@ def build_experiment_lock(
         {
             "schema_version": spec.schema_version,
             "experiment_id": spec.experiment_id,
+            "mode": spec.mode,
             "cases": sorted(spec.cases),
             "models": sorted(spec.models),
             "skills": sorted(spec.skills),
@@ -230,6 +233,7 @@ def build_experiment_lock(
     lock_data: dict[str, Any] = {
         "schema_version": 2,
         "experiment_id": spec.experiment_id,
+        "mode": spec.mode,
         "spec_digest": spec_digest,
         "ccbench_commit": ccbench_commit,
         "total_runs": len(matrix),

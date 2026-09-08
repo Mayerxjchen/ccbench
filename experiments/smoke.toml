@@ -2,6 +2,7 @@
 schema_version = 2
 experiment_id = "smoke-v1"
 description = "CCBench Fast Smoke Test Experiment"
+mode = "smoke"
 
 cases = [
   "001",

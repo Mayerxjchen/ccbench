@@ -170,7 +170,7 @@ def load_run_config(path: Path) -> RunConfig:
             adapted = {
                 "schema_version": 1,
                 "run_config_id": spec.experiment_id,
-                "mode": "formal",
+                "mode": spec.mode,
                 "model": {
                     "provider": provider,
                     "model_id": model_id,

@@ -16,6 +16,10 @@
     "description": {
       "type": "string"
     },
+    "mode": {
+      "type": "string",
+      "enum": ["smoke", "formal"]
+    },
     "cases": {
       "type": "array",
       "items": { "type": "string" },

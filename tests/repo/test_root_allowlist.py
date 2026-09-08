@@ -53,6 +53,7 @@ ALLOWED_ROOT_DIRS = {
 }
 
 ALLOWED_ROOT_FILES = {
+    ".git",  # linked worktrees use a pointer file
     ".DS_Store",
     ".dockerignore",
     ".env",
@@ -65,6 +66,7 @@ ALLOWED_ROOT_FILES = {
     "portfolio-report.json",
     "pyproject.toml",
     "README.md",
+    "CLAUDE.md",
     "skills_sha.py",
     "summarize.py",
     "uv.lock",

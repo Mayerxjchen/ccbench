@@ -56,10 +56,16 @@ def _write(tmp_path: Path, text: str) -> Path:
 
 def test_real_default_config_routes_budget_by_execution_class() -> None:
     config = load_run_config(ROOT / "experiments/main.toml")
+    assert config.mode == "formal"
     assert config.budget_for("local_sandbox").max_model_turns == 64
     assert config.budget_for("hpc_controller").max_model_turns == 1024
     assert config.treatment_for(skills_enabled=False).name == "no-skill"
     assert config.treatment_for(skills_enabled=True).name == "with-skill"
+
+
+def test_smoke_experiment_stays_uncounted_smoke() -> None:
+    config = load_run_config(ROOT / "experiments/smoke.toml")
+    assert config.mode == "smoke"
 
 
 def test_digest_is_deterministic_and_secret_free(tmp_path: Path) -> None:

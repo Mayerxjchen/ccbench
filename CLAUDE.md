@@ -6,7 +6,7 @@ the files you create during this run.
 
 ## Allowed scope
 
-- Read the assigned case's `task.md` and `input/` directory.
+- Read the assigned `instruction.md` and the explicitly supplied input files.
 - Read only the skills explicitly supplied for this run.
 - Create and edit files only in the assigned run workspace, normally under
   `work/` and `final/`.

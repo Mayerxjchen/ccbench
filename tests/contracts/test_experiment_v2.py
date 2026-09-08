@@ -43,6 +43,7 @@ def test_smoke_experiment_loads_and_expands():
     spec = ExperimentSpecV2.from_file(path)
     assert spec.schema_version == 2
     assert spec.experiment_id == "smoke-v1"
+    assert spec.mode == "smoke"
     assert spec.cases == ["001"]
     assert spec.budget.max_model_turns == 64
     matrix = spec.expand_matrix()
