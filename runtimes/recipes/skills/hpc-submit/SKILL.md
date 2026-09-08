@@ -1,6 +1,6 @@
 ---
 name: hpc-submit
-description: Abstract compute requests and gateway execution — decide whether a step needs external compute, choose an abstract cpu/gpu class, write a validated compute request (request-only), or drive remote jobs through the bench-hpc descriptor gateway (gateway-execution: capabilities, submit, status/logs, diagnosis, attempts, fetch, engine-parser handoff). Use for any compute that is too expensive for the local workspace or needs a GPU, and for submitting, monitoring, and retrieving those jobs.
+description: "Abstract compute requests and gateway execution - decide whether a step needs external compute, choose an abstract cpu/gpu class, write a validated compute request (request-only mode), or drive remote jobs through the bench-hpc descriptor gateway (gateway-execution mode: capabilities, submit, status/logs, diagnosis, attempts, fetch, engine-parser handoff). Use for compute too expensive for the local workspace or needing a GPU, and for submitting, monitoring, and retrieving those jobs."
 ---
 
 # hpc-submit
