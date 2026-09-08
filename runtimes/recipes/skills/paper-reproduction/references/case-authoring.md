@@ -27,8 +27,13 @@ This stage never forges that lifecycle state, and never writes into `cases/`.
 
 ## Reproduction → Case IR mapping
 
-Map the frozen reproduction artifacts onto the Case IR fields
-(`design/case.ir.yaml`, schema in the builder package):
+A Case IR draft carries `schema_version` (the builder's canonical value) plus
+the nine top-level blocks `identity`, `scientific_target`, `selection`,
+`candidate`, `submission`, `runtime`, `coverage`, and `verification`;
+`ccbench case design` validates it against `schemas/case-ir.schema.json`
+(closed: unknown top-level blocks are rejected). Map the frozen reproduction
+artifacts onto the Case IR fields (`design/case.ir.yaml`, schema in the
+builder package):
 
 | Case IR block | From the reproduction |
 |---|---|

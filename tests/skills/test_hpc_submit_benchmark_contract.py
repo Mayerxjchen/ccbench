@@ -1,18 +1,19 @@
 """The bundled hpc-submit Skill teaches the bench-hpc descriptor lifecycle.
 
+The repo keeps exactly two active skills (see ``test_active_skill_set.py``):
+``hpc-submit`` and ``paper-reproduction``. This test pins the *submission
+surface* contract for that pair.
+
 Contract:
 
 - No Candidate-visible submission-surface Skill may contain site facts
   (hostname/account/partition answers), remote roots, SSH/bootstrap
   instructions, raw scheduler commands, or Case identities/thresholds.
-- The Skill must teach all seven operations, operation attempts, parser
-  gating (scheduler success != scientific success), and explicit fetch.
-
-Scan scope: every ``base-env-build/skills/**/*.md`` EXCEPT ``rsess/``,
-``research-orchestrator/``, and ``review-response/`` — those are not part of
-the HPC submission surface (remote-session tooling / orchestration protocol /
-worked-example corpus) and their cleanup is tracked separately from this
-benchmark bundle task.
+- ``hpc-submit`` must teach the gateway operations, operation attempts,
+  parser gating (scheduler success != scientific success), and explicit
+  fetch.
+- The dependent Skill (``paper-reproduction``) routes its compute-heavy
+  stages to ``hpc-submit`` rather than to raw remote work.
 """
 
 from __future__ import annotations
@@ -23,7 +24,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILLS = ROOT / "runtimes" / "recipes" / "skills"
-EXCLUDED = ("rsess", "research-orchestrator", "review-response")
+
+ACTIVE_SKILLS = sorted(
+    p.name for p in SKILLS.iterdir() if (p / "SKILL.md").is_file()
+)
 
 # Site facts and identities that must never appear in a Candidate-visible Skill.
 _SITE_FACTS = (
@@ -58,13 +62,8 @@ _CASE_ASSETS = (
 
 
 def _submission_surface_files() -> list[Path]:
-    files = []
-    for path in sorted(SKILLS.rglob("*.md")):
-        relative = path.relative_to(SKILLS)
-        if relative.parts[0] in EXCLUDED:
-            continue
-        files.append(path)
-    return files
+    # Every markdown under the active skills is part of the submission surface.
+    return sorted(SKILLS.rglob("*.md"))
 
 
 def test_no_site_facts_or_raw_remote_instructions_anywhere():
@@ -123,10 +122,13 @@ def test_no_raw_scheduler_tooling_shipped_in_bundle():
     )
 
 
-@pytest.mark.parametrize("skill", ["deepmd", "lammps", "cp2k", "comp-chem-workflow"])
-def test_engine_skills_route_to_descriptor_workflow(skill):
-    """Dependent Skills route to bench-hpc operations, never to raw remote work."""
+_DEPENDENT_SKILLS = [s for s in ACTIVE_SKILLS if s != "hpc-submit"]
+
+
+@pytest.mark.parametrize("skill", _DEPENDENT_SKILLS)
+def test_dependent_skills_route_to_descriptor_workflow(skill):
+    """Dependent Skills route compute to bench-hpc operations, never to raw
+    remote work (site facts, cluster-agents bootstrap, scheduler scripts)."""
     text = (SKILLS / skill / "SKILL.md").read_text(encoding="utf-8")
-    if "hpc-submit" not in text:
-        pytest.skip(f"{skill} does not route through hpc-submit")
+    assert "hpc-submit" in text, f"{skill} must route compute stages to hpc-submit"
     assert "cluster-agents" not in text
