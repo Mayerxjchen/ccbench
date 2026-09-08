@@ -1,0 +1,63 @@
+# Reproduction contract template.
+# Copy to reproduction/<slug>/reproduction-contract.vN.yaml and fill.
+# Deterministic validation: uv run scripts/validate_reproduction.py contract <path> [--freeze]
+# Behaviour: draft missing fields -> exit 0 VALID DRAFT + warnings;
+# freeze on incomplete draft -> nonzero INVALID; change after freeze -> hash fails INVALID.
+
+schema_version: "1.0"
+contract_version: 1            # increments when scope/target/assumption changes; old versions stay as audit record.
+
+paper_identity:
+  doi: "10.xxxx/xxxxx"
+  citation: "Author, A. et al. Title. Journal YYYY."
+  title: ""
+
+evidence_sources:
+  - id: "paper"
+    description: ""
+    classification: "PUBLIC_SOURCE"   # PUBLIC_SOURCE | MAINTAINER_SOURCE | GOLD_SOURCE | REFERENCE_SOURCE
+    sha256: ""
+  - id: "si"
+    description: ""
+    classification: "PUBLIC_SOURCE"
+    sha256: ""
+
+information_level: ""            # L1_full_reproduction | L2_workflow_reconstruction | L3_underspecified_reproduction
+
+reproduction_scope:
+  - ""
+
+non_goals:
+  - ""
+
+target_claim:
+  observable: ""                 # quantity + units, e.g. "DeltaE_ads(Cu(111)) [eV]"
+  system: ""
+  conditions: ""
+  reported_value: ""             # paper value the reproduction compares against
+  evidence_anchor: ""            # figure/table id in the evidence_sources entry
+
+method_fingerprint:
+  engine: ""
+  versions: {}
+  notes: ""
+
+assumptions:
+  - ""
+
+comparison_rule:
+  description: ""                # how engine output becomes the observable
+  parse_script: ""
+
+acceptance_criterion: ""         # e.g. "computed observable within tolerance of reported_value"
+tolerance:
+  value: null                    # numeric
+  unit: ""
+
+input_files:
+  - path: ""
+    role: ""                     # structure | engine_input | reference | ...
+    sha256: ""
+
+# freeze_hash is computed and written by --freeze. Do not hand-fill.
+freeze_hash: ""

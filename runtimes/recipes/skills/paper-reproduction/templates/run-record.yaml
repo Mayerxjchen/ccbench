@@ -1,0 +1,36 @@
+# Run record template. One file per scientific run: runs/run-NNN/run-record.yaml.
+# Every run binds to a frozen contract version + its freeze_hash.
+# Deterministic validation: uv run scripts/validate_reproduction.py run <path>
+# A record whose contract hash does not match the frozen contract is INVALID.
+
+run_id: "run-001"
+contract_version: 1
+freeze_hash: ""                  # hash of the frozen reproduction-contract the run executed under
+
+dag_stage: ""                    # stage name from plan.md
+command: ""                      # exact reproducible invocation
+run_reason: ""                   # initial | faithful_fix | gap_closure | sensitivity_test  (no tune_to_target)
+
+inputs_used:
+  - path: ""
+    role: ""
+    sha256: ""
+
+outcome:
+  status: ""                     # completed | failed | contaminated | cancelled
+  engine_returncode: null        # informational only; NOT scientific evidence
+  note: ""
+
+observable:
+  value: null                    # numeric parsed observable
+  unit: ""
+  derived_from: ""               # artifact path + parse step that produced it
+  parse_script: ""
+
+artifacts:
+  raw_output: ""
+  analysis: ""
+
+scheduler:
+  attempt: 1                     # scheduler retries live in the hpc-submit attempt lifecycle
+  job_id: ""
