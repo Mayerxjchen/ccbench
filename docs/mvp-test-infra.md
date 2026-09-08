@@ -91,7 +91,7 @@ The request is data, not a shell or cloud credential channel:
     "nodes": 1,
     "ntasks": 8,
     "cpus_per_task": 2,
-    "memory_gb": 32,
+    "memory_gb_per_node": 32,
     "walltime_min": 60,
     "gpus": 0
   },

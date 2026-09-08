@@ -263,16 +263,52 @@ def validate_compute_request(
     resources = payload.get("resources")
     if not isinstance(resources, dict):
         raise MvpError("resources must be an object")
-    for key in ("nodes", "ntasks", "cpus_per_task", "memory_gb", "walltime_min", "gpus"):
+    # Per-node resource contract.  ``memory_gb_per_node`` is the memory each
+    # compute node receives (the Candidate sizes the whole request from this,
+    # not a flat total); ``minimum_gpu_memory_gb`` applies only to GPU classes.
+    _RESOURCE_KEYS = frozenset(
+        {
+            "nodes",
+            "ntasks",
+            "cpus_per_task",
+            "memory_gb_per_node",
+            "gpus",
+            "walltime_min",
+            "minimum_gpu_memory_gb",
+        }
+    )
+    unknown = sorted(set(resources) - _RESOURCE_KEYS)
+    if unknown:
+        raise MvpError(f"resources contains unknown keys: {unknown}")
+    for key in ("nodes", "ntasks", "cpus_per_task", "memory_gb_per_node", "walltime_min", "gpus"):
         value = resources.get(key)
         if not isinstance(value, int) or isinstance(value, bool) or value < (0 if key == "gpus" else 1):
             raise MvpError(f"resources.{key} must be an integer in range")
-    if compute_class == "cpu" and resources["gpus"] != 0:
-        raise MvpError("CPU requests must set resources.gpus=0")
-    if compute_class == "gpu" and resources["gpus"] < 1:
-        raise MvpError("GPU requests must set resources.gpus>=1")
     if resources["ntasks"] < resources["nodes"]:
         raise MvpError("resources.ntasks must be >= resources.nodes")
+    minimum_gpu_memory = resources.get("minimum_gpu_memory_gb")
+    if compute_class == "cpu":
+        if resources["gpus"] != 0:
+            raise MvpError("CPU requests must set resources.gpus=0")
+        if minimum_gpu_memory is not None:
+            raise MvpError("CPU requests must not set resources.minimum_gpu_memory_gb")
+    else:  # gpu
+        if resources["gpus"] < 1:
+            raise MvpError("GPU requests must set resources.gpus>=1")
+        if not isinstance(minimum_gpu_memory, int) or isinstance(minimum_gpu_memory, bool) or minimum_gpu_memory < 1:
+            raise MvpError("GPU requests must set resources.minimum_gpu_memory_gb >= 1")
+
+    validation = payload.get("validation")
+    if validation is not None:
+        if not isinstance(validation, dict):
+            raise MvpError("validation must be an object")
+        for marker_key in ("success_markers", "reject_if"):
+            markers = validation.get(marker_key)
+            if markers is not None and (
+                not isinstance(markers, list)
+                or any(not isinstance(m, str) or not m for m in markers)
+            ):
+                raise MvpError(f"validation.{marker_key} must be a non-empty string array")
 
     inputs = payload.get("inputs")
     if not isinstance(inputs, list) or not inputs:

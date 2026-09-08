@@ -107,7 +107,7 @@ def test_compute_request_is_resource_and_digest_checked(tmp_path: Path) -> None:
             "command": ["python", "run.py"],
             "resources": {
                 "nodes": 1, "ntasks": 4, "cpus_per_task": 2,
-                "memory_gb": 32, "walltime_min": 30, "gpus": 0,
+                "memory_gb_per_node": 32, "walltime_min": 30, "gpus": 0,
             },
             "inputs": [{"path": "system.json", "sha256": sha256_file(bundle / "system.json")}],
             "outputs": ["compute-results/result.json"],
@@ -120,6 +120,55 @@ def test_compute_request_is_resource_and_digest_checked(tmp_path: Path) -> None:
     request.write_text(json.dumps(payload))
     with pytest.raises(MvpError, match="gpus=0"):
         validate_compute_request(bundle, request)
+
+
+def test_compute_request_uses_per_node_memory_and_gpu_min_memory(tmp_path: Path) -> None:
+    bundle = tmp_path / "candidate-run"
+    export_case(_case(tmp_path), bundle)
+    write = lambda name, body: (bundle / "compute-requests" / name).write_text(
+        json.dumps(body), encoding="utf-8"
+    )
+
+    # GPU requests are per-node memory + a minimum per-GPU memory floor.
+    gpu = {
+        "schema_version": "1.0",
+        "compute_class": "gpu",
+        "command": ["dp", "train", "work/input.json"],
+        "resources": {
+            "nodes": 1, "ntasks": 1, "cpus_per_task": 8,
+            "memory_gb_per_node": 64, "gpus": 1,
+            "minimum_gpu_memory_gb": 24, "walltime_min": 120,
+        },
+        "inputs": [{"path": "system.json", "sha256": sha256_file(bundle / "system.json")}],
+        "outputs": ["compute-results/model.ckpt"],
+        "validation": {"success_markers": ["finished training"], "reject_if": ["nan"]},
+    }
+    write("gpu.json", gpu)
+    assert validate_compute_request(bundle, bundle / "compute-requests" / "gpu.json")["compute_class"] == "gpu"
+
+    # Flat memory_gb (pre-per-node schema) is rejected as an unknown key.
+    cpu_flat = json.loads(json.dumps(gpu))
+    cpu_flat.update(compute_class="cpu")
+    cpu_flat["resources"] = {"nodes": 1, "ntasks": 1, "cpus_per_task": 2,
+                             "memory_gb": 32, "gpus": 0, "walltime_min": 30}
+    write("cpu-flat.json", cpu_flat)
+    with pytest.raises(MvpError, match="unknown keys"):
+        validate_compute_request(bundle, bundle / "compute-requests" / "cpu-flat.json")
+
+    # A CPU request may not carry a GPU memory floor.
+    cpu_bad = json.loads(json.dumps(gpu))
+    cpu_bad.update(compute_class="cpu", command=["python", "run.py"])
+    cpu_bad["resources"] = {**cpu_bad["resources"], "gpus": 0}
+    write("cpu-bad.json", cpu_bad)
+    with pytest.raises(MvpError, match="minimum_gpu_memory_gb"):
+        validate_compute_request(bundle, bundle / "compute-requests" / "cpu-bad.json")
+
+    # A GPU request must name a per-GPU memory floor.
+    gpu_bad = json.loads(json.dumps(gpu))
+    del gpu_bad["resources"]["minimum_gpu_memory_gb"]
+    write("gpu-bad.json", gpu_bad)
+    with pytest.raises(MvpError, match="minimum_gpu_memory_gb"):
+        validate_compute_request(bundle, bundle / "compute-requests" / "gpu-bad.json")
 
 
 def test_sealed_submission_detects_post_freeze_drift(tmp_path: Path) -> None:

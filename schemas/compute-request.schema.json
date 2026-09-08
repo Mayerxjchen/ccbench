@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ccbench.example/schemas/compute-request.schema.json",
+  "title": "bench-compute-request descriptor",
+  "description": "Candidate-facing abstract compute request written under compute-requests/. Platform-agnostic by construction: class is the only compute decision; the operator maps cpu/gpu onto a real backend. Shape-validation only; the authoritative check (input digests, output confinement, live resource consistency) runs in ccbench.mvp.validate_compute_request.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "compute_class",
+    "command",
+    "resources",
+    "inputs",
+    "outputs"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "compute_class": {
+      "enum": ["cpu", "gpu"]
+    },
+    "command": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "argv, not a shell string. No pipes, redirects, environment assignments, or scheduler flags."
+    },
+    "resources": {
+      "$ref": "#/$defs/resources"
+    },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "success_markers": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "reject_if": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "description": "Optional evidence phrases the operator reports back so a run's verdict is scientific, not scheduler state."
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/input_ref"
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Relative file paths that MUST resolve under compute-results/."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "compute_class": { "const": "cpu" } },
+        "required": ["compute_class"]
+      },
+      "then": {
+        "properties": {
+          "resources": {
+            "properties": {
+              "gpus": { "const": 0 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "compute_class": { "const": "gpu" } },
+        "required": ["compute_class"]
+      },
+      "then": {
+        "properties": {
+          "resources": {
+            "required": ["minimum_gpu_memory_gb"],
+            "properties": {
+              "gpus": { "minimum": 1 },
+              "minimum_gpu_memory_gb": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "resources": {
+      "type": "object",
+      "required": [
+        "nodes",
+        "ntasks",
+        "cpus_per_task",
+        "memory_gb_per_node",
+        "gpus",
+        "walltime_min"
+      ],
+      "properties": {
+        "nodes": { "type": "integer", "minimum": 1 },
+        "ntasks": { "type": "integer", "minimum": 1 },
+        "cpus_per_task": { "type": "integer", "minimum": 1 },
+        "memory_gb_per_node": { "type": "integer", "minimum": 1 },
+        "gpus": { "type": "integer", "minimum": 0 },
+        "walltime_min": { "type": "integer", "minimum": 1 },
+        "minimum_gpu_memory_gb": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "input_ref": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
