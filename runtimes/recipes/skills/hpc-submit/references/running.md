@@ -1,4 +1,9 @@
-# Running jobs through bench-hpc
+# Running jobs through bench-hpc (gateway-execution mode)
+
+This is **Mode B** of the `hpc-submit` skill: submitting to a live `bench-hpc`
+gateway. It is a different artifact and a different resource dialect from the
+`request-only` compute request (`request-schema.md`): here `resources` are flat
+per-job and you name a runtime **capability token**, never an image.
 
 ## The descriptor, not a script
 

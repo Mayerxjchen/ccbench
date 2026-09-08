@@ -1,4 +1,9 @@
-# Resource guidance
+# Resource guidance (request-only mode)
+
+> Sizing decision aid for the **Mode A (request-only)** artifact of the
+> `hpc-submit` skill. Pairs with `compute-capabilities.json`. For the
+> gateway-execution (Mode B) descriptor, size instead from the live
+> `bench-hpc capabilities` output.
 
 This is the decision aid for choosing a compute class and sizing a request.
 It pairs with `compute-capabilities.json`, which lists the actual ceilings and

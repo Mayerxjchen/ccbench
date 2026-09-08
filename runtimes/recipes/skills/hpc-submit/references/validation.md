@@ -8,7 +8,8 @@
    on disk. Re-verify after any last edit: a stale digest fails at staging —
    that is the protection working, not a malfunction.
 3. Resources sized within advertised capabilities.
-4. Runtime image digest pinned (from the engine skill's guidance).
+4. Runtime named as a capability token that `bench-hpc capabilities` offers
+   (never an image or digest — trusted infra resolves the locked image).
 
 ## What to record at submission
 

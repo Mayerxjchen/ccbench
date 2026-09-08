@@ -1,4 +1,10 @@
-# Compute request schema
+# Compute request schema (request-only mode)
+
+> This is the **Mode A (request-only)** artifact of the `hpc-submit` skill.
+> Write one per external step under `compute-requests/`. This mode never
+> submits; the operator maps the abstract request onto a real platform. The
+> gateway-execution (Mode B) job descriptor is a different artifact — see
+> `running.md` and `examples/execution-request.yaml`.
 
 A compute request is a single JSON object that turns one scientific step into
 an **abstract, verifiable** description. It is data, not a shell command or a
