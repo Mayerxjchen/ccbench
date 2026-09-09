@@ -16,8 +16,9 @@ Operator performs the execution and returns declared files under
    work that fits the workspace.
 2. Select the smallest abstract class, `cpu` or `gpu`, based on scientific
    need. GPU use requires a scientific justification.
-3. Compute SHA-256 digests from the actual input files and write a pure JSON
-   request. Commands are argv arrays, never shell strings:
+3. Write a request draft containing input paths only. The trusted host adds
+   SHA-256 digests and sizes after you exit; never self-report those fields.
+   Commands are argv arrays, never shell strings:
 
 ```json
 {
@@ -28,13 +29,14 @@ Operator performs the execution and returns declared files under
     "nodes": 1, "ntasks": 1, "cpus_per_task": 4,
     "memory_gb_per_node": 8, "gpus": 0, "walltime_min": 30
   },
-  "inputs": [{"path": "input.dat", "sha256": "<actual digest>"}],
+  "inputs": [{"path": "input.dat"}],
   "outputs": ["compute-results/output.dat"],
   "validation": {"success_markers": ["SUCCESS"]}
 }
 ```
 
-Validate with `ccbench mvp compute-check`. CPU requests must set `gpus=0`
+Do not run a validator or external command. The trusted host validates and
+seals the canonical request. CPU requests must set `gpus=0`
 and omit GPU memory; GPU requests must set `gpus>=1` and a positive
 `minimum_gpu_memory_gb`. Memory is per node. Outputs must stay under
 `compute-results/`.

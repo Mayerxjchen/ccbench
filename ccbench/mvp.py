@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
+import subprocess
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -270,6 +272,43 @@ def _relative_file(bundle: Path, value: Any, *, label: str) -> Path:
     return path
 
 
+def materialize_compute_request(bundle: Path, request: Path) -> dict[str, Any]:
+    """Turn a Candidate draft into a host-authored, digest-bound request.
+
+    Candidate input entries contain paths only.  The host resolves those paths
+    against the already-checked immutable bundle and supplies size/digest;
+    self-reported digests are rejected rather than trusted.
+    """
+    bundle = _outside_repo(bundle)
+    request = Path(request).expanduser().resolve()
+    try:
+        request.relative_to((bundle / "compute-requests").resolve())
+    except ValueError as exc:
+        raise MvpError("compute request must be under compute-requests/") from exc
+    try:
+        payload = json.loads(request.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError) as exc:
+        raise MvpError(f"cannot parse compute request draft: {exc}") from exc
+    if not isinstance(payload, dict) or payload.get("schema_version") != "1.0":
+        raise MvpError("compute request requires schema_version='1.0'")
+    if set(payload) - {"schema_version", "compute_class", "command", "resources", "inputs", "outputs", "validation"}:
+        raise MvpError("compute request draft contains unknown keys")
+    inputs = payload.get("inputs")
+    if not isinstance(inputs, list) or not inputs:
+        raise MvpError("compute request draft requires inputs")
+    normalized: list[dict[str, Any]] = []
+    for entry in inputs:
+        if not isinstance(entry, dict) or set(entry) != {"path"}:
+            raise MvpError("compute request draft inputs must contain path only")
+        path = _relative_file(bundle, entry["path"], label="input")
+        if PurePosixPath(entry["path"]).parts[0] in MUTABLE_DIRS or path.is_symlink() or not path.is_file():
+            raise MvpError("compute request draft input is mutable or unsafe")
+        normalized.append({"path": entry["path"], "size": path.stat().st_size, "sha256": sha256_file(path)})
+    canonical = dict(payload)
+    canonical["inputs"] = normalized
+    return canonical
+
+
 def validate_compute_request(
     bundle: Path, request: Path, *, lock_path: Path | None = None
 ) -> dict[str, Any]:
@@ -385,7 +424,9 @@ def validate_compute_request(
         actual = sha256_file(path)
         if entry.get("sha256") != actual:
             raise MvpError(f"compute input digest mismatch: {entry.get('path')}")
-        if "size" in entry and entry["size"] != path.stat().st_size:
+        if not isinstance(entry.get("size"), int) or entry["size"] < 0:
+            raise MvpError(f"compute input size is required: {entry.get('path')}")
+        if entry["size"] != path.stat().st_size:
             raise MvpError(f"compute input size mismatch: {entry.get('path')}")
         normalized_inputs.append(
             {"path": entry["path"], "size": path.stat().st_size, "sha256": actual}
@@ -453,6 +494,44 @@ def _maintainer_case(case_dir: Path) -> Path:
     return path
 
 
+def _require_qualified_verifier(profile: dict[str, Any], profile_name: str) -> str:
+    lock_name = profile.get("runtime_lock")
+    if not isinstance(lock_name, str) or not lock_name:
+        raise MvpError(f"verifier profile {profile_name!r} has no runtime lock")
+    lock_path = (ROOT / lock_name).resolve()
+    try:
+        lock_path.relative_to(ROOT)
+    except ValueError as exc:
+        raise MvpError("verifier runtime lock must be inside the repository") from exc
+    try:
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise MvpError(f"cannot read verifier runtime lock: {exc}") from exc
+    if lock.get("profile") not in (None, profile_name):
+        raise MvpError("verifier runtime lock profile mismatch")
+    if lock.get("status") != "QUALIFIED":
+        raise MvpError(f"verifier runtime is not qualified: {lock.get('status')!r}")
+    image = profile.get("image")
+    image_digest = lock.get("image_digest")
+    receipt_digest = lock.get("receipt_digest")
+    if not isinstance(image, str) or not isinstance(image_digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", image_digest):
+        raise MvpError("verifier runtime lock has no immutable image digest")
+    if not isinstance(receipt_digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", receipt_digest):
+        raise MvpError("verifier runtime lock has no qualification receipt digest")
+    if lock.get("image_name") != image:
+        raise MvpError("verifier image does not match runtime lock")
+    docker = shutil.which("docker")
+    if not docker:
+        raise MvpError("docker is unavailable for immutable verifier image inspection")
+    inspect = subprocess.run(
+        [docker, "image", "inspect", image, "--format", "{{json .RepoDigests}}"],
+        capture_output=True, text=True, check=False,
+    )
+    if inspect.returncode != 0 or image_digest not in inspect.stdout:
+        raise MvpError("local verifier image digest does not match qualified runtime lock")
+    return image
+
+
 def evaluate_submission(
     case: str | Path,
     sealed_submission: Path,
@@ -478,6 +557,7 @@ def evaluate_submission(
         if image is not None and image != locked_image:
             raise MvpError("verifier image override conflicts with locked verifier profile")
         resolved_image = locked_image
+        resolved_image = _require_qualified_verifier(verifier, spec.verifier_profile)
     else:
         resolved_image = image or spec.candidate_image
     if not resolved_image:

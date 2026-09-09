@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ccbench.example/schemas/compute-request.schema.json",
   "title": "bench-compute-request descriptor",
-  "description": "Candidate-facing abstract compute request written under compute-requests/. Platform-agnostic by construction: class is the only compute decision; the operator maps cpu/gpu onto a real backend. Shape-validation only; the authoritative check (input digests, output confinement, live resource consistency) runs in ccbench.mvp.validate_compute_request.",
+  "description": "Trusted canonical abstract compute request. Candidate drafts contain input paths only; the host adds input digests and sizes before operator handoff.",
   "type": "object",
   "required": [
     "schema_version",
@@ -121,13 +121,11 @@
     },
     "input_ref": {
       "type": "object",
-      "required": ["path", "sha256"],
+        "required": ["path", "sha256", "size"],
       "properties": {
         "path": { "type": "string", "minLength": 1 },
-        "sha256": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        }
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "size": { "type": "integer", "minimum": 0 }
       },
       "additionalProperties": false
     }

@@ -8,6 +8,7 @@ max_budget_usd = 5.0
 api_endpoint_env = "ANTHROPIC_BASE_URL"
 api_key_env = "ANTHROPIC_API_KEY"
 allowed_skills = ["bench-compute-request"]
+tool_policy = "infra/config/tool-policy.json"
 transcript_format = "jsonl"
 
 [verifiers.matclaw-cips-v1]

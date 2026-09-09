@@ -25,7 +25,7 @@ def test_main_experiment_loads_and_expands_correctly():
     assert spec.experiment_id == "main-v1"
     assert spec.cases == ["001", "002", "003", "004", "005"]
     assert spec.models == ["deepseek-v4-pro"]
-    assert spec.skills == ["none", "hpc-submit"]
+    assert spec.skills == ["none", "bench-compute-request"]
     assert spec.repeats == 3
     assert spec.budget.max_model_turns == 1024
     assert spec.budget.max_total_tokens == 100000000
@@ -33,7 +33,7 @@ def test_main_experiment_loads_and_expands_correctly():
     matrix = spec.expand_matrix()
     # 5 cases * 1 model * 2 skills * 3 repeats = 30 individual execution items
     assert len(matrix) == 30
-    assert matrix[0] == {"case": "001", "model": "deepseek-v4-pro", "skill": "hpc-submit", "repeat": 1}
+    assert matrix[0] == {"case": "001", "model": "deepseek-v4-pro", "skill": "bench-compute-request", "repeat": 1}
     assert matrix[-1] == {"case": "005", "model": "deepseek-v4-pro", "skill": "none", "repeat": 3}
 
 
@@ -70,7 +70,7 @@ def test_validate_run_lock_passes_valid_payload():
         "experiment_id": "main-v1",
         "case": "001-matclaw-cips-active-distillation",
         "model": "deepseek-v4-pro",
-        "skill": "hpc-submit",
+        "skill": "bench-compute-request",
         "repeat": 1,
         "budget": {
             "max_model_turns": 1024,
@@ -185,7 +185,7 @@ def test_build_run_lock_v2():
         experiment_id="main-v1",
         case="001",
         model="claude-sonnet",
-        skill="hpc-submit",
+        skill="bench-compute-request",
         repeat=1,
         budget=budget,
         model_entry=model_entry,
@@ -225,7 +225,7 @@ def test_build_run_lock_rejects_zero_placeholder():
             experiment_id="main-v1",
             case="001",
             model="claude-sonnet",
-            skill="hpc-submit",
+            skill="bench-compute-request",
             repeat=1,
             budget=budget,
             model_entry=model_entry,
@@ -241,7 +241,7 @@ def test_build_run_lock_rejects_zero_placeholder():
             experiment_id="main-v1",
             case="001",
             model="claude-sonnet",
-            skill="hpc-submit",
+            skill="bench-compute-request",
             repeat=1,
             budget=budget,
             model_entry=model_entry,

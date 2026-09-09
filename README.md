@@ -114,8 +114,9 @@ uv run ccbench mvp evaluate \
 ```
 
 完整操作、CPU handoff JSON 契约和完成门禁见
-[`docs/mvp-test-infra.md`](docs/mvp-test-infra.md)。旧的 `ccbench run` /
-`eval.py` formal harness 保留用于后续自治 qualification，不是当前案例开发的必经路径。
+[`docs/mvp-test-infra.md`](docs/mvp-test-infra.md)。当前案例统一从
+`ccbench pilot CASE` 启动宿主机 Claude Code；历史 `eval.py` formal harness
+仅作 receipt/qualification 兼容层，不是当前案例的 active path。
 
 ---
 

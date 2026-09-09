@@ -16,8 +16,9 @@ commercial software.
 
 ## Execution
 
-A remote HPC capability exists in the sandbox. Discover and use the available
-infrastructure yourself. Long-running scientific work (DeePMD training and MD
-sampling) must use the remote scheduler; the sandbox is the control layer.
+Long-running scientific work may require external CPU/GPU compute. Keep the
+Candidate workspace self-contained, and write a request draft under
+`compute-requests/` only when local preflight is insufficient. The trusted
+host validates the draft and an external Operator returns declared artifacts.
 Fetch every run's artifacts back under `/app` so the deliverables above are
 complete in the graded workspace.

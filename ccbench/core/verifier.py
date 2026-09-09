@@ -132,11 +132,30 @@ def run_verifier(
     """Run the Verifier in a fresh container and classify the outcome."""
     sealed_submission = Path(sealed_submission)
     logs = Path(logs)
-    logs.mkdir(parents=True, exist_ok=True)
+    if logs.exists() and logs.is_symlink():
+        return BenchmarkResult.infra_invalid(
+            run_id or "unknown", FailureCode.VERIFIER_FAILURE,
+            "verifier log directory must not be a symlink",
+        )
+    # Never clear a caller-provided directory: it may contain unrelated user
+    # data. A verifier invocation owns a fresh, non-existent log directory;
+    # stale or pre-seeded PASS/FAIL files therefore fail closed.
+    if logs.exists():
+        return BenchmarkResult.infra_invalid(
+            run_id or "unknown", FailureCode.VERIFIER_FAILURE,
+            "verifier log directory must be fresh and non-existent",
+        )
+    try:
+        logs.mkdir(parents=True, exist_ok=False)
+    except OSError as exc:
+        return BenchmarkResult.infra_invalid(
+            run_id or "unknown", FailureCode.VERIFIER_FAILURE,
+            f"cannot create fresh verifier log directory: {exc}",
+        )
     cmd = build_verifier_command(spec, sealed_submission, logs)
     proc = runner if runner is not None else subprocess.run
     try:
-        proc(cmd, timeout=int(spec.timeout_sec), capture_output=True, text=True, check=False)
+        completed = proc(cmd, timeout=int(spec.timeout_sec), capture_output=True, text=True, check=False)
     except subprocess.TimeoutExpired:
         return BenchmarkResult.infra_invalid(
             run_id or "unknown",
@@ -148,6 +167,19 @@ def run_verifier(
             run_id or "unknown",
             FailureCode.VERIFIER_FAILURE,
             f"cannot launch verifier: {exc}",
+        )
+    returncode = getattr(completed, "returncode", 0)
+    if returncode not in (0, None):
+        return BenchmarkResult.infra_invalid(
+            run_id or "unknown", FailureCode.VERIFIER_FAILURE,
+            f"verifier exited with status {returncode}",
+        )
+    result_path = logs / RESULT_JSON
+    reward_path = logs / REWARD_TXT
+    if not result_path.is_file() and not reward_path.is_file():
+        return BenchmarkResult.infra_invalid(
+            run_id or "unknown", FailureCode.VERIFIER_FAILURE,
+            f"verifier produced neither {RESULT_JSON} nor {REWARD_TXT}",
         )
     return _parse_verifier_output(logs, run_id)
 

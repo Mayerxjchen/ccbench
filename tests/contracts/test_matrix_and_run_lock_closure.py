@@ -167,7 +167,7 @@ def test_matrix_expansion_and_per_cell_integrity():
     for cell in matrix:
         assert cell["case"] in ("001", "002", "003", "004", "005")
         assert cell["model"] in ("deepseek-v4-pro",)
-        assert cell["skill"] in ("none", "hpc-submit")
+        assert cell["skill"] in ("none", "bench-compute-request")
         assert 1 <= cell["repeat"] <= 3
 
         # Model must be present in registry

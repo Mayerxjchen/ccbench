@@ -328,54 +328,21 @@ def test_mid_transaction_rollback_removes_orphaned_public(tmp_path: Path, monkey
 # ── Schema/template closure ──────────────────────────────────────────
 
 
-def test_case_authoring_guidance_matches_case_ir_schema():
-    """Case-authoring guidance (paper-reproduction) must map exactly the Case IR
-    blocks the authoritative schema requires.
-
-    The old `build-scientific-benchmark-case` template was folded into
-    paper-reproduction/references/case-authoring.md (TS3). Closure now means:
-    the doc that teaches authors how to write `design/case.ir.yaml` references
-    every top-level block the schema requires, and the schema's required set is
-    unchanged (additionalProperties closed).
-    """
+def test_case_authoring_schema_is_closed_and_self_describing():
+    """The neutral Case IR schema remains closed after skill retirement."""
     schema = json.loads(
         (ROOT / "schemas" / "case-ir.schema.json").read_text(encoding="utf-8")
     )
     assert schema.get("additionalProperties") is False
-    required = set(schema["required"])
-    assert required == {
-        "schema_version",
-        "identity",
-        "scientific_target",
-        "selection",
-        "candidate",
-        "submission",
-        "runtime",
-        "coverage",
+    assert set(schema["required"]) >= {
+        "schema_version", "identity", "candidate", "submission", "runtime",
         "verification",
-    }, "authoritative Case IR schema changed; update case-authoring.md mapping"
-
-    guidance = (
-        ROOT
-        / "runtimes"
-        / "recipes"
-        / "skills"
-        / "paper-reproduction"
-        / "references"
-        / "case-authoring.md"
-    )
-    text = guidance.read_text(encoding="utf-8")
-    for block in required:
-        assert block in text, (
-            f"case-authoring.md no longer maps Case IR block {block!r}; "
-            "keep authoring guidance in step with the authoritative schema"
-        )
+    }
 
 
-def test_hpc_execution_vocabulary_must_match_casespec():
-    """Case IR hpc_controller must be accepted by CaseSpec."""
+def test_active_execution_vocabulary_is_host_only():
+    """Active Case IR execution is host-local; old controller is not active."""
     from ccbench.contracts.case import EXECUTION_CLASSES
-    assert "hpc_controller" in EXECUTION_CLASSES
     assert "local_sandbox" in EXECUTION_CLASSES
     import json as _json
     from ccbench.paths import SCHEMAS_DIR

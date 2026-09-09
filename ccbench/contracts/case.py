@@ -333,6 +333,12 @@ class CaseSpec:
             )
         execution_class: ExecutionClass = normalized
 
+        if canonical_mvp and execution_class == "hpc_controller":
+            raise CaseContractError(
+                "hpc_controller is retired for active cases; use "
+                "execution.class='local_sandbox' with abstract [compute] needs"
+            )
+
         hpc_block = raw.get("hpc")
         if execution_class == "hpc_controller" and hpc_block is None:
             raise CaseContractError(
@@ -343,7 +349,7 @@ class CaseSpec:
             raise CaseContractError("[hpc] is not allowed for local_sandbox execution")
 
         contract_doc: dict[str, Any] = {}
-        contract_keys = ("execution", "candidate", "hpc", "runtime", "coverage", "submission_contract", "selection")
+        contract_keys = ("execution", "candidate", "hpc", "compute", "runtime", "coverage", "submission_contract", "selection")
         if canonical_mvp:
             contract_keys += ("agent", "verifier")
         for key in contract_keys:
@@ -400,6 +406,12 @@ class CaseSpec:
                 raise CaseContractError("case.toml requires [agent].profile")
             if not isinstance(verifier_profile, str) or not verifier_profile:
                 raise CaseContractError("case.toml requires [verifier].profile")
+            compute_block = raw.get("compute")
+            if not isinstance(compute_block, dict) or not compute_block.get("classes"):
+                raise CaseContractError("case.toml requires abstract [compute].classes")
+            classes = compute_block.get("classes")
+            if not isinstance(classes, list) or not classes or any(x not in ("cpu", "gpu") for x in classes):
+                raise CaseContractError("[compute].classes must contain only cpu/gpu")
         environment = raw.get("environment") or {}
         resources = {
             key: environment.get(key)

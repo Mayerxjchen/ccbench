@@ -12,6 +12,7 @@
     "api_endpoint_env": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
     "api_key_env": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
     "allowed_skills": {"type": "array", "items": {"type": "string"}},
+    "tool_policy": {"type": "string", "minLength": 1},
     "transcript_format": {"const": "jsonl"}
   },
   "additionalProperties": false

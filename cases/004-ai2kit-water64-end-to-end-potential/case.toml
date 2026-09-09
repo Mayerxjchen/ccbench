@@ -2,7 +2,7 @@ schema_version = "1.2"
 case_version = "1.0.0"
 
 [execution]
-class = "hpc_controller"
+class = "local_sandbox"
 
 [candidate]
 instruction = "task.md"
@@ -15,16 +15,10 @@ files = [{ destination = ".", source = "input/**", strip_prefix = "input" }]
 profile = "claude-mvp"
 skills = ["bench-compute-request"]
 
-[hpc]
-contract_version = "hpc-execution/v1"
-required_capabilities = ["batch_jobs", "gpu", "artifact_fetch"]
-
-[hpc.qualification]
-requires = ["dispatcher.cpu", "dispatcher.gpu", "runtime.ai2kit", "runtime.cp2k"]
-
-[hpc.scientific_capabilities]
-required = ["ai2kit", "cp2k"]
-optional = ["gpu-training"]
+[compute]
+classes = ["cpu", "gpu"]
+required_capabilities = ["ai2kit", "cp2k"]
+optional_capabilities = ["gpu-training"]
 
 [runtime]
 requirements = [

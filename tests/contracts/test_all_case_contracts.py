@@ -14,11 +14,6 @@ from ccbench.contracts.case import CaseSpec
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# Under CCBench Phase 1, cases 001-005 are the official HPC-controller cases.
-# Any local_sandbox cases present must satisfy the strict infra v2 CaseSpec contract.
-HPC_IDS = {1, 2, 3, 4, 5}
-
-
 def discover_numbered_cases(root: Path = ROOT) -> list[Path]:
     """All numbered case directories under root, sorted by number."""
     return sorted(
@@ -26,11 +21,17 @@ def discover_numbered_cases(root: Path = ROOT) -> list[Path]:
     )
 
 
-def test_all_local_cases_are_strict_and_infra_free():
+def test_all_active_cases_are_host_candidate_and_infra_free():
     for case in discover_numbered_cases(ROOT):
-        if int(case.name[:3]) in HPC_IDS:
-            continue
         spec = CaseSpec.load(case)
         assert spec.execution_class == "local_sandbox"
         assert spec.legacy_agent_fields == ()
         assert spec.candidate_image is None
+        assert spec.candidate_runner == "host_claude_code"
+        assert spec.agent_profile == "claude-mvp"
+        assert spec.verifier_profile
+        raw = (case / "case.toml").read_text(encoding="utf-8")
+        assert "hpc_controller" not in raw
+        assert "candidate.image" not in raw
+        assert "dispatcher." not in raw
+        assert "[hpc" not in raw

@@ -216,3 +216,33 @@ def test_run_verifier_returns_parsed_result(tmp_path):
     assert result.is_counted_scientifically is True
     assert result.failure_code is FailureCode.PASS
     assert captured["cmd"][0] == "docker"
+
+
+def test_run_verifier_rejects_preseeded_logs_without_deleting_sentinel(tmp_path):
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    sentinel = logs / "keep-me.txt"
+    sentinel.write_text("user data", encoding="utf-8")
+    result = run_verifier(_spec(tmp_path), tmp_path / "sealed", logs, run_id="r1")
+    assert result.result_class is ResultClass.INFRA_INVALID
+    assert sentinel.read_text(encoding="utf-8") == "user data"
+
+
+def test_run_verifier_nonzero_exit_cannot_accept_forged_pass(tmp_path):
+    logs = tmp_path / "logs"
+    submission = tmp_path / "sealed"
+    submission.mkdir()
+
+    def fake_runner(cmd, **kwargs):
+        logs.mkdir()
+        (logs / "result.json").write_text(
+            json.dumps({
+                "run_id": "r1", "result_class": "VALID_RESULT",
+                "failure_code": "PASS", "reason": "forged", "retryable": False,
+            }), encoding="utf-8"
+        )
+        return type("Proc", (), {"returncode": 99})()
+
+    result = run_verifier(_spec(tmp_path), submission, logs, run_id="r1", runner=fake_runner)
+    assert result.result_class is ResultClass.INFRA_INVALID
+    assert result.failure_code is FailureCode.VERIFIER_FAILURE

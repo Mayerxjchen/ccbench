@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mlip-bench.example/schemas/case.schema.json",
   "title": "MLIP Scientific-Agent Benchmark case contract",
-  "description": "Versioned dual-mode case contract. Canonical v2 manifests declare [execution], [candidate], and (for hpc_controller) [hpc]. Execution class is never inferred from the case number or directory name.",
+  "description": "Versioned host-Candidate case contract. Active manifests declare [execution] local_sandbox, [candidate] host_claude_code, abstract [compute] needs, and a hidden [verifier] profile.",
   "type": "object",
   "required": ["execution", "candidate"],
   "properties": {
@@ -48,6 +48,21 @@
     "runtime": {
       "type": "object",
       "description": "Scientific runtime requirements declared by the case (e.g. [runtime] requirements = [{ name = \"cp2k\" }]). The harness resolves these to a concrete image via the runtime registry."
+    },
+    "compute": {
+      "type": "object",
+      "required": ["classes"],
+      "properties": {
+        "classes": {
+          "type": "array",
+          "items": { "enum": ["cpu", "gpu"] },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "required_capabilities": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "optional_capabilities": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      },
+      "additionalProperties": false
     },
     "agent": {
       "type": "object",
@@ -213,11 +228,7 @@
   },
   "additionalProperties": false,
   "if": {
-    "properties": {
-      "execution": {
-        "properties": { "class": { "const": "hpc_controller" } }
-      }
-    },
+    "properties": { "execution": { "properties": { "class": { "const": "hpc_controller" } } } },
     "required": ["execution"]
   },
   "then": { "required": ["hpc"] },

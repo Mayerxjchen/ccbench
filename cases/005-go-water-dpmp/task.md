@@ -5,8 +5,9 @@ Potential Message Passing (DPMP) interatomic potential using deepmd-jax.
 Generate every atomic coordinate yourself and retain reproducible
 structure-generation provenance.
 
-A remote HPC capability exists in the sandbox. Discover and use the available
-infrastructure yourself. No initial structures or training data are supplied.
+External CPU/GPU compute may be required. No cluster recipe or provider
+details are supplied to the Candidate; write only an abstract request draft
+under `compute-requests/` when local preflight is insufficient.
 
 The target systems are exactly the five described in `system.json` (no other
 systems will be scored). Each interface is a WATER SLAB sandwiched between TWO
@@ -64,16 +65,16 @@ Independently design, implement, and execute the full development cycle:
    behavior under short MD (structures must remain physical at 300 K; reproduce
    a physically sensible interfacial water density profile for each interface).
 
-The scientific stages above are fixed, but all methodological and infrastructure
+The scientific stages above are fixed, but all methodological and execution
 decisions are yours. Do not merely prepare inputs: execute the workflow and
-obtain a trained potential. Long-running scientific work must use the remote
-scheduler; the sandbox is the control layer.
+obtain a trained potential. Long-running scientific work may use an external
+Operator; the Candidate only writes request drafts.
 
 At completion, retain under `/app`:
 
 - the complete reproducible workflow and structure-generation record;
 - the first-principles data generated during the project;
-- provenance for every training datum and remote job;
+- provenance for every training datum and external compute request;
 - the final trained potential model(s);
 - evidence supporting accuracy and physical reliability;
 - a concise scientific report describing methodology, validation, limitations,

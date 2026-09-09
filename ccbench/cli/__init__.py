@@ -63,7 +63,7 @@ def _setup(report_only: bool = False) -> int:
             "  ccbench site configure --out ~/cluster_profile.toml\n"
             "  # fill in every value, then:\n"
             "  ccbench site qualify --profile ~/cluster_profile.toml --dry-run\n"
-            "  ccbench run 004-ai2kit-water64-end-to-end-potential\n",
+            "  ccbench pilot 004-ai2kit-water64-end-to-end-potential\n",
             file=sys.stderr,
         )
     return 0 if ok else 1
@@ -437,14 +437,15 @@ def build_parser() -> argparse.ArgumentParser:
     pilot_start.add_argument("case")
     pilot_start.add_argument("--out", type=Path, default=None)
     pilot_start.add_argument("--formal", action="store_true")
-    pilot_start.add_argument("--agent-command", nargs="+", default=None)
     pilot_status = pilot_sub.add_parser("status", help="show durable run state")
     pilot_status.add_argument("run_dir", type=Path)
     pilot_resume = pilot_sub.add_parser("resume", help="resume a run after operator return")
     pilot_resume.add_argument("run_dir", type=Path)
-    pilot_resume.add_argument("--agent-command", nargs="+", default=None)
     pilot_eval = pilot_sub.add_parser("evaluate", help="freeze and run hidden verifier")
     pilot_eval.add_argument("run_dir", type=Path)
+    pilot_import = pilot_sub.add_parser("import-results", help="import trusted Operator results")
+    pilot_import.add_argument("run_dir", type=Path)
+    pilot_import.add_argument("source", type=Path)
 
     return parser
 
@@ -526,9 +527,9 @@ def main(argv: list[str] | None = None) -> int:
             except (MvpError, PackageError, QuarantineError) as exc:
                 raise CliError(str(exc)) from exc
         if command == "pilot":
-            from ccbench.pilot import MvpError, evaluate as pilot_evaluate, resume as pilot_resume, start as pilot_start, status as pilot_status
+            from ccbench.pilot import MvpError, evaluate as pilot_evaluate, import_results as pilot_import_results, resume as pilot_resume, start as pilot_start, status as pilot_status
             pilot_argv = list(argv)
-            if len(pilot_argv) < 2 or pilot_argv[1] not in {"start", "status", "resume", "evaluate"}:
+            if len(pilot_argv) < 2 or pilot_argv[1] not in {"start", "status", "resume", "evaluate", "import-results"}:
                 pilot_argv.insert(1, "start")
             args = build_parser().parse_args(pilot_argv)
             try:
@@ -537,13 +538,15 @@ def main(argv: list[str] | None = None) -> int:
                     if out is None:
                         import tempfile
                         out = Path(tempfile.mkdtemp(prefix=f"ccbench-{args.case}-"))
-                    result = pilot_start(args.case, run_dir=out, formal=args.formal, command=args.agent_command)
+                    result = pilot_start(args.case, run_dir=out, formal=args.formal)
                 elif args.pilot_command == "status":
                     result = pilot_status(args.run_dir)
                 elif args.pilot_command == "resume":
-                    result = pilot_resume(args.run_dir, command=args.agent_command)
-                else:
+                    result = pilot_resume(args.run_dir)
+                elif args.pilot_command == "evaluate":
                     result = pilot_evaluate(args.run_dir)
+                else:
+                    result = pilot_import_results(args.run_dir, args.source)
             except MvpError as exc:
                 raise CliError(str(exc)) from exc
             print(json.dumps(result, indent=2, sort_keys=True, default=str))

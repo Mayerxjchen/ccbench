@@ -5,8 +5,9 @@ Construct a periodic cubic liquid-water system containing 64 H2O molecules in a
 structure-generation provenance. Develop and execute an end-to-end DeePMD
 potential workflow using CP2K labels and material ai2-kit participation.
 
-A remote HPC capability exists in the sandbox. Discover and use the available
-infrastructure yourself. No initial structure or cluster recipe is supplied.
+External CPU/GPU compute may be required. No cluster recipe or provider
+details are supplied to the Candidate; write only an abstract request draft
+under `compute-requests/` when local preflight is insufficient.
 
 Independently design, implement, and execute the full development cycle:
 
@@ -19,16 +20,16 @@ Independently design, implement, and execute the full development cycle:
   configurations selected using the current potential;
 - assess energy/force accuracy and physical behavior under simulation.
 
-The scientific stages above are fixed, but all methodological and infrastructure
+The scientific stages above are fixed, but all methodological and execution
 decisions are yours. Do not merely prepare inputs: execute the workflow and obtain
-a trained potential. Long-running scientific work must use the remote scheduler;
+a trained potential. Long-running scientific work may use an external Operator;
 the sandbox is the control layer.
 
 At completion, retain under `/app`:
 
 - the complete reproducible workflow and structure-generation record;
 - the first-principles data generated during the project;
-- provenance for every training datum and remote job;
+- provenance for every training datum and external compute request;
 - the final trained potential model(s);
 - evidence supporting accuracy and physical reliability;
 - a concise scientific report describing methodology, validation, limitations,

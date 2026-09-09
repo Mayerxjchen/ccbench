@@ -109,7 +109,7 @@ def test_compute_request_is_resource_and_digest_checked(tmp_path: Path) -> None:
                 "nodes": 1, "ntasks": 4, "cpus_per_task": 2,
                 "memory_gb_per_node": 32, "walltime_min": 30, "gpus": 0,
             },
-            "inputs": [{"path": "system.json", "sha256": sha256_file(bundle / "system.json")}],
+            "inputs": [{"path": "system.json", "sha256": sha256_file(bundle / "system.json"), "size": (bundle / "system.json").stat().st_size}],
             "outputs": ["compute-results/result.json"],
         }),
         encoding="utf-8",
@@ -139,7 +139,7 @@ def test_compute_request_uses_per_node_memory_and_gpu_min_memory(tmp_path: Path)
             "memory_gb_per_node": 64, "gpus": 1,
             "minimum_gpu_memory_gb": 24, "walltime_min": 120,
         },
-        "inputs": [{"path": "system.json", "sha256": sha256_file(bundle / "system.json")}],
+        "inputs": [{"path": "system.json", "sha256": sha256_file(bundle / "system.json"), "size": (bundle / "system.json").stat().st_size}],
         "outputs": ["compute-results/model.ckpt"],
         "validation": {"success_markers": ["finished training"], "reject_if": ["nan"]},
     }
@@ -181,3 +181,72 @@ def test_sealed_submission_detects_post_freeze_drift(tmp_path: Path) -> None:
     (sealed / "answer.txt").write_text("changed")
     with pytest.raises(MvpError, match="drift"):
         verify_sealed_submission(sealed)
+
+
+def test_host_pilot_constructs_restricted_fake_argv_and_env(tmp_path: Path, monkeypatch) -> None:
+    """The fake agent is an offline adversary: only safe flags and env cross the boundary."""
+    import sys
+
+    import ccbench.pilot as pilot
+    from ccbench.pilot import start
+
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "must-not-cross")
+    monkeypatch.setenv("SSH_AUTH_SOCK", "/tmp/secret.sock")
+    run_dir = tmp_path / "pilot"
+    captured = {}
+    def fake_run(argv, **kwargs):
+        captured.update(argv=argv, env=kwargs["env"])
+        final = run_dir / "candidate/final"
+        final.mkdir(exist_ok=True)
+        (final / "fake.json").write_text("ok")
+        return type("Proc", (), {"returncode": 0})()
+    monkeypatch.setattr(pilot.subprocess, "run", fake_run)
+    state = start("001", run_dir=run_dir)
+    argv = captured["argv"]
+    assert all(flag in argv for flag in ("--bare", "--restricted", "--strict-mcp-config"))
+    assert argv[argv.index("--permission-prompts") + 1] == "none"
+    assert argv[argv.index("--tools") + 1] == "Read,Write,Edit,Glob,Grep"
+    assert "--session-id" in argv
+    assert "AWS_SECRET_ACCESS_KEY" not in captured["env"]
+    assert "SSH_AUTH_SOCK" not in captured["env"]
+    assert state["skill_digest"].startswith("sha256:")
+    assert not (run_dir / "candidate/solution").exists()
+    assert not (run_dir / "candidate/reference").exists()
+
+
+def test_host_pilot_resume_uses_resume_flag_and_same_session(tmp_path: Path, monkeypatch) -> None:
+    import ccbench.pilot as pilot
+    from ccbench.pilot import import_results, resume, start
+
+    run_dir = tmp_path / "pilot"
+    events = []
+    def fake_run(argv, **kwargs):
+        events.append(argv)
+        if len(events) == 1:
+            (run_dir / "candidate/compute-requests/request.json").write_text(json.dumps({
+                "schema_version": "1.0", "compute_class": "cpu", "command": ["python", "run.py"],
+                "resources": {"nodes": 1, "ntasks": 1, "cpus_per_task": 1, "memory_gb_per_node": 1, "walltime_min": 1, "gpus": 0},
+                "inputs": [{"path": "run_profiles.json"}], "outputs": ["compute-results/result.dat"],
+            }), encoding="utf-8")
+        else:
+            (run_dir / "candidate/final/resumed.txt").write_text("ok")
+        return type("Proc", (), {"returncode": 0})()
+    monkeypatch.setattr(pilot.subprocess, "run", fake_run)
+    first = start("001", run_dir=run_dir)
+    assert first["state"] == "COMPUTE_REQUIRED"
+    operator = tmp_path / "operator" / "compute-results"
+    operator.mkdir(parents=True)
+    (operator / "result.dat").write_text("external result", encoding="utf-8")
+    import_results(run_dir, operator.parent)
+    resumed = resume(run_dir)
+    assert resumed["session_id"] == first["session_id"]
+    records = [json.loads(line) for line in (run_dir / "transcript.jsonl").read_text().splitlines()]
+    assert "--resume" in events[-1]
+    assert records[-1]["session_id"] == first["session_id"]
+
+
+def test_pilot_rejects_non_claude_profile_command() -> None:
+    from ccbench.pilot import _command
+
+    with pytest.raises(MvpError, match="trusted claude"):
+        _command({"command": ["python", "-c", "print(1)"]})
