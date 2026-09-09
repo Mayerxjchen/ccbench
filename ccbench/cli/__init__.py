@@ -1,13 +1,13 @@
 """``ccbench`` — the thin unified user entry (aliases: ``mlffbench``).
 
-Five verbs, and no logic: each one locates an existing module and forwards.
-This CLI must never reimplement resolution, submission, qualification, or
-reporting — those live in the trusted modules it orchestrates:
+The active MVP entry is ``ccbench pilot``.  The CLI must never reimplement
+resolution, submission, qualification, or reporting — those live in the
+trusted modules it orchestrates:
 
 - ``ccbench setup``             — environment and repo sanity, next steps
 - ``ccbench site configure``    — materialize the private cluster profile
 - ``ccbench site qualify ...``  — -> scripts/qualification/qualify_case.py
-- ``ccbench run ...``           — -> eval.py (the case runner)
+- ``ccbench pilot ...``         — host Claude Code Candidate workflow
 - ``ccbench report ...``        — -> scripts/ablation/verify_evidence.py
 
 A private cluster profile must live OUTSIDE the repository; ``site
@@ -100,10 +100,6 @@ def _site_qualify(rest: list[str]) -> int:
     from scripts.qualification.qualify_case import main as qualify_main
 
     return qualify_main(rest)
-
-
-def _run(rest: list[str]) -> int:
-    raise CliError("the legacy run path is retired; use `ccbench pilot CASE`")
 
 
 def _report(rest: list[str]) -> int:
@@ -340,9 +336,6 @@ def build_parser() -> argparse.ArgumentParser:
         "qualify", help="run site/case qualification (forwards to qualify_case)"
     )
     qualify.add_argument("qualify_args", nargs="*", help=argparse.SUPPRESS)
-
-    run = sub.add_parser("run", help="run a case (forwards to eval.py)")
-    run.add_argument("run_args", nargs="*", help=argparse.SUPPRESS)
 
     report = sub.add_parser(
         "report", help="verify evidence for a run (forwards to verify_evidence)"
@@ -582,8 +575,6 @@ def main(argv: list[str] | None = None) -> int:
                     args.site_profile_registry,
                 )
             build_parser().error("compute needs a subcommand: configure | validate | qualify")
-        if command == "run":
-            return _run(argv[1:])
         if command == "report":
             return _report(argv[1:])
         build_parser().error(f"unknown command {command!r}")
