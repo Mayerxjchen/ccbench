@@ -133,7 +133,10 @@ def export_case(
         declared = []
         if isinstance(spec.case_dir, Path):
             import tomllib
-            raw = tomllib.loads((spec.case_dir / "case.toml").read_text(encoding="utf-8"))
+            manifest_path = spec.case_dir / "case.toml"
+            if not manifest_path.is_file():
+                manifest_path = spec.case_dir / "task.toml"
+            raw = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
             case_agent = raw.get("agent") or {}
             declared = case_agent.get("skills") or []
         registry = load_infra_profiles()
