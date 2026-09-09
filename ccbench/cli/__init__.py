@@ -103,49 +103,7 @@ def _site_qualify(rest: list[str]) -> int:
 
 
 def _run(rest: list[str]) -> int:
-    if str(ROOT) not in sys.path:
-        sys.path.insert(0, str(ROOT))  # eval.py is a repo-root module
-    import eval as eval_mod  # top-level case runner
-
-    # Translate --compute <profile> to --compute-profile <profile>
-    translated: list[str] = []
-    i = 0
-    while i < len(rest):
-        if rest[i] == "--compute":
-            translated.append("--compute-profile")
-            if i + 1 < len(rest):
-                translated.append(rest[i + 1])
-                i += 2
-                continue
-        elif rest[i].startswith("--compute="):
-            _, val = rest[i].split("=", 1)
-            translated.extend(["--compute-profile", val])
-            i += 1
-            continue
-        elif rest[i] == "--site":
-            translated.append("--site-profile")
-            if i + 1 < len(rest):
-                translated.append(rest[i + 1])
-                i += 2
-                continue
-        elif rest[i].startswith("--site="):
-            _, val = rest[i].split("=", 1)
-            translated.extend(["--site-profile", val])
-            i += 1
-            continue
-        else:
-            translated.append(rest[i])
-        i += 1
-
-    saved = sys.argv
-    sys.argv = ["ccbench run", *translated]
-    try:
-        eval_mod.main()
-        return 0
-    except SystemExit as exc:
-        return int(exc.code or 0)
-    finally:
-        sys.argv = saved
+    raise CliError("the legacy run path is retired; use `ccbench pilot CASE`")
 
 
 def _report(rest: list[str]) -> int:

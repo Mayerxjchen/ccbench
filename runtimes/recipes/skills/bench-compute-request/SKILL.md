@@ -41,8 +41,8 @@ and omit GPU memory; GPU requests must set `gpus>=1` and a positive
 
 ## Hard boundaries
 
-Never submit, monitor, fetch, cancel, or run external work. Never invoke
-`ssh`, `sbatch`, `scancel`, `bench-hpc`, `compshare`, or any cloud/scheduler
+Never submit, monitor, fetch, cancel, or run external work. Never invoke a
+remote-login client, scheduler CLI, gateway client, or cloud-management
 command. Never mention or emit hosts, partitions, accounts, credentials,
 tokens, image IDs, or concrete site paths. Do not fabricate outputs or
 digests. At most two evidence-based resource revisions are allowed for a

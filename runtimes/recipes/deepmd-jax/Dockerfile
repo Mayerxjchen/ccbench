@@ -39,17 +39,3 @@ RUN apt-get update && apt-get install -y --no-install-recommends git && \
 
 ENV JAX_ENABLE_X64=1
 WORKDIR /app
-
-# bench-hpc CLI (Task 12): the shared deepmd-jax runtime also carries the
-# trusted HTTP job client so a deepmd-jax-family candidate can be driven over
-# the bench-hpc gateway.  The venv already has pip (ensurepip ran above); only
-# pure-python deps are needed, plus the `bench-hpc` wrapper.
-COPY ccbench /opt/dftworld/controller/ccbench
-COPY schemas /opt/dftworld/controller/schemas
-ENV PYTHONPATH=/opt/dftworld/controller
-
-RUN /opt/ai2kit/bin/python -m pip install --no-cache-dir \
-        pyyaml jsonschema referencing && \
-    printf '#!/bin/sh\nexec /opt/ai2kit/bin/python -m ccbench.hpc "$@"\n' \
-        > /usr/local/bin/bench-hpc && \
-    chmod +x /usr/local/bin/bench-hpc

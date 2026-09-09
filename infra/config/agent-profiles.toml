@@ -12,7 +12,7 @@ transcript_format = "jsonl"
 
 [verifiers.matclaw-cips-v1]
 image = "dftworld-base-matclaw-cips:2.2.11-cpu"
-runtime_lock = "runtimes/locks/matclaw-cips-runtime.lock.json"
+runtime_lock = "runtimes/locks/matclaw-cips-verifier.lock.json"
 
 [verifiers.ai2kit-v1]
 image = "ai2kit-runtime-v1"
