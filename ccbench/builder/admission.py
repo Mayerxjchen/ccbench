@@ -55,8 +55,8 @@ def evaluate_admission(
 
     # Execution feasibility
     runtime = proposal.get("runtime", {})
-    if not runtime.get("candidate_image"):
-        reasons.append("Missing candidate runtime image specification")
+    if not runtime.get("agent_profile") and not runtime.get("candidate_image"):
+        reasons.append("Missing candidate agent profile")
         return AdmissionReport(
             decision=AdmissionDecision.REFINE,
             reasons=reasons,

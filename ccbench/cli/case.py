@@ -86,7 +86,7 @@ def handle_case_cmd(args: argparse.Namespace) -> int:
         proposal = {
             "scientific_target": {"system": args.system, "objective": args.objective},
             "category": args.category,
-            "runtime": {"candidate_image": "ccbench-agent:v1"},
+            "runtime": {"agent_profile": "claude-mvp"},
         }
         admission_rep = evaluate_admission(proposal)
         adm_path = source_dir / "admission-report.json"

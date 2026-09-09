@@ -94,6 +94,10 @@ def _manifest_payload(bundle: Path, spec: CaseSpec) -> dict[str, Any]:
         "submission_root": spec.submission_root,
         "public_digest": public["public_digest"],
         "immutable_files": immutable,
+        "candidate_skills": {
+            path.relative_to(skills_root).parts[0]: sha256_file(path)
+            for path in sorted(skills_root.glob("*/SKILL.md"))
+        } if skills_root.is_dir() else {},
         "mutable_directories": sorted(MUTABLE_DIRS),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -299,7 +303,7 @@ def validate_compute_request(
         or any(not isinstance(item, str) or not item for item in command)
     ):
         raise MvpError("command must be a non-empty string array")
-    forbidden_tokens = {"ssh", "sshd", "sbatch", "scancel", "srun", "scp", "rsync", "curl", "wget", "docker", "podman", "singularity", "apptainer", "bench-hpc", "compshare", "submit", "cancel"}
+    forbidden_tokens = {"sh", "bash", "zsh", "fish", "powershell", "cmd", "ssh", "sshd", "sbatch", "scancel", "srun", "scp", "rsync", "curl", "wget", "docker", "podman", "singularity", "apptainer", "bench-hpc", "compshare", "submit", "cancel"}
     shell_chars = set(";|&$`()><\n\r\x00")
     for token in command:
         lower = token.lower()

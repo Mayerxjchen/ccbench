@@ -110,14 +110,16 @@
     },
     "runtime": {
       "type": "object",
-      "required": ["execution_class", "candidate_image"],
+      "required": ["execution_class"],
       "additionalProperties": false,
       "properties": {
         "execution_class": {
           "type": "string",
           "enum": ["local_sandbox", "hpc_controller"]
         },
-        "candidate_image": { "type": "string" },
+        "candidate_image": { "type": "string", "deprecated": true },
+        "agent_profile": { "type": "string", "default": "claude-mvp" },
+        "verifier_profile": { "type": "string", "default": "matclaw-cips-v1" },
         "verifier_image": { "type": "string" },
         "timeout_sec": { "type": "number", "default": 1800.0 },
         "gpus": { "type": "integer", "default": 0 }

@@ -75,7 +75,7 @@ def start(case: str, *, run_dir: Path, formal: bool = False, command: list[str] 
         "state": "RUNNING", "workspace": str(workspace), "lock": str(lock),
         "transcript": str(run_dir / "transcript.jsonl"), "agent_profile": spec.agent_profile,
         "agent_profile_digest": load_infra_profiles().digest("agents", spec.agent_profile or "claude-mvp"),
-        "created_at": _now(), "updated_at": _now(),
+        "created_at": previous.get("created_at", _now()) if previous else _now(), "updated_at": _now(),
     }
     _write_state(run_dir, state)
     transcript = Path(state["transcript"])
@@ -86,7 +86,7 @@ def start(case: str, *, run_dir: Path, formal: bool = False, command: list[str] 
     env = os.environ.copy()
     env["CCBENCH_SESSION_ID"] = session_id
     env["CCBENCH_RUN_ID"] = run_dir.name
-    with transcript.open("w", encoding="utf-8") as stream:
+    with transcript.open("a" if previous else "w", encoding="utf-8") as stream:
         stream.write(json.dumps({"event": "start", "session_id": session_id, "argv": argv, "at": _now()}, sort_keys=True) + "\n")
         try:
             proc = subprocess.run(argv + [prompt], cwd=workspace, env=env, stdout=stream, stderr=subprocess.STDOUT, text=True, timeout=int(profile.get("max_turns", 64)) * 120, check=False)
