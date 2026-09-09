@@ -8,8 +8,12 @@ class = "hpc_controller"
 instruction = "task.md"
 submission_root = "final"
 legacy_submission_layout = false
-image = "dftworld-base-deepmd-jax"
+runner = "host_claude_code"
 files = [{ destination = ".", source = "input/**", strip_prefix = "input" }]
+
+[agent]
+profile = "claude-mvp"
+skills = ["bench-compute-request"]
 
 [hpc]
 contract_version = "hpc-execution/v1"
@@ -31,6 +35,7 @@ title = "End-to-end development of a GO–water DPMP interatomic potential"
 description = "Reproduce the full development pipeline of the DPMP potential for GO–water interfaces: CP2K revPBE-D3 AIMD labeling, DPMP training on JAX, iterative active-learning improvement, hidden static/dynamic/physical validation. Published dataset and author model are hidden references."
 
 [verifier]
+profile = "dpmp-v1"
 timeout_sec = 10800
 
 [coverage]

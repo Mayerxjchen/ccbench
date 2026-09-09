@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["operator", "compute_class", "gpus", "memory_semantics"],
+  "properties": {
+    "operator": {"enum": ["ikkem-slurm", "compshare-cli"]},
+    "compute_class": {"enum": ["cpu", "gpu"]},
+    "gpus": {"type": "integer", "minimum": 0},
+    "gpus_min": {"type": "integer", "minimum": 1},
+    "memory_semantics": {"const": "per-node"},
+    "zero_orphan_required": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}

@@ -68,6 +68,28 @@ class ProfileRegistry:
                         )
                     source_map[key] = str(path)
                     if isinstance(profile, dict):
+                        if kind == "agents" and "runner" in profile:
+                            if "api_key" in profile or "secret" in profile or "token" in profile:
+                                raise ValueError(f"invalid {kind} profile {name} in {path}: credentials must not be stored")
+                            schema_path = SCHEMA_DIR / "agent-profile.schema.json"
+                            if schema_path.is_file():
+                                errors = sorted(
+                                    jsonschema.Draft202012Validator(
+                                        json.loads(schema_path.read_text(encoding="utf-8"))
+                                    ).iter_errors(profile), key=lambda e: list(e.path)
+                                )
+                                if errors:
+                                    raise ValueError(f"invalid {kind} profile {name} in {path}: {errors[0].message}")
+                        if kind == "routes":
+                            schema_path = SCHEMA_DIR / "compute-profiles.schema.json"
+                            if schema_path.is_file():
+                                errors = sorted(
+                                    jsonschema.Draft202012Validator(
+                                        json.loads(schema_path.read_text(encoding="utf-8"))
+                                    ).iter_errors(profile), key=lambda e: list(e.path)
+                                )
+                                if errors:
+                                    raise ValueError(f"invalid {kind} profile {name} in {path}: {errors[0].message}")
                         for k, v in profile.items():
                             if k in ("max_turns", "max_model_turns", "max_total_tokens") and not isinstance(v, int):
                                 raise ValueError(
@@ -111,3 +133,30 @@ class ProfileRegistry:
         if kind_profiles is None:
             return []
         return sorted(kind_profiles.keys())
+
+
+def load_infra_profiles(root: Path | None = None) -> ProfileRegistry:
+    """Load the small public infra profile registry."""
+    if root is None:
+        root = Path(__file__).resolve().parents[2] / "infra" / "config"
+    return ProfileRegistry.load(Path(root))
+
+
+def resolve_profile(registry: ProfileRegistry, kind: str, name: str) -> dict[str, Any]:
+    """Resolve finite local ``extends`` chains and reject cycles."""
+    visiting: list[str] = []
+
+    def visit(current: str) -> dict[str, Any]:
+        if current in visiting:
+            cycle = " -> ".join([*visiting, current])
+            raise ValueError(f"profile inheritance cycle in {kind}: {cycle}")
+        visiting.append(current)
+        raw = dict(registry.require(kind, current))
+        parent = raw.pop("extends", None)
+        if parent is not None and (not isinstance(parent, str) or not parent):
+            raise ValueError(f"invalid extends in {kind}/{current}")
+        merged = raw if parent is None else {**visit(parent), **raw}
+        visiting.pop()
+        return merged
+
+    return visit(name)

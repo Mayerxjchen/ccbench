@@ -23,7 +23,7 @@
         "instruction": { "type": "string" },
         "submission_root": { "type": "string" },
         "legacy_submission_layout": { "type": "boolean" },
-        "image": { "type": "string" },
+        "runner": { "const": "host_claude_code" },
         "max_agent_seconds": {
           "type": "number",
           "minimum": 1,
@@ -48,6 +48,22 @@
     "runtime": {
       "type": "object",
       "description": "Scientific runtime requirements declared by the case (e.g. [runtime] requirements = [{ name = \"cp2k\" }]). The harness resolves these to a concrete image via the runtime registry."
+    },
+    "agent": {
+      "type": "object",
+      "required": ["profile"],
+      "properties": { "profile": { "type": "string", "minLength": 1 }, "skills": { "type": "array", "items": { "type": "string" } } },
+      "additionalProperties": false
+    },
+    "verifier": {
+      "type": "object",
+      "required": ["profile"],
+      "properties": {
+        "profile": { "type": "string", "minLength": 1 },
+        "timeout_sec": { "type": "number", "minimum": 1 },
+        "env": { "type": "object", "additionalProperties": { "type": "string" } }
+      },
+      "additionalProperties": false
     },
     "hpc": {
       "type": "object",

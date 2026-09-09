@@ -8,8 +8,12 @@ class = "hpc_controller"
 instruction = "task.md"
 submission_root = "final"
 legacy_submission_layout = false
-image = "dftworld-base-ai2kit:0.1.0-cpu-controller"
+runner = "host_claude_code"
 files = [{ destination = ".", source = "input/**", strip_prefix = "input" }]
+
+[agent]
+profile = "claude-mvp"
+skills = ["bench-compute-request"]
 
 [hpc]
 contract_version = "hpc-execution/v1"
@@ -33,6 +37,7 @@ name = "benchmark/004-ai2kit-water64-end-to-end-potential"
 description = "End-to-end development of a reliable DeePMD water potential (CP2K AIMD -> active learning -> validation) starting from an unrelaxed 64-H2O structure"
 
 [verifier]
+profile = "ai2kit-v1"
 timeout_sec = 10800
 
 [coverage]

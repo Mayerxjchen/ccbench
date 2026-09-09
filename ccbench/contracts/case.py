@@ -53,7 +53,7 @@ KNOWN_RUNTIME_FAMILIES: frozenset[str] = frozenset(
 # concrete images, models, and API configurations.
 INFRA_OWNED_CASE_FIELDS = frozenset({
     "provider", "model", "endpoint", "api_key", "retry",
-    "request_timeout", "max_turns", "agent_walltime", "skills", "fallback",
+    "request_timeout", "max_turns", "agent_walltime", "fallback",
 })
 
 SCHEMA_PATH = Path(__file__).resolve().parents[2] / "schemas" / "case.schema.json"
@@ -182,6 +182,8 @@ def _reject_infra_owned_fields(raw: dict[str, Any]) -> None:
     the harness resolves them to concrete configurations.
     """
     found = sorted(INFRA_OWNED_CASE_FIELDS & set(raw))
+    if "skills" in raw:
+        found.append("skills")
     agent = raw.get("agent") or {}
     found += [f"agent.{k}" for k in sorted(INFRA_OWNED_CASE_FIELDS & set(agent))]
     if found:
@@ -205,6 +207,9 @@ class CaseSpec:
     public_files: tuple[PublicFileRule, ...]
     submission_root: str
     candidate_image: str | None
+    candidate_runner: str
+    agent_profile: str | None
+    verifier_profile: str | None
     agent_timeout_sec: float
     verifier_timeout_sec: float
     verifier_env: dict[str, str]
@@ -294,6 +299,7 @@ class CaseSpec:
     def _from_raw(cls, raw: dict[str, Any], case_dir: Path) -> "CaseSpec":
         # Reject infra-owned fields before any other processing
         _reject_infra_owned_fields(raw)
+        is_case_v2 = (case_dir / "case.toml").is_file()
 
         explicit = raw.get("execution")
         if explicit is not None and not isinstance(explicit, dict):
@@ -335,17 +341,20 @@ class CaseSpec:
             raise CaseContractError("[hpc] is not allowed for local_sandbox execution")
 
         contract_doc: dict[str, Any] = {}
-        for key in ("execution", "candidate", "hpc", "runtime", "coverage", "submission_contract", "selection"):
+        contract_keys = ("execution", "candidate", "hpc", "runtime", "coverage", "submission_contract", "selection")
+        if is_case_v2:
+            contract_keys += ("agent", "verifier")
+        for key in contract_keys:
             if key in raw:
                 contract_doc[key] = raw[key]
         if explicit_class is not None:
             cls._validate_schema(contract_doc)
 
         instruction = "task.md" if (case_dir / "task.md").is_file() else "instruction.md"
-        is_case_v2 = (case_dir / "case.toml").is_file()
         submission_root = "final" if is_case_v2 else "."
         legacy_layout = False if is_case_v2 else True
         candidate_image: str | None = None
+        candidate_runner = ""
         max_agent_seconds: float | None = None
         public_rules: list[PublicFileRule] = []
         candidate = raw.get("candidate")
@@ -354,6 +363,11 @@ class CaseSpec:
             submission_root = str(candidate.get("submission_root", submission_root))
             legacy_layout = bool(candidate.get("legacy_submission_layout", legacy_layout))
             image = candidate.get("image")
+            candidate_runner = str(candidate.get("runner", ""))
+            if is_case_v2 and image is not None:
+                raise CaseContractError(
+                    "candidate.image is retired; declare candidate.runner='host_claude_code'"
+                )
             candidate_image = None if image is None else str(image)
             max_agent_seconds = candidate.get("max_agent_seconds")
             if max_agent_seconds is not None:
@@ -368,6 +382,15 @@ class CaseSpec:
 
         agent = raw.get("agent") or {}
         verifier = raw.get("verifier") or {}
+        agent_profile = agent.get("profile") if isinstance(agent, dict) else None
+        verifier_profile = verifier.get("profile") if isinstance(verifier, dict) else None
+        if is_case_v2:
+            if candidate_runner != "host_claude_code":
+                raise CaseContractError("case.toml requires candidate.runner='host_claude_code'")
+            if not isinstance(agent_profile, str) or not agent_profile:
+                raise CaseContractError("case.toml requires [agent].profile")
+            if not isinstance(verifier_profile, str) or not verifier_profile:
+                raise CaseContractError("case.toml requires [verifier].profile")
         environment = raw.get("environment") or {}
         resources = {
             key: environment.get(key)
@@ -490,6 +513,9 @@ class CaseSpec:
             public_files=tuple(public_rules),
             submission_root=submission_root,
             candidate_image=candidate_image,
+            candidate_runner=candidate_runner,
+            agent_profile=None if agent_profile is None else str(agent_profile),
+            verifier_profile=None if verifier_profile is None else str(verifier_profile),
             agent_timeout_sec=float(agent.get("timeout_sec", 0.0)),
             verifier_timeout_sec=float(verifier.get("timeout_sec", 0.0)),
             verifier_env={str(k): str(v) for k, v in (verifier.get("env") or {}).items()},

@@ -1,0 +1,23 @@
+[agents.claude-mvp]
+runner = "host_claude_code"
+command = ["claude", "--print", "--output-format", "stream-json"]
+model = "claude-sonnet-4-20250514"
+effort = "medium"
+max_turns = 64
+max_budget_usd = 5.0
+api_endpoint_env = "ANTHROPIC_BASE_URL"
+api_key_env = "ANTHROPIC_API_KEY"
+allowed_skills = ["bench-compute-request"]
+transcript_format = "jsonl"
+
+[verifiers.matclaw-cips-v1]
+image = "dftworld-base-matclaw-cips:2.2.11-cpu"
+runtime_lock = "runtimes/locks/matclaw-cips-runtime.lock.json"
+
+[verifiers.ai2kit-v1]
+image = "ai2kit-runtime-v1"
+runtime_lock = "runtimes/locks/ai2kit-runtime.lock.json"
+
+[verifiers.dpmp-v1]
+image = "dftworld-deepmd-jax:0.1.0-cpu"
+runtime_lock = "runtimes/locks/deepmd-jax-runtime.lock.json"

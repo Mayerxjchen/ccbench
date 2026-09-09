@@ -8,8 +8,12 @@ class = "hpc_controller"
 instruction = "task.md"
 submission_root = "final"
 legacy_submission_layout = false
-image = "dftworld-base-matclaw-cips:2.2.11-controller"
+runner = "host_claude_code"
 files = [{ destination = ".", source = "input/**", strip_prefix = "input" }]
+
+[agent]
+profile = "claude-mvp"
+skills = ["bench-compute-request"]
 
 [hpc]
 contract_version = "hpc-execution/v1"
@@ -30,6 +34,7 @@ name = "benchmark/001-matclaw-cips-active-distillation"
 description = "Active distillation of a fast CIPS DeePMD potential"
 
 [verifier]
+profile = "matclaw-cips-v1"
 timeout_sec = 10800
 
 [coverage]

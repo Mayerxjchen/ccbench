@@ -1,0 +1,13 @@
+[routes.cpu]
+operator = "ikkem-slurm"
+compute_class = "cpu"
+gpus = 0
+memory_semantics = "per-node"
+
+[routes.gpu]
+operator = "compshare-cli"
+compute_class = "gpu"
+gpus = 1
+gpus_min = 1
+memory_semantics = "per-node"
+zero_orphan_required = true
