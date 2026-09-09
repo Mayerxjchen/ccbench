@@ -208,15 +208,15 @@ class CaseSpec:
     public_files: tuple[PublicFileRule, ...]
     submission_root: str
     candidate_image: str | None
-    candidate_runner: str
-    agent_profile: str | None
-    verifier_profile: str | None
     agent_timeout_sec: float
     verifier_timeout_sec: float
     verifier_env: dict[str, str]
     candidate_resources: dict[str, Any]
     legacy_execution_value: str | None
     legacy_submission_layout: bool
+    candidate_runner: str = ""
+    agent_profile: str | None = None
+    verifier_profile: str | None = None
     # Runtime requirements declared by the case (scientific needs, not images)
     runtime_requirements: tuple[RuntimeRequirement, ...] = ()
     # Case-declared agent budget bound (candidate property), only when the case
@@ -348,7 +348,14 @@ class CaseSpec:
             contract_keys += ("agent", "verifier")
         for key in contract_keys:
             if key in raw:
-                contract_doc[key] = raw[key]
+                value = raw[key]
+                # Old temporary/task fixtures may still carry the retired
+                # image key. Production repository cases are rejected; this
+                # compatibility view validates the remaining contract only.
+                if key == "candidate" and not canonical_mvp and isinstance(value, dict) and "image" in value:
+                    value = dict(value)
+                    value.pop("image", None)
+                contract_doc[key] = value
         if explicit_class is not None:
             cls._validate_schema(contract_doc)
 
@@ -366,7 +373,7 @@ class CaseSpec:
             legacy_layout = bool(candidate.get("legacy_submission_layout", legacy_layout))
             image = candidate.get("image")
             candidate_runner = str(candidate.get("runner", ""))
-            if is_case_v2 and image is not None:
+            if canonical_mvp and image is not None:
                 raise CaseContractError(
                     "candidate.image is retired; declare candidate.runner='host_claude_code'"
                 )

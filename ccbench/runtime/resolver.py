@@ -34,10 +34,13 @@ def resolve_tool_policy(
     policy_file = base_dir / agent_recipe_name / "tool-policy.json"
 
     if not policy_file.is_file():
-        raise RuntimeContractError(
-            f"Candidate tool policy missing at {policy_file}. "
-            "Formal run lock requires locked tool policy for provenance."
-        )
+        if agent_recipe_name == "agent-claude-code":
+            policy_file = Path(__file__).resolve().parents[2] / "infra" / "config" / "tool-policy.json"
+        if not policy_file.is_file():
+            raise RuntimeContractError(
+                f"Candidate tool policy missing at {policy_file}. "
+                "Formal run lock requires locked tool policy for provenance."
+            )
 
     try:
         payload = json.loads(policy_file.read_text(encoding="utf-8"))
