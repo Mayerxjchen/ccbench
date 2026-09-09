@@ -924,7 +924,7 @@ class ClaudeCodeAdapter:
             for t in tools:
                 if isinstance(t, dict):
                     name = t.get("name", "")
-                    if name in ("use_skill", "hpc-submit") and name not in self._skills_invoked:
+                    if name in ("use_skill", "bench-compute-request") and name not in self._skills_invoked:
                         self._skills_invoked.append(name)
 
         usage = data.get("usage")

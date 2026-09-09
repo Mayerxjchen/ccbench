@@ -27,6 +27,7 @@ from ccbench.core.quarantine import (
 )
 from ccbench.core.verifier import VerifierSpec, run_verifier
 from ccbench.paths import ROOT
+from ccbench.config.profiles import load_infra_profiles, resolve_profile
 
 MVP_MANIFEST = "mvp-run.json"
 POLICY_NAME = "CLAUDE.md"
@@ -76,6 +77,15 @@ def _manifest_payload(bundle: Path, spec: CaseSpec) -> dict[str, Any]:
         "size": (bundle / MANIFEST_NAME).stat().st_size,
         "sha256": sha256_file(bundle / MANIFEST_NAME),
     }
+    skills_root = bundle / ".claude" / "skills"
+    if skills_root.is_dir():
+        for path in sorted(skills_root.rglob("*")):
+            if path.is_dir():
+                continue
+            if path.is_symlink() or not path.is_file():
+                raise MvpError(f"Candidate skill is not a regular file: {path}")
+            rel = path.relative_to(bundle).as_posix()
+            immutable[rel] = {"size": path.stat().st_size, "sha256": sha256_file(path)}
     return {
         "schema_version": "1.0",
         "state": "CASE_DEV",
@@ -114,6 +124,30 @@ def export_case(
         if not policy.is_file() or policy.is_symlink():
             raise MvpError(f"trusted Candidate policy missing: {policy}")
         shutil.copyfile(policy, destination / POLICY_NAME)
+        # Only the case-declared subset of the trusted, static skill registry
+        # is exported.  There is no directory discovery or alias expansion.
+        declared = []
+        if isinstance(spec.case_dir, Path):
+            import tomllib
+            raw = tomllib.loads((spec.case_dir / "case.toml").read_text(encoding="utf-8"))
+            case_agent = raw.get("agent") or {}
+            declared = case_agent.get("skills") or []
+        registry = load_infra_profiles()
+        profile = resolve_profile(registry, "agents", spec.agent_profile or "claude-mvp")
+        allowed = profile.get("allowed_skills", [])
+        if not isinstance(declared, list) or any(not isinstance(x, str) for x in declared):
+            raise MvpError("[agent].skills must be a static string allowlist")
+        if any(x not in allowed for x in declared):
+            raise MvpError("case requests a Candidate skill outside its agent profile")
+        for name in declared:
+            if name != "bench-compute-request":
+                raise MvpError(f"unknown Candidate skill: {name}")
+            source = ROOT / "runtimes" / "recipes" / "skills" / name / "SKILL.md"
+            if not source.is_file() or source.is_symlink():
+                raise MvpError(f"declared Candidate skill missing: {name}")
+            target = destination / ".claude" / "skills" / name / "SKILL.md"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
         for name in MUTABLE_DIRS:
             (destination / name).mkdir(mode=0o755)
         payload = _manifest_payload(destination, spec)
@@ -405,7 +439,17 @@ def evaluate_submission(
     verifier_dir = case_dir / "verifier"
     if not verifier_dir.is_dir():
         raise MvpError(f"verifier directory missing: {verifier_dir}")
-    resolved_image = image or spec.candidate_image
+    if spec.verifier_profile:
+        profiles = load_infra_profiles()
+        verifier = resolve_profile(profiles, "verifiers", spec.verifier_profile)
+        locked_image = verifier.get("image")
+        if not isinstance(locked_image, str) or not locked_image:
+            raise MvpError(f"verifier profile {spec.verifier_profile!r} has no image")
+        if image is not None and image != locked_image:
+            raise MvpError("verifier image override conflicts with locked verifier profile")
+        resolved_image = locked_image
+    else:
+        resolved_image = image or spec.candidate_image
     if not resolved_image:
         raise MvpError("no verifier image declared; pass --image")
     reference = maintainer / "reference"

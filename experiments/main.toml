@@ -16,10 +16,7 @@ models = [
   "deepseek-v4-pro",
 ]
 
-skills = [
-  "none",
-  "hpc-submit",
-]
+skills = ["none", "bench-compute-request"]
 
 repeats = 3
 

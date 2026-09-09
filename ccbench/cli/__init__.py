@@ -480,6 +480,21 @@ def build_parser() -> argparse.ArgumentParser:
     mvp_compute.add_argument("--request", type=Path, required=True)
     mvp_compute.add_argument("--lock", type=Path, default=None)
 
+    pilot = sub.add_parser("pilot", help="run a case with host Claude Code")
+    pilot_sub = pilot.add_subparsers(dest="pilot_command")
+    pilot_start = pilot_sub.add_parser("start", help="start a Candidate run")
+    pilot_start.add_argument("case")
+    pilot_start.add_argument("--out", type=Path, default=None)
+    pilot_start.add_argument("--formal", action="store_true")
+    pilot_start.add_argument("--agent-command", nargs="+", default=None)
+    pilot_status = pilot_sub.add_parser("status", help="show durable run state")
+    pilot_status.add_argument("run_dir", type=Path)
+    pilot_resume = pilot_sub.add_parser("resume", help="resume a run after operator return")
+    pilot_resume.add_argument("run_dir", type=Path)
+    pilot_resume.add_argument("--agent-command", nargs="+", default=None)
+    pilot_eval = pilot_sub.add_parser("evaluate", help="freeze and run hidden verifier")
+    pilot_eval.add_argument("run_dir", type=Path)
+
     return parser
 
 
@@ -559,6 +574,29 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             except (MvpError, PackageError, QuarantineError) as exc:
                 raise CliError(str(exc)) from exc
+        if command == "pilot":
+            from ccbench.pilot import MvpError, evaluate as pilot_evaluate, resume as pilot_resume, start as pilot_start, status as pilot_status
+            pilot_argv = list(argv)
+            if len(pilot_argv) < 2 or pilot_argv[1] not in {"start", "status", "resume", "evaluate"}:
+                pilot_argv.insert(1, "start")
+            args = build_parser().parse_args(pilot_argv)
+            try:
+                if args.pilot_command == "start":
+                    out = args.out
+                    if out is None:
+                        import tempfile
+                        out = Path(tempfile.mkdtemp(prefix=f"ccbench-{args.case}-"))
+                    result = pilot_start(args.case, run_dir=out, formal=args.formal, command=args.agent_command)
+                elif args.pilot_command == "status":
+                    result = pilot_status(args.run_dir)
+                elif args.pilot_command == "resume":
+                    result = pilot_resume(args.run_dir, command=args.agent_command)
+                else:
+                    result = pilot_evaluate(args.run_dir)
+            except MvpError as exc:
+                raise CliError(str(exc)) from exc
+            print(json.dumps(result, indent=2, sort_keys=True, default=str))
+            return 0
         if command == "site":
             site_command = argv[1] if len(argv) > 1 else ""
             if site_command == "configure":

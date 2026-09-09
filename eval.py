@@ -1635,7 +1635,7 @@ async def amain(argv: list[str] | None = None) -> int:
         cell_endpoint, cell_key, endpoint_env, cred_env = _resolve_provider_credentials(m_entry.provider)
 
         skill_spec = item["skill_name"]
-        cell_skill_enabled = skill_spec in ("with-skill", "hpc-submit")
+        cell_skill_enabled = skill_spec in ("with-skill", "bench-compute-request")
         cell_condition_id = "with-skill" if cell_skill_enabled else "no-skill"
         cell_skill_label = "image-pinned" if cell_skill_enabled else "No Skill"
         cell_skills_source = "image" if cell_skill_enabled else "none"
