@@ -307,7 +307,7 @@ def validate_compute_request(
     shell_chars = set(";|&$`()><\n\r\x00")
     for token in command:
         lower = token.lower()
-        if lower in forbidden_tokens or any(part in lower for part in ("bench-hpc", "compshare")):
+        if lower in forbidden_tokens or any(part in lower for part in ("bench-hpc", "compshare")) or any(marker in lower for marker in ("submit", "cancel")):
             raise MvpError("command requests an Operator or cloud operation")
         if any(char in token for char in shell_chars):
             raise MvpError("command contains shell/path injection characters")
