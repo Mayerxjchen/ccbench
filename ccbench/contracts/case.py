@@ -17,6 +17,7 @@ from typing import Any, Literal
 
 import jsonschema
 import yaml
+from ccbench.paths import ROOT
 
 ExecutionClass = Literal["local_sandbox", "hpc_controller"]
 
@@ -300,6 +301,7 @@ class CaseSpec:
         # Reject infra-owned fields before any other processing
         _reject_infra_owned_fields(raw)
         is_case_v2 = (case_dir / "case.toml").is_file()
+        canonical_mvp = is_case_v2 and (ROOT / "cases") in case_dir.resolve().parents
 
         explicit = raw.get("execution")
         if explicit is not None and not isinstance(explicit, dict):
@@ -342,7 +344,7 @@ class CaseSpec:
 
         contract_doc: dict[str, Any] = {}
         contract_keys = ("execution", "candidate", "hpc", "runtime", "coverage", "submission_contract", "selection")
-        if is_case_v2:
+        if canonical_mvp:
             contract_keys += ("agent", "verifier")
         for key in contract_keys:
             if key in raw:
@@ -384,7 +386,7 @@ class CaseSpec:
         verifier = raw.get("verifier") or {}
         agent_profile = agent.get("profile") if isinstance(agent, dict) else None
         verifier_profile = verifier.get("profile") if isinstance(verifier, dict) else None
-        if is_case_v2:
+        if canonical_mvp:
             if candidate_runner != "host_claude_code":
                 raise CaseContractError("case.toml requires candidate.runner='host_claude_code'")
             if not isinstance(agent_profile, str) or not agent_profile:

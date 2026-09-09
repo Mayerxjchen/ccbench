@@ -284,6 +284,11 @@ def validate_compute_request(
         raise MvpError(f"cannot parse compute request: {exc}") from exc
     if not isinstance(payload, dict) or payload.get("schema_version") != "1.0":
         raise MvpError("compute request requires schema_version='1.0'")
+    unknown_request = sorted(set(payload) - {
+        "schema_version", "compute_class", "command", "resources", "inputs", "outputs", "validation"
+    })
+    if unknown_request:
+        raise MvpError(f"compute request contains unknown keys: {unknown_request}")
     compute_class = payload.get("compute_class")
     if compute_class not in COMPUTE_CLASSES:
         raise MvpError(f"compute_class must be one of {sorted(COMPUTE_CLASSES)}")
@@ -294,6 +299,17 @@ def validate_compute_request(
         or any(not isinstance(item, str) or not item for item in command)
     ):
         raise MvpError("command must be a non-empty string array")
+    forbidden_tokens = {"ssh", "sshd", "sbatch", "scancel", "srun", "scp", "rsync", "curl", "wget", "docker", "podman", "singularity", "apptainer", "bench-hpc", "compshare", "submit", "cancel"}
+    shell_chars = set(";|&$`()><\n\r\x00")
+    for token in command:
+        lower = token.lower()
+        if lower in forbidden_tokens or any(part in lower for part in ("bench-hpc", "compshare")):
+            raise MvpError("command requests an Operator or cloud operation")
+        if any(char in token for char in shell_chars):
+            raise MvpError("command contains shell/path injection characters")
+        token_path = PurePosixPath(token)
+        if token_path.is_absolute() or ".." in token_path.parts:
+            raise MvpError("command paths must be relative and non-traversing")
     resources = payload.get("resources")
     if not isinstance(resources, dict):
         raise MvpError("resources must be an object")
@@ -351,12 +367,19 @@ def validate_compute_request(
     for entry in inputs:
         if not isinstance(entry, dict):
             raise MvpError("each input must be an object")
+        unknown_input = sorted(set(entry) - {"path", "sha256", "size"})
+        if unknown_input:
+            raise MvpError(f"compute input contains unknown keys: {unknown_input}")
         path = _relative_file(bundle, entry.get("path"), label="input")
+        if PurePosixPath(entry["path"]).parts[0] in MUTABLE_DIRS:
+            raise MvpError("compute inputs must come from immutable Candidate files")
         if path.is_symlink() or not path.is_file():
             raise MvpError(f"compute input missing or unsafe: {entry.get('path')}")
         actual = sha256_file(path)
         if entry.get("sha256") != actual:
             raise MvpError(f"compute input digest mismatch: {entry.get('path')}")
+        if "size" in entry and entry["size"] != path.stat().st_size:
+            raise MvpError(f"compute input size mismatch: {entry.get('path')}")
         normalized_inputs.append(
             {"path": entry["path"], "size": path.stat().st_size, "sha256": actual}
         )
