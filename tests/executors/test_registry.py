@@ -12,12 +12,12 @@ import types
 
 import pytest
 
-from ccbench.executors import HpcExecutor, LocalExecutor
+from bench.executors import HpcExecutor, LocalExecutor
 
 
 @pytest.fixture()
 def registry():
-    from ccbench.executors.registry import ExecutorRegistry
+    from bench.executors.registry import ExecutorRegistry
 
     return ExecutorRegistry()
 
@@ -32,8 +32,8 @@ def dummy_case():
 
 def test_new_hpc_case_needs_no_core_edit(registry, dummy_case):
     dummy_case.execution_class = "hpc_controller"
-    from ccbench.hpc.dispatcher import HpcDispatcher
-    from ccbench.hpc.gateway_runtime import GatewayRuntime
+    from bench.hpc.dispatcher import HpcDispatcher
+    from bench.hpc.gateway_runtime import GatewayRuntime
 
     executor = registry.resolve(
         dummy_case.execution_class,

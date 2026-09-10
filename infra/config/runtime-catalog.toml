@@ -1,0 +1,104 @@
+# Public operator catalog.  This is a discovery index, not a qualification
+# lock: only an immutable image/profile plus a signed receipt can be admitted
+# to Formal.  Cases should reference capabilities, not these image strings.
+schema_version = "bench-runtime-catalog/v1"
+catalog = "bench-default"
+
+[[runtimes]]
+runtime_id = "candidate-claude-code"
+capabilities = ["agent.candidate", "claude-code"]
+version = "2.1.266"
+local_image = "bench-agent-claude-code:2.1.266"
+legacy_images = []
+hpc_artifact = ""
+hpc_profile = ""
+digest = "sha256:5cd1387befe5492aa9a4e5db8befd7dfd29e2c12122529f9aa03ac09b04047c8"
+qualification_status = "QUALIFIED_LOCAL"
+
+[[runtimes]]
+runtime_id = "model-gateway"
+capabilities = ["agent.gateway", "anthropic-compatible-proxy"]
+version = "1"
+local_image = "bench-gateway-anthropic:1"
+legacy_images = []
+hpc_artifact = ""
+hpc_profile = ""
+digest = "sha256:405bdb481928acec9bb2e181de390fc1b29394a94c5f8166a99d35cfeb2b8d63"
+qualification_status = "QUALIFIED_LOCAL"
+
+[[runtimes]]
+runtime_id = "python-ase"
+capabilities = ["compute.local", "verifier", "python", "numpy", "scipy", "ase"]
+version = "py3.11-ase3.26"
+local_image = "bench-runtime-python-ase:py3.11-ase3.26"
+legacy_images = []
+hpc_artifact = ""
+hpc_profile = ""
+digest = "sha256:4e005e23e1b3ce91bf28901bf4613b6a2751aa9e963f0ecaab19e58ca8916cdd"
+qualification_status = "LOCAL_SMOKE_PASSED"
+
+[[runtimes]]
+runtime_id = "verifier-deepmd-jax-cpu"
+capabilities = ["compute.local", "verifier", "python", "jax", "deepmd-jax", "h5py", "cpu"]
+version = "0.2"
+local_image = "bench-runtime-deepmd-jax:0.2-cpu"
+legacy_images = []
+hpc_artifact = ""
+hpc_profile = ""
+digest = "sha256:8f7a43ce439de57019fafbbc916849a8320c5e5ab3df13d8d0e4e1784e82ae04"
+qualification_status = "QUALIFIED_LOCAL"
+
+[[runtimes]]
+runtime_id = "verifier-matclaw-cips"
+capabilities = ["verifier", "matclaw-cips", "cpu"]
+version = "2.2.11"
+local_image = "bench-runtime-deepmd-kit:2.2.11-cpu"
+legacy_images = []
+hpc_artifact = ""
+hpc_profile = ""
+digest = "sha256:a1e55e0d52c594c0bbbab012bc0399dae847035ffe35e81eca3349688ca0591a"
+qualification_status = "QUALIFIED_LOCAL"
+
+[[runtimes]]
+runtime_id = "compute-ikkem-cpu"
+capabilities = ["compute.cpu", "hpc", "process_test"]
+version = "1"
+local_image = ""
+legacy_images = []
+hpc_artifact = "slurm"
+hpc_profile = "examples/hpc/ikkem-cpu-site-profile.json"
+digest = ""
+qualification_status = "CONTRACT_TESTED"
+
+[[runtimes]]
+runtime_id = "compute-compshare-gpu"
+capabilities = ["compute.gpu", "hpc", "compshare"]
+version = "1"
+local_image = ""
+legacy_images = []
+hpc_artifact = "compshare-image"
+hpc_profile = "examples/hpc/compshare-gpu-site-profile.json"
+digest = ""
+qualification_status = "CONTRACT_TESTED"
+
+[[runtimes]]
+runtime_id = "compute-compshare-deepmd-jax-gpu"
+capabilities = ["compute.gpu", "hpc", "compshare", "jax", "deepmd-jax"]
+version = "0.2"
+local_image = ""
+legacy_images = []
+hpc_artifact = "compshare-image"
+hpc_profile = "examples/hpc/compshare-gpu-site-profile.json"
+digest = ""
+qualification_status = "SITE_IMAGE_REQUIRED"
+
+[[runtimes]]
+runtime_id = "compute-ikkem-ai2kit-cp2k-cpu"
+capabilities = ["compute.cpu", "hpc", "ikkem", "ai2kit", "cp2k"]
+version = "ai2kit1.1-cp2k2025.2"
+local_image = ""
+legacy_images = []
+hpc_artifact = "apptainer-sif"
+hpc_profile = "examples/hpc/ikkem-cpu-site-profile.json"
+digest = "sha256:05f708b1b03d949af095a770c00ca7930fea293b161a2383d71ea99e5cfef5dd"
+qualification_status = "SITE_BINDING_REQUIRED"

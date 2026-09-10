@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.config.run_config import RunConfigError, load_run_config
+from bench.config.run_config import RunConfigError, load_run_config
 
 
 ROOT = Path(__file__).resolve().parents[2]

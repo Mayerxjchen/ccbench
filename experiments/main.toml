@@ -1,7 +1,7 @@
-# CCBench Official Formal Benchmark Experiment
+# Bench Official Formal Benchmark Experiment
 schema_version = 2
 experiment_id = "main-v1"
-description = "CCBench Formal Benchmark Matrix (5 Long-horizon Cases x DeepSeek x Skill x 3 Repeats)"
+description = "Bench Formal Benchmark Matrix (5 Long-horizon Cases x DeepSeek x Skill x 3 Repeats)"
 mode = "formal"
 
 cases = [

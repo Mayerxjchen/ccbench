@@ -1,4 +1,4 @@
-"""Adversarial and failure containment tests for CCBench Case Builder."""
+"""Adversarial and failure containment tests for Bench Case Builder."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ccbench.cli import main as cli_main
-from ccbench.builder.state import CaseLifecycleState, derive_state
-from ccbench.builder.publish import PublishError, publish_case
+from bench.cli import main as cli_main
+from bench.builder.state import CaseLifecycleState, derive_state
+from bench.builder.publish import PublishError, publish_case
 
 
 def test_gold_taint_blocks_runnable_gate(tmp_path: Path):
@@ -50,7 +50,7 @@ def test_gold_taint_blocks_runnable_gate(tmp_path: Path):
             "inputs": [{"path": "secret_ground_truth.xyz"}],
         },
         "submission": {"root": "final", "artifacts": [{"path": "m.pt", "kind": "m"}]},
-        "runtime": {"execution_class": "local_sandbox", "candidate_image": "ccbench-agent:v1"},
+        "runtime": {"execution_class": "local_sandbox", "candidate_image": "bench-agent:v1"},
         "coverage": {
             "scientific_domain": "semiconductors",
             "method_family": "end_to_end_potential",
@@ -107,7 +107,7 @@ def test_empty_submission_fails_verifier_smoke(tmp_path: Path):
             "root": "final",
             "artifacts": [{"path": "required_model.pt", "kind": "checkpoint", "required": True}],
         },
-        "runtime": {"execution_class": "local_sandbox", "candidate_image": "ccbench-agent:v1"},
+        "runtime": {"execution_class": "local_sandbox", "candidate_image": "bench-agent:v1"},
         "coverage": {
             "scientific_domain": "semiconductors",
             "method_family": "end_to_end_potential",

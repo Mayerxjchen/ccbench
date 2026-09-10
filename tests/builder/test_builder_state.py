@@ -1,4 +1,4 @@
-"""Tests for ccbench.builder.state deterministic state machine and evidence verification."""
+"""Tests for bench.builder.state deterministic state machine and evidence verification."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ccbench.builder.source_lock import build_sources_lock, SourceTier
-from ccbench.builder.state import BuilderState, CaseLifecycleState, derive_state
+from bench.builder.source_lock import build_sources_lock, SourceTier
+from bench.builder.state import BuilderState, CaseLifecycleState, derive_state
 
 
 def _write_valid_case_ir(path: Path):
@@ -27,7 +27,7 @@ def _write_valid_case_ir(path: Path):
         },
         "runtime": {
             "execution_class": "local_sandbox",
-            "candidate_image": "ccbench-agent:v1",
+            "candidate_image": "bench-agent:v1",
         },
         "coverage": {
             "scientific_domain": "semiconductors",
@@ -61,7 +61,7 @@ class = "local_sandbox"
 [candidate]
 instruction = "task.md"
 submission_root = "final"
-image = "ccbench-agent:v1"
+image = "bench-agent:v1"
 
 [coverage]
 scientific_domain = "semiconductors"

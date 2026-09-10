@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.config.profiles import ProfileRegistry
-from ccbench.config.resolver import (
+from bench.config.profiles import ProfileRegistry
+from bench.config.resolver import (
     FrozenExperiment,
     construct_experiment,
     resolve_formal,
 )
-from ccbench.contracts.case import CaseSpec
-from ccbench.contracts.resolved_lock import FrozenExperimentOverrideError
+from bench.contracts.case import CaseSpec
+from bench.contracts.resolved_lock import FrozenExperimentOverrideError
 
 
 @pytest.fixture
@@ -36,8 +36,8 @@ def registry():
         },
         "api": {
             "default": {
-                "endpoint_env": "CCBENCH_BASE_URL",
-                "credential_env": "CCBENCH_API_KEY",
+                "endpoint_env": "BENCH_BASE_URL",
+                "credential_env": "BENCH_API_KEY",
                 "max_retries": 3,
             },
         },
@@ -49,7 +49,7 @@ def registry():
         },
         "runtimes": {
             "local-sandbox": {
-                "image": "ccbench-agent:v1",
+                "image": "bench-agent:v1",
                 "qualification": "local-smoke",
             },
         },

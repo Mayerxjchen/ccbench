@@ -6,10 +6,10 @@ import copy
 import time
 from pathlib import Path
 
-from ccbench.experiments import qualification_receipt as qr
-from ccbench.hpc.adapters.process_test import ProcessTestAdapter
-from ccbench.hpc.audit import GatewayAudit
-from ccbench.hpc.gateway import ALL_OPS, Gateway
+from bench.experiments import qualification_receipt as qr
+from bench.hpc.adapters.process_test import ProcessTestAdapter
+from bench.hpc.audit import GatewayAudit
+from bench.hpc.gateway import ALL_OPS, Gateway
 
 
 DIGEST = "img@sha256:" + "a" * 64

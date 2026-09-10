@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 import pytest
 
-from ccbench.builder.verifier_plan import LayerDeclaration, LayerStatus, VerifierPlan, VerifierPlanError, VerifierRule
-from ccbench.builder.verifier_compile import VerifierCompileError, compile_verifier
+from bench.builder.verifier_plan import LayerDeclaration, LayerStatus, VerifierPlan, VerifierPlanError, VerifierRule
+from bench.builder.verifier_compile import VerifierCompileError, compile_verifier
 
 
 def test_compile_and_run_verifier_smoke(tmp_path: Path):

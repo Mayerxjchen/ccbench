@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.hpc.drivers.compshare import (
+from bench.hpc.drivers.compshare import (
     BudgetConfig,
     CompShareCli,
     CompShareCliError,
@@ -111,7 +111,7 @@ def test_online_create_rejects_missing_canonical_marker_without_runner():
         {"count": 2},
         {"image": "img-deepmd-placeholder"},
         {"name": None, "remark": None},
-        {"name": "mlffbench-deadbeefdeadbeef", "remark": None},
+        {"name": "bench-deadbeefdeadbeef", "remark": None},
     ],
 )
 def test_create_plan_rejects_unsafe_inputs(overrides):

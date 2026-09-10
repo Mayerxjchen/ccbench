@@ -9,8 +9,8 @@ import time
 
 import pytest
 
-from ccbench.hpc.drivers.base import HpcDriver, HpcDriverError
-from ccbench.hpc.drivers.compshare import (
+from bench.hpc.drivers.base import HpcDriver, HpcDriverError
+from bench.hpc.drivers.compshare import (
     BudgetConfig,
     CliResult,
     CompShareBudgetExceededError,
@@ -34,7 +34,7 @@ def _cli(stock: int = 4) -> CompShareCli:
 
 
 def _mock_deepmd_runtime():
-    from ccbench.hpc.runtime_resolution import ResolvedRuntime, RuntimeStatus
+    from bench.hpc.runtime_resolution import ResolvedRuntime, RuntimeStatus
     return ResolvedRuntime(
         capability="deepmd",
         artifact_kind="compshare_image",
@@ -339,7 +339,7 @@ def test_driver_status_fails_closed_on_cloud_query_error(tmp_path: Path, monkeyp
 
 
 def test_instance_manager_corrupt_ledger_fails_closed(tmp_path: Path):
-    from ccbench.hpc.drivers.compshare.instance_manager import (
+    from bench.hpc.drivers.compshare.instance_manager import (
         CompShareManagerError,
         RunScopedInstanceManager,
     )
@@ -351,7 +351,7 @@ def test_instance_manager_corrupt_ledger_fails_closed(tmp_path: Path):
 
 
 def test_gateway_freeze_settle_failure_raises(tmp_path: Path):
-    from ccbench.hpc.gateway import Gateway, GatewayError
+    from bench.hpc.gateway import Gateway, GatewayError
 
     class FailingAdapter:
         def settle(self, run_id: str) -> bool:
@@ -365,7 +365,7 @@ def test_gateway_freeze_settle_failure_raises(tmp_path: Path):
 
 
 def test_gateway_freeze_settle_failure_allows_retry(tmp_path: Path):
-    from ccbench.hpc.gateway import Gateway, GatewayError
+    from bench.hpc.gateway import Gateway, GatewayError
 
     calls = 0
     succeed_on_retry = False
@@ -400,7 +400,7 @@ def test_gateway_freeze_settle_failure_allows_retry(tmp_path: Path):
 
 
 def test_instance_create_double_failure_records_to_orphan_ledger(tmp_path: Path, monkeypatch):
-    from ccbench.hpc.drivers.compshare.instance_manager import RunScopedInstanceManager
+    from bench.hpc.drivers.compshare.instance_manager import RunScopedInstanceManager
     runner = FakeCompShareCliRunner(initial_stock=1)
     cli = CompShareCli(runner=runner)
     orphan_log = tmp_path / "orphan-ledger.jsonl"
@@ -435,7 +435,7 @@ def test_instance_create_double_failure_records_to_orphan_ledger(tmp_path: Path,
 
 
 def test_instance_create_executes_dry_run(tmp_path: Path, monkeypatch):
-    from ccbench.hpc.drivers.compshare.instance_manager import RunScopedInstanceManager
+    from bench.hpc.drivers.compshare.instance_manager import RunScopedInstanceManager
     runner = FakeCompShareCliRunner(initial_stock=1)
     cli = CompShareCli(runner=runner)
     calls: list[bool] = []
@@ -467,8 +467,8 @@ def test_job_journal_corrupt_fails_closed(tmp_path: Path):
 
 def test_routed_driver_requires_compute_class(tmp_path: Path):
     from unittest.mock import MagicMock
-    from ccbench.hpc.compute_profile import ComputeProfile, ComputeRouter
-    from ccbench.hpc.drivers.routed import RoutedDriver
+    from bench.hpc.compute_profile import ComputeProfile, ComputeRouter
+    from bench.hpc.drivers.routed import RoutedDriver
 
     prof = ComputeProfile.from_dict({
         "schema_version": 1,
@@ -488,7 +488,7 @@ def test_routed_driver_requires_compute_class(tmp_path: Path):
 
 def test_gateway_expired_token_trusted_teardown_succeeds(tmp_path: Path):
     """Gate A1: Teardown must succeed even if client token expired."""
-    from ccbench.hpc.gateway import Gateway, GatewayError
+    from bench.hpc.gateway import Gateway, GatewayError
 
     class SuccessfulAdapter:
         def __init__(self):
@@ -517,8 +517,8 @@ def test_gateway_expired_token_trusted_teardown_succeeds(tmp_path: Path):
     assert gw._settlement_states["run-exp"] == "SETTLED"
 
 
-def test_instance_manager_injects_mlffbench_ownership_marker(tmp_path: Path):
-    """Gate A1: CompShare instances must be tagged with mlffbench ownership marker."""
+def test_instance_manager_injects_bench_ownership_marker(tmp_path: Path):
+    """Gate A1: CompShare instances must be tagged with bench ownership marker."""
     runner = FakeCompShareCliRunner(initial_stock=2)
     cli = CompShareCli(runner=runner)
     mgr = RunScopedInstanceManager(

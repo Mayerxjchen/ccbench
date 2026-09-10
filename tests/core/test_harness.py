@@ -14,21 +14,21 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.agents import AgentAdapter
-from ccbench.contracts.result import (
+from bench.agents import AgentAdapter
+from bench.contracts.result import (
     BenchmarkResult,
     FailureCode,
     ResultClass,
 )
-from ccbench.core.harness import (
+from bench.core.harness import (
     HarnessSpec,
     Profile,
     RunMode,
     Treatment,
     TrustedHarness,
 )
-from ccbench.core.run_store import RunStore
-from ccbench.core.quarantine import SubmissionSeal
+from bench.core.run_store import RunStore
+from bench.core.quarantine import SubmissionSeal
 
 LOCAL_ORDER = [
     "package",
@@ -180,7 +180,7 @@ def _profile() -> Profile:
 
 
 def _harness(adapter, tmp_path) -> TrustedHarness:
-    from ccbench.core.event_store import EventStore
+    from bench.core.event_store import EventStore
 
     session = EventStore(tmp_path / "session" / "events.jsonl")
     session.append(
@@ -396,7 +396,7 @@ def test_smoke_mode_is_not_a_lockless_bypass(tmp_path):
 def test_harness_session_records_durable_boundaries(tmp_path):
     """With a durable session attached, the harness emits + checkpoints at its
     side-effect boundaries (freeze, seal, verifier) in order."""
-    from ccbench.core.event_store import EventStore
+    from bench.core.event_store import EventStore
 
     adapter = FakeAdapter()
     session = EventStore(tmp_path / "session" / "events.jsonl")
@@ -457,7 +457,7 @@ def test_harness_session_records_durable_boundaries(tmp_path):
 def test_harness_session_stops_before_verifier_on_agent_failure(tmp_path):
     """On an agent failure the durable session records the freeze boundary but
     never a seal or verifier result — a resumed run must not verify."""
-    from ccbench.core.event_store import EventStore
+    from bench.core.event_store import EventStore
 
     adapter = FakeAdapter(hang=True)
     session = EventStore(tmp_path / "session" / "events.jsonl")
@@ -505,7 +505,7 @@ def test_harness_teardown_failure_marks_infra_invalid_and_halts_verification(tmp
         verifier_called.append(True)
         return _fake_verifier(*args, **kwargs)
 
-    from ccbench.core.event_store import EventStore
+    from bench.core.event_store import EventStore
 
     adapter = TeardownFailingAdapter()
     session = EventStore(tmp_path / "session" / "events.jsonl")

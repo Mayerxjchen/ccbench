@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ccbench.example/schemas/compute-request-draft.schema.json",
+  "$id": "https://bench.example/schemas/compute-request-draft.schema.json",
   "title": "bench-compute-request Candidate draft",
   "type": "object",
   "required": ["schema_version", "compute_class", "command", "resources", "inputs", "outputs"],

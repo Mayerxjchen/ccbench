@@ -13,7 +13,7 @@ agent's decision loop, the verifier, or the reward path:
   * SshSlurmTransport     — HPC, GATEWAY-INTERNAL ONLY.  Executes the same
         commands via ``ssh <login> "..."`` against a real Slurm login node.
         Since the bench-hpc refactor, SshSlurmTransport is used exclusively
-        through ``ccbench.hpc.adapters.slurm.SlurmAdapter`` inside the
+        through ``bench.hpc.adapters.slurm.SlurmAdapter`` inside the
         trusted gateway (which runs on the site host with the site operator's
         own credentials).  It must never be imported by Candidate-facing code;
         the controller image no longer ships an SSH client or rsync.

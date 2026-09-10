@@ -24,7 +24,7 @@ independently recomputable anchors (runtime lock, SiteProfile digest, code
 identity, source commit, hash-chained audit ledger, sacct accounting lines,
 settlement report digests, artifact bytes).  ``qualification_status`` /
 ``formal_qualified`` are derived at verification time by
-``ccbench.experiments.qualification_receipt.verify_receipt`` — never
+``bench.experiments.qualification_receipt.verify_receipt`` — never
 declared by this producer and never trusted as input.
 
   cp2k       — REQUIRES ITS OWN EXPLICIT USER AUTHORIZATION (``--authorized``;
@@ -98,7 +98,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from ccbench.experiments.qualification_receipt import (  # noqa: E402
+from bench.experiments.qualification_receipt import (  # noqa: E402
     CP2K_INPUT_NAME,
     CP2K_INPUT_TEXT,
     CP2K_OUTPUT_NAME,
@@ -268,7 +268,7 @@ def preflight(profile: dict, lock: dict) -> dict:
 
 def _build_site_profile(profile: dict) -> "HpcSiteProfile":
     """Bridge cluster_profile.toml → HpcSiteProfile (shared factory)."""
-    from ccbench.hpc.site_profile import HpcSiteProfile
+    from bench.hpc.site_profile import HpcSiteProfile
 
     return HpcSiteProfile.from_cluster_config(profile)
 
@@ -286,10 +286,10 @@ def _open_session(
     SSH transport config still comes from the private cluster_profile (the
     SiteProfile schema does not carry SSH options).
     """
-    from ccbench.hpc.adapters.slurm import SlurmAdapter
-    from ccbench.hpc.audit import GatewayAudit
-    from ccbench.hpc.dispatcher import HpcDispatcher
-    from ccbench.hpc.gateway_runtime import GatewayRuntime
+    from bench.hpc.adapters.slurm import SlurmAdapter
+    from bench.hpc.audit import GatewayAudit
+    from bench.hpc.dispatcher import HpcDispatcher
+    from bench.hpc.gateway_runtime import GatewayRuntime
 
     adapter_config = site.to_adapter_config(
         resolved, workspace_root=profile["paths"]["remote_root"],
@@ -1122,7 +1122,7 @@ def cp2k_phase(
     # Re-seal and re-verify the merged receipt; the derivation must now
     # produce PASS or the merge is refused on disk.
     receipt.pop("digest", None)
-    from ccbench.experiments.qualification_receipt import seal_receipt
+    from bench.experiments.qualification_receipt import seal_receipt
 
     merged = seal_receipt(receipt)
     RECEIPT_PATH.write_text(
@@ -1343,7 +1343,7 @@ def ai2kit_phase(
     # Re-seal and re-verify the merged receipt; the derivation must now
     # produce PASS or the merge is refused on disk.
     receipt.pop("digest", None)
-    from ccbench.experiments.qualification_receipt import seal_receipt
+    from bench.experiments.qualification_receipt import seal_receipt
 
     merged = seal_receipt(receipt)
     RECEIPT_PATH.write_text(
@@ -1426,7 +1426,7 @@ def cancel_phase(profile: dict, lock: dict, *, profile_path: Path) -> bool:
     # Re-seal and re-verify the merged receipt; the derivation must now
     # produce a consistent envelope or the merge fails on the return code.
     receipt.pop("digest", None)
-    from ccbench.experiments.qualification_receipt import seal_receipt
+    from bench.experiments.qualification_receipt import seal_receipt
 
     merged = seal_receipt(receipt)
     RECEIPT_PATH.write_text(
@@ -1503,7 +1503,7 @@ def _assert_canary_routes(profile: dict, site):
     ``native_cpu_partition_accessible = True`` against a profile that routes
     cpu workloads off the native queue.
     """
-    from ccbench.hpc.site_profile import SiteProfileBlockedError
+    from bench.hpc.site_profile import SiteProfileBlockedError
 
     resolved_cpu = site.resolve_workload("cpu")
     resolved_gpu = site.resolve_workload("gpu")

@@ -44,8 +44,8 @@ The Candidate evaluation sandbox:
 
 Public users configure their environment using:
 ```bash
-mlffbench compute configure --out ~/my_compute_profile.json
-mlffbench compute validate --profile ~/my_compute_profile.json
+bench compute configure --out ~/my_compute_profile.json
+bench compute validate --profile ~/my_compute_profile.json
 ```
 
 Maintainers operate within strictly frozen and audited GPU recipes:

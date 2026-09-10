@@ -6,10 +6,10 @@ import json
 
 import pytest
 
-from ccbench.contracts.events import next_event
-from ccbench.contracts.result import BenchmarkResult
-from ccbench.contracts.run_record import RunRecord, RunRecordError, RunRecordV2
-from ccbench.core.run_store import RunStore
+from bench.contracts.events import next_event
+from bench.contracts.result import BenchmarkResult
+from bench.contracts.run_record import RunRecord, RunRecordError, RunRecordV2
+from bench.core.run_store import RunStore
 
 
 def _event_chain() -> list[dict]:

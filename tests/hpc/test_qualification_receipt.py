@@ -25,10 +25,10 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.contracts.case import CaseContractError, CaseSpec
-from ccbench.experiments import qualification_receipt as qr
-from ccbench.experiments.release_builder import check_qualification_receipt
-from ccbench.hpc.dispatcher import HpcDispatcher
+from bench.contracts.case import CaseContractError, CaseSpec
+from bench.experiments import qualification_receipt as qr
+from bench.experiments.release_builder import check_qualification_receipt
+from bench.hpc.dispatcher import HpcDispatcher
 
 GPU_NAME = "NVIDIA A100-SXM4-80GB"
 SIF_SHA = "99aefeff8f457cd6b4f57e1592db511f167ab493730f970bfd7baa68993250c3"
@@ -296,7 +296,7 @@ def _build_golden(base: Path) -> dict:
     config = tomllib.loads(
         (base / qr.DEFAULT_PROFILE_RELPATH).read_text(encoding="utf-8")
     )
-    from ccbench.hpc.site_profile import HpcSiteProfile
+    from bench.hpc.site_profile import HpcSiteProfile
 
     site = HpcSiteProfile.from_cluster_config(config)
 
@@ -1585,20 +1585,17 @@ class TestCapabilityRegistry:
     unknown families and the withdrawn bare ``qual_requires`` field fail
     closed at CaseSpec load."""
 
-    def test_real_031_requires_dispatcher_gpu_and_matclaw_gpu(self) -> None:
+    def test_real_031_has_no_case_owned_dispatcher_gate(self) -> None:
         spec = CaseSpec.load(_REPO_ROOT / "001-matclaw-cips-active-distillation")
-        assert spec.effective_qualification_requires == (
-            "dispatcher.gpu", "runtime.matclaw-gpu",
-        )
+        assert spec.effective_qualification_requires == ()
+        assert spec.candidate_runner == "container_claude_code"
 
-    def test_real_034_requires_cpu_and_gpu_and_both_runtime_canaries(self) -> None:
+    def test_real_034_has_no_case_owned_dispatcher_gate(self) -> None:
         spec = CaseSpec.load(
             _REPO_ROOT / "004-ai2kit-water64-end-to-end-potential"
         )
-        assert spec.effective_qualification_requires == (
-            "dispatcher.cpu", "dispatcher.gpu",
-            "runtime.ai2kit", "runtime.cp2k",
-        )
+        assert spec.effective_qualification_requires == ()
+        assert spec.candidate_runner == "container_claude_code"
         # MatClaw is not a dependency of the ai2kit water pipeline.
         assert "runtime.matclaw-gpu" not in spec.effective_qualification_requires
 

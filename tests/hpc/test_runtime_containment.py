@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from ccbench.hpc.runtime_wrapper import (
+from bench.hpc.runtime_wrapper import (
     qualify_containment,
     render_runtime_wrapper,
 )

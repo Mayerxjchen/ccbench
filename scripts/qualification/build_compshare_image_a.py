@@ -284,7 +284,7 @@ def execute_build(
             "image", "create",
             "--instance", instance_id,
             "--name", TARGET_IMAGE_NAME,
-            "--description", "MLFFBench MatClaw CIPS GPU v1 (Cases 031-033)",
+            "--description", "Bench MatClaw CIPS GPU v1 (Cases 031-033)",
             "--wait", "--timeout", "1800",
             "--yes",
         ]

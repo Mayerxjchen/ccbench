@@ -13,8 +13,8 @@ import os
 
 import pytest
 
-from ccbench.hpc.request import ExecutionRequestV2
-from ccbench.hpc.staging import InputManifest, StagingError, seal_inputs
+from bench.hpc.request import ExecutionRequestV2
+from bench.hpc.staging import InputManifest, StagingError, seal_inputs
 
 DIGEST = "img@sha256:" + "a" * 64
 

@@ -1,22 +1,22 @@
-"""Tests for ccbench unified package namespace convergence (SSOT)."""
+"""Tests for bench unified package namespace convergence (SSOT)."""
 
 from __future__ import annotations
 import pytest
 
 
-def test_ccbench_primary_package_importable():
-    """ccbench must be importable as the primary package namespace."""
-    import ccbench
+def test_bench_primary_package_importable():
+    """bench must be importable as the primary package namespace."""
+    import bench
 
-    assert hasattr(ccbench, "__path__")
+    assert hasattr(bench, "__path__")
 
 
-def test_submodule_resolution_via_ccbench():
-    """Core submodules must be cleanly accessible via ccbench namespace."""
-    import ccbench.cli as cc_cli
+def test_submodule_resolution_via_bench():
+    """Core submodules must be cleanly accessible via bench namespace."""
+    import bench.cli as cc_cli
     assert callable(cc_cli.main)
 
-    from ccbench.contracts.case import CaseSpec
+    from bench.contracts.case import CaseSpec
     assert CaseSpec is not None
 
 

@@ -19,27 +19,27 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from ccbench.experiments.compute_profile_qualification import (
+from bench.experiments.compute_profile_qualification import (
     build_compshare_site_qualification_receipt,
     verify_site_receipt,
 )
-from ccbench.experiments.qualification_receipt import (
+from bench.experiments.qualification_receipt import (
     canonical_digest,
     code_identity,
     sha256_file,
     source_commit,
 )
-from ccbench.hpc.audit import GatewayAudit
-from ccbench.hpc.runtime_catalog import TrustedRuntimeCatalog
-from ccbench.hpc.runtime_resolution import canonical_lock_digest
-from ccbench.hpc.site_profile import HpcSiteProfile
-from ccbench.hpc.trust_store import QualificationTrustStore
+from bench.hpc.audit import GatewayAudit
+from bench.hpc.runtime_catalog import TrustedRuntimeCatalog
+from bench.hpc.runtime_resolution import canonical_lock_digest
+from bench.hpc.site_profile import HpcSiteProfile
+from bench.hpc.trust_store import QualificationTrustStore
 
-DEFAULT_SITE_PROFILE_PATH = Path.home() / ".config" / "mlffbench" / "sites" / "compshare-gpu-production.json"
-PRIVATE_KEY_PATH = Path.home() / ".config" / "mlffbench" / "keys" / "compshare-site-v1.priv"
+DEFAULT_SITE_PROFILE_PATH = Path.home() / ".config" / "bench" / "sites" / "compshare-gpu-production.json"
+PRIVATE_KEY_PATH = Path.home() / ".config" / "bench" / "keys" / "compshare-site-v1.priv"
 RUNTIME_LOCK_REL = "runtimes/locks/jax-runtime.lock.json"
-EXTERNAL_RUNTIME_DIR = Path.home() / ".config" / "mlffbench" / "runtime"
-DEFAULT_EVIDENCE_ROOT = Path.home() / ".config" / "mlffbench" / "evidence" / "gate_c" / "20260904T174600Z"
+EXTERNAL_RUNTIME_DIR = Path.home() / ".config" / "bench" / "runtime"
+DEFAULT_EVIDENCE_ROOT = Path.home() / ".config" / "bench" / "evidence" / "gate_c" / "20260904T174600Z"
 
 CANDIDATE_POOLS = [
     {"region": "cn-sh2", "zone": "cn-sh2-02", "gpu": "4090", "cpu": "16", "memory": "64GiB"},

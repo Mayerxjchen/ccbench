@@ -18,9 +18,9 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.hpc.adapters.process_test import ProcessTestAdapter
-from ccbench.hpc.gateway import Gateway, GatewayError
-from ccbench.hpc.job import JobError
+from bench.hpc.adapters.process_test import ProcessTestAdapter
+from bench.hpc.gateway import Gateway, GatewayError
+from bench.hpc.job import JobError
 
 
 def _gateway(adapter) -> Gateway:
@@ -99,7 +99,7 @@ def test_slurm_render_requires_operation_id():
     the workspace marker file are always present, so a crashed gateway can
     reconcile the run by operation id.
     """
-    from ccbench.hpc.adapters.slurm import SlurmAdapter
+    from bench.hpc.adapters.slurm import SlurmAdapter
 
     site_config = {
         "site": "fake-site",

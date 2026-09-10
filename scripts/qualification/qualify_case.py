@@ -116,7 +116,7 @@ def case_dir_for(name: str) -> Path:
 
 def _benchmark_id(case_dir: Path) -> str:
     try:
-        from ccbench.contracts.case import CaseSpec
+        from bench.contracts.case import CaseSpec
     except ImportError:
         return case_dir.name
     try:
@@ -134,7 +134,7 @@ def derive(receipt_path: Path, profile_path: Path) -> dict:
     """
     import json as _json
 
-    from ccbench.experiments.qualification_receipt import verify_receipt
+    from bench.experiments.qualification_receipt import verify_receipt
 
     if not receipt_path.is_file():
         return {"consistent": False, "present": False,
@@ -235,7 +235,7 @@ def driver_argv(
 def _verbose_resolved_tiers(profile: dict) -> list[str]:
     """Slurm parameters the site profile's resource-class resolution yields
     for each tier (spec stage 3 ``--verbose``: shows what will be submitted)."""
-    from ccbench.hpc.site_profile import HpcSiteProfile
+    from bench.hpc.site_profile import HpcSiteProfile
 
     site = HpcSiteProfile.from_cluster_config(profile)
     lines = []
@@ -325,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="compute the plan and exit without running phases")
     args = parser.parse_args(argv)
 
-    from ccbench.experiments.release_builder import _case_qualification_requires
+    from bench.experiments.release_builder import _case_qualification_requires
 
     site = site_root(args.site)
     case_dir = case_dir_for(args.case)

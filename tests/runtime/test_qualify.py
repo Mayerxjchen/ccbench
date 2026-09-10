@@ -8,8 +8,8 @@ injected runner so the checks are testable without Docker.
 
 from __future__ import annotations
 
-from ccbench.runtime.qualify import qualify_runtime
-from ccbench.runtime.registry import RuntimeIdentity
+from bench.runtime.qualify import qualify_runtime
+from bench.runtime.registry import RuntimeIdentity
 
 
 class FakeRunner:
@@ -50,8 +50,8 @@ class FakeRunner:
         if key[:2] == ("python", "-c"):
             return (0, "", "")
         if "help" in key:
-            return (0, "usage: python -m ccbench.hpc <capabilities|...>", "")
-        if key[:3] == ("python", "-m", "ccbench.hpc"):
+            return (0, "usage: python -m bench.hpc <capabilities|...>", "")
+        if key[:3] == ("python", "-m", "bench.hpc"):
             return (2, "", "set BENCH_HPC_GATEWAY_URL")
         raise AssertionError(f"unscripted run: {joined}")
 
@@ -111,9 +111,9 @@ def test_qualify_runs_help_and_every_legal_command():
     command_check = next(c for c in report.checks if c.name == "commands")
     assert command_check.ok
     # every legal command was exercised
-    from ccbench.hpc.__main__ import COMMANDS
+    from bench.hpc.__main__ import COMMANDS
 
-    exercised = {argv[-1] for _, argv in runner.runs if argv[:3] == ("python", "-m", "ccbench.hpc")}
+    exercised = {argv[-1] for _, argv in runner.runs if argv[:3] == ("python", "-m", "bench.hpc")}
     assert set(COMMANDS) <= exercised
 
 
@@ -121,7 +121,7 @@ def test_qualify_unknown_command_fails_commands_check():
     runner = FakeRunner(
         digest="sha256:" + "a" * 64,
         user="65532:65532",
-        script={("python", "-m", "ccbench.hpc", "status"):
+        script={("python", "-m", "bench.hpc", "status"):
                 (2, "", "unknown command: 'status'")},
     )
     report = qualify_runtime(_control_identity(), runner)

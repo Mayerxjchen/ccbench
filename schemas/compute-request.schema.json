@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ccbench.example/schemas/compute-request.schema.json",
+  "$id": "https://bench.example/schemas/compute-request.schema.json",
   "title": "bench-compute-request descriptor",
   "description": "Trusted canonical abstract compute request. Candidate drafts contain input paths only; the host adds input digests and sizes before operator handoff.",
   "type": "object",

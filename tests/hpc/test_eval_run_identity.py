@@ -10,7 +10,7 @@ Gate mapping (Task 14 pilot prerequisite):
 - [execution].class -> TaskSpec.execution_class, normalized via
   EXECUTION_ALIASES (real_hpc_controller -> hpc_controller).
 - legacy task.execution_backend accepted only when [execution].class is
-  absent (mirrors ccbench.contracts.case.CaseSpec).
+  absent (mirrors bench.contracts.case.CaseSpec).
 - both present -> ambiguous -> reject.
 - hpc_controller Profile carries the case platform-profile name (gpu-slurm),
   never local_docker.
@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 import eval as E  # noqa: E402
-from ccbench.core.budgets import BUDGET_DOMAINS
+from bench.core.budgets import BUDGET_DOMAINS
 
 HPC_TOML = """\
 schema_version = "1.2"
@@ -154,7 +154,7 @@ def test_eval_resolves_complete_local_harness_provenance(tmp_path: Path) -> None
     # provenance.budgets is the LOCK dialect: it must satisfy the lock schema
     # (max_model_turns/max_total_tokens present) and map through
     # BudgetPolicy.from_lock onto all fourteen ledger domains.
-    from ccbench.core.budgets import BudgetPolicy
+    from bench.core.budgets import BudgetPolicy
 
     assert {"max_model_turns", "max_total_tokens"} <= set(provenance.budgets)
     policy = BudgetPolicy.from_lock({"budgets": provenance.budgets})
@@ -165,14 +165,16 @@ def test_eval_resolves_complete_local_harness_provenance(tmp_path: Path) -> None
     assert provenance.profile.site_config_digest != "sha256:local"
 
 
-def test_known_matclaw_cases_resolve_hpc_controller() -> None:
+def test_known_matclaw_cases_resolve_portable_candidate() -> None:
+    from bench.contracts.case import CaseSpec
     for name in (
         "001-matclaw-cips-active-distillation",
         "002-matclaw-cips-curie-temperature",
         "003-matclaw-cips-domain-wall-search",
     ):
         spec = E.load_task(ROOT / name)
-        assert spec.execution_class == "hpc_controller", name
+        assert spec.execution_class == "local_sandbox", name
+        assert CaseSpec.load(ROOT / "cases" / name).candidate_runner == "container_claude_code", name
 
 
 def test_benchmark_commit_pins_to_frozen_release(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -220,66 +222,28 @@ def test_benchmark_commit_pins_to_frozen_release(monkeypatch: pytest.MonkeyPatch
     assert E.frozen_release_source_commit() == "aae1becabc11041f454a7dc2d617e2ccadb95763"
 
 
-def test_controller_gateway_env_uses_host_docker_internal() -> None:
-    """The gateway URL handed to the controller container must be reachable
-    from inside a Docker bridge container, where 127.0.0.1 is the container
-    itself.  HpcExecutor prepares the common GatewayRuntime and sets the
-    container env to host.docker.internal:<port>; the gateway itself stays
-    loopback-bound on the eval host.
+def test_candidate_gateway_is_internal_and_candidate_has_no_scheduler_credentials() -> None:
+    """The unified Candidate path has no case-owned scheduler gateway.
 
-    A ProcessTestAdapter is injected so the test proves the HTTP plumbing
-    without a live SSH round-trip to the cluster.
+    Compute-profile operators own routing credentials; Candidate receives only
+    the model proxy endpoint.  Keep this assertion static so the contract can
+    be tested on CI hosts without permission to bind a local socket.
     """
-    from ccbench.executors.base import ExecutionContext
-    from ccbench.executors.hpc import HpcExecutor
+    from bench.agents import ClaudeCodeAdapter
 
-    spec = E.load_task(ROOT / "002-matclaw-cips-curie-temperature")
-    workspace = ROOT / ".test-gateway-workspace"
-    workspace.mkdir(parents=True, exist_ok=True)
-
-    tmp = workspace / "process-adapter"
-    tmp.mkdir(parents=True, exist_ok=True)
-    adapter_config = {
-        "adapter": "process_test",
-        "root": str(tmp),
-        "workspace_root": str(workspace),
-    }
-
-    ctx = ExecutionContext(
-        task=spec,
-        model="test-model",
-        max_turns=32,
-        threads_root=workspace.parent,
-        adapter_config=adapter_config,
-        run_id="test-host-docker-internal",
-        workspace=workspace,
+    adapter = ClaudeCodeAdapter(
+        model="deepseek-v4-pro[1M]",
+        threads_root=ROOT / ".test-gateway-workspace",
+        task_name="candidate-route",
+        case_dir=ROOT / "cases" / "002-matclaw-cips-curie-temperature",
+        session_id="run-1",
+        workspace=ROOT,
     )
-    from ccbench.hpc.dispatcher import HpcDispatcher
-    from ccbench.hpc.gateway_runtime import GatewayRuntime
-    executor = HpcExecutor(
-        dispatcher=HpcDispatcher(GatewayRuntime(), {})
-    )
-    import asyncio
-    loop = asyncio.new_event_loop()
-    loop.run_until_complete(executor.prepare(ctx))
-    try:
-        token = ctx.container_env["BENCH_HPC_RUN_TOKEN"]
-        url = ctx.container_env["BENCH_HPC_GATEWAY_URL"]
-        assert token, "run-scoped token must be set"
-        assert url.startswith("http://host.docker.internal:"), url
-        assert "127.0.0.1" not in url, url
-        # The gateway answers on the loopback port behind that name.
-        port = int(url.rsplit(":", 1)[1])
-        req = urllib.request.Request(
-            f"http://127.0.0.1:{port}/capabilities",
-            data=json.dumps({"run_id": "test-host-docker-internal"}).encode(),
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        body = json.loads(urllib.request.urlopen(req, timeout=5).read().decode("utf-8"))
-        assert "capabilities" in body or "ops" in body or body is not None
-    finally:
-        loop.run_until_complete(executor.close(ctx))
-        loop.close()
+    assert adapter.model == "deepseek-v4-pro[1M]"
+    assert "BENCH_HPC_RUN_TOKEN" not in adapter.container_env
+    assert "BENCH_HPC_GATEWAY_URL" not in adapter.container_env
+    assert adapter.cli_model == "claude-sonnet-4-6"
+    assert adapter.upstream_model == "deepseek-v4-pro[1M]"
 
 
 def test_controller_docker_args_reach_host_gateway() -> None:
@@ -288,7 +252,7 @@ def test_controller_docker_args_reach_host_gateway() -> None:
     automatically; the flag is harmless there and verified working).  Dispatch
     is by execution class (Task 11), so the flag key is the class, not the case
     name."""
-    from ccbench.agents import controller_docker_args
+    from bench.agents import controller_docker_args
 
     assert controller_docker_args("local_sandbox") == []
     args = controller_docker_args("hpc_controller")
@@ -296,21 +260,19 @@ def test_controller_docker_args_reach_host_gateway() -> None:
     assert "host.docker.internal:host-gateway" in args
 
 
-def test_controller_image_copies_bench_hpc_package() -> None:
-    """The controller container carries the unified bench-hpc gateway client
-    and ccbench package under /opt/dftworld/controller."""
-    df_path = ROOT / "runtimes" / "recipes" / "matclaw-cips-controller" / "Dockerfile"
+def test_candidate_recipe_is_pinned_nonroot_and_up_to_date() -> None:
+    """The active Candidate recipe is independent of retired HPC controllers."""
+    df_path = ROOT / "runtimes" / "recipes" / "claude-code-candidate-base" / "Dockerfile"
     df = df_path.read_text(encoding="utf-8")
-    assert (
-        "COPY ccbench /opt/dftworld/controller/ccbench"
-        in df
-    )
+    assert "node:22-bookworm-slim" in df
+    assert "USER 10001:10001" in df
+    assert 'CMD ["sleep", "3600"]' in df
 
 
 def test_durable_session_created_under_run_dir(tmp_path: Path) -> None:
     """Task 9: eval.py attaches a durable session per attempt; events survive
     and a checkpoint pointer is written at the harness boundaries."""
-    from ccbench.core.event_store import EventStore
+    from bench.core.event_store import EventStore
 
     session = E.durable_session_for_run(tmp_path, "001-hello")
     assert isinstance(session, EventStore)

@@ -9,11 +9,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ccbench.builder.publish import PublishError, publish_case
-from ccbench.builder.source_lock import build_sources_lock, SourceTier
-from ccbench.builder.state import CaseLifecycleState, derive_state
-from ccbench.builder.verifier_plan import VerifierPlan, VerifierRule
-from ccbench.builder.verifier_compile import compile_verifier
+from bench.builder.publish import PublishError, publish_case
+from bench.builder.source_lock import build_sources_lock, SourceTier
+from bench.builder.state import CaseLifecycleState, derive_state
+from bench.builder.verifier_plan import VerifierPlan, VerifierRule
+from bench.builder.verifier_compile import compile_verifier
 
 
 def _write_valid_case_ir(path: Path, case_id: str = "006-toy"):
@@ -35,7 +35,7 @@ def _write_valid_case_ir(path: Path, case_id: str = "006-toy"):
         },
         "runtime": {
             "execution_class": "local_sandbox",
-            "candidate_image": "ccbench-agent:v1",
+            "candidate_image": "bench-agent:v1",
         },
         "coverage": {
             "scientific_domain": "semiconductors",
@@ -72,7 +72,7 @@ name = "{case_id}"
 [candidate]
 instruction = "task.md"
 submission_root = "final"
-image = "ccbench-agent:v1"
+image = "bench-agent:v1"
 
 [coverage]
 scientific_domain = "semiconductors"
@@ -108,8 +108,8 @@ def _setup_full_lifecycle_for_publish(run_dir: Path):
     _write_valid_case_ir(run_dir / "design" / "case.ir.yaml", case_id="006-toy")
 
     # Scaffold via compiler
-    from ccbench.builder.scaffold import compile_case_ir_to_draft
-    from ccbench.builder.design import load_case_ir
+    from bench.builder.scaffold import compile_case_ir_to_draft
+    from bench.builder.design import load_case_ir
     ir_doc = load_case_ir(run_dir / "design" / "case.ir.yaml")
     compile_case_ir_to_draft(ir_doc, run_dir / "draft", source_dir=source_dir)
 
@@ -117,8 +117,8 @@ def _setup_full_lifecycle_for_publish(run_dir: Path):
     _build_real_verifier(run_dir)
 
     # Compute real candidate bundle digest
-    from ccbench.contracts.case import CaseSpec as _CaseSpec
-    from ccbench.core.packager import package_candidate as _package_candidate
+    from bench.contracts.case import CaseSpec as _CaseSpec
+    from bench.core.packager import package_candidate as _package_candidate
     import tempfile as _tempfile
     spec = _CaseSpec.load(run_dir / "draft")
     with _tempfile.TemporaryDirectory() as tmp_str:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from ccbench.contracts.result import (
+from bench.contracts.result import (
     BenchmarkResult,
     FailureCode,
     ResultClass,

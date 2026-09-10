@@ -16,18 +16,18 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.experiments.compute_profile_qualification import (
+from bench.experiments.compute_profile_qualification import (
     build_compshare_site_qualification_receipt,
     verify_site_receipt,
 )
-from ccbench.hpc.site_profile import HpcSiteProfile
-from ccbench.hpc.trust_store import QualificationTrustStore
+from bench.hpc.site_profile import HpcSiteProfile
+from bench.hpc.trust_store import QualificationTrustStore
 
 ROOT = Path(__file__).resolve().parents[2]
 PROD_LOCK_DIR = ROOT / "runtimes" / "locks"
-SITE_PROFILE_PATH = Path.home() / ".config" / "mlffbench" / "sites" / "compshare-gpu-production.json"
-TRUST_STORE_PATH = Path.home() / ".config" / "mlffbench" / "trust" / "qualification-trust.toml"
-KEY_PATH = Path.home() / ".config" / "mlffbench" / "keys" / "compshare-site-v1.priv"
+SITE_PROFILE_PATH = Path.home() / ".config" / "bench" / "sites" / "compshare-gpu-production.json"
+TRUST_STORE_PATH = Path.home() / ".config" / "bench" / "trust" / "qualification-trust.toml"
+KEY_PATH = Path.home() / ".config" / "bench" / "keys" / "compshare-site-v1.priv"
 
 
 @pytest.fixture
@@ -84,7 +84,7 @@ def _create_mock_receipt_dir(
         encoding="utf-8",
     )
 
-    from ccbench.hpc.audit import GatewayAudit
+    from bench.hpc.audit import GatewayAudit
     audit_file = receipt_dir / "audit_events.jsonl"
     ledger = GatewayAudit(audit_file)
     ledger.append({"kind": "INSTANCE_CREATE_INTENT", "run_id": "mock-run", "image_id": image_id})
@@ -117,10 +117,10 @@ def test_old_image_id_with_new_recipe_fails(site_context):
         mock_lock_path = tmp_path / "jax-runtime.lock.json"
         mock_lock_path.write_text(json.dumps(lock_doc), encoding="utf-8")
 
-        from ccbench.hpc.runtime_resolution import canonical_lock_digest
+        from bench.hpc.runtime_resolution import canonical_lock_digest
         lock_digest = canonical_lock_digest(lock_doc)
 
-        from ccbench.hpc.audit import GatewayAudit
+        from bench.hpc.audit import GatewayAudit
         ledger = GatewayAudit(receipt_dir / "audit_events.jsonl")
         tail_digest = ledger.tail_digest()
 
@@ -145,7 +145,7 @@ def test_old_image_id_with_new_recipe_fails(site_context):
             site_profile_id=site_context["site_obj"].site_id,
             site_profile_digest=site_context["site_obj"].digest,
             source_commit="0a6cafa9808d47788f9f2c55e040ffbfef932b79",
-            code_identity={"ccbench/hpc/dispatcher.py": "sha256:dc508211ba3cd82da220101f583712e93f5572d8cdc1f195c3b793c263c93269"},
+            code_identity={"bench/hpc/dispatcher.py": "sha256:dc508211ba3cd82da220101f583712e93f5572d8cdc1f195c3b793c263c93269"},
             runtime_lock={
                 "path": "jax-runtime.lock.json",
                 "digest": lock_digest,
@@ -190,10 +190,10 @@ def test_mismatched_asset_sha_fails(site_context):
         mock_lock_path = tmp_path / "jax-runtime.lock.json"
         mock_lock_path.write_text(json.dumps(lock_doc), encoding="utf-8")
 
-        from ccbench.hpc.runtime_resolution import canonical_lock_digest
+        from bench.hpc.runtime_resolution import canonical_lock_digest
         lock_digest = canonical_lock_digest(lock_doc)
 
-        from ccbench.hpc.audit import GatewayAudit
+        from bench.hpc.audit import GatewayAudit
         ledger = GatewayAudit(receipt_dir / "audit_events.jsonl")
         tail_digest = ledger.tail_digest()
 
@@ -218,7 +218,7 @@ def test_mismatched_asset_sha_fails(site_context):
             site_profile_id=site_context["site_obj"].site_id,
             site_profile_digest=site_context["site_obj"].digest,
             source_commit="0a6cafa9808d47788f9f2c55e040ffbfef932b79",
-            code_identity={"ccbench/hpc/dispatcher.py": "sha256:dc508211ba3cd82da220101f583712e93f5572d8cdc1f195c3b793c263c93269"},
+            code_identity={"bench/hpc/dispatcher.py": "sha256:dc508211ba3cd82da220101f583712e93f5572d8cdc1f195c3b793c263c93269"},
             runtime_lock={
                 "path": "jax-runtime.lock.json",
                 "digest": lock_digest,
@@ -263,10 +263,10 @@ def test_tampered_recipe_digest_fails(site_context):
         mock_lock_path = tmp_path / "jax-runtime.lock.json"
         mock_lock_path.write_text(json.dumps(lock_doc), encoding="utf-8")
 
-        from ccbench.hpc.runtime_resolution import canonical_lock_digest
+        from bench.hpc.runtime_resolution import canonical_lock_digest
         lock_digest = canonical_lock_digest(lock_doc)
 
-        from ccbench.hpc.audit import GatewayAudit
+        from bench.hpc.audit import GatewayAudit
         ledger = GatewayAudit(receipt_dir / "audit_events.jsonl")
         tail_digest = ledger.tail_digest()
 
@@ -291,7 +291,7 @@ def test_tampered_recipe_digest_fails(site_context):
             site_profile_id=site_context["site_obj"].site_id,
             site_profile_digest=site_context["site_obj"].digest,
             source_commit="0a6cafa9808d47788f9f2c55e040ffbfef932b79",
-            code_identity={"ccbench/hpc/dispatcher.py": "sha256:dc508211ba3cd82da220101f583712e93f5572d8cdc1f195c3b793c263c93269"},
+            code_identity={"bench/hpc/dispatcher.py": "sha256:dc508211ba3cd82da220101f583712e93f5572d8cdc1f195c3b793c263c93269"},
             runtime_lock={
                 "path": "jax-runtime.lock.json",
                 "digest": lock_digest,
@@ -334,10 +334,10 @@ def test_missing_recipe_digest_in_receipt_fails(site_context):
         mock_lock_path = tmp_path / "jax-runtime.lock.json"
         mock_lock_path.write_text(json.dumps(lock_doc), encoding="utf-8")
 
-        from ccbench.hpc.runtime_resolution import canonical_lock_digest
+        from bench.hpc.runtime_resolution import canonical_lock_digest
         lock_digest = canonical_lock_digest(lock_doc)
 
-        from ccbench.hpc.audit import GatewayAudit
+        from bench.hpc.audit import GatewayAudit
         ledger = GatewayAudit(receipt_dir / "audit_events.jsonl")
         tail_digest = ledger.tail_digest()
 
@@ -362,7 +362,7 @@ def test_missing_recipe_digest_in_receipt_fails(site_context):
             site_profile_id=site_context["site_obj"].site_id,
             site_profile_digest=site_context["site_obj"].digest,
             source_commit="0a6cafa9808d47788f9f2c55e040ffbfef932b79",
-            code_identity={"ccbench/hpc/dispatcher.py": "sha256:dc508211ba3cd82da220101f583712e93f5572d8cdc1f195c3b793c263c93269"},
+            code_identity={"bench/hpc/dispatcher.py": "sha256:dc508211ba3cd82da220101f583712e93f5572d8cdc1f195c3b793c263c93269"},
             runtime_lock={
                 "path": "jax-runtime.lock.json",
                 "digest": lock_digest,

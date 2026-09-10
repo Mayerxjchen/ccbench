@@ -1,5 +1,5 @@
 #!/bin/bash
-# Common verifier launcher: python -m ccbench.verifiers.launcher
+# Common verifier launcher: python -m bench.verifiers.launcher
 
 # ============================================================================
 # 031 verifier entry (harness contract: /tests/test.sh -> result.json).
@@ -18,7 +18,7 @@
 #
 # Classification:
 #   verify() valid   -> VALID_RESULT / PASS        (counted scientifically)
-#   verify() invalid -> AGENT_FAILURE / SCIENTIFIC_FAIL
+#   verify() invalid -> VALID_RESULT / SCIENTIFIC_FAIL (counted result)
 # ============================================================================
 set -u
 PY=/opt/matclaw/bin/python
@@ -29,7 +29,8 @@ fi
 mkdir -p /logs/verifier 2>/dev/null || true
 
 cd /tests || exit 1
-if "$PY" -c '
+set +e
+"$PY" -c '
 import sys
 sys.path.insert(0, "/tests")
 from pathlib import Path
@@ -38,8 +39,11 @@ report = verify(Path("/app"), "paper")
 print("valid=", report["valid"])
 for error in report.get("errors", []):
     print("  error:", error)
-sys.exit(0 if report["valid"] else 1)
-'; then
+sys.exit(0 if report["valid"] else 10)
+'
+rc=$?
+set -e
+if [ "$rc" -eq 0 ]; then
   cat > /logs/verifier/result.json <<'JSON'
 {
   "run_id": "verifier",
@@ -53,11 +57,11 @@ JSON
   echo 1 > /logs/verifier/reward.txt
   echo "[031 test.sh] reward=1 result.json=VALID_RESULT"
   exit 0
-else
+elif [ "$rc" -eq 10 ]; then
   cat > /logs/verifier/result.json <<'JSON'
 {
   "run_id": "verifier",
-  "result_class": "AGENT_FAILURE",
+  "result_class": "VALID_RESULT",
   "failure_code": "SCIENTIFIC_FAIL",
   "reason": "031 active-distillation scientific gates failed",
   "retryable": false,
@@ -65,6 +69,19 @@ else
 }
 JSON
   echo 0 > /logs/verifier/reward.txt
-  echo "[031 test.sh] reward=0 result.json=AGENT_FAILURE"
+  echo "[031 test.sh] reward=0 result.json=VALID_RESULT/SCIENTIFIC_FAIL"
+  exit 1
+else
+  cat > /logs/verifier/result.json <<'JSON'
+{
+  "run_id": "verifier",
+  "result_class": "INFRA_INVALID",
+  "failure_code": "VERIFIER_FAILURE",
+  "reason": "031 verifier failed to import or execute",
+  "retryable": false,
+  "is_counted_scientifically": false
+}
+JSON
+  echo 0 > /logs/verifier/reward.txt
   exit 1
 fi

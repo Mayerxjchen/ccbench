@@ -15,7 +15,6 @@ ROOT = Path(__file__).resolve().parents[2]
 FORBIDDEN_ROOT_NAMES = {
     "base-env-build",
     "reference",
-    "infra",
     "scientific-benchmark-case-builder-portable",
     "qualify_gpu.py",
     "test_job.slurm",
@@ -33,10 +32,11 @@ ALLOWED_ROOT_DIRS = {
     ".test-gateway-workspace",
     "__pycache__",
     "benchmark",
+    "bench",
     "cases",
-    "ccbench",
-    "ccbench.egg-info",
-    "ccbench",
+    "bench",
+    "bench.egg-info",
+    "bench",
     "docs",
     "evidence",
     "examples",
@@ -50,6 +50,7 @@ ALLOWED_ROOT_DIRS = {
     "scripts",
     "site-configs",
     "src",
+    "infra",
     "tests",
 }
 

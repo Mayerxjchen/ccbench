@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import pytest
 
-from ccbench.builder.discovery import (
+from bench.builder.discovery import (
     DiscoveryDecision,
     DiscoveryEvidenceError,
     FailureClass,

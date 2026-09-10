@@ -1,10 +1,10 @@
-"""Namespace Single Source of Truth (SSOT) integrity gate (CCBench v4).
+"""Namespace Single Source of Truth (SSOT) integrity gate (Bench v4).
 
 Enforces:
 1. Zero active references to legacy package 'dftworld_bench'.
 2. Zero active references to 'scientific-benchmark-case-builder-portable'.
 3. Zero active references to 'base-env-build' in production code.
-4. Active environment variable unification to CCBENCH_*.
+4. Active environment variable unification to BENCH_*.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 
 ACTIVE_ROOTS = [
-    ROOT / "ccbench",
+    ROOT / "bench",
     ROOT / "runtimes",
     ROOT / "scripts",
     ROOT / "schemas",
@@ -95,7 +95,7 @@ def test_zero_active_portable_builder():
 def test_zero_base_env_build_in_production_code():
     """Production python packages and scripts must contain zero base-env-build references."""
     prod_targets = [
-        ROOT / "ccbench",
+        ROOT / "bench",
         ROOT / "scripts",
         ROOT / "eval.py",
     ]

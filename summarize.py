@@ -94,8 +94,8 @@ def load_runs(jobs_dir: Path) -> list[dict]:
 
 def _record_to_run(record_path: Path) -> dict:
     """把一条 RunRecord 转成与 summary.json 兼容的 run dict(单条 results)。"""
-    from ccbench.contracts.result import FailureCode
-    from ccbench.contracts.run_record import RunRecord
+    from bench.contracts.result import FailureCode
+    from bench.contracts.run_record import RunRecord
 
     record = RunRecord.from_dict(json.loads(record_path.read_text(encoding="utf-8")))
     result = record.result

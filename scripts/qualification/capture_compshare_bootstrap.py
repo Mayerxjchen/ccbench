@@ -32,7 +32,7 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from ccbench.hpc.drivers.compshare.bootstrap_evidence import (
+from bench.hpc.drivers.compshare.bootstrap_evidence import (
     EXPECTED_CLI_VERSION,
     BootstrapEvidenceError,
     build_allowlisted_probes,
@@ -366,7 +366,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         out_dir = args.output_dir
     else:
         ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        root = args.evidence_root or (Path.home() / ".config" / "mlffbench" / "evidence" / "gate_a2")
+        root = args.evidence_root or (Path.home() / ".config" / "bench" / "evidence" / "gate_a2")
         out_dir = root / ts
 
     try:

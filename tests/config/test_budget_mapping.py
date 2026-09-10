@@ -9,9 +9,9 @@ from unittest import mock
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from ccbench.core.budgets import BudgetPolicy, BudgetExceeded
-from ccbench.verifiers.candidate_agent_verifier import CandidateAgentVerifier, canonical_json, digest_bytes, sign_ed25519
-from ccbench.hpc.trust_store import QualificationTrustStore
+from bench.core.budgets import BudgetPolicy, BudgetExceeded
+from bench.verifiers.candidate_agent_verifier import CandidateAgentVerifier, canonical_json, digest_bytes, sign_ed25519
+from bench.hpc.trust_store import QualificationTrustStore
 from eval import _resolved_budget_limits, _verify_candidate_agent_gate, TaskSpec, CaseSpec, ProfileRegistry
 
 
@@ -30,7 +30,7 @@ def test_budget_policy_from_lock_aliases_and_differentiation():
         name="001-hello",
         description="hello task",
         path=Path("/tmp/dummy_case"),
-        image="mlffbench-candidate-claude-code-sandbox:v1",
+        image="bench-candidate-claude-code-sandbox:v1",
         instruction="test",
         agent_timeout_sec=600,
         verifier_timeout_sec=60,
@@ -179,7 +179,7 @@ def test_candidate_agent_gate_promoted_admitted():
     pub_hex = priv.public_key().public_bytes_raw().hex()
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        from ccbench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
+        from bench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
         import hashlib
         verifier = CandidateAgentVerifier()
         current_commit = verifier.get_source_commit()
@@ -293,7 +293,7 @@ def test_candidate_agent_gate_rejects_git_status_failure():
 
 
 def test_candidate_agent_gate_ignores_skip_clean_tree_env():
-    """Formal admission must NEVER allow MLFFBENCH_SKIP_CLEAN_TREE_CHECK to bypass dirty tree."""
+    """Formal admission must NEVER allow BENCH_SKIP_CLEAN_TREE_CHECK to bypass dirty tree."""
     dummy_task = mock.Mock(spec=TaskSpec)
     priv = Ed25519PrivateKey.generate()
     pub_hex = priv.public_key().public_bytes_raw().hex()
@@ -303,7 +303,7 @@ def test_candidate_agent_gate_ignores_skip_clean_tree_env():
         _create_signed_receipt(receipt_path, {"status": "PROMOTED"}, priv)
 
         with mock.patch.object(QualificationTrustStore, "resolve_public_key_hex", return_value=pub_hex):
-            with mock.patch.dict(os.environ, {"MLFFBENCH_SKIP_CLEAN_TREE_CHECK": "1"}):
+            with mock.patch.dict(os.environ, {"BENCH_SKIP_CLEAN_TREE_CHECK": "1"}):
                 fake_status = mock.Mock(returncode=0, stdout="?? untracked.py\n", stderr="")
                 with mock.patch("subprocess.run", return_value=fake_status):
                     with pytest.raises(RuntimeError, match="Git working tree is dirty"):

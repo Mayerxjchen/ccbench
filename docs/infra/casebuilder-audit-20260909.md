@@ -3,7 +3,7 @@
 The protected worktree `case-builder/research-v2.4` was 23 commits ahead of
 the infra MVP base. Its tip is retained at
 `refs/backup/infra-mvp-casebuilder-20260909` and in
-`/Users/xjchen/bench/ccbench-infra-mvp-20260909.bundle`.
+`<external-evidence-root>/bench-mvp-20260909.bundle`.
 
 The commits were reviewed for the final infra boundary. The research-case
 builder, research fixtures, JAX-GPU assets, and qualification documentation

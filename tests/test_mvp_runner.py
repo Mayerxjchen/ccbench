@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import stat
 from pathlib import Path
 
 import pytest
 
-from ccbench.core.digests import sha256_file
-from ccbench.mvp import (
+from bench.core.digests import sha256_file
+from bench.mvp import (
     MvpError,
     check_bundle,
     export_case,
@@ -52,6 +53,40 @@ def test_export_is_public_only_and_has_operator_lock(tmp_path: Path) -> None:
     assert (tmp_path / "candidate-run.lock.json").is_file()
 
 
+def test_publish_candidate_messages_is_outside_workspace_and_read_only(tmp_path: Path) -> None:
+    from bench.pilot import _publish_candidate_messages
+
+    run_dir = tmp_path / "run"
+    thread_dir = run_dir / "threads" / run_dir.name
+    thread_dir.mkdir(parents=True)
+    source = thread_dir / "messages.jsonl"
+    source.write_bytes(b'{"type":"tool_result"}\n')
+
+    published = _publish_candidate_messages(run_dir, thread_dir)
+
+    assert published == str(run_dir / "messages.jsonl")
+    destination = run_dir / "messages.jsonl"
+    assert destination.read_bytes() == source.read_bytes()
+    assert stat.S_IMODE(destination.stat().st_mode) == 0o444
+    assert destination.parent != (run_dir / "candidate")
+
+
+def test_publish_candidate_messages_rejects_hardlink_and_symlink(tmp_path: Path) -> None:
+    from bench.pilot import _publish_candidate_messages
+
+    run_dir = tmp_path / "run"
+    thread_dir = run_dir / "threads" / run_dir.name
+    thread_dir.mkdir(parents=True)
+    source = thread_dir / "messages.jsonl"
+    source.write_text("diagnostic\n", encoding="utf-8")
+    hardlink = thread_dir / "hardlink.jsonl"
+    hardlink.hardlink_to(source)
+    assert _publish_candidate_messages(run_dir, hardlink.parent) is None
+    source.unlink()
+    source.symlink_to(run_dir / "secret.txt")
+    assert _publish_candidate_messages(run_dir, thread_dir) is None
+
+
 def test_check_uses_operator_lock_not_candidate_manifest(tmp_path: Path) -> None:
     bundle = tmp_path / "candidate-run"
     export_case(_case(tmp_path), bundle)
@@ -90,7 +125,7 @@ def test_freeze_seals_only_final_and_rejects_symlink(tmp_path: Path) -> None:
 
 
 def test_export_refuses_repository_destination() -> None:
-    from ccbench.paths import ROOT
+    from bench.paths import ROOT
 
     with pytest.raises(MvpError, match="outside"):
         export_case(ROOT / "cases" / "001-matclaw-cips-active-distillation", ROOT / "bad-run")
@@ -183,45 +218,67 @@ def test_sealed_submission_detects_post_freeze_drift(tmp_path: Path) -> None:
         verify_sealed_submission(sealed)
 
 
-def test_host_pilot_constructs_restricted_fake_argv_and_env(tmp_path: Path, monkeypatch) -> None:
-    """The fake agent is an offline adversary: only safe flags and env cross the boundary."""
-    import sys
+def test_sealed_manifest_symlink_is_rejected_before_json_load(tmp_path: Path) -> None:
+    bundle = tmp_path / "candidate-run"
+    export_case(_case(tmp_path), bundle)
+    (bundle / "final" / "answer.txt").write_text("good")
+    sealed = tmp_path / "sealed"
+    freeze_submission(bundle, sealed)
+    original = sealed / "manifest.json"
+    original.unlink()
+    target = tmp_path / "outside-manifest.json"
+    target.write_text(json.dumps({"files": []}), encoding="utf-8")
+    original.symlink_to(target)
+    with pytest.raises(MvpError, match="manifest"):
+        verify_sealed_submission(sealed)
 
-    import ccbench.pilot as pilot
-    from ccbench.pilot import start
 
+def test_container_pilot_uses_docker_runner_and_keeps_secrets_out(tmp_path: Path, monkeypatch) -> None:
+    """Pilot delegates to the container adapter; no host Claude subprocess exists."""
+    import bench.pilot as pilot
+    from bench.pilot import start
+
+    monkeypatch.setenv("BENCH_BASE_URL", "https://model.example/v1")
+    monkeypatch.setenv("BENCH_API_KEY", "trusted-secret")
+    monkeypatch.setenv("BENCH_MODEL", "deepseek-v4-pro[1M]")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "must-not-cross")
-    monkeypatch.setenv("SSH_AUTH_SOCK", "/tmp/secret.sock")
     run_dir = tmp_path / "pilot"
     captured = {}
-    def fake_run(argv, **kwargs):
-        captured.update(argv=argv, env=kwargs["env"])
+
+    def fake_container(**kwargs):
+        captured.update(kwargs)
         final = run_dir / "candidate/final"
         final.mkdir(exist_ok=True)
         (final / "fake.json").write_text("ok")
-        return type("Proc", (), {"returncode": 0})()
-    monkeypatch.setattr(pilot.subprocess, "run", fake_run)
+        return {"image_digest": "sha256:" + "a" * 64, "engine": "claude-code"}
+
+    monkeypatch.setattr(pilot, "_run_container_candidate", fake_container)
     state = start("001", run_dir=run_dir)
-    argv = captured["argv"]
-    assert all(flag in argv for flag in ("--bare", "--restricted", "--strict-mcp-config"))
-    assert argv[argv.index("--permission-prompts") + 1] == "none"
-    assert argv[argv.index("--tools") + 1] == "Read,Write,Edit,Glob,Grep"
-    assert "--session-id" in argv
-    assert "AWS_SECRET_ACCESS_KEY" not in captured["env"]
-    assert "SSH_AUTH_SOCK" not in captured["env"]
-    assert state["skill_digest"].startswith("sha256:")
-    assert not (run_dir / "candidate/solution").exists()
-    assert not (run_dir / "candidate/reference").exists()
+    assert state["runner"] == "container_claude_code"
+    assert state["model_id"] == "deepseek-v4-pro[1M]"
+    assert state["candidate_image_digest"].startswith("sha256:")
+    assert captured["resume_session"] is False
+    assert "trusted-secret" not in json.dumps(state)
+    assert "must-not-cross" not in json.dumps(state)
 
 
-def test_host_pilot_resume_uses_resume_flag_and_same_session(tmp_path: Path, monkeypatch) -> None:
-    import ccbench.pilot as pilot
-    from ccbench.pilot import import_results, resume, start
+def test_formal_host_credential_accepts_auth_token_alias(monkeypatch) -> None:
+    from bench.pilot import _resolve_host_credential
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "host-only-token")
+    value, names = _resolve_host_credential("ANTHROPIC_API_KEY")
+    assert value == "host-only-token"
+    assert names == ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+
+
+def test_container_pilot_resume_uses_same_session(tmp_path: Path, monkeypatch) -> None:
+    from bench.pilot import import_results, resume, start
 
     run_dir = tmp_path / "pilot"
     events = []
-    def fake_run(argv, **kwargs):
-        events.append(argv)
+    def fake_container(**kwargs):
+        events.append(kwargs)
         if len(events) == 1:
             (run_dir / "candidate/compute-requests/request.json").write_text(json.dumps({
                 "schema_version": "1.0", "compute_class": "cpu", "command": ["python", "run.py"],
@@ -230,8 +287,8 @@ def test_host_pilot_resume_uses_resume_flag_and_same_session(tmp_path: Path, mon
             }), encoding="utf-8")
         else:
             (run_dir / "candidate/final/resumed.txt").write_text("ok")
-        return type("Proc", (), {"returncode": 0})()
-    monkeypatch.setattr(pilot.subprocess, "run", fake_run)
+        return {"image_digest": "sha256:" + "b" * 64, "engine": "claude-code"}
+    monkeypatch.setattr("bench.pilot._run_container_candidate", fake_container)
     first = start("001", run_dir=run_dir)
     assert first["state"] == "COMPUTE_REQUIRED"
     operator = tmp_path / "operator" / "compute-results"
@@ -241,12 +298,186 @@ def test_host_pilot_resume_uses_resume_flag_and_same_session(tmp_path: Path, mon
     resumed = resume(run_dir)
     assert resumed["session_id"] == first["session_id"]
     records = [json.loads(line) for line in (run_dir / "transcript.jsonl").read_text().splitlines()]
-    assert "--resume" in events[-1]
-    assert records[-1]["session_id"] == first["session_id"]
+    assert events[-1]["resume_session"] is True
+    assert events[-1]["session_id"] == first["session_id"]
+    assert [record for record in records if record.get("event") == "start"][-1]["session_id"] == first["session_id"]
 
 
-def test_pilot_rejects_non_claude_profile_command() -> None:
-    from ccbench.pilot import _command
+def test_container_pilot_resume_reuses_secret_free_config_snapshot(tmp_path: Path, monkeypatch) -> None:
+    from bench.pilot import import_results, resume, start
 
-    with pytest.raises(MvpError, match="trusted claude"):
-        _command({"command": ["python", "-c", "print(1)"]})
+    monkeypatch.setenv("BENCH_BASE_URL", "https://model.example/v1")
+    monkeypatch.setenv("BENCH_API_KEY", "host-only-secret")
+    monkeypatch.setenv("BENCH_MODEL", "deepseek-v4-pro[1M]")
+    monkeypatch.setenv("BENCH_CANDIDATE_IMAGE", "user/candidate:v2")
+    monkeypatch.setenv("BENCH_SIDECAR_IMAGE", "user/gateway:v1")
+    config_path = tmp_path / "candidate.toml"
+    config_path.write_text(
+        '[model]\nrequested_id="deepseek-v4-pro[1M]"\ncli_model="claude-sonnet-4-6"\n'
+        'endpoint_env="BENCH_BASE_URL"\ncredential_env="BENCH_API_KEY"\n'
+        '[candidate]\nimage="user/candidate:v2"\nsidecar_image="user/gateway:v1"\n'
+        '[compute]\nbackend="ikkem"\nprofile="operator/ikkem.json"\n',
+        encoding="utf-8",
+    )
+    run_dir = tmp_path / "pilot-config"
+    events: list[dict] = []
+
+    def fake_container(**kwargs):
+        events.append(kwargs)
+        if len(events) == 1:
+            (run_dir / "candidate/compute-requests/request.json").write_text(json.dumps({
+                "schema_version": "1.0", "compute_class": "cpu", "command": ["python", "run.py"],
+                "resources": {"nodes": 1, "ntasks": 1, "cpus_per_task": 1, "memory_gb_per_node": 1, "walltime_min": 1, "gpus": 0},
+                "inputs": [{"path": "run_profiles.json"}], "outputs": ["compute-results/result.dat"],
+            }), encoding="utf-8")
+        else:
+            (run_dir / "candidate/final/resumed.txt").write_text("ok", encoding="utf-8")
+        return {"image_digest": "sha256:" + "c" * 64, "engine": "claude-code"}
+
+    monkeypatch.setattr("bench.pilot._run_container_candidate", fake_container)
+    first = start("001", run_dir=run_dir, config_path=config_path)
+    assert first["compute_backend"] == "ikkem"
+    assert first["candidate_config"]["model"]["cli_model"] == "claude-sonnet-4-6"
+    assert "host-only-secret" not in json.dumps(first)
+
+    operator = tmp_path / "operator-config" / "compute-results"
+    operator.mkdir(parents=True)
+    (operator / "result.dat").write_text("external result", encoding="utf-8")
+    import_results(run_dir, operator.parent)
+    resumed = resume(run_dir)
+    assert resumed["candidate_config_digest"] == first["candidate_config_digest"]
+    assert events[-1]["candidate_config"]["compute"]["backend"] == "ikkem"
+
+
+def test_pilot_passes_config_limits_and_persists_effective_snapshot(tmp_path: Path, monkeypatch) -> None:
+    from bench.pilot import start
+
+    config_path = tmp_path / "limits.toml"
+    config_path.write_text(
+        "[limits]\nmax_turns=7\nmax_total_tokens=1234\n"
+        "agent_timeout_sec=42\nmax_budget_usd=0.0\n", encoding="utf-8"
+    )
+    run_dir = tmp_path / "limits-run"
+    captured = {}
+
+    def fake_container(**kwargs):
+        captured.update(kwargs)
+        return {"image_digest": "sha256:" + "d" * 64, "engine": "claude-code",
+                "model_gateway": {"turn_count": 1, "tokens_used": 9}}
+
+    monkeypatch.setattr("bench.pilot._run_container_candidate", fake_container)
+    state = start("001", run_dir=run_dir, config_path=config_path)
+    assert captured["effective_limits"] == {
+        "max_turns": 7, "max_total_tokens": 1234,
+        "agent_timeout_sec": 42.0, "max_budget_usd": 0.0,
+    }
+    snapshot = json.loads((run_dir / "effective-limits.json").read_text())
+    assert snapshot["limits"] == captured["effective_limits"]
+    assert snapshot["digest"] == state["effective_limits_digest"]
+    assert state["effective_limits_source"] == "config"
+    assert state["budget_usage"]["model_turns"] == 1
+
+
+def test_resume_budget_is_recomputed_from_completed_transcript(tmp_path: Path) -> None:
+    from bench.pilot import MvpError, _previous_budget, _recompute_completed_budget
+
+    transcript = tmp_path / "transcript.jsonl"
+    transcript.write_text(
+        json.dumps({"event": "start"}) + "\n" +
+        json.dumps({"event": "candidate_complete", "phase_usage": {
+            "model_turns": 3, "total_tokens": 90,
+            "candidate_phase_walltime_sec": 1.25,
+        }}) + "\n", encoding="utf-8"
+    )
+    recomputed = _recompute_completed_budget(transcript)
+    state = {"budget_usage": recomputed}
+    assert _previous_budget(state) == recomputed
+    tampered = {"budget_usage": {**recomputed, "model_turns": 0, "total_tokens": 0,
+                                  "candidate_phase_walltime_sec": 0.0}}
+    assert _previous_budget(tampered) != recomputed
+    transcript.write_text(json.dumps({"event": "start"}) + "\n", encoding="utf-8")
+    with pytest.raises(MvpError, match="complete resumable"):
+        _recompute_completed_budget(transcript)
+
+    transcript.write_text(
+        json.dumps({"event": "start"}) + "\n" +
+        json.dumps({"event": "start"}) + "\n" +
+        json.dumps({"event": "candidate_complete", "phase_usage": {
+            "model_turns": 1, "total_tokens": 2,
+            "candidate_phase_walltime_sec": 0.1,
+        }}) + "\n", encoding="utf-8"
+    )
+    with pytest.raises(MvpError, match="incomplete prior phase"):
+        _recompute_completed_budget(transcript)
+
+
+def test_resume_rejects_noncanonical_transcript_pointer(tmp_path: Path, monkeypatch) -> None:
+    import bench.pilot as pilot
+    from bench.pilot import start, resume
+
+    run_dir = tmp_path / "pointer-run"
+    def fake_container(**kwargs):
+        (run_dir / "candidate/compute-requests/request.json").write_text(json.dumps({
+            "schema_version": "1.0", "compute_class": "cpu", "command": ["python", "run.py"],
+            "resources": {"nodes": 1, "ntasks": 1, "cpus_per_task": 1, "memory_gb_per_node": 1, "walltime_min": 1, "gpus": 0},
+            "inputs": [{"path": "run_profiles.json"}], "outputs": ["compute-results/result.dat"],
+        }), encoding="utf-8")
+        return {"image_digest": "sha256:" + "e" * 64, "engine": "claude-code",
+                "model_gateway": {"turn_count": 1, "tokens_used": 2}}
+    monkeypatch.setattr(pilot, "_run_container_candidate", fake_container)
+    first = start("001", run_dir=run_dir)
+    state_path = run_dir / "run-state.json"
+    state = json.loads(state_path.read_text())
+    state["transcript"] = str(tmp_path / "other-transcript.jsonl")
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    with pytest.raises(MvpError, match="canonical run-scoped transcript"):
+        resume(run_dir)
+
+
+def test_signal_failure_preserves_safe_adapter_telemetry(tmp_path: Path, monkeypatch) -> None:
+    import bench.pilot as pilot
+
+    monkeypatch.setenv("BENCH_BASE_URL", "https://model.example/v1")
+    monkeypatch.setenv("BENCH_API_KEY", "host-only-secret")
+
+    class InterruptingAdapter:
+        def __init__(self, **kwargs):
+            self.container_id = "candidate-id"
+            self.sidecar_cid = None
+            self.internal_net = None
+            self.resource_run_uid = None
+            self.thread_dir = str(tmp_path / "threads")
+            self._closed = False
+
+        async def prepare(self):
+            return None
+
+        async def start(self, prompt):
+            raise KeyboardInterrupt()
+
+        async def close(self):
+            self.container_id = None
+            self._closed = True
+
+        def collect_logs(self):
+            return {
+                "thread_dir": self.thread_dir,
+                "candidate_exit_code": 130,
+                "model_gateway": {"turn_count": 4, "tokens_used": 321,
+                                   "budget_exceeded_reason": None},
+            }
+
+    monkeypatch.setattr("bench.agents.ClaudeCodeAdapter", InterruptingAdapter)
+    with pytest.raises(KeyboardInterrupt) as caught:
+        pilot._run_container_candidate(
+            profile={"runner": "container_claude_code", "image": "candidate:test",
+                     "model": "model-test"},
+            case_dir=tmp_path, workspace=tmp_path / "workspace",
+            run_dir=tmp_path / "run", prompt="safe prompt", session_id="session",
+            resume_session=False, resource_run_uid=None,
+            effective_limits={"max_turns": 8, "max_total_tokens": 1000,
+                              "agent_timeout_sec": 10, "max_budget_usd": 0.0},
+        )
+    safe_logs = getattr(caught.value, "safe_logs")
+    assert safe_logs["candidate_exit_code"] == 130
+    assert safe_logs["model_gateway"]["tokens_used"] == 321

@@ -1,9 +1,25 @@
 # BASE_IMAGE lets a cross-arch build pin an amd64 base (dftworld-base:amd64)
 # without touching the default arm64 tag used for local container runs.
 ARG BASE_IMAGE=ubuntu:24.04
+ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.8.14
+ARG PYTHON_IMAGE=python:3.11.15-slim-bookworm
+FROM ${UV_IMAGE} AS uv-tools
+FROM ${PYTHON_IMAGE} AS python-runtime
+
 FROM ${BASE_IMAGE} AS matclaw-runtime
 
+# uv is copied from an explicit, version-pinned upstream image.  Formal
+# builds should pass UV_IMAGE with its verified @sha256 digest; keeping the
+# source in the recipe makes the build reproducible instead of relying on a
+# host-installed binary (or on a stale image history layer).
+COPY --from=uv-tools /uv /uvx /usr/local/bin/
+# The Ubuntu runtime does not ship Python.  Copy the official, version-pinned
+# interpreter into /usr/local so UID 65532 never follows a /root-owned uv
+# symlink.  Its site-packages remain isolated inside /opt/matclaw below.
+COPY --from=python-runtime /usr/local /usr/local
+
 ENV PATH="/opt/matclaw/bin:${PATH}" \
+    UV_PYTHON_INSTALL_DIR=/opt/uv-python \
     LAMMPS_PLUGIN_PATH="/opt/matclaw/lib/python3.11/site-packages/deepmd/lib" \
     TF_CPP_MIN_LOG_LEVEL=2 \
     OMP_NUM_THREADS=1 \
@@ -14,7 +30,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libgomp1 libopenblas0 libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN uv venv --python 3.11.15 /opt/matclaw && \
+RUN mkdir -p /opt/uv-python && chmod 755 /opt/uv-python && \
+    uv venv --python /usr/local/bin/python3.11 /opt/matclaw && \
     UV_HTTP_TIMEOUT=1800 uv pip install --python /opt/matclaw/bin/python \
         "deepmd-kit[lmp]==2.2.11" \
         "tensorflow==2.16.2" \

@@ -1,4 +1,4 @@
-"""Tests verifying CCBench Phase 2.1 Closure:
+"""Tests verifying Bench Phase 2.1 Closure:
 - E21-01: Formal ExperimentLock fail-closed
 - E21-02: git_head_commit returns 40-char full SHA
 - E21-03: Zero-placeholder rejection
@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 from eval import git_head_commit
-from ccbench.contracts.experiment_v2 import (
+from bench.contracts.experiment_v2 import (
     ExperimentBudget,
     ExperimentError,
     ExperimentSpecV2,
@@ -46,7 +46,7 @@ def test_zero_placeholder_rejected_in_build_experiment_lock():
 
     # 40-char valid hex must pass
     lock_doc = build_experiment_lock(spec, "1" * 40, allow_placeholders=False)
-    assert lock_doc["ccbench_commit"] == "1" * 40
+    assert lock_doc["bench_commit"] == "1" * 40
     assert lock_doc["schema_version"] == 2
 
 
@@ -77,7 +77,7 @@ def test_zero_placeholder_rejected_in_build_run_lock_v2():
             model_entry=model_entry,
             candidate_digest="sha256:" + "0" * 64,
             verifier_digest="sha256:" + "1" * 64,
-            ccbench_commit="a" * 40,
+            bench_commit="a" * 40,
             allow_placeholders=False,
         )
 
@@ -94,7 +94,7 @@ def test_zero_placeholder_rejected_in_build_run_lock_v2():
             model_entry=model_entry,
             candidate_digest="sha256:" + "a" * 64,
             verifier_digest="sha256:" + "0" * 64,
-            ccbench_commit="a" * 40,
+            bench_commit="a" * 40,
             allow_placeholders=False,
         )
 
@@ -111,7 +111,7 @@ def test_zero_placeholder_rejected_in_build_run_lock_v2():
             model_entry=model_entry,
             candidate_digest="sha256:" + "a" * 64,
             verifier_digest="sha256:" + "b" * 64,
-            ccbench_commit="0" * 40,
+            bench_commit="0" * 40,
             allow_placeholders=False,
         )
 
@@ -140,7 +140,7 @@ def test_canonical_run_lock_digest_is_deterministic_and_sensitive():
         model_entry=model_entry,
         candidate_digest="sha256:" + "a" * 64,
         verifier_digest="sha256:" + "b" * 64,
-        ccbench_commit="c" * 40,
+        bench_commit="c" * 40,
         created_at="2026-09-06T12:00:00Z",
     )
     d1 = canonical_run_lock_digest(doc1)

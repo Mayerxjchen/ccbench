@@ -8,7 +8,7 @@ integrity negative contracts required for Gate A1 (Architecture Freeze):
 2. Contract 2: Unbuilt or unverified runtimes (UNBUILT, BUILT_NOT_QUALIFIED, REVOKED)
    fail-closed at resolution time and cannot be submitted.
 3. Contract 3: GPU instances receive deterministic provider-side ownership markers
-   (name=mlffbench-{sha256(run_id)[:16]}, remark=mlffbench:run:{sha256(run_id)[:16]})
+   (name=bench-{sha256(run_id)[:16]}, remark=bench:run:{sha256(run_id)[:16]})
    injected by the trusted driver, which cannot be forged or controlled by the agent.
 4. Contract 4: Settlement / trusted teardown is token-independent: freeze and teardown
    reliably execute even if the client token is expired, revoked, or invalid.
@@ -32,7 +32,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ccbench.experiments.compute_profile_qualification import (
+from bench.experiments.compute_profile_qualification import (
     build_compute_profile_qualification_receipt,
     check_evidence_containment,
     compute_receipt_digest,
@@ -41,17 +41,17 @@ from ccbench.experiments.compute_profile_qualification import (
     verify_receipt_signature,
     verify_site_receipt,
 )
-from ccbench.hpc.audit import GatewayAudit
-from ccbench.hpc.compute_profile import ComputeProfile
-from ccbench.hpc.drivers.compshare import (
+from bench.hpc.audit import GatewayAudit
+from bench.hpc.compute_profile import ComputeProfile
+from bench.hpc.drivers.compshare import (
     CompShareCli,
     CompShareDriver,
     FakeCompShareCliRunner,
     RunScopedInstanceManager,
     make_ownership_marker,
 )
-from ccbench.hpc.gateway import Gateway, GatewayError
-from ccbench.hpc.runtime_resolution import (
+from bench.hpc.gateway import Gateway, GatewayError
+from bench.hpc.runtime_resolution import (
     ResolvedRuntime,
     RuntimeResolutionError,
     RuntimeResolver,
@@ -155,7 +155,7 @@ class TestGateA1NegativeContracts:
 
     def test_contract_4_token_independent_trusted_teardown(self, tmp_path: Path):
         """Contract 4: Trusted freeze and teardown execute even when client token is revoked."""
-        from ccbench.hpc.adapters.process_test import ProcessTestAdapter
+        from bench.hpc.adapters.process_test import ProcessTestAdapter
 
         adapter = ProcessTestAdapter(root=tmp_path)
         audit = GatewayAudit(tmp_path / "audit.jsonl")
@@ -209,7 +209,7 @@ class TestGateA1NegativeContracts:
         receipt_active["cloud_recycling_evidence"]["active_instances_count"] = 1
         receipt_active["digest"] = compute_receipt_digest(receipt_active)
 
-        with patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt") as mock_vr:
+        with patch("bench.experiments.compute_profile_qualification.verify_site_receipt") as mock_vr:
             mock_vr.return_value = {"problems": [], "derived": {"qualification_status": "PASS"}}
             v_active = verify_and_derive_qualification(receipt_active, site_receipts_dir=site_dir)
             assert v_active.passed is False
@@ -261,7 +261,7 @@ class TestGateA1NegativeContracts:
         # Ed25519 signature verification fails
         assert verify_receipt_signature(signed_doc, expected_public_key_hex=pub_hex) is False
 
-        with patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt") as mock_vr:
+        with patch("bench.experiments.compute_profile_qualification.verify_site_receipt") as mock_vr:
             mock_vr.return_value = {"problems": [], "derived": {"qualification_status": "PASS"}}
             verdict = verify_and_derive_qualification(signed_doc, site_receipts_dir=site_dir)
             assert verdict.passed is False
@@ -312,7 +312,7 @@ class TestGateA1NegativeContracts:
             {k: v for k, v in cpu_only_receipt.items() if k != "digest"}
         )
 
-        with patch("ccbench.experiments.qualification_receipt.verify_receipt") as mock_vr:
+        with patch("bench.experiments.qualification_receipt.verify_receipt") as mock_vr:
             mock_vr.return_value = {
                 "problems": ["[canary_coverage] canary set must include probe classes ['cpu', 'gpu']; got ['cpu'], missing ['gpu']"],
                 "derived": {"qualification_status": "INVALID"},
@@ -334,12 +334,12 @@ class TestGateA1NegativeContracts:
         inst_id: str = "inst-a1-neg",
         img_id: str = "img-deepmd-gpu-v1",
     ) -> tuple[dict, QualificationTrustStore, Path]:
-        from ccbench.experiments.compute_profile_qualification import (
+        from bench.experiments.compute_profile_qualification import (
             build_compshare_site_qualification_receipt,
             generate_ed25519_key_pair,
         )
-        from ccbench.experiments.qualification_receipt import canonical_digest, sha256_file
-        from ccbench.hpc.trust_store import QualificationTrustStore, TrustKey
+        from bench.experiments.qualification_receipt import canonical_digest, sha256_file
+        from bench.hpc.trust_store import QualificationTrustStore, TrustKey
 
         code_file = tmp_path / "mod.py"
         code_file.write_text("# mod\n", encoding="utf-8")
@@ -489,7 +489,7 @@ class TestGateA1NegativeContracts:
 
     def test_missing_runtime_receipt_cannot_resolve(self, tmp_path: Path):
         """Runtime pointing to nonexistent qualification receipt cannot be activated."""
-        from ccbench.hpc.runtime_catalog import TrustedRuntimeCatalog
+        from bench.hpc.runtime_catalog import TrustedRuntimeCatalog
 
         lock_file = tmp_path / "deepmd-runtime.lock.json"
         lock_doc = {
@@ -508,7 +508,7 @@ class TestGateA1NegativeContracts:
     def test_self_signed_receipt_rejected(self, tmp_path: Path):
         """Self-signed receipt with arbitrary untrusted key cannot pass verification."""
         receipt, _, root = self._build_valid_compshare_fixture(tmp_path)
-        from ccbench.hpc.trust_store import QualificationTrustStore
+        from bench.hpc.trust_store import QualificationTrustStore
 
         empty_store = QualificationTrustStore()
         res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=empty_store)
@@ -535,7 +535,7 @@ class TestGateA1NegativeContracts:
         """Receipt referencing nonexistent runtime lock file fails verification."""
         receipt, trust_store, root = self._build_valid_compshare_fixture(tmp_path)
         receipt["runtime_lock"]["path"] = "reference/runtime/nonexistent.lock.json"
-        from ccbench.experiments.qualification_receipt import canonical_digest
+        from bench.experiments.qualification_receipt import canonical_digest
         receipt["digest"] = canonical_digest({k: v for k, v in receipt.items() if k not in ("digest", "signature")})
         res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=trust_store)
         assert res["derived"]["qualification_status"] == "INVALID"
@@ -545,7 +545,7 @@ class TestGateA1NegativeContracts:
         """Tampered runtime lock digest fails verification."""
         receipt, trust_store, root = self._build_valid_compshare_fixture(tmp_path)
         receipt["runtime_lock"]["digest"] = "sha256:" + "0" * 64
-        from ccbench.experiments.qualification_receipt import canonical_digest
+        from bench.experiments.qualification_receipt import canonical_digest
         receipt["digest"] = canonical_digest({k: v for k, v in receipt.items() if k not in ("digest", "signature")})
         res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=trust_store)
         assert res["derived"]["qualification_status"] == "INVALID"
@@ -555,7 +555,7 @@ class TestGateA1NegativeContracts:
         """Nonexistent fetch artifact fails verification."""
         receipt, trust_store, root = self._build_valid_compshare_fixture(tmp_path)
         receipt["evidence"]["fetch"]["artifacts"][0]["path"] = "outputs/missing.tar.gz"
-        from ccbench.experiments.qualification_receipt import canonical_digest
+        from bench.experiments.qualification_receipt import canonical_digest
         receipt["digest"] = canonical_digest({k: v for k, v in receipt.items() if k not in ("digest", "signature")})
         res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=trust_store)
         assert res["derived"]["qualification_status"] == "INVALID"
@@ -565,7 +565,7 @@ class TestGateA1NegativeContracts:
         """Mismatched artifact sha256 fails verification."""
         receipt, trust_store, root = self._build_valid_compshare_fixture(tmp_path)
         receipt["evidence"]["fetch"]["artifacts"][0]["sha256"] = "sha256:" + "f" * 64
-        from ccbench.experiments.qualification_receipt import canonical_digest
+        from bench.experiments.qualification_receipt import canonical_digest
         receipt["digest"] = canonical_digest({k: v for k, v in receipt.items() if k not in ("digest", "signature")})
         res = verify_site_receipt(receipt, scheduler="compshare", root=root, receipt_dir=root, trust_store=trust_store)
         assert res["derived"]["qualification_status"] == "INVALID"
@@ -638,7 +638,7 @@ class TestGateA1NegativeContracts:
 
     def test_stopped_instance_blocks_cli_qualification(self, tmp_path: Path):
         """Stopped instances are not safe and mandatorily block Zero-Orphan gate."""
-        from ccbench.hpc.drivers.compshare.policy import instance_requires_cleanup
+        from bench.hpc.drivers.compshare.policy import instance_requires_cleanup
 
         assert instance_requires_cleanup("stopped") is True
         assert instance_requires_cleanup("STOPPED") is True
@@ -655,7 +655,7 @@ class TestGateA1NegativeContracts:
 
     def test_failed_existing_instance_blocks_qualification(self, tmp_path: Path):
         """Failed instances requiring cleanup block Zero-Orphan gate."""
-        from ccbench.hpc.drivers.compshare.policy import instance_requires_cleanup
+        from bench.hpc.drivers.compshare.policy import instance_requires_cleanup
 
         assert instance_requires_cleanup("failed") is True
         assert instance_requires_cleanup("FAILED") is True
@@ -705,7 +705,7 @@ class TestGateA1NegativeContracts:
 
     def test_special_character_run_id_generates_safe_marker(self, tmp_path: Path):
         """Special or long characters in run_id map to bounded deterministic markers."""
-        from ccbench.hpc.drivers.compshare.policy import make_ownership_marker, matches_ownership_marker
+        from bench.hpc.drivers.compshare.policy import make_ownership_marker, matches_ownership_marker
 
         dangerous_id = "run/../../weird:run?foo=bar&baz=1#test"
         name, remark = make_ownership_marker(dangerous_id)

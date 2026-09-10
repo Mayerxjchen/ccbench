@@ -1,4 +1,4 @@
-"""Tests for materialize_compshare_runtime_lock.py and matclaw-cips runtime integration."""
+"""Tests for CompShare lock materialization and retained runtime integration."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 import jsonschema
 import pytest
 
-from ccbench.hpc.drivers.compshare.driver import SUPPORTED_GPU_RUNTIMES, CompShareDriver
-from ccbench.hpc.runtime_resolution import (
+from bench.hpc.drivers.compshare.driver import SUPPORTED_GPU_RUNTIMES, CompShareDriver
+from bench.hpc.runtime_resolution import (
     RuntimeLockEntry,
     RuntimeResolver,
     RuntimeStatus,
@@ -23,7 +23,7 @@ from scripts.infra.materialize_compshare_runtime_lock import (
 
 ROOT = Path(__file__).resolve().parents[2]
 RECIPE_PATH = (
-    ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "recipe.lock.json"
+    ROOT / "runtimes" / "recipes" / "jax-gpu" / "recipe.lock.json"
 )
 SCHEMA_PATH = ROOT / "schemas" / "compshare-runtime-lock.schema.json"
 
@@ -41,13 +41,13 @@ def test_build_runtime_lock_doc_structure():
     doc = build_runtime_lock_doc(
         recipe_doc,
         recipe_relpath=str(RECIPE_PATH.relative_to(ROOT)),
-        capability="matclaw-cips",
+        capability="jax",
         image_id=None,
     )
     assert doc["schema"] == "dispatcher-compshare-runtime-lock/v2"
-    assert doc["capability"] == "matclaw-cips"
-    assert doc["image_name"] == "mlff-matclaw-cips-gpu-v1"
-    assert doc["provenance"]["recipe_path"] == "runtimes/recipes/matclaw-cips-gpu/recipe.lock.json"
+    assert doc["capability"] == "jax"
+    assert doc["image_name"] == "mlff-jax-gpu-v1"
+    assert doc["provenance"]["recipe_path"] == "runtimes/recipes/jax-gpu/recipe.lock.json"
     assert doc["artifact"]["image_id"] is None
     assert doc["qualification"]["status"] == "UNBUILT"
     assert doc["provenance"]["recipe_digest"].startswith("sha256:")
@@ -58,17 +58,17 @@ def test_build_runtime_lock_doc_structure():
 
 def test_materialize_default_success(tmp_path: Path):
     """Test generating unbuilt runtime lock from genuine recipe."""
-    out_file = tmp_path / "matclaw-cips-runtime.lock.json"
+    out_file = tmp_path / "jax-runtime.lock.json"
     doc = materialize_runtime_lock(
         RECIPE_PATH,
         out_path=out_file,
-        capability="matclaw-cips",
+        capability="jax",
         repo_root=ROOT,
     )
     assert out_file.is_file()
     assert doc["schema"] == "dispatcher-compshare-runtime-lock/v2"
-    assert doc["capability"] == "matclaw-cips"
-    assert doc["image_name"] == "mlff-matclaw-cips-gpu-v1"
+    assert doc["capability"] == "jax"
+    assert doc["image_name"] == "mlff-jax-gpu-v1"
     assert doc["provider"] == "compshare"
     assert doc["artifact"]["kind"] == "compshare_image"
     assert doc["artifact"]["image_id"] is None
@@ -88,7 +88,7 @@ def test_materialize_check_mode(tmp_path: Path):
         materialize_runtime_lock(
             RECIPE_PATH,
             out_path=out_file,
-            capability="matclaw-cips",
+            capability="jax",
             repo_root=ROOT,
             check_only=True,
         )
@@ -97,7 +97,7 @@ def test_materialize_check_mode(tmp_path: Path):
     materialize_runtime_lock(
         RECIPE_PATH,
         out_path=out_file,
-        capability="matclaw-cips",
+        capability="jax",
         repo_root=ROOT,
     )
 
@@ -105,11 +105,11 @@ def test_materialize_check_mode(tmp_path: Path):
     doc = materialize_runtime_lock(
         RECIPE_PATH,
         out_path=out_file,
-        capability="matclaw-cips",
+        capability="jax",
         repo_root=ROOT,
         check_only=True,
     )
-    assert doc["capability"] == "matclaw-cips"
+    assert doc["capability"] == "jax"
 
     # Fails when modified
     out_file.write_text(json.dumps({"tampered": True}))
@@ -117,7 +117,7 @@ def test_materialize_check_mode(tmp_path: Path):
         materialize_runtime_lock(
             RECIPE_PATH,
             out_path=out_file,
-            capability="matclaw-cips",
+            capability="jax",
             repo_root=ROOT,
             check_only=True,
         )
@@ -129,7 +129,7 @@ def test_materialize_with_valid_image_id(tmp_path: Path):
     doc = materialize_runtime_lock(
         RECIPE_PATH,
         out_path=out_file,
-        capability="matclaw-cips",
+        capability="jax",
         image_id="compshareImage-abc12345",
         image_sha256="sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         repo_root=ROOT,
@@ -153,7 +153,7 @@ def test_materialize_rejects_invalid_image_id(tmp_path: Path):
             materialize_runtime_lock(
                 RECIPE_PATH,
                 out_path=out_file,
-                capability="matclaw-cips",
+                capability="jax",
                 image_id=bad,
                 repo_root=ROOT,
             )
@@ -166,7 +166,7 @@ def test_materialize_rejects_undeclared_capability(tmp_path: Path):
         materialize_runtime_lock(
             RECIPE_PATH,
             out_path=out_file,
-            capability="jax",  # forbidden and not in recipe
+            capability="matclaw-cips",  # forbidden and not in this recipe
             repo_root=ROOT,
         )
 
@@ -180,30 +180,26 @@ def test_materialize_rejects_corrupted_recipe(tmp_path: Path):
         materialize_runtime_lock(
             bad_recipe,
             out_path=out_file,
-            capability="matclaw-cips",
+            capability="jax",
             repo_root=ROOT,
         )
 
 
-def test_reference_runtime_matclaw_cips_in_repo():
-    """Verify the repo's runtimes/locks/matclaw-cips-runtime.lock.json is valid."""
-    lock_path = ROOT / "runtimes" / "locks" / "matclaw-cips-runtime.lock.json"
+def test_active_jax_recipe_materializes_without_promoting_historical_lock(tmp_path: Path):
+    """An evolved recipe creates a new UNBUILT lock, never rewrites old evidence."""
+    lock_path = ROOT / "runtimes" / "locks" / "jax-runtime.lock.json"
     assert lock_path.is_file()
-
     existing_lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    out = tmp_path / "active-jax.lock.json"
     doc = materialize_runtime_lock(
         RECIPE_PATH,
-        out_path=lock_path,
-        capability="matclaw-cips",
-        image_id="compshareImage-1uw6sd44931i",
-        receipt_path="matclaw-cips/receipt.json",
-        receipt_digest=existing_lock["qualification"]["receipt_digest"],
-        site_profile_id="compshare-gpu-production",
+        out_path=out,
+        capability="jax",
         repo_root=ROOT,
-        check_only=True,
     )
-    assert doc["qualification"]["status"] == "BUILT_NOT_QUALIFIED"
-    assert doc["artifact"]["image_id"] == "compshareImage-1uw6sd44931i"
+    assert doc["qualification"]["status"] == "UNBUILT"
+    assert doc["artifact"]["image_id"] is None
+    assert doc["provenance"]["recipe_digest"] != existing_lock["provenance"]["recipe_digest"]
 
 
 def test_runtime_resolver_loads_matclaw_cips():

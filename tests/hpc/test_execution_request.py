@@ -11,7 +11,7 @@ import hashlib
 
 import pytest
 
-from ccbench.hpc.request import (
+from bench.hpc.request import (
     AttemptLedger,
     ExecutionRequestV2,
     RequestError,

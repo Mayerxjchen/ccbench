@@ -1,4 +1,4 @@
-# CCBench Model Registry
+# Bench Model Registry
 # Explicit provider, model_id, and identity strength for model ablations.
 
 [models.deepseek-v4-pro]

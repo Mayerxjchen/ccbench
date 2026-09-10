@@ -1,0 +1,7 @@
+# Exact roots for the universal, hash-locked Candidate utility environment.
+# Regenerate with the command documented in README.md; Packmol is supplied by
+# the exact Debian package and intentionally does not belong in this lock.
+ase==3.26.0
+matplotlib==3.11.1
+numpy==1.26.4
+scipy==1.17.1

@@ -309,10 +309,10 @@ def test_write_summary_views_keeps_json_and_markdown_membership_aligned(tmp_path
 
 
 def test_load_runs_prefers_run_record_over_legacy_summary(tmp_path):
-    from ccbench.contracts.events import next_event
-    from ccbench.contracts.result import BenchmarkResult
-    from ccbench.contracts.run_record import RunRecordV2
-    from ccbench.core.run_store import RunStore
+    from bench.contracts.events import next_event
+    from bench.contracts.result import BenchmarkResult
+    from bench.contracts.run_record import RunRecordV2
+    from bench.core.run_store import RunStore
 
     run_dir = tmp_path / "2026-08-18__01-00-00"
     run_dir.mkdir()

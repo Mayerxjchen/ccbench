@@ -1,41 +1,39 @@
-# deepmd-jax runtime family (DPMP/JAX workflow capability) — CPU variant.
-#
-# Shared runtime for GO-water DPMP (Case 005) and any future deepmd-jax MLP case.
-# NOT a per-case image: build once, reuse.
-#
-#   deepmd-jax  = Deep Potential / Deep Potential Message-Passing (DP-MP)
-#                 potential, implemented in JAX (repo SparkyTruck/deepmd-jax).
-#   jax-md      = MD framework (deepmd-jax's MD engine is JAX-native; jax-md is
-#                 a declared dependency).
-#   flax/optax  = deepmd-jax's NN/optimizer stack.
-#
-# Pin: DEEPMD_JAX_COMMIT=48a981a (2025-08-19) — the last commit before the paper
-# dataset was posted (figshare v2 2025-10-29) and the last revision whose train()
-# still exposes `tensor_2nd` (removed at 2e4390e on 2026-03-07, hardcoded to
-# use_2nd=True after). The paper's train.py passes tensor_2nd=True, so this pin
-# matches the published configuration byte-for-byte.
-FROM dftworld-base-ai2kit:0.1.0-cpu
+# syntax=docker/dockerfile:1
+# Shared CPU runtime for DeepMD-JAX/DPMP cases and verifier workers.
+ARG BASE_IMAGE=python:3.11.15-slim-bookworm@sha256:d29f48a31a8b408ed19272ca1e7b10ebae13b240a27e862d3d4217c528e2e0c3
+FROM ${BASE_IMAGE}
 
-ARG DEEPMD_JAX_COMMIT=48a981a
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    JAX_ENABLE_X64=1 \
+    JAX_PLATFORMS=cpu \
+    MPLBACKEND=Agg
 
-# Install into the ai2kit venv (/opt/ai2kit, python 3.11.15) so the agent's
-# single python sees cp2k + ai2-kit + deepmd-jax together. The venv has no pip
-# (ensurepip first); ase/scipy/numpy are already present.
-#
-# Version lock (2026-08-20, verified by 4-layer smoke): deepmd-jax@48a981a
-# calls jax.sharding.PositionalSharding, removed in jax>=0.6.0, so the JAX
-# stack is pinned to jax 0.5.3 (flax/optax resolved under that constraint).
-# jax-md pinned to a41c7d19 (v0.2.29 HEAD, no haiku dependency) for
-# reproducibility.
-RUN apt-get update && apt-get install -y --no-install-recommends git && \
-    /opt/ai2kit/bin/python -m ensurepip && \
-    /opt/ai2kit/bin/python -m pip install --no-cache-dir \
-        "jax[cpu]==0.5.3" "flax==0.10.6" "optax==0.2.8" \
-        "jax-md @ git+https://github.com/google/jax-md.git@a41c7d19" && \
-    git clone https://github.com/SparkyTruck/deepmd-jax.git /opt/deepmd-jax && \
-    cd /opt/deepmd-jax && \
-    git checkout ${DEEPMD_JAX_COMMIT} && \
-    /opt/ai2kit/bin/python -m pip install -e . --no-deps --no-cache-dir
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential libgomp1 libopenblas0 \
+    && rm -rf /var/lib/apt/lists/*
 
-ENV JAX_ENABLE_X64=1
-WORKDIR /app
+WORKDIR /opt/bench/deepmd-jax
+COPY requirements.lock ./requirements.lock
+COPY assets/deepmd_jax-0.2.tar.gz assets/jax_md-0.2.29.tar.gz ./assets/
+
+# Registry wheels are hash locked. The two reviewed source archives are
+# installed without dependency resolution and checked before Docker is invoked.
+RUN python -m pip install --require-hashes -r requirements.lock
+
+# The reviewed DeepMD-JAX archive has a historical ``deepmd-jax/`` root whose
+# name differs from the archive filename, so install it from an explicit,
+# deterministic extraction path instead of relying on pip's sdist heuristic.
+RUN mkdir -p ./src \
+    && tar -xzf ./assets/deepmd_jax-0.2.tar.gz -C ./src \
+    && tar -xzf ./assets/jax_md-0.2.29.tar.gz -C ./src \
+    && python -m pip install --no-build-isolation --no-deps ./src/jax-md \
+    && python -m pip install --no-build-isolation --no-deps ./src/deepmd-jax \
+    && python -m pip check \
+    && rm -rf ./src
+
+COPY smoke_test.py ./smoke_test.py
+WORKDIR /workspace
+CMD ["python", "/opt/bench/deepmd-jax/smoke_test.py"]

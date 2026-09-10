@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""MLFFBench Candidate Agent Physical Qualification: Claude Code.
+"""Bench Candidate Agent Physical Qualification: Claude Code.
 
 Executes a 5-level real-machine Canary battery inside physical Docker containers
-to qualify Claude Code as the sole formal Candidate Agent for MLFFBench:
+to qualify Claude Code as the sole formal Candidate Agent for Bench:
 
   Canary 1: Real Container Image Isolation & Internal Probes (qualify_agent.sh)
   Canary 2: Real Adversarial Containment & High-risk Command Interception (126 Access Denied)
@@ -34,20 +34,20 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ccbench.agents import ClaudeCodeAdapter
-from ccbench.config.profiles import ProfileRegistry
-from ccbench.config.resolver import construct_experiment, resolve_formal
-from ccbench.contracts.case import CaseSpec
-from ccbench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPolicy
-from ccbench.core.model_proxy import ModelGatewayProxy
-from ccbench.core.sidecar_topology import (
+from bench.agents import ClaudeCodeAdapter
+from bench.config.profiles import ProfileRegistry
+from bench.config.resolver import construct_experiment, resolve_formal
+from bench.contracts.case import CaseSpec
+from bench.core.budgets import BUDGET_DOMAINS, BudgetLedger, BudgetPolicy
+from bench.core.model_proxy import ModelGatewayProxy
+from bench.core.sidecar_topology import (
     NETWORK_ROLE_LABEL,
     SIDECAR_ROLE_LABEL,
     SidecarTopologyManager,
 )
-from ccbench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
+from bench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
 
-AGENT_IMAGE = "mlffbench-candidate-claude-code-sandbox:v1"
+AGENT_IMAGE = "bench-agent-claude-code:2.1.266"
 
 
 def run_command_sync(cmd: list[str], timeout: float = 30.0) -> subprocess.CompletedProcess[str]:
@@ -741,7 +741,7 @@ def resolve_maintainer_signing_key(signing_key_file: Path | None = None) -> str:
     """
     key_path = signing_key_file
     if key_path is None:
-        default_path = Path.home() / ".config" / "mlffbench" / "keys" / "candidate-agent-v2.key"
+        default_path = Path.home() / ".config" / "bench" / "keys" / "candidate-agent-v2.key"
         if default_path.is_file():
             key_path = default_path
 
@@ -764,24 +764,24 @@ def resolve_maintainer_signing_key(signing_key_file: Path | None = None) -> str:
     # Environment variable ingestion is permanently prohibited for candidate agent signing keys
     raise RuntimeError(
         "Maintainer private key file is required to seal qualification receipt. "
-        "Provide --signing-key-file <path> or save key to ~/.config/mlffbench/keys/candidate-agent-v2.key (0600). "
+        "Provide --signing-key-file <path> or save key to ~/.config/bench/keys/candidate-agent-v2.key (0600). "
         "Environment variable ingestion is permanently prohibited to prevent credential leakage into process logs."
     )
 
 
 def main() -> None:
     import argparse
-    parser = argparse.ArgumentParser(description="MLFFBench Candidate Agent Live Qualification Battery")
+    parser = argparse.ArgumentParser(description="Bench Candidate Agent Live Qualification Battery")
     parser.add_argument(
         "--signing-key-file",
         type=Path,
         default=None,
-        help="Path to 0600 Ed25519 private key file (defaults to ~/.config/mlffbench/keys/candidate-agent-v2.key)",
+        help="Path to 0600 Ed25519 private key file (defaults to ~/.config/bench/keys/candidate-agent-v2.key)",
     )
     args = parser.parse_args()
 
     print("=================================================================")
-    print("MLFFBench Candidate Agent Live Qualification Battery: Claude Code")
+    print("Bench Candidate Agent Live Qualification Battery: Claude Code")
     print("=================================================================")
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -817,7 +817,7 @@ def main() -> None:
 
         signing_key_hex = resolve_maintainer_signing_key(args.signing_key_file)
 
-        evidence_dir = Path.home() / ".config" / "mlffbench" / "evidence" / "gate_agent" / run_id
+        evidence_dir = Path.home() / ".config" / "bench" / "evidence" / "gate_agent" / run_id
         receipt_file = verifier.seal_receipt(
             run_id=run_id,
             evidence=evidence,
@@ -833,7 +833,7 @@ def main() -> None:
             )
 
         # Update latest receipt pointer under gate_agent/
-        latest_pointer = Path.home() / ".config" / "mlffbench" / "evidence" / "gate_agent" / "claude_code_receipt.json"
+        latest_pointer = Path.home() / ".config" / "bench" / "evidence" / "gate_agent" / "claude_code_receipt.json"
         shutil.copyfile(receipt_file, latest_pointer)
 
         print("\n=================================================================")

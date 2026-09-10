@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ccbench.contracts.case import CaseContractError, CaseSpec
+from bench.contracts.case import CaseContractError, CaseSpec
 
 # DOI pattern: 10.XXXX/... (broad match, not RFC-complete)
 DOI_RE = re.compile(

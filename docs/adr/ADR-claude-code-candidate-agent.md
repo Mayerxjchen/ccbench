@@ -2,14 +2,14 @@
 
 - **状态**：ACCEPTED / FROZEN
 - **日期**：2026-09-05
-- **决策者**：MLFFBench 架构团队
+- **决策者**：Bench 架构团队
 - **相关组件**：`dftworld_bench.agents`, `dftworld_bench.core.harness`, `bench-hpc`, `RunLock`, `agent-profiles.toml`
 
 ---
 
 ## 1. 背景 (Context)
 
-在早期的 MLFFBench 架构中，Candidate Agent 与 `pagent`（包括 `pagentv4` 运行时、专用 runner 及本地环境）深度绑定。该架构存在以下根本性痛点：
+在早期的 Bench 架构中，Candidate Agent 与 `pagent`（包括 `pagentv4` 运行时、专用 runner 及本地环境）深度绑定。该架构存在以下根本性痛点：
 1. **职责耦合与安全性风险**：Agent 运行时逻辑与底层执行容器高度耦合，容易发生宿主环境变量泄漏或权限越界；
 2. **科学镜像膨胀与凭据污染**：若在科学计算镜像（CP2K、DeepMD、MatClaw、JAX）中直接部署 Agent，会导致模型 API 凭据、Node/CLI 依赖污染云端生产实例；
 3. **不可重现的隐式升级**：依赖无版本锁的动态包安装破坏了可复现性门禁基线；
@@ -20,11 +20,11 @@
 ## 2. 决策 (Decision)
 
 1. **唯一正式 Agent 引擎**：
-   - 全面确立 **`claude-code`** 为 MLFFBench 新一代基准评测的**唯一正式 Candidate Agent**；
+   - 全面确立 **`claude-code`** 为 Bench 新一代基准评测的**唯一正式 Candidate Agent**；
    - `pagent` 正式退役，降级为 `legacy/read-only` 状态；生产依赖完全移除 `pagent`。
 
 2. **镜像职责严格分离 (Strict Physical Separation)**：
-   - **Candidate Agent 镜像 (`mlffbench-agent-claude-code:v1`)**：只负责推理、读写工作区 `/app`、发现本地项目级 Skills 并向 Gateway 发送抽象计算描述符；
+   - **Candidate Agent 镜像 (`bench-agent-claude-code:v1`)**：只负责推理、读写工作区 `/app`、发现本地项目级 Skills 并向 Gateway 发送抽象计算描述符；
    - **科学计算镜像 (CompShare GPU 镜像 / IKKEM CP2K SIF)**：只负责执行具体的物理与化学计算，严禁安装 Claude Code、Node 运行时或注入模型凭据。
 
 3. **计算出口唯一性与权限最小化**：

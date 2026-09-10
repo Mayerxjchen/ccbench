@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.config.profiles import ProfileRegistry, digest_bytes, canonical_json
+from bench.config.profiles import ProfileRegistry, digest_bytes, canonical_json
 
 
 # Test data: same profile with different key ordering

@@ -30,7 +30,7 @@ To prevent credential leakage, platform lock-in, and configuration tampering:
   - **Crucial Rule**: CompShare is an internal Maintainer implementation detail for official benchmark runs. **CompShare is NOT a public user GPU backend.** It is never exposed in the Quick Start or public user documentation.
 - **External User Profile (`user-slurm-v1`)**:
   - External users default to their own institutional or private Slurm HPC cluster.
-  - Public documentation guides users exclusively on configuring their standard Slurm cluster for CPU and/or GPU queues via `mlffbench compute configure`.
+  - Public documentation guides users exclusively on configuring their standard Slurm cluster for CPU and/or GPU queues via `bench compute configure`.
   - The `SlurmDriver` is generic, portable, and free of IKKEM-specific or MatClaw-specific assumptions.
 
 ### 2.3 Phase Scope: P7 is Case Migration; NS/WS Pilot is DEFERRED
@@ -84,6 +84,6 @@ To prevent credential leakage, platform lock-in, and configuration tampering:
 - **P5**: Public Generic `SlurmDriver` decoupling and example profiles.
 - **P6**: Two-layer qualification pipeline and freeze point `qualification-candidate-compute-profile-v1`.
 - **P7**: Case migration for 031–034 and 042 onto unified `bench-hpc` protocol.
-- **P8**: Public CLI (`mlffbench compute`), user documentation, and provider-neutral `hpc-submit` skill.
+- **P8**: Public CLI (`bench compute`), user documentation, and provider-neutral `hpc-submit` skill.
 - **P9**: Release Gates (G0–G15) end-to-end verification.
 - **P10**: Legacy cleanup (removal of `matclaw_hpc_controller.py`, legacy gateway shims, and compatibility bridges).

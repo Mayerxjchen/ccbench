@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from ccbench.hpc.gateway import ALL_OPS, Gateway, GatewayError
+from bench.hpc.gateway import ALL_OPS, Gateway, GatewayError
 
 DIGEST = "img@sha256:" + "a" * 64
 

@@ -12,18 +12,18 @@ import copy
 
 import pytest
 
-from ccbench.hpc.compute_profile import (
+from bench.hpc.compute_profile import (
     ComputeProfile,
     ComputeProfileError,
     ComputeRouter,
 )
-from ccbench.hpc.job import JobResources
-from ccbench.hpc.request import (
+from bench.hpc.job import JobResources
+from bench.hpc.request import (
     ExecutionRequestV2,
     RequestError,
     request_from_legacy_v1_spec,
 )
-from ccbench.hpc.site_profile import HpcSiteProfile
+from bench.hpc.site_profile import HpcSiteProfile
 
 
 def _site(partition: str, *, cpu_partition: str | None) -> HpcSiteProfile:

@@ -1,18 +1,8 @@
-"""All five HPC-controller cases satisfy the generic HPC contract (Task 16).
+"""All preserved cases share the portable Candidate/container contract.
 
-031–034 and 042 are governed by the same ``hpc_controller`` execution
-contract, not by per-case branches.  A case manifest must:
-
-* declare ``execution.class = hpc_controller`` (never inferred);
-* resolve through the case-agnostic executor registry to the same
-  ``HpcExecutor``;
-* carry no legacy agent policy (``legacy_agent_fields == ()``);
-* declare scientific runtime / capability needs instead of owning a concrete
-  image (the runtime registry resolves the image);
-
-This module is the RED spec for Task 16: it must fail until the migration
-(``scripts/infra/migrate_case_contracts.py --scope hpc``) removes the legacy
-agent fields and the per-case runtime/Dockerfile authority.
+Compute placement (local, CPU IKKEM, GPU CompShare, or a future operator
+profile) is selected outside the case manifest.  This keeps case definitions
+portable while making the Candidate control layer uniform.
 """
 
 from __future__ import annotations
@@ -22,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.contracts.case import CaseSpec
-from ccbench.executors import HpcExecutor, resolve
+from bench.contracts.case import CaseSpec
+from bench.executors import LocalExecutor, resolve
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -51,19 +41,12 @@ def hpc_cases() -> list[CaseSpec]:
     return [CaseSpec.load(find_hpc_case(p)) for p in HPC_CASE_PREFIXES]
 
 
-def test_all_hpc_cases_resolve_same_executor_different_requirements(hpc_cases) -> None:
-    """Every HPC case declares the same execution class and resolves through the
-    case-agnostic registry to the same HpcExecutor — no per-case executor."""
-    assert {spec.execution_class for spec in hpc_cases} == {"hpc_controller"}
-    from ccbench.hpc.dispatcher import HpcDispatcher
-    from ccbench.hpc.gateway_runtime import GatewayRuntime
-
+def test_all_cases_resolve_same_portable_executor(hpc_cases) -> None:
+    """Every case uses the same local lifecycle and Candidate runner."""
+    assert {spec.execution_class for spec in hpc_cases} == {"local_sandbox"}
     for spec in hpc_cases:
-        executor = resolve(
-            spec.execution_class,
-            dispatcher=HpcDispatcher(GatewayRuntime(), {}),
-        )
-        assert isinstance(executor, HpcExecutor), spec.case_id
+        assert isinstance(resolve(spec.execution_class), LocalExecutor), spec.case_id
+        assert spec.candidate_runner == "container_claude_code"
 
 
 def test_all_hpc_cases_have_no_legacy_agent_fields(hpc_cases) -> None:

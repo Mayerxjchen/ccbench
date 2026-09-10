@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.hpc.drivers.compshare import (
+from bench.hpc.drivers.compshare import (
     AccountScopeLock,
     AccountScopeLockTimeout,
     CompShareCli,
@@ -18,7 +18,7 @@ from ccbench.hpc.drivers.compshare import (
     assert_account_capacity,
     make_ownership_marker,
 )
-from ccbench.hpc.drivers.compshare.cli import CliResult
+from bench.hpc.drivers.compshare.cli import CliResult
 
 
 def _scope_lock(root: Path, *, timeout_sec: float | None = 1.0) -> AccountScopeLock:
@@ -144,10 +144,10 @@ def test_assert_account_capacity_uses_complete_managed_inventory():
 @pytest.mark.parametrize(
     "item",
     [
-        {"name": "mlffbench-aaaaaaaaaaaaaaaa", "remark": "wrong", "id": "i-1", "status": "Running"},
-        {"name": "mlffbench-aaaaaaaaaaaaaaaa", "remark": "mlffbench:run:aaaaaaaaaaaaaaaa"},
-        {"name": "mlffbench-aaaaaaaaaaaaaaaa", "remark": "mlffbench:run:aaaaaaaaaaaaaaaa", "id": "i-1"},
-        {"name": "mlffbench-aaaaaaaaaaaaaaaa", "remark": "mlffbench:run:aaaaaaaaaaaaaaaa", "id": "i-1", "status": 1},
+        {"name": "bench-aaaaaaaaaaaaaaaa", "remark": "wrong", "id": "i-1", "status": "Running"},
+        {"name": "bench-aaaaaaaaaaaaaaaa", "remark": "bench:run:aaaaaaaaaaaaaaaa"},
+        {"name": "bench-aaaaaaaaaaaaaaaa", "remark": "bench:run:aaaaaaaaaaaaaaaa", "id": "i-1"},
+        {"name": "bench-aaaaaaaaaaaaaaaa", "remark": "bench:run:aaaaaaaaaaaaaaaa", "id": "i-1", "status": 1},
     ],
 )
 def test_assert_account_capacity_rejects_ambiguous_managed_records(item: dict):

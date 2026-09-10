@@ -103,7 +103,7 @@ def build_runtime_lock_doc(
         target_cases_str = ", ".join(recipe_doc.get("target_cases", []))
         cap_title = "MatClaw CIPS" if capability == "matclaw-cips" else capability
         note = (
-            f"Frozen {cap_title} GPU runtime for MLFFBench (Cases {target_cases_str}). "
+            f"Frozen {cap_title} GPU runtime for Bench (Cases {target_cases_str}). "
             f"Built from recipe {recipe_relpath}."
         )
 
@@ -231,17 +231,17 @@ def main() -> int:
     )
     parser.add_argument(
         "--recipe",
-        default="runtimes/recipes/matclaw-cips-gpu/recipe.lock.json",
+        default="runtimes/recipes/jax-gpu/recipe.lock.json",
         help="Path to recipe.lock.json",
     )
     parser.add_argument(
         "--capability",
-        default="matclaw-cips",
-        help="Target capability to materialize (default: matclaw-cips)",
+        default="jax",
+        help="Target capability to materialize (default: jax)",
     )
     parser.add_argument(
         "--out",
-        default="runtimes/locks/matclaw-cips-runtime.lock.json",
+        default="runtimes/locks/jax-runtime.next.lock.json",
         help="Output runtime lock JSON path",
     )
     parser.add_argument(

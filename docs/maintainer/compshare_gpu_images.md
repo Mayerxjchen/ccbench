@@ -15,9 +15,9 @@ Per architecture rules:
 
 - **Image Name**: `mlff-matclaw-cips-gpu-v1`
 - **Image ID**: not assigned (Gate B has not run; status: `UNBUILT`)
-- **Recipe Lock**: [`base-env-build/matclaw-cips-gpu/recipe.lock.json`](file:///Users/xjchen/bench/mlffbench/base-env-build/matclaw-cips-gpu/recipe.lock.json)
-- **Requirements Lock**: [`base-env-build/matclaw-cips-gpu/requirements.lock`](file:///Users/xjchen/bench/mlffbench/base-env-build/matclaw-cips-gpu/requirements.lock) (55 locked packages with content hashes)
-- **Runtime Lock**: [`reference/runtime/matclaw-cips-runtime.lock.json`](file:///Users/xjchen/bench/mlffbench/reference/runtime/matclaw-cips-runtime.lock.json)
+- **Recipe**: [`runtimes/recipes/matclaw-cips/`](../../runtimes/recipes/matclaw-cips/) (the historical `base-env-build/.../recipe.lock.json` is not present in this workspace)
+- **Requirements lock**: the historical `base-env-build/.../requirements.lock` is not present; do not infer or recreate it from this document.
+- **Runtime Lock**: [`runtimes/locks/matclaw-cips-runtime.lock.json`](../../runtimes/locks/matclaw-cips-runtime.lock.json)
 - **Base Image**: `compshare/pytorch:2.1.2-cuda12.1-cudnn8-devel-ubuntu22.04` (OCI Digest: `sha256:7f4955b274534a62580a6bbf08365f50ef917c91350a4b7fef557116b0a88092`)
 - **CUDA Version**: 12.1
 - **Driver Compatibility**: >= 525.60.13
@@ -52,7 +52,7 @@ python -c "import deepmd; print('DeepMD version:', deepmd.__version__); import t
 ## 2. Deferred image: JAX / DP-MP (`runtime.jax`)
 
 - **Image ID**: not assigned (deferred until a separate qualification)
-- **Lock File**: [`reference/runtime/jax-runtime.lock.json`](file:///Users/xjchen/bench/mlffbench/reference/runtime/jax-runtime.lock.json)
+- **Lock File**: [`runtimes/locks/jax-runtime.lock.json`](../../runtimes/locks/jax-runtime.lock.json)
 - **Base Image**: `compshare/cuda:12.2-devel-ubuntu22.04`
 - **CUDA Version**: 12.2
 - **Driver Compatibility**: >= 525.60.13
@@ -93,7 +93,7 @@ To build and register a new version:
 3. Run smoke verification scripts.
 4. Save the instance disk as a new custom image:
    ```bash
-   compshare image create --instance <instance_id> --name mlff-matclaw-cips-gpu-v1 --description "MLFFBench MatClaw CIPS GPU v1"
+   compshare image create --instance <instance_id> --name mlff-matclaw-cips-gpu-v1 --description "Bench MatClaw CIPS GPU v1"
    ```
 5. Retrieve the assigned `image_id` and update the construction evidence and
    lock only through the reviewed maintainer workflow. A provider image ID is
@@ -124,8 +124,8 @@ track.
 The trusted manager exposes a pure `InstanceCreateSpec`/
 `build_instance_create_plan` path for review and tests. Constructing that plan
 does not invoke a runner, read credentials, or contact CompShare. It always
-contains the exact argv and the canonical `mlffbench-<sha256-token>` /
-`mlffbench:run:<sha256-token>` ownership pair.
+contains the exact argv and the canonical `bench-<sha256-token>` /
+`bench:run:<sha256-token>` ownership pair.
 
 `provider_dry_run=True` (and the legacy `dry_run=True` alias) is different: it
 calls the provider API, may read the configured credential environment, and
@@ -174,8 +174,8 @@ To prevent key contamination and accidental cost explosion, the platform maintai
    - Signs verified runtime lock manifests before Promotion to `QUALIFIED`.
 
 ### Key Storage and Trust Isolation
-- **Private keys**: Stored exclusively outside the repository at `~/.config/mlffbench/keys/` with `0600` permissions. Never committed to Git.
-- **Trust Store**: Production trust configuration resides at `~/.config/mlffbench/trust/qualification-trust.toml`. In-repo template `infra/config/qualification-trust.toml` strictly remains `UNCONFIGURED`.
-- **State Store**: Host state root at `~/.local/state/mlffbench/compshare/{locks,ledger,orphan-ledger}` with `0700` permissions.
+- **Private keys**: Stored exclusively outside the repository at `~/.config/bench/keys/` with `0600` permissions. Never committed to Git.
+- **Trust Store**: Production trust configuration resides at `~/.config/bench/trust/qualification-trust.toml`. In-repo template `infra/config/qualification-trust.toml` strictly remains `UNCONFIGURED`.
+- **State Store**: Host state root at `~/.local/state/bench/compshare/{locks,ledger,orphan-ledger}` with `0700` permissions.
 - **Locking & Quota**: Protected by `threading.RLock + fcntl.flock` cross-process mutual exclusion. Strictly enforces `max_instances: 1` per account.
 - **Fail-Closed Principle**: Encountering `CREATE_UNCERTAIN` or `TEARDOWN_FAILED` immediately halts new instance creation until human operator intervention. Lock files never self-assert `QUALIFIED`.

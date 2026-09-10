@@ -1,6 +1,6 @@
-# CCBench Runtimes
+# Bench Runtimes
 
-This directory contains the canonical runtime definitions, qualification trust anchors, and pinned environment locks for CCBench.
+This directory contains the canonical runtime definitions, qualification trust anchors, and pinned environment locks for Bench.
 
 ## Directory Structure
 

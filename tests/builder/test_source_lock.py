@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import pytest
 
-from ccbench.builder.source_lock import (
+from bench.builder.source_lock import (
     SourceTier,
     build_sources_lock,
     check_gold_leakage,

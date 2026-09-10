@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from ccbench.contracts.case import CaseSpec
+from bench.contracts.case import CaseSpec
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -21,13 +21,13 @@ def discover_numbered_cases(root: Path = ROOT) -> list[Path]:
     )
 
 
-def test_all_active_cases_are_host_candidate_and_infra_free():
+def test_all_active_cases_are_container_candidate_and_infra_free():
     for case in discover_numbered_cases(ROOT):
         spec = CaseSpec.load(case)
         assert spec.execution_class == "local_sandbox"
         assert spec.legacy_agent_fields == ()
         assert spec.candidate_image is None
-        assert spec.candidate_runner == "host_claude_code"
+        assert spec.candidate_runner == "container_claude_code"
         assert spec.agent_profile == "claude-mvp"
         assert spec.verifier_profile
         raw = (case / "case.toml").read_text(encoding="utf-8")

@@ -6,7 +6,7 @@ import copy
 
 import pytest
 
-from ccbench.experiments.comparison import TREATMENTS, compare_lock
+from bench.experiments.comparison import TREATMENTS, compare_lock
 
 
 @pytest.fixture

@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.contracts.result import FailureCode
-from ccbench.core.budgets import BudgetLedger, BudgetPolicy
-from ccbench.core.event_store import EventStore
-from ccbench.core.model_transport import (
+from bench.contracts.result import FailureCode
+from bench.core.budgets import BudgetLedger, BudgetPolicy
+from bench.core.event_store import EventStore
+from bench.core.model_transport import (
     RETRYABLE_HTTP,
     HttpFailure,
     ModelResponse,

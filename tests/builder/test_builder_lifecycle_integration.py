@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ccbench.cli import main as cli_main
-from ccbench.builder.state import CaseLifecycleState, derive_state
-from ccbench.contracts.case import CaseSpec
+from bench.cli import main as cli_main
+from bench.builder.state import CaseLifecycleState, derive_state
+from bench.contracts.case import CaseSpec
 
 
 def test_full_builder_lifecycle_end_to_end(tmp_path: Path):
@@ -38,7 +38,7 @@ def test_full_builder_lifecycle_end_to_end(tmp_path: Path):
     assert state1.current_state == CaseLifecycleState.INTAKE_COMPLETE
 
     # Add real scientific source file and lock it
-    from ccbench.builder.source_lock import build_sources_lock, SourceTier
+    from bench.builder.source_lock import build_sources_lock, SourceTier
     (run_dir / "source" / "train.xyz").write_text("dummy-xyz-data", encoding="utf-8")
     build_sources_lock(run_dir / "source", {"train.xyz": SourceTier.PUBLIC_SOURCE})
 
@@ -79,7 +79,7 @@ def test_full_builder_lifecycle_end_to_end(tmp_path: Path):
         },
         "runtime": {
             "execution_class": "local_sandbox",
-            "candidate_image": "ccbench-agent:v1",
+            "candidate_image": "bench-agent:v1",
             "timeout_sec": 1200.0,
             "gpus": 0,
         },
@@ -149,8 +149,8 @@ def test_full_builder_lifecycle_end_to_end(tmp_path: Path):
 
     # 5b. Evidence-based classification with real digests
     import hashlib as _hashlib
-    from ccbench.contracts.case import CaseSpec as _CaseSpec
-    from ccbench.core.packager import package_candidate as _package_candidate
+    from bench.contracts.case import CaseSpec as _CaseSpec
+    from bench.core.packager import package_candidate as _package_candidate
     import tempfile as _tempfile
 
     ir_sha = _hashlib.sha256((run_dir / "design" / "case.ir.yaml").read_bytes()).hexdigest()
@@ -217,7 +217,7 @@ def test_full_builder_lifecycle_end_to_end(tmp_path: Path):
     assert state6.current_state == CaseLifecycleState.BENCHMARK_VALID
 
     # ── 7. Atomic Publish ────────────────────────────────────────────
-    from ccbench.builder.publish import publish_case
+    from bench.builder.publish import publish_case
     published = publish_case(
         run_dir,
         "006-cu-au-potential",

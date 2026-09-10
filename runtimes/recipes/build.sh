@@ -1,5 +1,5 @@
 #!/bin/bash
-# CCBench 运行环境与候选沙箱镜像构建脚本
+# Bench 运行环境与候选沙箱镜像构建脚本
 #
 # 用法:
 #   bash build.sh                          # 列出可用目标与当前镜像
@@ -14,30 +14,33 @@ FORCE=false
 
 usage() {
     cat <<'EOF'
-按需构建 CCBench 隐藏科学 verifier 镜像。
+按需构建 Bench 隐藏科学 verifier 镜像。
 
 真实可用目标 (Active Targets):
-  matclaw-cips            ccbench-matclaw-cips:cpu (DeePMD + LAMMPS + CIPS teacher)
-  deepmd-jax              ccbench-deepmd-jax:cpu (DP-MP / JAX runtime)
+  matclaw-cips            bench-runtime-deepmd-kit:2.2.11-cpu
+  deepmd-jax              bench-runtime-deepmd-jax:0.2-cpu
   all                     构建以上全部 verifier 镜像
 
 注意:
   - jax-gpu 为 CompShare GPU 镜像配方 (由 recipe.lock.json 定义)，
     如需构建请使用 scripts/qualification/build_compshare_image_b.py。
   - Case 004 (AI2Kit+CP2K) 依赖集群预置 Singularity/SIF 镜像，由 HPC 控制层直接调度，
-    无本地 Docker 构建目标；Candidate 在宿主机运行，远端计算由 Operator 负责。
+    无本地 Docker 构建目标；Candidate 仍在 Candidate Docker 中运行，远端计算由 Operator 负责。
 
 也可传入案例目录名或编号（如 001 或 001-matclaw-cips-active-distillation），自动解析依赖。
 
 示例:
-  bash build.sh matclaw-cips
+  BENCH_UV_IMAGE=ghcr.io/astral-sh/uv:0.8.14@sha256:<verified-uv-digest> \\
+    bash build.sh matclaw-cips
   bash build.sh 001
 EOF
 }
 
-BASE_IMAGE="${CCBENCH_BASE_IMAGE:-ubuntu:24.04}"
-PY="${CCBENCH_PYTHON:-$ROOT/.venv/bin/python}"
-[ -x "$PY" ] || PY="${CCBENCH_PYTHON:-python3}"
+BASE_IMAGE="${BENCH_BASE_IMAGE:-ubuntu:24.04}"
+UV_IMAGE="${BENCH_UV_IMAGE:-}"
+PYTHON_IMAGE="${BENCH_PYTHON_IMAGE:-}"
+PY="${BENCH_PYTHON:-$ROOT/.venv/bin/python}"
+[ -x "$PY" ] || PY="${BENCH_PYTHON:-python3}"
 
 while getopts "fh" opt; do
     case $opt in
@@ -50,8 +53,8 @@ shift $((OPTIND - 1))
 
 TARGETS=("$@")
 if [ ${#TARGETS[@]} -eq 0 ]; then
-    echo "=== 当前 CCBench 镜像 ==="
-    docker images 2>/dev/null | grep -E "ccbench|mlffbench|dftworld|REPOSITORY" || echo "(未连接 Docker 或无镜像)"
+    echo "=== 当前 Bench 镜像 ==="
+    docker images 2>/dev/null | grep -E "bench|bench|dftworld|REPOSITORY" || echo "(未连接 Docker 或无镜像)"
     echo ""
     usage
     exit 0
@@ -83,7 +86,7 @@ resolve_task_steps() {
     "$PY" - "$case_dir" <<'PY' || return 1
 import sys
 from pathlib import Path
-from ccbench.contracts.case import CaseSpec
+from bench.contracts.case import CaseSpec
 
 case_dir = Path(sys.argv[1])
 spec = CaseSpec.load(case_dir)
@@ -113,10 +116,10 @@ expand() {
                 echo matclaw-cips
                 echo deepmd-jax
                 ;;
-            matclaw-cips|ccbench-matclaw-cips|dftworld-base-matclaw-cips)
+            matclaw-cips|bench-matclaw-cips|dftworld-base-matclaw-cips)
                 echo matclaw-cips
                 ;;
-            deepmd-jax|ccbench-deepmd-jax|dftworld-base-deepmd-jax)
+            deepmd-jax|bench-deepmd-jax|dftworld-base-deepmd-jax)
                 echo deepmd-jax
                 ;;
             jax-gpu)
@@ -165,7 +168,7 @@ if [ ${#STEPS[@]} -eq 0 ]; then
 fi
 
 echo "=== 将构建: ${STEPS[*]} ==="
-docker images 2>/dev/null | grep -E "ccbench|mlffbench|dftworld|REPOSITORY" || true
+docker images 2>/dev/null | grep -E "bench|bench|dftworld|REPOSITORY" || true
 echo ""
 
 rmi_if_force() {
@@ -178,28 +181,48 @@ rmi_if_force() {
 for step in "${STEPS[@]}"; do
     case "$step" in
         matclaw-cips)
-            rmi_if_force ccbench-matclaw-cips:cpu
-            rmi_if_force dftworld-base-matclaw-cips:2.2.11-cpu
-            echo "=== Building ccbench-matclaw-cips:cpu ==="
+            if [[ ! "$BASE_IMAGE" =~ ^.+@sha256:[0-9a-f]{64}$ ]]; then
+                echo "matclaw-cips requires BENCH_BASE_IMAGE=<registry/image:version>@sha256:<64 lowercase hex>" >&2
+                exit 2
+            fi
+            if [[ ! "$UV_IMAGE" =~ ^.+@sha256:[0-9a-f]{64}$ ]]; then
+                echo "matclaw-cips requires BENCH_UV_IMAGE=<registry/image:version>@sha256:<64 lowercase hex>" >&2
+                echo "Resolve and inspect the uv image first; do not build from a mutable uv tag." >&2
+                exit 2
+            fi
+            if [[ ! "$PYTHON_IMAGE" =~ ^.+@sha256:[0-9a-f]{64}$ ]]; then
+                echo "matclaw-cips requires BENCH_PYTHON_IMAGE=<registry/image:version>@sha256:<64 lowercase hex>" >&2
+                exit 2
+            fi
+            rmi_if_force bench-runtime-deepmd-kit:2.2.11-cpu
+            echo "=== Building bench-runtime-deepmd-kit:2.2.11-cpu ==="
             docker build \
                 --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
+                --build-arg "UV_IMAGE=${UV_IMAGE}" \
+                --build-arg "PYTHON_IMAGE=${PYTHON_IMAGE}" \
                 -f "$DIR/matclaw-cips/Dockerfile" \
-                -t ccbench-matclaw-cips:cpu \
-                -t ccbench-matclaw-cips:latest \
-                -t dftworld-base-matclaw-cips:2.2.11-cpu \
-                -t dftworld-base-matclaw-cips:latest \
+                -t bench-runtime-deepmd-kit:2.2.11-cpu \
                 "$ROOT"
             ;;
         deepmd-jax)
-            rmi_if_force ccbench-deepmd-jax:cpu
-            rmi_if_force dftworld-base-deepmd-jax:0.1.0-cpu
-            echo "=== Building ccbench-deepmd-jax:cpu ==="
+            image_tag="bench-runtime-deepmd-jax:0.2-cpu"
+            if [ "$FORCE" = false ] && docker image inspect "$image_tag" >/dev/null 2>&1; then
+                echo "=== Reusing existing $image_tag ==="
+                continue
+            fi
+            rmi_if_force "$image_tag"
+            echo "=== Building $image_tag ==="
+            for asset in \
+                "$DIR/deepmd-jax/assets/deepmd_jax-0.2.tar.gz:f6a4de451d24ef1d540b6935b5ad56e65af860401a1e03247426a02d60cdba15" \
+                "$DIR/deepmd-jax/assets/jax_md-0.2.29.tar.gz:6d05f6e17c47e0c545d78d35c9fc7c86dbbc0c7e127206abff0a16101f0c12ce"; do
+                path="${asset%:*}"
+                expected="${asset##*:}"
+                actual="$(shasum -a 256 "$path" | awk '{print $1}')"
+                [ "$actual" = "$expected" ] || { echo "asset hash mismatch: $path" >&2; exit 2; }
+            done
             docker build \
                 -f "$DIR/deepmd-jax/Dockerfile" \
-                -t ccbench-deepmd-jax:cpu \
-                -t ccbench-deepmd-jax:latest \
-                -t dftworld-base-deepmd-jax:0.1.0-cpu \
-                -t dftworld-base-deepmd-jax:latest \
+                -t "$image_tag" \
                 "$DIR/deepmd-jax"
             ;;
         *)

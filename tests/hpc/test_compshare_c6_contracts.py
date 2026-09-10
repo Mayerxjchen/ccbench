@@ -7,17 +7,17 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.hpc.drivers.compshare.cli import (
+from bench.hpc.drivers.compshare.cli import (
     CliResult,
     CompShareCli,
     CompShareCliJsonError,
     FakeCompShareCliRunner,
 )
-from ccbench.hpc.drivers.compshare.instance_manager import (
+from bench.hpc.drivers.compshare.instance_manager import (
     CompShareOrphanError,
     RunScopedInstanceManager,
 )
-from ccbench.hpc.drivers.compshare.policy import (
+from bench.hpc.drivers.compshare.policy import (
     make_ownership_marker,
     matches_ownership_marker,
 )
@@ -26,21 +26,21 @@ from ccbench.hpc.drivers.compshare.policy import (
 def test_new_marker_is_fixed_hash_and_legacy_is_cleanup_only():
     run_id = "run/with:unsafe chars"
     name, remark = make_ownership_marker(run_id)
-    assert name == "mlffbench-" + __import__("hashlib").sha256(
+    assert name == "bench-" + __import__("hashlib").sha256(
         run_id.encode()
     ).hexdigest()[:16]
-    assert remark == "mlffbench:run:" + name.removeprefix("mlffbench-")
+    assert remark == "bench:run:" + name.removeprefix("bench-")
     assert matches_ownership_marker({"name": name, "remark": remark}, run_id)
     assert not matches_ownership_marker(
-        {"name": "mlffbench-run-legacy-worker", "remark": ""}, run_id
+        {"name": "bench-run-legacy-worker", "remark": ""}, run_id
     )
     # Global recovery may identify the old shape for cleanup.
     assert matches_ownership_marker(
-        {"name": "mlffbench-run-legacy-worker", "remark": ""}
+        {"name": "bench-run-legacy-worker", "remark": ""}
     )
     # Prefix lookalikes are not owned.
     assert not matches_ownership_marker(
-        {"name": "mlffbench-aaaaaaaaaaaaaaaa-extra", "remark": ""}
+        {"name": "bench-aaaaaaaaaaaaaaaa-extra", "remark": ""}
     )
 
 

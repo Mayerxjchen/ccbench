@@ -25,7 +25,7 @@ input.json 继续写 ``/app/...``。
         verifier-logs/      # 独立 Verifier 的输出(result.json / reward.txt)
     jobs/<ts>__<task>/run-record.json   # canonical 不可变 RunRecord(Task 7)
 
-编排由 ``ccbench.core.harness.TrustedHarness`` 拥有（固定阶段顺序 +
+编排由 ``bench.core.harness.TrustedHarness`` 拥有（固定阶段顺序 +
 独立 Verifier + 不可变 run record）；agent 侧由 ``ClaudeCodeAdapter`` 提供
 （Claude Code + 独立 Agent 沙箱）。本文件只做参数解析、任务加载、skill
 快照、调用 harness、写兼容 summary。
@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -71,7 +72,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-from ccbench.agents import (
+from bench.agents import (
     AGENT_HOME,  # noqa: F401
     BENCH_SANDBOX_TOOLS,  # noqa: F401
     SYSTEM,  # noqa: F401
@@ -79,18 +80,18 @@ from ccbench.agents import (
     apply_dockerfile_copies,  # noqa: F401  (re-exported for tests)
     ensure_image,  # noqa: F401
 )
-from ccbench.config.resolver import (
+from bench.config.resolver import (
     construct_experiment,
     resolve_formal,
     FrozenExperiment,
 )
-from ccbench.config.profiles import (
+from bench.config.profiles import (
     ProfileRegistry,
     canonical_json,
     digest_bytes,
 )
-from ccbench.contracts.case import CaseSpec, EXECUTION_ALIASES, EXECUTION_CLASSES
-from ccbench.contracts.experiment_v2 import (
+from bench.contracts.case import CaseSpec, EXECUTION_ALIASES, EXECUTION_CLASSES
+from bench.contracts.experiment_v2 import (
     ExperimentBudget,
     ExperimentError,
     ExperimentSpecV2,
@@ -100,22 +101,22 @@ from ccbench.contracts.experiment_v2 import (
     build_run_lock_v2,
     canonical_run_lock_digest,
 )
-from ccbench.contracts.resolved_lock import ResolvedRunLock
-from ccbench.contracts.result import FailureCode
-from ccbench.core.event_store import EventStore
-from ccbench.core.coordinator import RunCoordinator
-from ccbench.core.model_transport import RetryingModelClient
-from ccbench.executors import ExecutionContext, resolve
-from ccbench.core.harness import (
+from bench.contracts.resolved_lock import ResolvedRunLock
+from bench.contracts.result import FailureCode
+from bench.core.event_store import EventStore
+from bench.core.coordinator import RunCoordinator
+from bench.core.model_transport import RetryingModelClient
+from bench.executors import ExecutionContext, resolve
+from bench.core.harness import (
     HarnessSpec,
     Profile,
     RunMode,
     Treatment,
     TrustedHarness,
 )
-from ccbench.core.run_store import RunStore
-from ccbench.runtime.registry import RuntimeRegistry, RuntimeRegistryError
-from ccbench.runtime.qualify import qualify_runtime
+from bench.core.run_store import RunStore
+from bench.runtime.registry import RuntimeRegistry, RuntimeRegistryError
+from bench.runtime.qualify import qualify_runtime
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_DIR = ROOT / "infra" / "config"
@@ -160,7 +161,7 @@ class CandidateModelTransport:
         request: dict[str, Any],
         timeout_sec: float,
     ) -> Any:
-        from ccbench.core.model_transport import ModelResponse, HttpFailure
+        from bench.core.model_transport import ModelResponse, HttpFailure
 
         if self._provider is not None and hasattr(self._provider, "complete"):
             try:
@@ -469,7 +470,7 @@ def load_task(task_dir: Path) -> TaskSpec:
             if match:
                 image = match.group(1)
     if not image:
-        image = "ccbench-agent:v1"
+        image = "bench-agent:v1"
 
     task_md = task_dir / "task.md"
     inst_md = task_dir / "instruction.md"
@@ -576,7 +577,7 @@ def _load_site_profile(profile_path: Path | None = None) -> "HpcSiteProfile | No
     import json
     import tomllib
 
-    from ccbench.hpc.site_profile import HpcSiteProfile
+    from bench.hpc.site_profile import HpcSiteProfile
 
     config_path = profile_path or Path("scripts/hpc/cluster_profile.toml")
     if not config_path.is_file():
@@ -608,10 +609,10 @@ def _executor_deps(
     """
     if task.execution_class != "hpc_controller":
         return {}
-    from ccbench.hpc.dispatcher import HpcDispatcher
-    from ccbench.hpc.gateway_runtime import GatewayRuntime
-    from ccbench.hpc.production import build_hybrid_stack, build_slurm_stack
-    from ccbench.hpc.trust_store import QualificationTrustStore
+    from bench.hpc.dispatcher import HpcDispatcher
+    from bench.hpc.gateway_runtime import GatewayRuntime
+    from bench.hpc.production import build_hybrid_stack, build_slurm_stack
+    from bench.hpc.trust_store import QualificationTrustStore
 
     effective_cluster = cluster_profile_path or site_profile_path or Path("scripts/hpc/cluster_profile.toml")
     # These are explicit composition-root inputs.  The checked-in trust store
@@ -801,7 +802,7 @@ def resolve_harness_provenance(
         is_formal = True
     elif run_config and getattr(run_config, "mode", None) in ("formal", "pilot"):
         is_formal = True
-    elif os.getenv("MLFFBENCH_ENFORCE_AGENT_GATE") == "1":
+    elif os.getenv("BENCH_ENFORCE_AGENT_GATE") == "1":
         is_formal = True
 
     # Frozen experiment from profile selections (bind claude-code-formal if available).
@@ -987,7 +988,7 @@ def resolve_harness_provenance(
                 f"runtime identity {role_name!r} lacks a locked digest; "
                 "run qualify_runtimes.py before attempting a run"
             )
-        from ccbench.runtime.registry import RuntimeIdentity as _RI
+        from bench.runtime.registry import RuntimeIdentity as _RI
         runtime_obj = _RI(
             role=identity["role"],
             profile=identity["profile"],
@@ -1008,7 +1009,7 @@ def resolve_harness_provenance(
         is_formal = True
     elif run_config and getattr(run_config, "mode", None) in ("formal", "pilot"):
         is_formal = True
-    elif os.getenv("MLFFBENCH_ENFORCE_AGENT_GATE") == "1":
+    elif os.getenv("BENCH_ENFORCE_AGENT_GATE") == "1":
         is_formal = True
 
     _verify_candidate_agent_gate(
@@ -1050,14 +1051,14 @@ def _verify_candidate_agent_gate(
         return
 
     if receipt_path is None:
-        env_receipt = os.getenv("MLFFBENCH_CANDIDATE_AGENT_RECEIPT")
+        env_receipt = os.getenv("BENCH_CANDIDATE_AGENT_RECEIPT")
         if env_receipt:
             receipt_path = Path(env_receipt)
         else:
             receipt_path = (
                 Path.home()
                 / ".config"
-                / "mlffbench"
+                / "bench"
                 / "evidence"
                 / "gate_agent"
                 / "claude_code_receipt.json"
@@ -1070,8 +1071,8 @@ def _verify_candidate_agent_gate(
             "Run 'python scripts/qualification/qualify_claude_code_agent.py' first."
         )
 
-    from ccbench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
-    from ccbench.hpc.trust_store import QualificationTrustStore
+    from bench.verifiers.candidate_agent_verifier import CandidateAgentVerifier
+    from bench.hpc.trust_store import QualificationTrustStore
 
     verifier = CandidateAgentVerifier(workspace_root=ROOT)
     trust_store = QualificationTrustStore.load_default()
@@ -1302,7 +1303,7 @@ def profile_for_task(task: TaskSpec) -> Profile:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="mlffbench eval with Claude Code Agent")
+    parser = argparse.ArgumentParser(description="bench eval with Claude Code Agent")
     parser.add_argument("tasks", nargs="*", help="任务名，如 001-matclaw-cips-active-distillation")
     parser.add_argument("--all", action="store_true", help="跑全部任务")
     parser.add_argument(
@@ -1414,7 +1415,7 @@ def resolve_task_run_settings(
     cell_skill_enabled: bool | None = None,
 ) -> TaskRunSettings:
     """Resolve the one policy object used by runtime, budgets, and lock."""
-    from ccbench.config.run_config import load_run_config
+    from bench.config.run_config import load_run_config
 
     cfg_path = _resolve_run_config_path(args)
     config = load_run_config(cfg_path)
@@ -1455,7 +1456,7 @@ async def amain(argv: list[str] | None = None) -> int:
     # .env contains values only; policy selection comes from Run Config.
     load_dotenv()
     args = parse_args(argv)
-    from ccbench.config.run_config import load_run_config
+    from bench.config.run_config import load_run_config
 
     cfg_path = _resolve_run_config_path(args)
     base_run_config = load_run_config(cfg_path)
@@ -1503,35 +1504,56 @@ async def amain(argv: list[str] | None = None) -> int:
     model_reg = ModelRegistry.from_file(models_path) if models_path.is_file() else None
 
     def _resolve_model_entry(m_name: str) -> ModelEntry:
-        entry = None
         if model_reg:
             entry = model_reg.get(m_name)
-        if entry is None:
-            if model_reg and m_name == "default":
-                entry = model_reg.get("default")
-            elif m_name == base_run_config.model.model_id:
-                entry = ModelEntry(
-                    name=m_name,
-                    provider=base_run_config.model.provider,
-                    model_id=base_run_config.model.model_id,
-                    identity_strength=base_run_config.model.identity_strength,
-                )
-            elif model_reg and "default" in model_reg.models:
-                entry = model_reg.models["default"]
-            else:
-                entry = ModelEntry(
-                    name=m_name,
-                    provider=base_run_config.model.provider,
-                    model_id=m_name,
-                    identity_strength="alias-only",
-                )
-        return entry
+            if entry is not None:
+                return entry
+            if m_name == "default":
+                default = model_reg.get("default")
+                if default is not None:
+                    return default
+
+        # A smoke-only explicit override is opaque provider routing data. In
+        # particular, do not replace `deepseek-v4-pro[1M]` with the registry's
+        # default entry merely because the suffix is not registered.
+        smoke_override = (not is_formal_run) and (
+            bool(os.getenv("BENCH_MODEL")) or bool(args.model)
+        ) and not args.matrix
+        if smoke_override:
+            return ModelEntry(
+                name=m_name,
+                provider=base_run_config.model.provider,
+                model_id=m_name,
+                identity_strength="alias-only",
+            )
+
+        if m_name == base_run_config.model.model_id:
+            return ModelEntry(
+                name=m_name,
+                provider=base_run_config.model.provider,
+                model_id=m_name,
+                identity_strength=base_run_config.model.identity_strength,
+            )
+
+        # Formal and matrix runs are publication inputs: an unknown model is
+        # an operator error, never an invitation to silently use `default`.
+        if is_formal_run or args.matrix:
+            raise SystemExit(
+                f"model {m_name!r} is not registered in {models_path}; "
+                "formal/matrix runs require an explicit registry entry"
+            )
+        return ModelEntry(
+            name=m_name,
+            provider=base_run_config.model.provider,
+            model_id=m_name,
+            identity_strength="alias-only",
+        )
 
     def _resolve_provider_credentials(provider: str) -> tuple[str | None, str | None, str, str]:
-        gen_key = os.getenv("CCBENCH_API_KEY")
-        gen_ep = os.getenv("CCBENCH_BASE_URL")
+        gen_key = os.getenv("BENCH_API_KEY")
+        gen_ep = os.getenv("BENCH_BASE_URL")
         if gen_key:
-            return gen_ep, gen_key, "CCBENCH_BASE_URL", "CCBENCH_API_KEY"
+            return gen_ep, gen_key, "BENCH_BASE_URL", "BENCH_API_KEY"
 
         if provider == "anthropic":
             ep_env = "ANTHROPIC_BASE_URL"
@@ -1546,9 +1568,9 @@ async def amain(argv: list[str] | None = None) -> int:
         else:
             ep_env = base_run_config.api.endpoint_env
             cr_env = base_run_config.api.credential_env
-            from ccbench.config.legacy_env import get_env
-            ep = get_env(ep_env, get_env("CCBENCH_BASE_URL"))
-            cr = get_env(cr_env, get_env("CCBENCH_API_KEY"))
+            from bench.config.env import get_env
+            ep = get_env(ep_env, get_env("BENCH_BASE_URL"))
+            cr = get_env(cr_env, get_env("BENCH_API_KEY"))
         return ep, cr, ep_env, cr_env
 
     experiment_id = (
@@ -1606,7 +1628,7 @@ async def amain(argv: list[str] | None = None) -> int:
         else:
             raise SystemExit("请指定任务名，或加 --all，或加 --matrix")
 
-        smoke_model_override = os.getenv("CCBENCH_MODEL") if not is_formal_run else None
+        smoke_model_override = os.getenv("BENCH_MODEL") if not is_formal_run else None
         target_model = args.model or smoke_model_override or (exp_v2_spec.models[0] if exp_v2_spec and exp_v2_spec.models else base_run_config.model.model_id)
         target_skill = "with-skill" if args.skills_enabled else "no-skill"
         for p in task_dirs:
@@ -1705,7 +1727,7 @@ async def amain(argv: list[str] | None = None) -> int:
             model_entry=m_entry,
             candidate_digest=cand_d,
             verifier_digest=verif_d,
-            ccbench_commit=benchmark_commit,
+            bench_commit=benchmark_commit,
             allow_placeholders=not is_formal_run,
         )
         run_lock_digest = canonical_run_lock_digest(run_lock_v2)
@@ -1792,7 +1814,7 @@ async def amain(argv: list[str] | None = None) -> int:
                 },
                 engine="claude-code",
             )
-            from ccbench.core.budgets import BudgetPolicy
+            from bench.core.budgets import BudgetPolicy
             budget_policy = BudgetPolicy.from_lock({"budgets": provenance.budgets})
             resolved_tokens = budget_policy.require("tokens")
             resolved_turns = budget_policy.require("model_turns")
@@ -1815,6 +1837,11 @@ async def amain(argv: list[str] | None = None) -> int:
                     {endpoint_env, cred_env}
                 ),
                 expected_image_digest=provenance.lock.payload.get("agent", {}).get("agent_image_digest"),
+                # Docker resources are reconciled by this exact run-scoped
+                # label.  Run IDs include task metadata and are not suitable
+                # Docker UIDs, so derive a stable 32-hex identity without
+                # exposing any task contents to the container.
+                resource_run_uid=hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:32],
             )
             spec = HarnessSpec(
                 case_id=task.name,
@@ -1872,10 +1899,47 @@ async def amain(argv: list[str] | None = None) -> int:
             )
             br = await coordinator.start()
         finally:
-            await coordinator.close()
-            await executor.close(context)
+            # ``KeyboardInterrupt``/task cancellation is a BaseException and
+            # can bypass TrustedHarness' ordinary phase handling.  Keep the
+            # coordinator/executor teardown order, then close the adapter as
+            # the final owner of docker-exec, Candidate, sidecar and proxy.
+            try:
+                await coordinator.close()
+            finally:
+                try:
+                    await executor.close(context)
+                finally:
+                    try:
+                        await adapter.close()
+                    except Exception:
+                        # The adapter keeps exact run labels even when an
+                        # in-memory close fails.  Best-effort reconciliation
+                        # prevents a partial eval teardown from leaving a
+                        # Candidate/sidecar/network behind; never sweep by
+                        # name or globally prune Docker.
+                        uid = getattr(adapter, "resource_run_uid", None)
+                        if uid:
+                            try:
+                                from bench.core.sidecar_topology import reconcile_run_resources
+                                await reconcile_run_resources(uid)
+                            except Exception:
+                                pass
+                        raise
 
         logs = adapter.collect_logs()
+        # Keep the raw event stream next to this task's run metadata (never in
+        # the Candidate workspace) and make the path explicit in the record.
+        try:
+            from bench.pilot import _publish_candidate_messages
+            messages_path = _publish_candidate_messages(
+                thread_task_dir, logs.get("thread_dir") if isinstance(logs, dict) else None
+            )
+            if messages_path and isinstance(logs, dict):
+                logs["messages_path"] = messages_path
+        except Exception:
+            # Telemetry publication must not rewrite the benchmark result;
+            # the adapter's original thread directory remains available.
+            pass
 
         # 事后观测：校验 RunLockV2 不可变性 (E21-05, E21-09)
         run_lock_tampered = False

@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 
-from ccbench.contracts.result import FailureCode, ResultClass
-from ccbench.core.verifier import (
+from bench.contracts.result import FailureCode, ResultClass
+from bench.core.verifier import (
     VerifierSpec,
     _parse_verifier_output,
     build_verifier_command,
     run_verifier,
+    _bounded_communicate,
+    _terminate_process,
 )
 
 
@@ -246,3 +250,45 @@ def test_run_verifier_nonzero_exit_cannot_accept_forged_pass(tmp_path):
     result = run_verifier(_spec(tmp_path), submission, logs, run_id="r1", runner=fake_runner)
     assert result.result_class is ResultClass.INFRA_INVALID
     assert result.failure_code is FailureCode.VERIFIER_FAILURE
+
+
+def test_run_verifier_nonzero_exit_preserves_structured_scientific_failure(tmp_path):
+    logs = tmp_path / "logs"
+    submission = tmp_path / "sealed"
+    submission.mkdir()
+
+    def fake_runner(cmd, **kwargs):
+        (logs / "result.json").write_text(json.dumps({
+            "run_id": "r1", "result_class": "VALID_RESULT",
+            "failure_code": "SCIENTIFIC_FAIL", "reason": "case failed",
+            "retryable": False,
+        }), encoding="utf-8")
+        return type("Proc", (), {"returncode": 1})()
+
+    result = run_verifier(_spec(tmp_path), submission, logs, run_id="r1", runner=fake_runner)
+    assert result.result_class is ResultClass.VALID_RESULT
+    assert result.failure_code is FailureCode.SCIENTIFIC_FAIL
+    assert result.is_counted_scientifically is True
+
+
+def test_process_output_is_bounded_and_child_is_terminated():
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import sys; sys.stdout.write('x' * (2 * 1024 * 1024)); sys.stdout.flush()"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True,
+    )
+    stdout, stderr, termination = _bounded_communicate(child, 5.0)
+    assert termination == "output_limit"
+    assert len(stdout) <= 1 * 1024 * 1024
+    _terminate_process(child)
+    assert child.poll() is not None
+
+
+def test_process_timeout_is_terminated():
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True,
+    )
+    _, _, termination = _bounded_communicate(child, 0.01)
+    assert termination == "timeout"
+    _terminate_process(child)
+    assert child.poll() is not None

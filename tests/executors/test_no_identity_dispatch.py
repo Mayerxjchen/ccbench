@@ -12,11 +12,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# The case-agnostic runtime: everything under ccbench plus the eval
+# The case-agnostic runtime: everything under bench plus the eval
 # entrypoint.  Case directories, per-case scripts, and tests are excluded —
 # they are the per-case layer by definition.
 SHARED_RUNTIME_SOURCES = tuple(
-    sorted(p for p in ROOT.glob("ccbench/**/*.py"))
+    sorted(p for p in ROOT.glob("bench/**/*.py"))
 ) + (ROOT / "eval.py",)
 
 

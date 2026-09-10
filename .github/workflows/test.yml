@@ -1,4 +1,4 @@
-name: CCBench CI
+name: Bench CI
 
 on:
   push:
@@ -16,9 +16,9 @@ jobs:
     name: Unit & Contract Tests
     runs-on: ubuntu-latest
     env:
-      CCBENCH_OFFLINE: "1"
-      CCBENCH_API_KEY: "ci-mock-disabled"
-      CCBENCH_BASE_URL: "http://127.0.0.1:9"
+      BENCH_OFFLINE: "1"
+      BENCH_API_KEY: "ci-mock-disabled"
+      BENCH_BASE_URL: "http://127.0.0.1:9"
 
     steps:
       - name: Check out repository
@@ -40,8 +40,8 @@ jobs:
 
       - name: Verify CLI entry point and packaging
         run: |
-          uv run ccbench --help
-          uv run ccbench setup --report-only
+          uv run bench --help
+          uv run bench setup --report-only
 
       - name: Run verification suite
         run: |

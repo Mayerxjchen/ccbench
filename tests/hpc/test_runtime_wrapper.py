@@ -13,9 +13,9 @@ import hashlib
 
 import pytest
 
-from ccbench.hpc.request import ExecutionRequestV2
-from ccbench.hpc.site_profile import HpcSiteProfile
-from ccbench.hpc.runtime_wrapper import (
+from bench.hpc.request import ExecutionRequestV2
+from bench.hpc.site_profile import HpcSiteProfile
+from bench.hpc.runtime_wrapper import (
     RuntimeWrapperError,
     render_runtime_wrapper,
 )
@@ -144,7 +144,7 @@ def test_slurm_adapter_uses_wrapper_when_installed():
     """With the trusted wrapper installed, the adapter's sbatch script carries
     exactly one bind and drops the legacy per-input ro binds."""
     from tests.hpc.test_slurm_adapter import SITE, _FakeTransport
-    from ccbench.hpc.adapters.slurm import SlurmAdapter
+    from bench.hpc.adapters.slurm import SlurmAdapter
 
     captured = {}
 

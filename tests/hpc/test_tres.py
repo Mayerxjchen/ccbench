@@ -1,10 +1,10 @@
-"""Tests for ccbench.hpc.tres — TRES parsing and GPU/MIG gates (P0-E)."""
+"""Tests for bench.hpc.tres — TRES parsing and GPU/MIG gates (P0-E)."""
 
 from __future__ import annotations
 
 import pytest
 
-from ccbench.hpc.tres import GpuAllocation, parse_tres, verify_full_gpu
+from bench.hpc.tres import GpuAllocation, parse_tres, verify_full_gpu
 
 
 # ---- parse_tres ----

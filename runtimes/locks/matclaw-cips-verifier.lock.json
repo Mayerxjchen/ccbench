@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "profile": "matclaw-cips-v1",
   "role": "verifier",
-  "image_name": "dftworld-base-matclaw-cips:2.2.11-cpu",
+  "image_name": "bench-runtime-deepmd-kit:2.2.11-cpu",
   "recipe": "runtimes/recipes/matclaw-cips/Dockerfile",
   "status": "BUILT_NOT_QUALIFIED",
   "image_digest": null,

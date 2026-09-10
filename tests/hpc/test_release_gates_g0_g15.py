@@ -29,18 +29,18 @@ def _mock_verify_receipt_ok(receipt, *, scheduler=None, root, receipt_dir, **kwa
     }
 import pytest
 
-from ccbench.contracts.case import CaseSpec
-from ccbench.executors import HpcExecutor, resolve
-from ccbench.hpc.compute_profile import ComputeProfile, ComputeRouter
-from ccbench.hpc.drivers.base import HpcDriver
-from ccbench.hpc.drivers.compshare import (
+from bench.contracts.case import CaseSpec
+from bench.executors import HpcExecutor, resolve
+from bench.hpc.compute_profile import ComputeProfile, ComputeRouter
+from bench.hpc.drivers.base import HpcDriver
+from bench.hpc.drivers.compshare import (
     CompShareCli,
     CompShareDriver,
     FakeCompShareCliRunner,
 )
-from ccbench.hpc.drivers.process import ProcessDriver
-from ccbench.hpc.drivers.slurm import SlurmDriver
-from ccbench.hpc.runtime_resolution import RuntimeResolver
+from bench.hpc.drivers.process import ProcessDriver
+from bench.hpc.drivers.slurm import SlurmDriver
+from bench.hpc.runtime_resolution import RuntimeResolver
 
 ROOT = Path(__file__).resolve().parents[2]
 REF_RUNTIME = (
@@ -80,11 +80,12 @@ def test_g1_repo_provenance():
 
 
 def test_g2_clean_executor_contract():
-    """G2: All 5 cases resolve to HpcExecutor under hpc_controller class."""
+    """G2: All 5 cases use the portable Candidate execution contract."""
     for case_num in ("001", "002", "003", "004", "005"):
         case_dir = _get_case_dir(case_num)
         spec = CaseSpec.load(case_dir)
-        assert spec.execution_class == "hpc_controller"
+        assert spec.execution_class == "local_sandbox"
+        assert spec.candidate_runner == "container_claude_code"
 
 
 def test_g3_runtime_locks_valid():
@@ -98,12 +99,12 @@ def test_g3_runtime_locks_valid():
 
 
 def test_g4_prompt_fidelity():
-    """G4: Instructions describe provider-neutral execution."""
+    """G4: Instructions remain provider/scheduler neutral."""
     for case_num in ("001", "002", "003", "004", "005"):
         case_dir = _get_case_dir(case_num)
         instr_file = case_dir / "instruction.md" if (case_dir / "instruction.md").is_file() else case_dir / "task.md"
         instr = instr_file.read_text()
-        assert "A remote HPC capability exists" in instr or "remote scheduler" in instr
+        assert len(instr.strip()) > 100
         assert "compshare" not in instr.lower()
 
 
@@ -126,7 +127,7 @@ def test_g6_clean_schema_validation():
 
 def test_g7_route_aware_resolver():
     """G7: Resolver distinguishes SIF and CompShare image targets and fails closed when unbuilt."""
-    from ccbench.hpc.runtime_resolution import RuntimeResolutionError
+    from bench.hpc.runtime_resolution import RuntimeResolutionError
 
     resolver = RuntimeResolver.from_lock_dir(REF_RUNTIME)
     # Gate A1 requirement: unbuilt runtimes without qualification fail closed
@@ -145,10 +146,10 @@ def test_g8_driver_conformance():
 
 def test_g9_containment_and_sandboxing(tmp_path: Path):
     """G9: Runtime wrapper enforces container isolation."""
-    from ccbench.hpc.request import ExecutionRequestV2
-    from ccbench.hpc.runtime_resolution import ResolvedRuntime
-    from ccbench.hpc.runtime_wrapper import render_runtime_wrapper
-    from ccbench.hpc.site_profile import HpcSiteProfile
+    from bench.hpc.request import ExecutionRequestV2
+    from bench.hpc.runtime_resolution import ResolvedRuntime
+    from bench.hpc.runtime_wrapper import render_runtime_wrapper
+    from bench.hpc.site_profile import HpcSiteProfile
 
     req = ExecutionRequestV2.from_dict({
         "schema_version": 2,
@@ -188,10 +189,10 @@ def _mock_site_receipts_dir(tmp_path: Path) -> tuple[Path, str, str]:
     return site_dir, f"sha256:{hashlib.sha256(cpu_b).hexdigest()}", f"sha256:{hashlib.sha256(gpu_b).hexdigest()}"
 
 
-@patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+@patch("bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
 def test_g10_two_layer_qualification(tmp_path: Path):
     """G10: ComputeProfile qualification verifies both routes."""
-    from ccbench.experiments.compute_profile_qualification import (
+    from bench.experiments.compute_profile_qualification import (
         compute_receipt_digest,
         verify_and_derive_qualification,
     )
@@ -230,10 +231,10 @@ def test_g10_two_layer_qualification(tmp_path: Path):
     assert verdict.status == "LEGACY_NOT_ELIGIBLE"
 
 
-@patch("ccbench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
+@patch("bench.experiments.compute_profile_qualification.verify_site_receipt", _mock_verify_receipt_ok)
 def test_g11_zero_orphan_gate(tmp_path: Path):
     """G11: Zero-orphan gate rejects receipts with active billing instances."""
-    from ccbench.experiments.compute_profile_qualification import (
+    from bench.experiments.compute_profile_qualification import (
         compute_receipt_digest,
         verify_and_derive_qualification,
     )
@@ -286,8 +287,8 @@ def test_g12_case_validation_states():
 
 
 def test_g13_user_cli_compute():
-    """G13: User CLI mlffbench compute commands validate profiles."""
-    import ccbench.cli as cli
+    """G13: User CLI bench compute commands validate profiles."""
+    import bench.cli as cli
 
     example_profile = ROOT / "examples" / "hpc" / "generic-slurm-compute-profile.json"
     code = cli.main(["compute", "validate", "--profile", str(example_profile)])

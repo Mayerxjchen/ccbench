@@ -66,19 +66,15 @@ def test_site_root_validates_site_name():
 # -- planning ----------------------------------------------------------------
 
 
-def test_plan_034_fresh_site_runs_canary_then_runtime_gates():
-    from ccbench.experiments.release_builder import (  # noqa: PLC2701
+def test_portable_case_has_no_case_owned_qualification_gates():
+    from bench.experiments.release_builder import (  # noqa: PLC2701
         _case_qualification_requires,
     )
     requires = list(_case_qualification_requires(
         ROOT / "004-ai2kit-water64-end-to-end-potential"
     ))
-    assert sorted(requires) == [
-        "dispatcher.cpu", "dispatcher.gpu", "runtime.ai2kit", "runtime.cp2k",
-    ]
-    assert qc.plan_phases(requires, {}, receipt_present=False) == [
-        "canary", "ai2kit", "cp2k",
-    ]
+    assert requires == []
+    assert qc.plan_phases(requires, {}, receipt_present=False) == []
 
 
 def test_plan_all_pass_runs_nothing():
@@ -188,34 +184,36 @@ def test_state_roundtrip_and_canary_stamp_detection(tmp_path: Path):
 
 
 class TestQualifyCliDryRun:
-    def test_dry_run_004_plans_canary_ai2kit_cp2k(self, tmp_path: Path,
+    def test_dry_run_004_has_no_case_owned_runtime_phases(self, tmp_path: Path,
                                                    capsys):
         rc = qc.main(["--case", "004", "--site", "site-zz-" + tmp_path.name,
                       "--profile", "scripts/hpc/cluster_profile.toml",
                       "--dry-run", "--verbose"])
         out = capsys.readouterr().out
         assert rc == 0, out
-        assert "['canary', 'ai2kit', 'cp2k']" in out
-        assert "runtime.ai2kit" in out
+        assert "requires=[]" in out
+        assert "nothing to run" in out
 
-    def test_dry_run_001_plans_canary_without_authorization(self, tmp_path: Path,
+    def test_dry_run_001_has_no_case_owned_canary(self, tmp_path: Path,
                                                             capsys):
         rc = qc.main(["--case", "001", "--site", "site-zz-" + tmp_path.name,
                       "--profile", "scripts/hpc/cluster_profile.toml",
                       "--dry-run"])
         out = capsys.readouterr().out
         assert rc == 0, out
-        assert "['canary']" in out
+        assert "requires=[]" in out
+        assert "nothing to run" in out
         assert "--authorized" not in out
 
-    def test_runtime_phases_require_authorized_even_outside_dry_run(
+    def test_no_runtime_phase_for_portable_case(
             self, tmp_path: Path, capsys, monkeypatch):
         import scripts.qualification.qualify_case as qc_mod
 
         monkeypatch.setattr(qc_mod, "subprocess", _FakeSubprocess_runs())
         rc = qc.main(["--case", "004", "--site", "site-zz-" + tmp_path.name,
                       "--profile", "scripts/hpc/cluster_profile.toml"])
-        assert rc == 2  # authorized gate fires before any phase runs
+        assert rc == 0
+        assert "all 0 required capabilities already PASS" in capsys.readouterr().out
 
 
 class _FakeSubprocess_runs:

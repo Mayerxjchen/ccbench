@@ -1,4 +1,4 @@
-# MLFFBench HPC Qualification Trust Store
+# Bench HPC Qualification Trust Store
 # Public keys authorized to certify site and compute profile qualifications.
 # Private keys MUST NEVER be committed to this repository or exposed to agents.
 
@@ -30,7 +30,7 @@ public_key_hex = "39afce400b85bdc2675671f0a388d6078bde32fb421ce3c995fb0d4eac2a8e
 status = "REVOKED"
 purpose = "candidate-agent-qualification"
 
-# Active Candidate Agent signing anchor for MLFFBench (candidate-agent-v2).
+# Active Candidate Agent signing anchor for Bench (candidate-agent-v2).
 [keys.candidate-agent-v2]
 algorithm = "ed25519"
 public_key_hex = "cab6520d400602832d8c0dc7d3d9c53b79751403b2983e9eeb2be74fc99cd4aa"

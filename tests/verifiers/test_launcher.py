@@ -1,4 +1,4 @@
-"""Tests for ccbench.verifiers.launcher (P0-F)."""
+"""Tests for bench.verifiers.launcher (P0-F)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.verifiers.launcher import (
+from bench.verifiers.launcher import (
     DEFAULT_PYTHON_CANDIDATES,
     VerifierResult,
     LaunchConfig,

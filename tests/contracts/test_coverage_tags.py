@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.contracts.case import CaseContractError, CaseSpec, CoverageTags
+from bench.contracts.case import CaseContractError, CaseSpec, CoverageTags
 
 CASES_DIR = Path(__file__).resolve().parents[2] / "cases"
 
@@ -132,9 +132,9 @@ class TestCoverageSchemaValidation:
         with pytest.raises(CaseContractError, match="schema violation at coverage"):
             CaseSpec.load(case_dir)
 
-    def test_coverage_invalid_vocab_value_rejected_via_casespec(self, tmp_path: Path):
-        """Illegal vocabulary values in [coverage] must fail CaseSpec.load."""
-        case_dir = tmp_path / "illegal-vocab"
+    def test_coverage_extension_slug_is_accepted_via_casespec(self, tmp_path: Path):
+        """Unknown but normalized paper tags are accepted for future suites."""
+        case_dir = tmp_path / "extension-vocab"
         case_dir.mkdir()
         (case_dir / "task.md").write_text("# Test")
         (case_dir / "case.toml").write_text(
@@ -146,7 +146,19 @@ class TestCoverageSchemaValidation:
             'scientific_domain = "test"\n'
             'method_family = "unsupported_method"\n'
         )
-        with pytest.raises(CaseContractError, match="invalid coverage tag for method_family"):
+        spec = CaseSpec.load(case_dir)
+        assert spec.coverage.method_family == "unsupported_method"
+
+    def test_coverage_invalid_extension_slug_rejected_via_casespec(self, tmp_path: Path):
+        case_dir = tmp_path / "invalid-extension"
+        case_dir.mkdir()
+        (case_dir / "task.md").write_text("# Test")
+        (case_dir / "case.toml").write_text(
+            '[execution]\nclass = "local_sandbox"\n'
+            '[candidate]\ninstruction = "task.md"\nsubmission_root = "final"\n'
+            '[coverage]\nmethod_family = "not/a/path"\n'
+        )
+        with pytest.raises(CaseContractError, match="lowercase underscore slug"):
             CaseSpec.load(case_dir)
 
     def test_coverage_extra_keys_rejected(self, tmp_path: Path):

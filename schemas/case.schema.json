@@ -2,10 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mlip-bench.example/schemas/case.schema.json",
   "title": "MLIP Scientific-Agent Benchmark case contract",
-  "description": "Versioned host-Candidate case contract. Active manifests declare [execution] local_sandbox, [candidate] host_claude_code, abstract [compute] needs, and a hidden [verifier] profile.",
+  "description": "Versioned Candidate case contract. Active manifests declare [execution] local_sandbox, [candidate] container_claude_code, abstract [compute] needs, and a hidden [verifier] profile.",
   "type": "object",
   "required": ["execution", "candidate"],
   "properties": {
+    "difficulty": { "type": "string", "minLength": 1 },
+    "readiness": { "enum": ["READY", "CASE_NOT_READY", "DRAFT_NOT_READY"] },
     "execution": {
       "type": "object",
       "required": ["class"],
@@ -23,7 +25,7 @@
         "instruction": { "type": "string" },
         "submission_root": { "type": "string" },
         "legacy_submission_layout": { "type": "boolean" },
-        "runner": { "const": "host_claude_code" },
+        "runner": { "const": "container_claude_code" },
         "max_agent_seconds": {
           "type": "number",
           "minimum": 1,

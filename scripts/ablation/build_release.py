@@ -22,8 +22,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from ccbench.experiments.ablation import release_errors
-from ccbench.experiments.release_builder import (  # noqa: E402
+from bench.experiments.ablation import release_errors
+from bench.experiments.release_builder import (  # noqa: E402
     regenerate_release,
     release_mismatches,
     validate_source_commit,

@@ -19,29 +19,29 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from ccbench.experiments.compute_profile_qualification import (
+from bench.experiments.compute_profile_qualification import (
     build_compshare_site_qualification_receipt,
     verify_site_receipt,
 )
-from ccbench.experiments.qualification_receipt import (
+from bench.experiments.qualification_receipt import (
     canonical_digest,
     code_identity,
     sha256_file,
     source_commit,
 )
-from ccbench.hpc.audit import GatewayAudit
-from ccbench.hpc.runtime_catalog import TrustedRuntimeCatalog
-from ccbench.hpc.runtime_resolution import canonical_lock_digest
-from ccbench.hpc.site_profile import HpcSiteProfile
-from ccbench.hpc.trust_store import QualificationTrustStore
+from bench.hpc.audit import GatewayAudit
+from bench.hpc.runtime_catalog import TrustedRuntimeCatalog
+from bench.hpc.runtime_resolution import canonical_lock_digest
+from bench.hpc.site_profile import HpcSiteProfile
+from bench.hpc.trust_store import QualificationTrustStore
 
-DEFAULT_SITE_PROFILE_PATH = Path.home() / ".config" / "mlffbench" / "sites" / "compshare-gpu-production.json"
-PRIVATE_KEY_PATH = Path.home() / ".config" / "mlffbench" / "keys" / "compshare-site-v1.priv"
-TRUST_STORE_PATH = Path.home() / ".config" / "mlffbench" / "trust" / "qualification-trust.toml"
+DEFAULT_SITE_PROFILE_PATH = Path.home() / ".config" / "bench" / "sites" / "compshare-gpu-production.json"
+PRIVATE_KEY_PATH = Path.home() / ".config" / "bench" / "keys" / "compshare-site-v1.priv"
+TRUST_STORE_PATH = Path.home() / ".config" / "bench" / "trust" / "qualification-trust.toml"
 IMAGE_ID = "compshareImage-1uw6sd44931i"  # mlff-deepmd-gpu-v1 (built in Gate B)
 RUNTIME_LOCK_REL = "runtimes/locks/deepmd-runtime.lock.json"
 MATCLAW_RUNTIME_LOCK_REL = "runtimes/locks/matclaw-cips-runtime.lock.json"
-EXTERNAL_RUNTIME_DIR = Path.home() / ".config" / "mlffbench" / "runtime"
+EXTERNAL_RUNTIME_DIR = Path.home() / ".config" / "bench" / "runtime"
 
 
 class CanaryQualificationError(RuntimeError):
@@ -148,7 +148,7 @@ def run_canary_qualification(
         raise CanaryQualificationError(f"Trust store not found at {TRUST_STORE_PATH}")
     trust_store = QualificationTrustStore.from_file(TRUST_STORE_PATH)
 
-    evidence_base = Path.home() / ".config" / "mlffbench" / "evidence" / "gate_c" / run_timestamp
+    evidence_base = Path.home() / ".config" / "bench" / "evidence" / "gate_c" / run_timestamp
     evidence_base.mkdir(parents=True, exist_ok=True)
     os.chmod(evidence_base, 0o700)
 
@@ -304,7 +304,7 @@ export LAMMPS_PLUGIN_PATH="/opt/matclaw/lib/python3.11/site-packages/deepmd/lib"
         ledger.append({"kind": "SETTLEMENT_COMPLETE", "run_id": run_id, "settlement_digest": settlement_digest, "timestamp": time.time()})
 
     print("[5/5] Assembling and signing formal Gate C qualification receipts...")
-    from ccbench.hpc.runtime_catalog import TrustedRuntimeCatalog
+    from bench.hpc.runtime_catalog import TrustedRuntimeCatalog
 
     tail_digest = ledger.tail_digest()
     commit = source_commit(_ROOT)

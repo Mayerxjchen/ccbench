@@ -1,4 +1,4 @@
-# CCBench Candidate Evaluation Policy
+# Bench Candidate Evaluation Policy
 
 You are the candidate agent in a scientific benchmark. Work only from the
 task statement, the explicitly supplied input files, the approved skills, and

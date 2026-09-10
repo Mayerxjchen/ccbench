@@ -1,7 +1,7 @@
-# CCBench Fast Smoke Test Experiment
+# Bench Fast Smoke Test Experiment
 schema_version = 2
 experiment_id = "smoke-v1"
-description = "CCBench Fast Smoke Test Experiment"
+description = "Bench Fast Smoke Test Experiment"
 mode = "smoke"
 
 cases = [

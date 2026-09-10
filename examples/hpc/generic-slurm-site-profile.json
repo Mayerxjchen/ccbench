@@ -6,7 +6,7 @@
     "credential_profile_id": "user-hpc-ssh",
     "target_binding": "login.hpc.university.edu:22",
     "remote_user": "researcher",
-    "remote_root_policy": "/scratch/users/{remote_user}/mlffbench/{run_id}"
+    "remote_root_policy": "/scratch/users/{remote_user}/bench/{run_id}"
   },
   "account": "chem-dept",
   "queues": {

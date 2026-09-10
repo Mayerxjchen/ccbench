@@ -9,8 +9,8 @@ results.
 
 Apply the documented effective-charge field protocol. Quantify propagation by
 fitting mean absolute flip-time separation against site distance for distances
-1 through 10. Deliver `/app/result.json`, `/app/search_history.csv`, raw runs,
-the best trajectory, `/app/domino_analysis.csv`, and a figure. A successful
+1 through 10. Deliver `final/result.json`, `final/search_history.csv`, raw runs,
+the best trajectory, `final/domino_analysis.csv`, and a figure. A successful
 trajectory has a fitted slope above 0.3 ps/site and visible sequential
 propagation. Do not use network access or commercial software.
 
@@ -20,5 +20,5 @@ Long-running scientific work may require external CPU/GPU compute. Keep the
 Candidate workspace self-contained, and write a request draft under
 `compute-requests/` only when local preflight is insufficient. The trusted
 host validates the draft and an external Operator returns declared artifacts.
-Fetch every run's artifacts back under `/app` so the deliverables above are
+Fetch every run's artifacts back under `final/` so the deliverables above are
 complete in the graded workspace.

@@ -40,8 +40,8 @@
     {
       "name": "qualify_jax.py",
       "path": "runtimes/recipes/jax-gpu/probes/qualify_jax.py",
-      "sha256": "d5548ba94ffb9636f22d9932da2a0133bed16e928133c5d6e5bc8b6bd7fab713"
+      "sha256": "cc47b1bc93cf24725a0594cbd78a2a1177c5de87c64960eb0922bc7edaecb177"
     }
   ],
-  "recipe_digest": "sha256:69d774603dfe67d56998d04e3e5e5abfc3c6a8587a91c2814eeef08b82079aa9"
+  "recipe_digest": "sha256:7fc18f8501cd334ad0eb043b05fcd6f03667ca811fe7c16fb4e74fe174ff6c0a"
 }

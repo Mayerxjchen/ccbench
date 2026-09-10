@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from ccbench.core.submission_contract import (
+from bench.core.submission_contract import (
     StructuralError,
     validate_submission,
 )

@@ -1,8 +1,10 @@
-"""MatClaw cases 031/032/033 — HPC contract migration.
+"""MatClaw cases 001/002/003 — portable Candidate contract.
 
 Each case must declare frozen profiles (resource/platform/smoke/formal) that
-preserve its existing case-policy scientific identity: ``hpc_controller``
-execution, one GPU, the shared matclaw GPU SIF pinned by digest, a
+preserve their scientific inputs and runtime profile while using the shared
+Candidate container.  Compute placement is selected by an operator profile,
+not by a case-owned scheduler/controller.  The shared matclaw GPU SIF remains
+pinned by digest, with a
 paper/formal verifier timeout of at least 7200s matching ``task.toml``, and the
 per-case structure/teacher-model hashes from ``source.lock.json``.  Smoke
 success is never labeled scientific success.  The verifier entry emits the
@@ -67,12 +69,11 @@ def _task_toml(case: Path) -> str:
 
 
 @pytest.mark.parametrize("case,case_id,science", CASES, ids=[c[2] for c in CASES])
-def test_cases_declare_hpc_controller(case, case_id, science) -> None:
+def test_cases_declare_portable_candidate_contract(case, case_id, science) -> None:
     toml = _task_toml(case)
-    assert 'class = "hpc_controller"' in toml
-    assert "contract_version = \"hpc-execution/v1\"" in toml
-    for cap in ("batch_jobs", "gpu", "artifact_fetch"):
-        assert cap in toml
+    assert 'class = "local_sandbox"' in toml
+    assert 'runner = "container_claude_code"' in toml
+    assert "[compute]" in toml
 
 
 @pytest.mark.parametrize("case,case_id,science", CASES, ids=[c[2] for c in CASES])
@@ -158,8 +159,15 @@ def test_test_sh_emits_common_result_json(case, case_id, science) -> None:
     assert "result.json" in text
     assert "result_class" in text
     assert "VALID_RESULT" in text
-    assert "AGENT_FAILURE" in text
+    # Scientific failures are valid, counted verifier verdicts; AGENT_FAILURE
+    # is reserved for agent-side invalid submissions and must not silently
+    # remove a failed science case from the denominator.
+    assert "SCIENTIFIC_FAIL" in text
+    assert '"result_class": "INFRA_INVALID"' in text
     assert "retryable" in text
+    if case_id in {"002", "003"}:
+        assert "--junitxml=/tmp/bench-pytest.xml" in text
+        assert "xml.etree.ElementTree" in text
 
 
 @pytest.mark.parametrize("case,case_id,science", CASES, ids=[c[2] for c in CASES])

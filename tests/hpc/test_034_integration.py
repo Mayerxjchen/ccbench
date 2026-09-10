@@ -91,10 +91,12 @@ def test_platform_profile_declares_hpc_contract() -> None:
     assert plat["default_queue"] == "gpu"
     assert set(plat["required_capabilities"]) == {"batch_jobs", "gpu", "artifact_fetch"}
     assert plat["gpus"] == 1
-    # matches the HPC contract declared in task.toml
+    # Compute-profile capability declarations are operator-owned.  Cases only
+    # declare abstract compute needs and the shared Candidate runner.
     toml = _task_toml()
-    for cap in plat["required_capabilities"]:
-        assert cap in toml
+    assert 'class = "local_sandbox"' in toml
+    assert 'runner = "container_claude_code"' in toml
+    assert "[compute]" in toml
 
 
 def test_smoke_profile_is_looser_than_formal() -> None:

@@ -13,7 +13,7 @@ import json
 
 import pytest
 
-from ccbench.hpc.site_profile import HpcSiteProfile, SiteProfileError
+from bench.hpc.site_profile import HpcSiteProfile, SiteProfileError
 
 
 def profile() -> dict:

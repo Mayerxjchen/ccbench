@@ -8,25 +8,25 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.hpc.compute_profile import (
+from bench.hpc.compute_profile import (
     ComputeProfile,
     ComputeRouter,
     ResolvedRoute,
 )
-from ccbench.hpc.drivers.base import HpcDriver
-from ccbench.hpc.drivers.compshare import (
+from bench.hpc.drivers.base import HpcDriver
+from bench.hpc.drivers.compshare import (
     CompShareCli,
     CompShareDriver,
     FakeCompShareCliRunner,
 )
-from ccbench.hpc.drivers.process import ProcessDriver
-from ccbench.hpc.drivers.routed import RoutedDriver
-from ccbench.hpc.runtime_resolution import (
+from bench.hpc.drivers.process import ProcessDriver
+from bench.hpc.drivers.routed import RoutedDriver
+from bench.hpc.runtime_resolution import (
     ResolvedRuntime,
     RuntimeResolver,
     RuntimeStatus,
 )
-from ccbench.hpc.site_profile import HpcSiteProfile
+from bench.hpc.site_profile import HpcSiteProfile
 
 
 def _site(partition: str, *, cpu_partition: str | None) -> HpcSiteProfile:
@@ -70,7 +70,7 @@ def _make_routed_environment(tmp_path: Path):
     )
 
     # Process driver for CPU
-    from ccbench.hpc.adapters.process_test import ProcessTestAdapter
+    from bench.hpc.adapters.process_test import ProcessTestAdapter
     cpu_adapter = ProcessTestAdapter(tmp_path / "process_root")
     cpu_driver = ProcessDriver(cpu_adapter)
 
@@ -220,7 +220,7 @@ def test_routed_driver_rejects_candidate_scheduler_override(tmp_path: Path):
         "inputs": [],
         "outputs": [],
     }
-    from ccbench.hpc.drivers.base import HpcDriverError
+    from bench.hpc.drivers.base import HpcDriverError
     with pytest.raises(HpcDriverError, match="Candidate cannot override scheduler"):
         routed.submit(spec, run_id="run-tamper", operation_id="tamper-01")
 
@@ -235,6 +235,6 @@ def test_routed_driver_hard_rejects_unqualified_runtime_placeholder(tmp_path: Pa
         "inputs": [],
         "outputs": [],
     }
-    from ccbench.hpc.drivers.base import HpcDriverError
+    from bench.hpc.drivers.base import HpcDriverError
     with pytest.raises(HpcDriverError, match="Runtime resolution failed"):
         routed.submit(spec, run_id="run-unqual", operation_id="unqual-01")

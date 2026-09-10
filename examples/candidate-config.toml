@@ -1,0 +1,33 @@
+# Secret-free Candidate run configuration.
+# Values from explicit CLI flags / BENCH_* environment variables win.
+type = "claude-code"
+# Candidate Docker is the only supported active agent path.
+mode = "container"
+
+[model]
+# Local compatibility-test treatment. Do not use for Formal until the selected
+# gateway passes clean Claude Code termination as well as tool execution.
+requested_id = "deepseek-v4-pro"
+# Pin the Claude-facing bridge model; the gateway rewrites it to requested_id.
+cli_model = "claude-sonnet-4-6"
+endpoint_env = "ANTHROPIC_BASE_URL"
+credential_env = "ANTHROPIC_AUTH_TOKEN"
+
+[candidate]
+image = "bench-agent-claude-code:2.1.266"
+sidecar_image = "bench-gateway-anthropic:1"
+
+[limits]
+# Exploration-only ceilings. max_turns counts every gateway model request,
+# including retries; max_total_tokens is cumulative across resume attempts.
+max_turns = 1024
+max_total_tokens = 5000000
+agent_timeout_sec = 14400
+# 0 disables the unreliable Claude-bridge dollar estimator; token limits remain active.
+max_budget_usd = 0.0
+
+[compute]
+# The operator selects/qualifies this profile; Candidate never receives its
+# scheduler credentials.  local is the default when no compute handoff exists.
+backend = "local"
+# profile = "/path/to/operator-compute-profile.json"

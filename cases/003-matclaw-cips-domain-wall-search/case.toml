@@ -8,7 +8,7 @@ class = "local_sandbox"
 instruction = "task.md"
 submission_root = "final"
 legacy_submission_layout = false
-runner = "host_claude_code"
+runner = "container_claude_code"
 files = [{ destination = ".", source = "input/**", strip_prefix = "input" }]
 
 [agent]

@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ccbench.hpc.drivers.compshare.bootstrap_evidence import (
+from bench.hpc.drivers.compshare.bootstrap_evidence import (
     EXPECTED_CLI_VERSION,
     INCOMPLETE_NOT_REPLAYABLE,
     BootstrapEvidenceError,

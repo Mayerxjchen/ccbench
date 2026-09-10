@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.hpc.job import JobError, JobResources, JobSpec
+from bench.hpc.job import JobError, JobResources, JobSpec
 
 TMP = Path(__file__).resolve().parents[2] / "tmp"
 

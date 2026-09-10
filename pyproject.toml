@@ -1,5 +1,5 @@
 [project]
-name = "ccbench"
+name = "bench"
 version = "0.1.0"
 description = "AI agent benchmark for computational chemistry tasks"
 readme = "README.md"
@@ -17,18 +17,21 @@ dev = [
     "pytest>=8.0",
     "zstandard>=0.23,<1",
 ]
+hpc = [
+    "compshare-cli==0.4.1",
+    # compshare-cli 0.4.1 imports Typer's pre-0.17 Click compatibility API.
+    "typer==0.16.1",
+]
 
 [project.scripts]
-ccbench = "ccbench.cli:main"
-mlffbench = "ccbench.cli:main"
-dftworld-config = "ccbench.config.cli:main"
+bench = "bench.cli:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["ccbench*"]
+include = ["bench*"]
 
 [tool.pytest.ini_options]
 # testpaths restricts collection to the real suite, so root-level data dirs

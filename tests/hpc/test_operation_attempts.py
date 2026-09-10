@@ -15,10 +15,10 @@ from __future__ import annotations
 
 import pytest
 
-from ccbench.hpc.adapters.process_test import ProcessTestAdapter
-from ccbench.hpc.audit import GatewayAudit
-from ccbench.hpc.gateway import ALL_OPS, Gateway, GatewayError
-from ccbench.hpc.adapters.base import TransportUnknown
+from bench.hpc.adapters.process_test import ProcessTestAdapter
+from bench.hpc.audit import GatewayAudit
+from bench.hpc.gateway import ALL_OPS, Gateway, GatewayError
+from bench.hpc.adapters.base import TransportUnknown
 
 DIGEST = "img@sha256:" + "a" * 64
 

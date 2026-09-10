@@ -192,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         "recipe",
         type=Path,
         nargs="?",
-        default=_ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "recipe.lock.json",
+        default=_ROOT / "runtimes" / "recipes" / "jax-gpu" / "recipe.lock.json",
         help="Path to recipe.lock.json",
     )
     args = parser.parse_args(argv)

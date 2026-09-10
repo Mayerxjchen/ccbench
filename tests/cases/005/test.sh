@@ -1,5 +1,5 @@
 #!/bin/bash
-# Common verifier launcher: python -m ccbench.verifiers.launcher
+# Common verifier launcher: python -m bench.verifiers.launcher
 
 # ============================================================================
 # 042 verifier entry (harness contract: /tests/test.sh -> result.json).

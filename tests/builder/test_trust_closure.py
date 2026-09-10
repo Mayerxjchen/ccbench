@@ -1,4 +1,4 @@
-"""Comprehensive adversarial trust closure test suite for CCBench Case Builder.
+"""Comprehensive adversarial trust closure test suite for Bench Case Builder.
 
 Verifies the 10 critical trust closure invariants:
 1. forged smoke receipt -> state cannot advance
@@ -26,21 +26,21 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ccbench.builder.discovery import (
+from bench.builder.discovery import (
     DiscoveryEvidenceError,
     classify_discovery_evidence,
     verify_discovery_classification,
 )
-from ccbench.builder.publish import PublishError, publish_case
-from ccbench.builder.release import evaluate_release_validity
-from ccbench.builder.source_lock import (
+from bench.builder.publish import PublishError, publish_case
+from bench.builder.release import evaluate_release_validity
+from bench.builder.source_lock import (
     SourceTier,
     build_sources_lock,
     verify_sources_lock_bidirectional,
 )
-from ccbench.builder.state import CaseLifecycleState, derive_state
-from ccbench.builder.verifier_plan import VerifierPlan, VerifierPlanError
-from ccbench.builder.design import CaseIRValidationError, load_case_ir, validate_case_ir
+from bench.builder.state import CaseLifecycleState, derive_state
+from bench.builder.verifier_plan import VerifierPlan, VerifierPlanError
+from bench.builder.design import CaseIRValidationError, load_case_ir, validate_case_ir
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -194,7 +194,7 @@ def test_inline_threshold_fails_case_ir_schema():
         "selection": {"paradigm": "standard"},
         "candidate": {"instruction": "Run", "inputs": [{"path": "train.xyz"}]},
         "submission": {"root": "final", "artifacts": [{"path": "m.pt", "kind": "m"}]},
-        "runtime": {"execution_class": "local_sandbox", "candidate_image": "ccbench-agent:v1"},
+        "runtime": {"execution_class": "local_sandbox", "candidate_image": "bench-agent:v1"},
         "coverage": {
             "scientific_domain": "semiconductors",
             "method_family": "end_to_end_potential",
@@ -287,7 +287,7 @@ def test_new_case_no_residue_on_failure(tmp_path: Path):
 
 def test_mid_transaction_rollback_removes_orphaned_public(tmp_path: Path, monkeypatch):
     """If maintainer commit fails mid-transaction, public case must be rolled back."""
-    import ccbench.builder.publish as pub_mod
+    import bench.builder.publish as pub_mod
 
     run_dir = tmp_path / "run"
     run_dir.mkdir(parents=True)
@@ -342,10 +342,10 @@ def test_case_authoring_schema_is_closed_and_self_describing():
 
 def test_active_execution_vocabulary_is_host_only():
     """Active Case IR execution is host-local; old controller is not active."""
-    from ccbench.contracts.case import EXECUTION_CLASSES
+    from bench.contracts.case import EXECUTION_CLASSES
     assert "local_sandbox" in EXECUTION_CLASSES
     import json as _json
-    from ccbench.paths import SCHEMAS_DIR
+    from bench.paths import SCHEMAS_DIR
     s = _json.loads((SCHEMAS_DIR / "case-ir.schema.json").read_text(encoding="utf-8"))
     exec_enum = s["properties"]["runtime"]["properties"]["execution_class"]["enum"]
     assert exec_enum == ["local_sandbox", "hpc_controller"]

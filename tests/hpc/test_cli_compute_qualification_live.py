@@ -14,13 +14,13 @@ from pathlib import Path
 
 import pytest
 
-from ccbench import cli
-from ccbench.hpc.drivers.compshare import (
+from bench import cli
+from bench.hpc.drivers.compshare import (
     FakeCompShareCliRunner,
     make_ownership_marker,
 )
-from ccbench.hpc.drivers.compshare import cli as compshare_cli_module
-from ccbench.experiments import compute_profile_qualification as cpq
+from bench.hpc.drivers.compshare import cli as compshare_cli_module
+from bench.experiments import compute_profile_qualification as cpq
 
 
 def _cli_fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path, Path]:

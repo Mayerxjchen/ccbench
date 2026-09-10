@@ -25,8 +25,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import eval as E  # noqa: E402
-from ccbench.contracts.case import CaseSpec  # noqa: E402
-from ccbench.core.packager import package_candidate  # noqa: E402
+from bench.contracts.case import CaseSpec  # noqa: E402
+from bench.core.packager import package_candidate  # noqa: E402
 
 LEGACY_IMAGE = "dftworld-base-cp2k"
 
@@ -397,8 +397,8 @@ def test_transport_attempt_metadata_never_contains_credentials(tmp_path):
     Api profile 只引用 env 名；如果 profile 里被塞进了字面 endpoint/token，
     transport 构造必须拒绝，而不是把它写进公共记录。
     """
-    from ccbench.core.event_store import EventStore
-    from ccbench.core.model_transport import (
+    from bench.core.event_store import EventStore
+    from bench.core.model_transport import (
         HttpFailure,
         RetryingModelClient,
         TerminalApiError,
@@ -427,8 +427,8 @@ def test_candidate_env_rejects_api_secret_names():
     即使有人显式传 `DFTWORLD_API_KEY` 也必须 fail-fast。run-scoped 的
     controller env（BENCH_HPC_*）不是 api credential 名，不受影响。
     """
-    from ccbench.agents import ClaudeCodeAdapter
-    from ccbench.core.model_transport import credential_env_names
+    from bench.agents import ClaudeCodeAdapter
+    from bench.core.model_transport import credential_env_names
 
     forbidden = credential_env_names(
         {"endpoint_env": "DFTWORLD_API_ENDPOINT", "credential_env": "DFTWORLD_API_KEY"}
@@ -439,7 +439,7 @@ def test_candidate_env_rejects_api_secret_names():
             max_turns=8,
             threads_root=Path("/tmp/t"),
             task_name="001-hello",
-            image="mlffbench-candidate-claude-code-sandbox:v1",
+            image="bench-candidate-claude-code-sandbox:v1",
             case_dir=Path("/tmp/c"),
             container_env={
                 "DFTWORLD_API_KEY": "sk-fake",
@@ -454,7 +454,7 @@ def test_candidate_env_rejects_api_secret_names():
         max_turns=8,
         threads_root=Path("/tmp/t"),
         task_name="001-hello",
-        image="mlffbench-candidate-claude-code-sandbox:v1",
+        image="bench-candidate-claude-code-sandbox:v1",
         case_dir=Path("/tmp/c"),
         container_env={
             "BENCH_HPC_GATEWAY_URL": "http://host.docker.internal:9000",

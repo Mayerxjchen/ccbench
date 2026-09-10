@@ -224,32 +224,17 @@ def test_eval_task_spec_exposes_gpus_and_explicit_docker_args() -> None:
     assert "gpus must be >= 0" in eval_src  # negative values rejected
     assert "requested_gpus" in eval_src  # recorded in TaskResult -> summary.json
     # GPU 显式分配逻辑由 agents.py 中的 docker_gpu_args 统一实现
-    agents_src = (ROOT / "ccbench" / "agents.py").read_text(encoding="utf-8")
+    agents_src = (ROOT / "bench" / "agents.py").read_text(encoding="utf-8")
     assert "def docker_gpu_args" in agents_src
     assert '"--gpus", "device=0"' in agents_src  # explicit device, never default runtime
 
 
 def test_gpu_image_is_gpu_only_and_keeps_build_gate_device_independent() -> None:
-    dockerfile_path = ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "Dockerfile"
-    dockerfile = dockerfile_path.read_text()
-    # The base is the CPU-verified image; it is parameterized (ARG BASE_IMAGE)
-    # so a cross-arch build can pin the amd64 CPU image without touching the
-    # default arm64 tags. The default MUST stay the CPU-verified identity.
-    assert "ARG BASE_IMAGE=dftworld-base-matclaw-cips:2.2.11-cpu" in dockerfile
-    assert "FROM ${BASE_IMAGE} AS matclaw-gpu-runtime" in dockerfile
-    assert "tensorflow[and-cuda]==2.16.2" in dockerfile
-    assert "qualify_gpu.py" in dockerfile
-    # The build-time gate must not require a GPU (docker build has none).
-    assert 'CUDA_VISIBLE_DEVICES="" /opt/matclaw/bin/python /opt/matclaw/smoke_test.py' in dockerfile
-
-    probe_path = ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "qualify_gpu.py"
-    probe = probe_path.read_text()
-    assert "gpu_visible" in probe
-    assert "energy_abs_diff_eV" in probe
-    assert "max_force_component_abs_diff_eV_A" in probe
-    assert "md_finite" in probe
-    assert "refusing to run silently on CPU" in probe  # fails closed without GPU
-    # ASE >= 3.25 Atoms.copy() does NOT carry the calculator: each MD frame
-    # snapshot must re-attach it or get_potential_energy() raises "Atoms object
-    # has no calculator" (A100 qualify 3536355 FAILED on exactly this).
-    assert "frame.calc = atoms.calc" in probe
+    # Per-case GPU recipes were retired.  GPU placement is selected by the
+    # operator's CompShare compute profile; Candidate remains a portable
+    # control layer and never owns a GPU image.
+    assert not (ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu").exists()
+    for case in CASES:
+        manifest = tomllib.loads((_case_dir(case) / "case.toml").read_text())
+        assert manifest["candidate"]["runner"] == "container_claude_code"
+        assert "gpu" in manifest["compute"]["classes"]

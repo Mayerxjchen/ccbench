@@ -17,7 +17,7 @@ def test_active_skill_set_is_exactly_request_only() -> None:
 
 
 def test_request_skill_is_allowlisted_by_host_profile() -> None:
-    from ccbench.config.profiles import load_infra_profiles
+    from bench.config.profiles import load_infra_profiles
 
     profiles = load_infra_profiles()
     assert profiles.require("agents", "claude-mvp")["allowed_skills"] == [

@@ -1,0 +1,23 @@
+# CPU runtime shared by all DPMP/JAX cases. Source archives are installed
+# separately with --no-deps so deepmd-jax's CUDA extra cannot pull GPU wheels.
+ase==3.29.0
+e3nn-jax==0.20.8
+einops==0.8.1
+equinox==0.13.8
+flax==0.10.6
+frozendict==2.4.7
+h5py==3.16.0
+hatchling
+gpustat
+ipykernel
+jax==0.5.3
+jaxlib==0.5.3
+jraph==0.0.6.dev0
+matplotlib==3.11.1
+ml-collections==1.1.0
+optax==0.2.8
+pillow==12.3.0
+pymatgen>=2021.3.4
+pytest
+setuptools
+wheel

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ccbench.contracts.events import (
+from bench.contracts.events import (
     EventChainError,
     RunEvent,
     next_event,

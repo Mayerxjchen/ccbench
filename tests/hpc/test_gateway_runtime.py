@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.hpc.gateway import ALL_OPS, GatewayError
-from ccbench.hpc.gateway_runtime import GatewayRuntime, GatewayRuntimeError
+from bench.hpc.gateway import ALL_OPS, GatewayError
+from bench.hpc.gateway_runtime import GatewayRuntime, GatewayRuntimeError
 
 
 def _config(root: Path) -> dict:

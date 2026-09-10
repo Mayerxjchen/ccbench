@@ -7,16 +7,35 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.hpc.runtime_catalog import TrustedRuntimeCatalog
-from ccbench.hpc.runtime_resolution import RuntimeStatus
-from ccbench.hpc.site_profile import HpcSiteProfile
-from ccbench.hpc.trust_store import QualificationTrustStore
+from bench.hpc.runtime_catalog import TrustedRuntimeCatalog
+from bench.hpc.runtime_resolution import RuntimeStatus
+from bench.hpc.site_profile import HpcSiteProfile
+from bench.hpc.trust_store import QualificationTrustStore
 
 ROOT = Path(__file__).resolve().parents[2]
 PROD_LOCK_DIR = ROOT / "runtimes" / "locks"
-DEFAULT_EVIDENCE_DIR = Path.home() / ".config" / "mlffbench" / "evidence" / "gate_c" / "20260904T174600Z"
-SITE_PROFILE_PATH = Path.home() / ".config" / "mlffbench" / "sites" / "compshare-gpu-production.json"
-TRUST_STORE_PATH = Path.home() / ".config" / "mlffbench" / "trust" / "qualification-trust.toml"
+DEFAULT_EVIDENCE_DIR = Path.home() / ".config" / "bench" / "evidence" / "gate_c" / "20260904T174600Z"
+SITE_PROFILE_PATH = Path.home() / ".config" / "bench" / "sites" / "compshare-gpu-production.json"
+TRUST_STORE_PATH = Path.home() / ".config" / "bench" / "trust" / "qualification-trust.toml"
+
+
+def _production_evidence_matches_locks() -> bool:
+    """Run the live promotion test only for the exact pinned receipt set."""
+    if not DEFAULT_EVIDENCE_DIR.is_dir() or not SITE_PROFILE_PATH.is_file():
+        return False
+    try:
+        for capability in ("deepmd", "matclaw-cips"):
+            lock = json.loads(
+                (PROD_LOCK_DIR / f"{capability}-runtime.lock.json").read_text(encoding="utf-8")
+            )
+            receipt = json.loads(
+                (DEFAULT_EVIDENCE_DIR / capability / "receipt.json").read_text(encoding="utf-8")
+            )
+            if lock["qualification"]["receipt_digest"] != receipt.get("digest"):
+                return False
+    except (OSError, KeyError, TypeError, json.JSONDecodeError):
+        return False
+    return True
 
 
 def test_production_runtime_locks_exist_and_conform():
@@ -42,12 +61,12 @@ def test_production_runtime_locks_exist_and_conform():
 
 
 @pytest.mark.skipif(
-    not DEFAULT_EVIDENCE_DIR.is_dir() or not SITE_PROFILE_PATH.is_file(),
-    reason="Production evidence and site profile required for live promotion check",
+    not _production_evidence_matches_locks(),
+    reason="Exact pinned production receipts and site profile required for live promotion check",
 )
 def test_production_catalog_promotes_all_capabilities():
     """Verify TrustedRuntimeCatalog verifies formal receipts and promotes qualified runtimes."""
-    from ccbench.hpc.runtime_resolution import UnqualifiedRuntimeError
+    from bench.hpc.runtime_resolution import UnqualifiedRuntimeError
 
     site_doc = json.loads(SITE_PROFILE_PATH.read_text(encoding="utf-8"))
     site_obj = HpcSiteProfile.from_dict(site_doc)

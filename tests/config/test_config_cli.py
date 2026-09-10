@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ccbench.config.cli import main
+from bench.config.cli import main
 
 
 import pytest
@@ -16,8 +16,8 @@ CONFIG = ROOT / "experiments/main.toml"
 def hermetic_env(monkeypatch):
     """Ensure tests are hermetic by wiping ambient credential env vars."""
     for var in [
-        "CCBENCH_API_KEY",
-        "CCBENCH_BASE_URL",
+        "BENCH_API_KEY",
+        "BENCH_BASE_URL",
         "DEEPSEEK_API_KEY",
         "DEEPSEEK_BASE_URL",
         "OPENAI_API_KEY",
@@ -33,8 +33,8 @@ def _json(capsys) -> dict:
 
 
 def test_resolve_is_secret_free(capsys, monkeypatch) -> None:
-    monkeypatch.setenv("CCBENCH_API_KEY", "sk-never-print")
-    monkeypatch.setenv("CCBENCH_BASE_URL", "https://api.deepseek.com")
+    monkeypatch.setenv("BENCH_API_KEY", "sk-never-print")
+    monkeypatch.setenv("BENCH_BASE_URL", "https://api.deepseek.com")
     assert main(["resolve", "--run-config", str(CONFIG), "--execution-class", "hpc_controller"]) == 0
     raw = capsys.readouterr().out
     payload = json.loads(raw)
@@ -44,7 +44,7 @@ def test_resolve_is_secret_free(capsys, monkeypatch) -> None:
 
 
 def test_doctor_reports_missing_env_without_value(capsys, monkeypatch) -> None:
-    monkeypatch.setenv("CCBENCH_BASE_URL", "https://api.deepseek.com")
+    monkeypatch.setenv("BENCH_BASE_URL", "https://api.deepseek.com")
     assert main(["doctor", "--run-config", str(CONFIG)]) == 2
     payload = _json(capsys)
     assert payload["valid"] is False
@@ -52,8 +52,8 @@ def test_doctor_reports_missing_env_without_value(capsys, monkeypatch) -> None:
 
 
 def test_doctor_accepts_valid_values_but_redacts_them(capsys, monkeypatch) -> None:
-    monkeypatch.setenv("CCBENCH_API_KEY", "sk-never-print")
-    monkeypatch.setenv("CCBENCH_BASE_URL", "https://api.deepseek.com")
+    monkeypatch.setenv("BENCH_API_KEY", "sk-never-print")
+    monkeypatch.setenv("BENCH_BASE_URL", "https://api.deepseek.com")
     assert main(["doctor", "--run-config", str(CONFIG)]) == 0
     raw = capsys.readouterr().out
     assert json.loads(raw)["valid"] is True

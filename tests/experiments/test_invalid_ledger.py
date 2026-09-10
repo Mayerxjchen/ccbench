@@ -9,12 +9,12 @@ from threading import Barrier
 
 import pytest
 
-from ccbench.contracts.events import next_event
-from ccbench.contracts.result import BenchmarkResult, FailureCode
-from ccbench.contracts.run_record import RunRecord, RunRecordV2
-from ccbench.core.run_store import RunAlreadyExists, RunStore
-from ccbench.experiments.ablation import FORMAL_EXPERIMENT_ID
-from ccbench.experiments.invalid_ledger import (
+from bench.contracts.events import next_event
+from bench.contracts.result import BenchmarkResult, FailureCode
+from bench.contracts.run_record import RunRecord, RunRecordV2
+from bench.core.run_store import RunAlreadyExists, RunStore
+from bench.experiments.ablation import FORMAL_EXPERIMENT_ID
+from bench.experiments.invalid_ledger import (
     InvalidRunLedger,
     LedgerError,
 )

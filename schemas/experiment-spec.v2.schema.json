@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ccbench.ai/schemas/experiment-spec.v2.schema.json",
+  "$id": "https://bench.ai/schemas/experiment-spec.v2.schema.json",
   "title": "ExperimentSpecV2",
-  "description": "Schema for CCBench Experiment Spec v2 defining Case x Model x Skill x Repeat matrix.",
+  "description": "Schema for Bench Experiment Spec v2 defining Case x Model x Skill x Repeat matrix.",
   "type": "object",
   "properties": {
     "schema_version": {

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.core.quarantine import (
+from bench.core.quarantine import (
     QuarantineError,
     QuarantineLimits,
     collect_raw_submission,
@@ -181,6 +181,37 @@ def test_collect_canonical_final_only(tmp_path):
     collect_raw_submission(ws, "final", raw, legacy_layout=False)
     assert (raw / "out.txt").read_text() == "ok"
     assert not (raw / "stray.bin").exists()
+
+
+def test_collector_rejects_sparse_single_file_before_copy_and_cleans_raw(tmp_path):
+    ws = tmp_path / "ws"
+    (ws / "final").mkdir(parents=True)
+    sparse = ws / "final" / "sparse.bin"
+    with sparse.open("wb") as stream:
+        stream.truncate(8 * 1024 * 1024)
+    raw = tmp_path / "raw"
+    with pytest.raises(QuarantineError, match="single-file"):
+        collect_raw_submission(
+            ws, "final", raw, legacy_layout=False,
+            max_size_mb=1, max_single_bytes=512 * 1024,
+        )
+    assert not raw.exists() or not list(raw.iterdir())
+
+
+def test_collector_enforces_file_count_and_total_before_copy(tmp_path):
+    ws = tmp_path / "ws"
+    (ws / "final").mkdir(parents=True)
+    for i in range(4):
+        (ws / "final" / f"part-{i}").write_bytes(b"x" * 8)
+    raw = tmp_path / "raw"
+    with pytest.raises(QuarantineError, match="file count"):
+        collect_raw_submission(ws, "final", raw, legacy_layout=False, max_files=3)
+    assert not raw.exists() or not list(raw.iterdir())
+    with pytest.raises(QuarantineError, match="aggregate size"):
+        collect_raw_submission(
+            ws, "final", raw, legacy_layout=False,
+            max_size_mb=1, max_single_bytes=16, max_total_bytes=16, max_files=10,
+        )
 
 
 def test_collect_legacy_excludes_runtime_names(tmp_path):

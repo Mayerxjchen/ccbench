@@ -1,13 +1,13 @@
-"""Tests for ccbench.portfolio module."""
+"""Tests for bench.portfolio module."""
 
 from __future__ import annotations
 
-from ccbench.contracts.case import CoverageTags
-from ccbench.portfolio.registry import generate_portfolio_report, scan_cases
-from ccbench.portfolio.coverage import marginal_coverage_value
-from ccbench.portfolio.representativeness import calculate_representativeness
-from ccbench.portfolio.leakage import check_case_leakage
-from ccbench.paths import CASES_DIR
+from bench.contracts.case import CoverageTags
+from bench.portfolio.registry import generate_portfolio_report, scan_cases
+from bench.portfolio.coverage import marginal_coverage_value
+from bench.portfolio.representativeness import calculate_representativeness
+from bench.portfolio.leakage import check_case_leakage
+from bench.paths import CASES_DIR
 
 
 def test_scan_active_cases():

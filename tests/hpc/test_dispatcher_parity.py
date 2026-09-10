@@ -9,9 +9,9 @@ forbids.
 
 from __future__ import annotations
 
-from ccbench.hpc import HpcDispatcher
-from ccbench.hpc.gateway import ALL_OPS, Gateway
-from ccbench.hpc.gateway_runtime import build_adapter
+from bench.hpc import HpcDispatcher
+from bench.hpc.gateway import ALL_OPS, Gateway
+from bench.hpc.gateway_runtime import build_adapter
 
 DIGEST = "img@sha256:" + "a" * 64
 

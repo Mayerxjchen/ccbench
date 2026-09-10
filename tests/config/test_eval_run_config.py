@@ -48,7 +48,7 @@ def test_condition_must_match_skills_flag() -> None:
 
 def test_experiment_spec_and_run_lock_v2_generation(tmp_path: Path) -> None:
     from pathlib import Path
-    from ccbench.contracts.experiment_v2 import (
+    from bench.contracts.experiment_v2 import (
         ExperimentBudget,
         ModelEntry,
         build_run_lock_v2,
@@ -78,7 +78,7 @@ def test_experiment_spec_and_run_lock_v2_generation(tmp_path: Path) -> None:
         model_entry=model_entry,
         candidate_digest="sha256:" + "b" * 64,
         verifier_digest="sha256:" + "1" * 64,
-        ccbench_commit="a" * 40,
+        bench_commit="a" * 40,
     )
     validate_run_lock(lock)
     assert lock["schema_version"] == 2

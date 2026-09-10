@@ -1,6 +1,6 @@
 from pathlib import Path
 import pytest
-from ccbench.agents import ClaudeCodeAdapter
+from bench.agents import ClaudeCodeAdapter
 
 
 def test_claude_code_adapter_receives_explicit_trusted_values(tmp_path: Path) -> None:

@@ -25,7 +25,7 @@ decisions are yours. Do not merely prepare inputs: execute the workflow and obta
 a trained potential. Long-running scientific work may use an external Operator;
 the sandbox is the control layer.
 
-At completion, retain under `/app`:
+At completion, retain under `final/`:
 
 - the complete reproducible workflow and structure-generation record;
 - the first-principles data generated during the project;

@@ -1,11 +1,11 @@
-"""Tests for CCBench Experiment v2 specification, matrix expansion, and locks."""
+"""Tests for Bench Experiment v2 specification, matrix expansion, and locks."""
 
 from __future__ import annotations
 
 from pathlib import Path
 import pytest
 
-from ccbench.contracts.experiment_v2 import (
+from bench.contracts.experiment_v2 import (
     ExperimentError,
     ExperimentSpecV2,
     build_experiment_lock,
@@ -59,7 +59,7 @@ def test_build_experiment_lock_is_deterministic_and_valid():
     lock2 = build_experiment_lock(spec, commit)
     assert lock1["spec_digest"] == lock2["spec_digest"]
     assert lock1["total_runs"] == 30
-    assert lock1["ccbench_commit"] == commit
+    assert lock1["bench_commit"] == commit
     validate_experiment_lock(lock1)
 
 
@@ -90,7 +90,7 @@ def test_validate_run_lock_passes_valid_payload():
             "matclaw-gpu": "sha256:" + "2" * 64,
         },
         "verifier_digest": "sha256:" + "3" * 64,
-        "ccbench_commit": "4" * 40,
+        "bench_commit": "4" * 40,
         "created_at": "2026-09-06T16:00:00Z",
     }
     validate_run_lock(valid_run_lock)
@@ -118,7 +118,7 @@ def test_validate_run_lock_rejects_tampered_or_invalid():
         },
         "candidate_digest": "sha256:" + "0" * 64,
         "verifier_digest": "sha256:" + "3" * 64,
-        "ccbench_commit": "short_sha",  # 非法 40 位 SHA
+        "bench_commit": "short_sha",  # 非法 40 位 SHA
     }
     with pytest.raises(ExperimentError, match="does not match"):
         validate_run_lock(bad_commit)
@@ -139,7 +139,7 @@ def test_invalid_experiment_spec_rejects():
 
 
 def test_models_registry_loads_models_toml():
-    from ccbench.contracts.experiment_v2 import ModelRegistry
+    from bench.contracts.experiment_v2 import ModelRegistry
 
     path = ROOT / "experiments" / "models.toml"
     assert path.is_file()
@@ -162,7 +162,7 @@ def test_models_registry_loads_models_toml():
 
 
 def test_build_run_lock_v2():
-    from ccbench.contracts.experiment_v2 import (
+    from bench.contracts.experiment_v2 import (
         ExperimentBudget,
         ModelEntry,
         build_run_lock_v2,
@@ -191,7 +191,7 @@ def test_build_run_lock_v2():
         model_entry=model_entry,
         candidate_digest="sha256:" + "a" * 64,
         verifier_digest="sha256:" + "1" * 64,
-        ccbench_commit="2" * 40,
+        bench_commit="2" * 40,
     )
     assert doc["schema_version"] == 2
     assert doc["model_identity"]["provider"] == "anthropic"
@@ -200,7 +200,7 @@ def test_build_run_lock_v2():
 
 def test_build_run_lock_rejects_zero_placeholder():
     import pytest
-    from ccbench.contracts.experiment_v2 import (
+    from bench.contracts.experiment_v2 import (
         ExperimentBudget,
         ExperimentError,
         ModelEntry,
@@ -231,10 +231,10 @@ def test_build_run_lock_rejects_zero_placeholder():
             model_entry=model_entry,
             candidate_digest="sha256:" + "0" * 64,
             verifier_digest="sha256:" + "1" * 64,
-            ccbench_commit="2" * 40,
+            bench_commit="2" * 40,
         )
 
-    # Zero placeholder in ccbench_commit must be rejected
+    # Zero placeholder in bench_commit must be rejected
     with pytest.raises(ExperimentError, match="cannot be a zero-placeholder"):
         build_run_lock_v2(
             run_id="run-1",
@@ -247,5 +247,5 @@ def test_build_run_lock_rejects_zero_placeholder():
             model_entry=model_entry,
             candidate_digest="sha256:" + "a" * 64,
             verifier_digest="sha256:" + "1" * 64,
-            ccbench_commit="0" * 40,
+            bench_commit="0" * 40,
         )

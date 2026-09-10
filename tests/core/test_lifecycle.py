@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from ccbench.core.lifecycle import InvalidTransition, Lifecycle, RunPhase
+from bench.core.lifecycle import InvalidTransition, Lifecycle, RunPhase
 
 NOW = datetime(2026, 8, 18, tzinfo=timezone.utc)
 

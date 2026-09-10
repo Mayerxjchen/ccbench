@@ -6,7 +6,7 @@ These fail against the current tree:
   ``docker run ... bash /tests/test.sh`` directly and parse legacy
   ``reward.txt``; the common launcher module has no production caller.
 - None of the 42 production Case ``tests/test.sh`` entrypoints invoke
-  ``ccbench.verifiers.launcher``.
+  ``bench.verifiers.launcher``.
 
 Closure requires the launcher to be the single Verifier execution path, with
 legacy ``reward.txt`` output kept only as an explicitly-tested compatibility
@@ -18,8 +18,8 @@ from __future__ import annotations
 import inspect
 from pathlib import Path
 
-from ccbench.core import verifier as verifier_mod
-from ccbench.verifiers import launcher as launcher_mod
+from bench.core import verifier as verifier_mod
+from bench.verifiers import launcher as launcher_mod
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -54,7 +54,7 @@ def test_all_production_test_sh_use_launcher():
     (or bespoke shell) directly, so the scientific denominator stays
     dependent on each Case's ad-hoc script.
     """
-    from ccbench.hpc.adapters.base import HpcAdapter  # noqa: F401
+    from bench.hpc.adapters.base import HpcAdapter  # noqa: F401
 
     missing: list[str] = []
     for case_dir in sorted(p for p in ROOT.iterdir() if p.is_dir()):

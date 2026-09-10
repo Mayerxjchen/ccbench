@@ -1,7 +1,7 @@
 {
   "schema_version": "candidate-tool-policy/v2",
-  "engine": "host-claude-code",
-  "allowed_tools": ["Read", "Write", "Edit", "Glob", "Grep"],
+  "engine": "container-claude-code",
+  "allowed_tools": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
   "allowed_network_destinations": [],
   "forbidden_capabilities": ["docker", "remote_login", "scheduler", "cloud_management", "credential_export"],
   "enforcement": "strict-fail-closed"

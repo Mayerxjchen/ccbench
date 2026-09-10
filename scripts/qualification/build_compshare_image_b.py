@@ -347,7 +347,7 @@ def execute_build(
             "image", "create",
             "--instance", instance_id,
             "--name", TARGET_IMAGE_NAME,
-            "--description", "MLFFBench JAX GPU v1 (Case 042: GO-water DPMP)",
+            "--description", "Bench JAX GPU v1 (Case 042: GO-water DPMP)",
             "--wait", "--timeout", "1800",
             "--yes",
         ]
@@ -412,7 +412,7 @@ def execute_build(
         build_ev_path.write_text(json.dumps(build_evidence_doc, indent=2) + "\n", encoding="utf-8")
         print(f"Recorded build evidence to {build_ev_path}")
 
-        ext_b_dir = Path.home() / ".config" / "mlffbench" / "evidence" / "gate_b"
+        ext_b_dir = Path.home() / ".config" / "bench" / "evidence" / "gate_b"
         ext_b_dir.mkdir(parents=True, exist_ok=True)
         (ext_b_dir / "build_record_jax.json").write_text(json.dumps(build_evidence_doc, indent=2) + "\n", encoding="utf-8")
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ccbench.example/schemas/case-ir.schema.json",
-  "title": "CCBench Case Intermediate Representation (Case IR)",
+  "$id": "https://bench.example/schemas/case-ir.schema.json",
+  "title": "Bench Case Intermediate Representation (Case IR)",
   "description": "Single source of truth for benchmark case specification, compiling down to task.md, case.toml, verifier-plan, and candidate manifests.",
   "type": "object",
   "required": [
@@ -149,7 +149,7 @@
       "properties": {
         "layer_model": {
           "type": "string",
-          "default": "ccbench-verifier/v2"
+          "default": "bench-verifier/v2"
         },
         "layers": {
           "type": "array",

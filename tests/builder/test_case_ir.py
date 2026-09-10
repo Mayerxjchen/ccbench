@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ccbench.builder.design import CaseIRValidationError, load_case_ir, validate_case_ir
-from ccbench.builder.scaffold import compile_case_ir_to_draft
-from ccbench.contracts.case import CaseSpec
+from bench.builder.design import CaseIRValidationError, load_case_ir, validate_case_ir
+from bench.builder.scaffold import compile_case_ir_to_draft
+from bench.contracts.case import CaseSpec
 
 
 @pytest.fixture
@@ -46,8 +46,8 @@ def valid_case_ir_doc() -> dict:
         },
         "runtime": {
             "execution_class": "local_sandbox",
-            "candidate_image": "ccbench-agent:v1",
-            "verifier_image": "ccbench-agent:v1",
+            "candidate_image": "bench-agent:v1",
+            "verifier_image": "bench-agent:v1",
             "timeout_sec": 1200.0,
             "gpus": 0,
         },
@@ -111,6 +111,11 @@ def test_compile_case_ir_to_draft(valid_case_ir_doc: dict, tmp_path: Path):
     assert (draft_dir / "task.md").is_file()
     assert (draft_dir / "case.toml").is_file()
     assert (draft_dir / "submission-contract.json").is_file()
+    assert (draft_dir / "environment" / "Dockerfile").is_file()
+    assert (draft_dir / "solution" / "solve.sh").is_file()
+    assert (draft_dir / "tests" / "test.sh").is_file()
+    assert "private" in (draft_dir / "solution" / "README.md").read_text().lower()
+    assert "private" in (draft_dir / "tests" / "README.md").read_text().lower()
 
     # Verify compiled case.toml loads cleanly via CaseSpec
     spec = CaseSpec.load(draft_dir)
@@ -118,3 +123,11 @@ def test_compile_case_ir_to_draft(valid_case_ir_doc: dict, tmp_path: Path):
     assert spec.execution_class == "local_sandbox"
     assert spec.submission_root == "final"
     assert spec.coverage.scientific_domain == "materials"
+
+    # The new private authoring boundaries must not become Candidate inputs;
+    # the IR only declares the explicit input list as the public allowlist.
+    from bench.core.packager import package_candidate
+    bundle = tmp_path / "candidate-bundle"
+    package_candidate(spec, bundle)
+    bundle_paths = {p.relative_to(bundle).as_posix() for p in bundle.rglob("*") if p.is_file()}
+    assert not any(path.startswith(("environment/", "solution/", "tests/")) for path in bundle_paths)

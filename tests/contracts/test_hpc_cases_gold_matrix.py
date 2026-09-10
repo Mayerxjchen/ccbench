@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 import jsonschema
 
-from ccbench.contracts.case import (
+from bench.contracts.case import (
     CaseSpec,
     KNOWN_RUNTIME_FAMILIES,
     RUNTIME_FAMILY_CAPABILITIES,
@@ -65,10 +65,14 @@ def test_numbered_cases_contain_only_preserved_five_long_cases():
 
 
 @pytest.mark.parametrize("case_id", PRESERVED_HPC_CASE_IDS)
-def test_case_spec_loads_strictly_with_hpc_controller(case_id: str):
+def test_case_spec_loads_strictly_with_candidate_container(case_id: str):
     case_dir = _get_case_dir(case_id)
     spec = CaseSpec.load(case_dir)
-    assert spec.execution_class == "hpc_controller"
+    # Compute placement is selected by the operator/dispatcher.  The case
+    # owns only the portable execution contract and always runs Claude in the
+    # Candidate container.
+    assert spec.execution_class == "local_sandbox"
+    assert spec.candidate_runner == "container_claude_code"
     assert spec.legacy_execution_value is None
     assert spec.legacy_agent_fields == ()
 
@@ -128,14 +132,12 @@ def test_case_runtime_requirements_matrix(case_id: str):
         assert req.family == "matclaw-cips"
         assert req.name == "matclaw-cips"
         assert req.version == "==2.2.11"
-        assert "dispatcher.gpu" in spec.effective_qualification_requires
-        assert "runtime.matclaw-gpu" in spec.effective_qualification_requires
+        assert spec.effective_qualification_requires == ()
     elif case_id.startswith("034") or case_id.startswith("004"):
         assert len(spec.runtime_requirements) == 2
         families = {r.family for r in spec.runtime_requirements}
         assert families == {"ai2kit", "cp2k"}
-        assert "runtime.ai2kit" in spec.effective_qualification_requires
-        assert "runtime.cp2k" in spec.effective_qualification_requires
+        assert spec.effective_qualification_requires == ()
     elif case_id.startswith("042") or case_id.startswith("005"):
         assert len(spec.runtime_requirements) == 1
         req = spec.runtime_requirements[0]
@@ -148,16 +150,11 @@ def test_case_runtime_requirements_matrix(case_id: str):
 def test_case_scientific_capabilities_declared(case_id: str):
     case_dir = _get_case_dir(case_id)
     spec = CaseSpec.load(case_dir)
-    assert spec.scientific_capabilities is not None
-    assert len(spec.scientific_capabilities.required) >= 1
-
-    if case_id.startswith("031") or case_id.startswith("032") or case_id.startswith("033") or case_id.startswith("001") or case_id.startswith("002") or case_id.startswith("003"):
-        assert "matclaw-cips" in spec.scientific_capabilities.required
-    elif case_id.startswith("034") or case_id.startswith("004"):
-        assert "ai2kit" in spec.scientific_capabilities.required
-        assert "cp2k" in spec.scientific_capabilities.required
-    elif case_id.startswith("042") or case_id.startswith("005"):
-        assert "deepmd-jax" in spec.scientific_capabilities.required
+    # Scientific capabilities are operator/compute-profile concerns; keeping
+    # them out of the case prevents a case from selecting a scheduler or
+    # leaking dispatch credentials into Candidate.
+    assert spec.scientific_capabilities is None
+    assert len(spec.runtime_requirements) >= 1
 
 
 @pytest.mark.parametrize("case_id", PRESERVED_HPC_CASE_IDS)
@@ -178,4 +175,3 @@ def test_case_profiles_and_dockerfile_removed_from_case_v2(case_id: str):
 def test_hpc_cases_migration_zero_drift():
     drifted = migrator.migrate("hpc", write=False)
     assert drifted == [], f"Unexpected drift in HPC case manifests: {[str(p) for p in drifted]}"
-

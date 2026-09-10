@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.core.digests import sha256_file
-from ccbench.mvp import MvpError, export_case, validate_compute_request
+from bench.core.digests import sha256_file
+from bench.mvp import MvpError, export_case, validate_compute_request
 
 ROOT = Path(__file__).resolve().parents[2]
 

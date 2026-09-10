@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from ccbench.hpc.adapters.slurm import SlurmAdapter, SlurmAdapterError
+from bench.hpc.adapters.slurm import SlurmAdapter, SlurmAdapterError
 from scripts.ablation.transport.slurm_transport import JobState
 
 DIGEST = "mlip-compute@sha256:" + "a" * 64
@@ -325,7 +325,7 @@ def test_cpu_and_gpu_ceilings_are_independent() -> None:
     """CPU and GPU partitions carry independent resource ceilings. Raising the
     GPU queue ceiling must not change the CPU queue ceiling, and vice versa —
     a case cannot smuggle more resources by pointing at the other class."""
-    from ccbench.hpc.site_profile import HpcSiteProfile
+    from bench.hpc.site_profile import HpcSiteProfile
 
     base = {
         "schema_version": 1,

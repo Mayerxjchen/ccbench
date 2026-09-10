@@ -1,0 +1,8 @@
+{
+  "schema_version": "verifier-runtime-lock/v1",
+  "profile": "dpmp-v1",
+  "role": "verifier",
+  "status": "UNQUALIFIED",
+  "image_name": "bench-runtime-deepmd-jax:0.2-cpu",
+  "note": "Public placeholder. Formal runs use a host-local signed qualification lock."
+}

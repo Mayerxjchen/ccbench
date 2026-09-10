@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from ccbench.hpc.site_profile import (
+from bench.hpc.site_profile import (
     HpcSiteProfile,
     ResolvedResource,
     SiteProfileBlockedError,

@@ -15,7 +15,7 @@ from scripts.infra.audit_compshare_image_recipe import (
 )
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CANONICAL_RECIPE_PATH = (
-    REPO_ROOT / "runtimes" / "recipes" / "matclaw-cips-gpu" / "recipe.lock.json"
+    REPO_ROOT / "runtimes" / "recipes" / "jax-gpu" / "recipe.lock.json"
 )
 
 
@@ -28,8 +28,8 @@ def test_canonical_recipe_lock_audits_cleanly():
     res = audit_image_recipe(CANONICAL_RECIPE_PATH, repo_root=REPO_ROOT)
     assert res["ok"] is True
     assert res["status"] == "RECIPE_VERIFIED"
-    assert res["image_status"] == "BUILT"
-    assert res["target_cases"] == ["001", "002", "003"]
+    assert res["image_status"] == "UNBUILT"
+    assert res["target_cases"] == ["005"]
     assert res["recipe_digest"].startswith("sha256:")
 
 
@@ -78,7 +78,7 @@ def test_reject_forbidden_cases(tmp_path: Path):
 
 
 def test_reject_forbidden_capabilities(tmp_path: Path):
-    for bad_cap in ("jax", "deepmd-jax", "ai2kit", "cp2k"):
+    for bad_cap in ("deepmd", "matclaw-cips", "lammps", "ai2kit", "cp2k"):
         doc = _valid_recipe_doc()
         doc["target_capabilities"].append(bad_cap)
         doc["recipe_digest"] = canonical_recipe_digest(doc)
