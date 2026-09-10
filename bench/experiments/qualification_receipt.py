@@ -1745,3 +1745,95 @@ def _validate_schema(body: dict[str, Any]) -> None:
         raise QualificationReceiptError(
             f"receipt body violates {SCHEMA_ID} at {where}: {first.message}"
         )
+
+
+# -- operator qualification gate ----------------------------------------------
+
+_RECEIPT_PATH = "evidence/hpc-dispatcher/qualification/site-v1/receipt.json"
+
+
+def check_qualification_receipt(
+    root: Path, *, case_dir: Path | None = None
+) -> dict[str, Any]:
+    """Check a D11 qualification receipt and derive a fail-closed status.
+
+    With ``case_dir`` supplied, only that case's effective qualification
+    requirements are gated.  Without a case, preserve the legacy operator
+    behavior and require the site-wide aggregate to be PASS.
+    """
+    receipt_path = root / _RECEIPT_PATH
+    if not receipt_path.is_file():
+        return {
+            "status": "BLOCKED_QUALIFICATION",
+            "detail": f"D11 receipt not found: {receipt_path}",
+        }
+    try:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001 - fail closed on unreadable evidence
+        return {
+            "status": "BLOCKED_QUALIFICATION",
+            "detail": f"D11 receipt unreadable: {exc}",
+        }
+
+    result = verify_receipt(receipt, root=root, receipt_dir=receipt_path.parent)
+    derived = result["derived"]
+    common = {
+        "receipt_path": str(receipt_path),
+        "digest": receipt.get("digest"),
+    }
+    if case_dir is None:
+        if result["problems"] or derived["qualification_status"] != "PASS":
+            return {
+                "status": "BLOCKED_QUALIFICATION",
+                "detail": (
+                    "D11 receipt derives "
+                    f"{derived['qualification_status']} "
+                    f"(gates={derived['gates']})"
+                ),
+                **common,
+            }
+        return {"status": "PASS", "qualification_requires": [], **common}
+
+    try:
+        case_requires = _case_qualification_requires(case_dir)
+    except ValueError as exc:
+        return {
+            "status": "BLOCKED_QUALIFICATION",
+            "detail": str(exc),
+            **common,
+        }
+    if not case_requirements_satisfied(derived, case_requires):
+        capabilities = derived.get("capabilities") or {}
+        unmet = [
+            name for name in case_requires
+            if capabilities.get(name) != "PASS"
+        ]
+        return {
+            "status": "BLOCKED_QUALIFICATION",
+            "detail": (
+                f"case {Path(case_dir).name} qualification requires not "
+                f"satisfied: unmet={unmet} capabilities={capabilities}"
+            ),
+            "qualification_requires": list(case_requires),
+            **common,
+        }
+    return {
+        "status": "PASS",
+        "qualification_requires": list(case_requires),
+        **common,
+    }
+
+
+def _case_qualification_requires(case_dir: Path | None) -> tuple[str, ...]:
+    """Resolve a case's effective ``[hpc.qualification]`` requirements."""
+    if case_dir is None:
+        return ()
+    from bench.contracts.case import CaseSpec
+
+    try:
+        spec = CaseSpec.load(case_dir)
+    except Exception as exc:  # noqa: BLE001 - broken manifests block release
+        raise ValueError(
+            f"case {Path(case_dir).name} qualification requires unresolvable: {exc}"
+        ) from exc
+    return tuple(spec.effective_qualification_requires)

@@ -1,4 +1,0 @@
-{
-  "smoke": {"formal_result": false, "supercell": [2, 2, 1], "seed": 20260402},
-  "paper": {"formal_result": true, "supercell": [6, 6, 1], "seed": 20260402}
-}

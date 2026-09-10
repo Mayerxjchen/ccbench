@@ -40,7 +40,6 @@ from scripts.evidence.store import EvidenceStore
 from scripts.evidence.finalize_run import SifVerifierRuntime, SlurmVerifierRuntime
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_EVIDENCE_ROOT = ROOT / "evidence" / "matclaw" / "formal"
 PROFILE = "paper"
 
 
@@ -126,7 +125,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--case", required=True, choices=("031", "032", "033"))
     ap.add_argument("--run", required=True, choices=("run-1", "run-2"))
-    ap.add_argument("--evidence-root", type=Path, default=DEFAULT_EVIDENCE_ROOT)
+    ap.add_argument("--evidence-root", type=Path, required=True,
+                    help="explicit evidence root containing the selected run")
     ap.add_argument("--case-dir", type=Path, required=True)
     ap.add_argument("--policy", type=Path, required=True)
     ap.add_argument("--profile", default=PROFILE)

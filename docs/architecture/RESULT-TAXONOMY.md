@@ -20,6 +20,7 @@ Scientific evaluation completed and was decided:
 The Agent did not produce a scientifically decidable outcome:
 
 - `AGENT_TIMEOUT`
+- `AGENT_BUDGET_EXHAUSTED`
 - `RESOURCE_EXCEEDED`
 - `NO_SUBMISSION`
 - `INVALID_SUBMISSION`
@@ -48,9 +49,11 @@ The infrastructure, not the Agent, failed. Never counted as scientific failure:
 
 ## Retry semantics
 
-- `INFRA_INVALID` attempts **may** be retried with a new `run_id` under the
-  frozen protocol (a declared attempt may be replaced).
+- `INFRA_INVALID` attempts **may** be retried with a new `run_id`; the
+  replacement records its original attempt and the reason for retry.
 - `AGENT_FAILURE` and `SCIENTIFIC_FAIL` **may not** be silently rerun; a new
   attempt is a new observation.
-- Retry policy is fixed in the experiment protocol **before** scores are
-  observed (see `experiments/skill-ablation-v1/protocol.yaml`).
+- A paper author freezes model, skill, case, resource and budget conditions
+  before a comparison. Other outcomes remain independent observations and
+  may not be silently rerun. The infra does not author the paper's experiment
+  matrix or infer scientific validity from a signed receipt.

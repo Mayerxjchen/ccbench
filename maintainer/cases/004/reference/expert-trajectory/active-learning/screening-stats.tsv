@@ -1,9 +1,0 @@
-# screening statistics per active-learning iteration (expert oracle)
-# Source: ai2kit/plans.md; column = fraction of explored configurations
-# accepted as NEW training candidates in that iteration.
-iteration	screened	good_pct
-001	1881	97.07
-002	1548	98.92
-003	2120	27.14
-004	1476	99.05
-005	1492	99.66

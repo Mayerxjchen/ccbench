@@ -1,11 +1,10 @@
-"""Centralized configuration for dftworld infrastructure.
+"""Configuration for the reusable Bench Candidate/HPC infrastructure.
 
-This package provides profile loading, secret management, and experiment
-resolution. Profiles are loaded from TOML files in infra/config/; secrets
-are resolved from environment variables and never committed.
+Profiles are loaded from ``infra/config/``; secrets are resolved from
+environment variables and never committed.  Legacy experiment files are not
+part of the active run entry point.
 """
 
 from bench.config.profiles import ProfileRegistry
-from bench.config.secrets import EnvSecretProvider, SecretValue
 
-__all__ = ["ProfileRegistry", "EnvSecretProvider", "SecretValue"]
+__all__ = ["ProfileRegistry"]

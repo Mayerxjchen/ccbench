@@ -8,7 +8,6 @@ trusted modules it orchestrates:
 - ``bench site configure``    — materialize the private cluster profile
 - ``bench site qualify ...``  — -> scripts/qualification/qualify_case.py
 - ``bench pilot ...``         — Claude Code inside Candidate Docker
-- ``bench report ...``        — -> scripts/ablation/verify_evidence.py
 
 A private cluster profile must live OUTSIDE the repository; ``site
 configure`` enforces that at the door.
@@ -66,7 +65,7 @@ def _setup(report_only: bool = False) -> int:
             "  bench site configure --out ~/cluster_profile.toml\n"
             "  # fill in every value, then:\n"
             "  bench site qualify --profile ~/cluster_profile.toml --dry-run\n"
-            "  bench pilot 004-ai2kit-water64-end-to-end-potential\n",
+            "  bench run /path/to/paper/cases/001\n",
             file=sys.stderr,
         )
     return 0 if ok else 1
@@ -103,12 +102,6 @@ def _site_qualify(rest: list[str]) -> int:
     from scripts.qualification.qualify_case import main as qualify_main
 
     return qualify_main(rest)
-
-
-def _report(rest: list[str]) -> int:
-    from scripts.ablation.verify_evidence import main as verify_main
-
-    return verify_main(rest)
 
 
 def _compute_configure(out: Path, template: str) -> int:
@@ -352,11 +345,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     qualify.add_argument("qualify_args", nargs="*", help=argparse.SUPPRESS)
 
-    report = sub.add_parser(
-        "report", help="verify evidence for a run (forwards to verify_evidence)"
-    )
-    report.add_argument("report_args", nargs="*", help=argparse.SUPPRESS)
-
     compute = sub.add_parser("compute", help="manage compute routing profiles")
     compute_sub = compute.add_subparsers(dest="compute_command", required=True)
     comp_conf = compute_sub.add_parser(
@@ -393,20 +381,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="explicit trusted SiteProfile JSON/TOML file or directory (required)",
     )
-
-    # Case subcommands
-    try:
-        from bench.cli.case import add_case_subparsers
-        add_case_subparsers(sub)
-    except Exception:
-        pass
-
-    # Portfolio subcommands
-    p_port = sub.add_parser("portfolio", help="Portfolio management and validation")
-    port_subs = p_port.add_subparsers(dest="portfolio_command")
-    p_port_rep = port_subs.add_parser("report", help="Generate portfolio coverage report")
-    p_port_rep.add_argument("--out", type=Path, default=None)
-    port_subs.add_parser("validate", help="Validate portfolio registry and vocabulary")
 
     # Runtime subcommands
     p_rt = sub.add_parser("runtime", help="Runtime recipes, locks, and provenance")
@@ -534,11 +508,6 @@ def _run_case(argv: list[str]) -> int:
     return 0
 
 
-def _portfolio(argv: list[str]) -> int:
-    from bench.cli.commands import handle_portfolio_cmd
-    return handle_portfolio_cmd(argv)
-
-
 def _runtime(argv: list[str]) -> int:
     from bench.cli.commands import handle_runtime_cmd
     return handle_runtime_cmd(argv)
@@ -587,15 +556,6 @@ def main(argv: list[str] | None = None) -> int:
             args = parser.parse_args(argv[1:])
             report_only = args.quiet or args.json
             return _setup(report_only=report_only)
-        if command == "case":
-            from bench.cli.case import add_case_subparsers, handle_case_cmd
-            p = argparse.ArgumentParser(prog="bench")
-            sub = p.add_subparsers(dest="command")
-            add_case_subparsers(sub)
-            args = p.parse_args(argv)
-            return handle_case_cmd(args)
-        if command == "portfolio":
-            return _portfolio(argv[1:])
         if command == "runtime":
             if len(argv) > 1 and argv[1] in {"list", "inspect"}:
                 from bench.runtime_catalog import inspect_runtime, load_catalog
@@ -711,8 +671,6 @@ def main(argv: list[str] | None = None) -> int:
                     args.site_profile_registry,
                 )
             build_parser().error("compute needs a subcommand: configure | validate | qualify")
-        if command == "report":
-            return _report(argv[1:])
         build_parser().error(f"unknown command {command!r}")
     except CliError as exc:
         print(f"bench: {exc}", file=sys.stderr)

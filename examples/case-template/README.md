@@ -1,30 +1,19 @@
-# Bench case template
+# Paper suite template
 
-Use `bench case build` from a validated Case IR to create a draft with this
-layout:
+Copy this directory outside the infra repository, then edit the case instructions, public inputs and private verifier. The included integer-sum example exercises the workflow and is not a scientific benchmark.
 
 ```text
-<case-id>/
-├── case.toml              # public contract and explicit Candidate allowlist
-├── task.md                # canonical task description (public)
-├── input/                 # public task inputs only
-├── environment/           # private task Dockerfile/runtime recipe
-├── solution/              # private reference solution
-└── tests/                 # private verifier launcher and complete tests bundle
+paper/
+├── suite.toml                    Paper identity and case directory
+└── cases/001-case-name/
+    ├── case.toml                 Agent, verifier, resource and public-input contract
+    ├── task.md                   Public task instruction
+    ├── input/                    Public inputs exported to Candidate
+    └── verifier/                 Private launcher and validation code
 ```
 
-Only `task.md`, the instruction mapped to `instruction.md`, and files named by
-`[candidate].files` (normally `input/**`) are exported to Candidate Docker.
-`environment/`, `solution/`, `tests/`, `reference/`, and legacy `verifier/` remain
-maintainer-side. Do not add a whole-case copy rule or mount the private
-directories into Candidate.
+Use `bench suite validate --root /path/to/paper`, then `bench run /path/to/paper/cases/001-case-name --config /path/to/config.toml`. Copy `examples/candidate-config.toml` for a user config and keep API credentials in the host environment or local .env.
 
-The generated `environment/Dockerfile`, `solution/solve.sh`, and
-`tests/test.sh` are intentionally failing placeholders. Replace them with a
-pinned runtime recipe, a private reference implementation, and the common
-verifier launcher before running `bench case validate`.
+The template selects the currently registered `claude-mvp` Agent and `matclaw-cips-v1` verifier profile. These resolve shared images from `infra/config/agent-profiles.toml`; change the profile when choosing another qualified runtime. An image tag in a template does not qualify a new host automatically.
 
-The worker mounts `tests/` as its complete private verifier bundle. Existing
-Bench cases may keep their canonical `case.toml`, `task.md`, `input/`, and
-`verifier/` layout; the three private authoring directories are an additive
-template, not a required migration of old cases.
+Only the explicit Candidate allowlist is public. Private `reference/` and `solution/` can live under `verifier/`; never include them in the allowlist.

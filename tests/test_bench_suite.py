@@ -125,6 +125,21 @@ def test_runtime_catalog_lists_capabilities_without_promoting_unqualified_images
     assert candidate["digest"].startswith("sha256:")
 
 
+def test_candidate_catalog_pins_accepted_release_identity() -> None:
+    """Pin the identity accepted during the 2026-09-11 release review.
+
+    This deterministic repository check does not validate a signature or
+    inspect a Docker daemon.  A future release must update this assertion
+    together with the catalog; qualification behavior is covered separately
+    by the Candidate runtime qualification tests.
+    """
+    candidate = inspect_runtime("candidate-claude-code")["runtime"]
+    assert candidate["local_image"] == "bench-agent-claude-code:2.1.266"
+    assert candidate["digest"] == (
+        "sha256:37f7e5f390f882b053cb781c4140e5b299eb7f2f0cfd7e746ad2da4522d4fa4a"
+    )
+
+
 def test_runtime_cli_and_legacy_alias_are_normalized(capsys) -> None:
     assert public_main(["runtime", "inspect", "candidate-claude-code"]) == 0
     public = json.loads(capsys.readouterr().out)

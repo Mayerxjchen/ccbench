@@ -65,12 +65,9 @@ ALLOWED_ROOT_FILES = {
     ".python-version",
     "conftest.py",
     "eval.py",
-    "portfolio-report.json",
     "pyproject.toml",
     "README.md",
     "CLAUDE.md",
-    "skills_sha.py",
-    "summarize.py",
     "uv.lock",
 }
 

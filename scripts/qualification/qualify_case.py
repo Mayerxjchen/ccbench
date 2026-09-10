@@ -7,7 +7,7 @@ authorized submit phases — cancel probe / runtime gates (each merges into
 the receipt) — and never reruns a capability that already derives PASS.
 
     python scripts/qualification/qualify_case.py \
-        --case 004-ai2kit-water64-end-to-end-potential \
+        --case /path/to/paper/cases/004 \
         --site site-v1 --profile /path/to/cluster_profile.toml
 
 First version is a THIN wrapper (spec stage 3): every submission /
@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -74,55 +75,24 @@ class QualifyPlanError(RuntimeError):
 def site_root(site_name: str) -> Path:
     if not _SITE_NAME_RE.match(site_name):
         raise QualifyPlanError(f"unsafe --site name: {site_name!r}")
-    return ROOT / "evidence" / "hpc-dispatcher" / "qualification" / site_name
+    configured = os.environ.get("BENCH_HPC_QUALIFICATION_ROOT")
+    base = (Path(configured).expanduser() if configured
+            else ROOT / "runs" / "hpc-qualification")
+    return base.resolve() / site_name
 
 
 def case_dir_for(name: str) -> Path:
-    """Resolve ``--case``: exact directory, benchmark_id, or id shorthand."""
-    alias_map = {
-        "001": "001-matclaw-cips-active-distillation",
-        "002": "002-matclaw-cips-curie-temperature",
-        "003": "003-matclaw-cips-domain-wall-search",
-        "004": "004-ai2kit-water64-end-to-end-potential",
-        "005": "005-go-water-dpmp",
-    }
-    target_name = alias_map.get(name, name)
-    cases_dir = ROOT / "cases"
-    for candidate_dir in (cases_dir / target_name, ROOT / target_name):
-        if candidate_dir.is_dir() and ((candidate_dir / "task.toml").is_file() or (candidate_dir / "case.toml").is_file()):
-            return candidate_dir
-
-    candidates = []
-    search_dirs = [cases_dir] if cases_dir.is_dir() else [ROOT]
-    for parent in search_dirs:
-        for path in sorted(p for p in parent.iterdir() if p.is_dir()):
-            if not ((path / "task.toml").is_file() or (path / "case.toml").is_file()):
-                continue
-            benchmark_id = _benchmark_id(path)
-            if (
-                benchmark_id == name
-                or benchmark_id.startswith(name + "-")
-                or path.name == name
-                or path.name.startswith(name + "-")
-            ):
-                candidates.append(path)
-    if len(candidates) == 1:
-        return candidates[0]
+    """Resolve ``--case`` as an explicit existing external case path."""
+    candidate = Path(name).expanduser()
+    if candidate.is_dir() and any(
+        (candidate / manifest).is_file() for manifest in ("case.toml", "task.toml")
+    ):
+        return candidate.resolve()
     raise QualifyPlanError(
-        f"--case {name!r} does not name a unique benchmark dir "
-        f"(candidates={[p.name for p in candidates]})"
+        f"--case must be an existing external case directory containing "
+        f"case.toml or task.toml (received {name!r}); numeric/id aliases and "
+        "repository case discovery are retired"
     )
-
-
-def _benchmark_id(case_dir: Path) -> str:
-    try:
-        from bench.contracts.case import CaseSpec
-    except ImportError:
-        return case_dir.name
-    try:
-        return CaseSpec.load(case_dir).benchmark_id
-    except Exception:  # noqa: BLE001 — a broken manifest fails the plan later
-        return case_dir.name
 
 
 def derive(receipt_path: Path, profile_path: Path) -> dict:
@@ -294,11 +264,10 @@ def main(argv: list[str] | None = None) -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--case", required=True,
-                        help="case dir name, benchmark_id, or numeric prefix "
-                             "(e.g. 034)")
+                        help="explicit external case directory containing case.toml")
     parser.add_argument("--site", default="site-v1",
                         help="qualification site evidence name "
-                             "(evidence/hpc-dispatcher/qualification/<site>)")
+                             "(runs/hpc-qualification/<site>)")
     parser.add_argument("--profile", default=str(ROOT / "scripts/hpc/cluster_profile.toml"),
                         help="private cluster profile (operator data)")
     parser.add_argument("--runtime-lock", default=DEFAULT_RUNTIME_LOCK)
@@ -325,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="compute the plan and exit without running phases")
     args = parser.parse_args(argv)
 
-    from bench.experiments.release_builder import _case_qualification_requires
+    from bench.experiments.qualification_receipt import _case_qualification_requires
 
     site = site_root(args.site)
     case_dir = case_dir_for(args.case)

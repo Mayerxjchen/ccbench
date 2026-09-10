@@ -1,0 +1,4 @@
+schema_version = "bench-suite/v1"
+suite_id = "example-paper"
+paper_id = "example-paper"
+cases_root = "cases"

@@ -105,19 +105,19 @@ def _outside_repo(path: Path) -> Path:
 
 
 def resolve_case(value: str | Path) -> Path:
+    """Resolve an explicitly supplied external case directory.
+
+    The active product has no implicit in-repository case catalogue.  Path
+    resolution is deliberately exact so a stale ID or prefix cannot select a
+    different paper case after a repository migration.
+    """
     candidate = Path(value).expanduser()
     if candidate.is_dir():
         return candidate.resolve()
-    cases_root = ROOT / "cases"
-    exact = cases_root / str(value)
-    if exact.is_dir():
-        return exact.resolve()
-    matches = sorted(p for p in cases_root.glob(f"{value}*") if p.is_dir())
-    if len(matches) != 1:
-        raise MvpError(
-            f"case {value!s} resolved to {len(matches)} directories; use an exact path"
-        )
-    return matches[0].resolve()
+    raise MvpError(
+        f"case path does not exist or is not a directory: {value!s}; "
+        "pass an explicit external paper case path"
+    )
 
 
 def _has_suite_manifest(case_dir: Path) -> bool:
@@ -572,11 +572,10 @@ def verify_sealed_submission(sealed: Path) -> dict[str, Any]:
 
 
 def _maintainer_case(case_dir: Path) -> Path:
-    prefix = case_dir.name.split("-", 1)[0]
-    path = ROOT / "maintainer" / "cases" / prefix
-    if not path.is_dir():
-        raise MvpError(f"maintainer material not found for case {case_dir.name}")
-    return path
+    raise MvpError(
+        "maintainer-side case material is retired; put reference/solution "
+        "beside the external case manifest"
+    )
 
 
 def resolve_private_case_material(case_dir: Path) -> tuple[Path | None, Path | None]:
@@ -584,15 +583,6 @@ def resolve_private_case_material(case_dir: Path) -> tuple[Path | None, Path | N
     case_dir = Path(case_dir).expanduser().resolve()
     reference = next((case_dir / name for name in ("reference", "baseline") if (case_dir / name).is_dir()), None)
     solution = (case_dir / "solution") if (case_dir / "solution").is_dir() else None
-    if reference is None or solution is None:
-        try:
-            maintainer = _maintainer_case(case_dir)
-        except MvpError:
-            maintainer = None
-        if reference is None:
-            reference = next((maintainer / name for name in ("reference", "baseline") if (maintainer / name).is_dir()), None) if maintainer else None
-        if solution is None:
-            solution = (maintainer / "solution") if maintainer and (maintainer / "solution").is_dir() else None
     return reference, solution
 
 
@@ -601,11 +591,10 @@ def resolve_verifier_bundle(
 ) -> Path:
     """Resolve one complete private verifier bundle for a case.
 
-    New cases keep launcher and tests together in ``case/tests``.  Legacy
-    repository cases may still stage the historical ``tests/cases/<id>``
-    bundle.  External suites are strict and may only use their own
-    case-local ``tests`` or ``verifier`` tree; a numeric prefix must never
-    cause private repository tests to cross into a paper pack.
+    New cases keep launcher and tests together in ``case/tests``.  A legacy
+    case may use its own ``case/verifier`` tree.  No numeric-prefix lookup or
+    repository-level supplemental bundle is permitted: private verifier
+    material is always owned by the case being evaluated.
     """
     case_dir = Path(case_dir).expanduser().resolve()
     authored = case_dir / "tests"
@@ -614,11 +603,7 @@ def resolve_verifier_bundle(
     legacy = case_dir / "verifier"
     if not legacy.is_dir():
         raise MvpError(f"verifier directory missing: {legacy}")
-    prefix = case_dir.name.split("-", 1)[0]
-    supplemental = None if strict_external else ROOT / "tests" / "cases" / prefix
-    if supplemental is not None and not supplemental.is_dir():
-        supplemental = None
-    if supplemental is None and not (case_dir / "input").is_dir():
+    if not (case_dir / "input").is_dir():
         return legacy
     target = Path(run_dir).expanduser().resolve() / ".control" / "verifier-bundle"
     if target.exists():
@@ -668,8 +653,7 @@ def resolve_verifier_bundle(
         if case_input.is_dir():
             copy_private_tree(case_input, target / "input")
         return target
-    # Case-local launcher/verifier wins; supplemental files fill the complete
-    # test bundle (including test_outputs.py and its trusted fixtures).
+    # Case-local launcher/verifier wins.  Do not merge another case's tests.
     copy_private_tree(legacy, target)
     # External paper packs keep their public inputs beside the verifier.  The
     # isolated worker receives a private, read-only copy at /tests/input so a
@@ -678,25 +662,6 @@ def resolve_verifier_bundle(
     case_input = case_dir / "input"
     if case_input.is_dir():
         copy_private_tree(case_input, target / "input")
-    # Only production verifier inputs are copied.  Development tests,
-    # notebooks, caches, and arbitrary files must not silently enter the
-    # private worker image or alter its qualification digest.
-    supplemental_names = {"test_outputs.py", "hidden", "fixtures"}
-    if supplemental is None:
-        return target
-    for child in supplemental.iterdir():
-        if child.name not in supplemental_names or child.name.startswith("."):
-            continue
-        destination = target / child.name
-        if destination.exists() or destination.is_symlink():
-            continue
-        if child.is_dir():
-            copy_private_tree(child, destination)
-        elif child.is_file():
-            info = os.lstat(child)
-            if info.st_nlink != 1:
-                raise MvpError(f"verifier bundle contains hard-linked file: {child.name}")
-            shutil.copyfile(child, destination)
     return target
 
 

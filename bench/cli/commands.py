@@ -11,35 +11,6 @@ from pathlib import Path
 from bench.paths import ROOT, RUNTIME_LOCKS_DIR
 
 
-def handle_portfolio_cmd(argv: list[str]) -> int:
-    from bench.portfolio.registry import generate_portfolio_report
-
-    parser = argparse.ArgumentParser(prog="bench portfolio")
-    sub = parser.add_subparsers(dest="subcommand", required=True)
-    rep_p = sub.add_parser("report")
-    rep_p.add_argument("--out", type=Path, default=None)
-    sub.add_parser("validate")
-    args = parser.parse_args(argv)
-
-    rep = generate_portfolio_report()
-    if args.subcommand == "report":
-        out_str = json.dumps(rep, indent=2)
-        if args.out:
-            args.out.write_text(out_str, encoding="utf-8")
-            print(f"Portfolio report written to {args.out}")
-        else:
-            print(out_str)
-        return 0
-    if args.subcommand == "validate":
-        errs = rep.get("errors", [])
-        if errs:
-            print(f"Portfolio validation errors: {errs}", file=sys.stderr)
-            return 1
-        print(f"Portfolio valid: {rep['total_cases']} cases checked.")
-        return 0
-    return 1
-
-
 def handle_runtime_cmd(argv: list[str]) -> int:
     import subprocess
 

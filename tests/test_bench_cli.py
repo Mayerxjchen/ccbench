@@ -1,4 +1,4 @@
-"""bench thin CLI (P3): five verbs, zero logic — forwarding only.
+"""bench thin CLI: one lifecycle entry, zero duplicated runner logic.
 
 The CLI must orchestrate existing modules, not reimplement them, and the
 private cluster profile must never live inside the repository.
@@ -60,18 +60,19 @@ def test_site_qualify_forwards_to_qualify_case(monkeypatch):
     assert seen[0] == ["--profile", "/tmp/p.toml", "--case", "034", "--dry-run"]
 
 
-def test_report_forwards_to_verify_evidence(monkeypatch):
-    from scripts.ablation import verify_evidence
+def test_eval_compatibility_entry_forwards_to_bench_run(monkeypatch):
+    import importlib
 
+    entry = importlib.import_module("eval")
     seen: list[list[str]] = []
 
     def fake_main(argv):
         seen.append(list(argv))
-        return 3
+        return 0
 
-    monkeypatch.setattr(verify_evidence, "main", fake_main)
-    assert cli.main(["report", "--jobs-dir", "jobs/x"]) == 3
-    assert seen[0] == ["--jobs-dir", "jobs/x"]
+    monkeypatch.setattr(cli, "main", fake_main)
+    assert entry.main(["/tmp/paper-suite/cases/001", "--no-evaluate"]) == 0
+    assert seen == [["run", "/tmp/paper-suite/cases/001", "--no-evaluate"]]
 
 
 def test_run_starts_and_automatically_evaluates(monkeypatch, tmp_path, capsys):

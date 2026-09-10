@@ -14,15 +14,9 @@ bench_infra/
 ├── examples/       Candidate 配置、案例模板及 Local/Slurm/CompShare 示例
 ├── docs/           架构、用户操作、维护和迁移说明
 ├── tests/          隔离、配置、执行、续跑、HPC、Verifier 和仓库合同测试
-├── cases/          旧案例兼容与回归夹具；新论文案例不放在这里
-├── benchmark/      历史来源、模型和恢复测试数据
-├── maintainer/     维护者私有参考结构和回归资料
-├── evidence/       历史运行时资格与验收证据
-├── experiments/    现有实验矩阵及兼容配置
 ├── site-configs/   本地站点配置占位目录；真实凭据不提交
 ├── .github/        GitHub Actions 自动测试
-├── eval.py         仓库内兼容评测入口
-├── summarize.py    结果汇总工具
+├── eval.py         薄入口：python eval.py 外部案例路径
 ├── pyproject.toml  Python 包、命令和依赖声明
 └── uv.lock         可复现 Python 依赖锁
 ```
@@ -38,6 +32,9 @@ paper-suite/
     └── 001-case-name/
         ├── case.toml
         ├── task.md
-        ├── input/
-        └── verifier/
+        ├── input/                 公开输入
+        ├── environment/           可选环境声明，复用共享镜像
+        └── verifier/              私有验证代码
+            ├── reference/         可选参考数据
+            └── solution/          可选参考解
 ```

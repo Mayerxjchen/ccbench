@@ -1,1 +1,0 @@
-# Fixture report (local smoke)

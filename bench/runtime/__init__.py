@@ -1,31 +1,8 @@
-"""Runtime identities: registry (requirements -> RuntimeSet) and qualification."""
+"""Runtime qualification consumed by the active Candidate pilot."""
 
-from bench.runtime.qualify import (
-    QualificationReport,
-    qualify_runtime,
-)
-from bench.runtime.registry import (
-    ROLES,
-    RuntimeIdentity,
-    RuntimeProfile,
-    RuntimeRegistry,
-    RuntimeRegistryError,
-    RuntimeRequirement,
-    RuntimeSet,
-    default_profiles,
-    satisfies,
+from bench.runtime.candidate_qualification import (
+    CandidateQualificationError,
+    load_qualified_runtime,
 )
 
-__all__ = [
-    "ROLES",
-    "QualificationReport",
-    "RuntimeIdentity",
-    "RuntimeProfile",
-    "RuntimeRegistry",
-    "RuntimeRegistryError",
-    "RuntimeRequirement",
-    "RuntimeSet",
-    "default_profiles",
-    "qualify_runtime",
-    "satisfies",
-]
+__all__ = ["CandidateQualificationError", "load_qualified_runtime"]

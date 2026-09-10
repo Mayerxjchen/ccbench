@@ -292,7 +292,7 @@ def test_set_site_rebinds_evidence_paths_and_rejects_unsafe_names():
         q.set_site("site-v3")
         assert q.CANARY_ROOT.name == "site-v3"
         assert q.RECEIPT_PATH == q.CANARY_ROOT / "receipt.json"
-        assert q.CANARY_ROOT.is_relative_to(q.ROOT / "evidence")
+        assert q.CANARY_ROOT.is_relative_to(q.ROOT / "runs" / "hpc-qualification")
         for bad in ("../escape", "a/b", "", ".", "..", "-hidden"):
             with pytest.raises(q.QualifyError, match="unsafe"):
                 q.set_site(bad)

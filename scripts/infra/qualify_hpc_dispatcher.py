@@ -117,12 +117,18 @@ from scripts.ablation.transport.slurm_transport import (  # noqa: E402
     normalize_state,
 )
 
-# Per-site evidence root, REBOUND by main() from --site (qualify_case passes
-# it through).  site-v1 stays the default so existing fixtures and operator
-# muscle memory keep working; site-v3 re-seals land under their own dir and
-# never touch old evidence (retain, never overwrite or delete).
+# Per-site evidence root, rebound by main() from --site (qualify_case passes
+# it through).  The root is configurable for operators and defaults to the
+# active run store; old evidence is never implicitly read, overwritten, or
+# deleted.
 DEFAULT_SITE = "site-v1"
-CANARY_ROOT = ROOT / "evidence" / "hpc-dispatcher" / "qualification" / DEFAULT_SITE
+def _qualification_root() -> Path:
+    configured = os.environ.get("BENCH_HPC_QUALIFICATION_ROOT")
+    return (Path(configured).expanduser() if configured
+            else ROOT / "runs" / "hpc-qualification").resolve()
+
+
+CANARY_ROOT = _qualification_root() / DEFAULT_SITE
 RECEIPT_PATH = CANARY_ROOT / "receipt.json"
 
 # First character must be alphanumeric: "." and ".." are path components,
@@ -135,9 +141,7 @@ def set_site(site_name: str) -> None:
     global CANARY_ROOT, RECEIPT_PATH
     if not _SITE_NAME_RE.match(site_name):
         raise QualifyError(f"unsafe --site name: {site_name!r}")
-    CANARY_ROOT = (
-        ROOT / "evidence" / "hpc-dispatcher" / "qualification" / site_name
-    )
+    CANARY_ROOT = _qualification_root() / site_name
     RECEIPT_PATH = CANARY_ROOT / "receipt.json"
 
 TERMINAL = {"SUCCEEDED", "FAILED", "CANCELLED", "TIMEOUT", "LOST"}
@@ -2160,7 +2164,7 @@ def main() -> int:
     parser.add_argument("--profile", default="scripts/hpc/cluster_profile.toml")
     parser.add_argument("--site", default=DEFAULT_SITE,
                         help="site evidence directory name under "
-                             "evidence/hpc-dispatcher/qualification/ "
+                             "runs/hpc-qualification/ "
                              "(receipt + per-run evidence land here)")
     parser.add_argument("--runtime-lock",
                         default="runtimes/locks/matclaw-cips-runtime.lock.json")

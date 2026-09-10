@@ -357,7 +357,7 @@ def test_gateway_freeze_settle_failure_raises(tmp_path: Path):
         def settle(self, run_id: str) -> bool:
             return False
 
-    gw = Gateway(adapter=FailingAdapter())
+    gw = Gateway(adapter=FailingAdapter(), workspace_root=tmp_path)
     tok = gw.issue("run-fail", ["usage"], ttl_sec=60.0)
     gw.freeze(tok, "run-fail")  # freeze submissions only
     with pytest.raises(GatewayError, match="Adapter settlement reported failure"):
@@ -376,7 +376,7 @@ def test_gateway_freeze_settle_failure_allows_retry(tmp_path: Path):
             calls += 1
             return succeed_on_retry
 
-    gw = Gateway(adapter=FlakyAdapter())
+    gw = Gateway(adapter=FlakyAdapter(), workspace_root=tmp_path)
     tok = gw.issue("run-retry", ["usage"], ttl_sec=60.0)
 
     # Freeze submissions (always succeeds)

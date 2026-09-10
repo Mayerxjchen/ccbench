@@ -1,90 +1,18 @@
-# Quickstart: Running Bench with Your Slurm Cluster
+# Slurm and CompShare configuration
 
-This guide explains how external users run Bench using their own university or institutional Slurm HPC cluster.
+An external paper uses the same Candidate/Verifier workflow whether scientific computation runs locally, on IKKEM CPU, on CompShare GPU or on another Slurm cluster.
 
-> [!NOTE]
-> External users do **not** need CompShare or any cloud GPU account. Bench evaluates agents using standard, provider-neutral protocols (`bench-hpc`).
+The host requires Python 3.12+ and the infra installation. Slurm execution requires operator-side SSH access, scheduler commands and a qualified software environment; Apptainer/SIF may supply that environment. GPU runtime, driver and device compatibility must be checked at the target site.
 
----
+Copy and customize the appropriate template outside the public case bundle:
 
-## 1. Prerequisites
+- [Generic Slurm site](../../examples/hpc/generic-slurm-site-profile.json): login, account, partitions, resource ceilings and runtime policy.
+- [IKKEM CPU site](../../examples/hpc/ikkem-cpu-site-profile.json): current CPU operator example.
+- [CompShare GPU site](../../examples/hpc/compshare-gpu-site-profile.json): current cloud GPU operator example.
+- [Generic compute profile](../../examples/hpc/generic-slurm-compute-profile.json): routes CPU/GPU requests to a site.
 
-On your local machine or submission workstation:
-- Python 3.10+
-- SSH access to your Slurm cluster login node with key-based authentication (`ssh <user>@<hpc_login>`)
+Select the backend and operator profile in the Candidate config's `[compute]` table. This selection records the intended route; site credentials stay operator-side. A template is not an already provisioned cluster or a qualification receipt.
 
-On your remote Slurm cluster:
-- Slurm workload manager (`sbatch`, `squeue`, `scancel`)
-- Apptainer / Singularity installed and available on compute nodes
-- SIF container image(s) for the required benchmark runtimes (e.g. CP2K, DeePMD)
+Candidate writes a request using `bench-compute-request`. The trusted operator validates and executes it, retrieves outputs and imports them into the run. Formal imports require matching signed receipts. [Run instructions](../mvp-test-infra.md) show import and resume.
 
----
-
-## 2. Configuration Workflow
-
-### Step 1: Create a SiteProfile
-Copy the template from [`examples/hpc/generic-slurm-site-profile.json`](../../examples/hpc/generic-slurm-site-profile.json) to `config/hpc-site-profile.json`:
-
-```json
-{
-  "schema_version": 1,
-  "site_id": "my-university-hpc",
-  "scheduler": "slurm",
-  "connection": {
-    "credential_profile_id": "my-ssh-key",
-    "target_binding": "login.hpc.university.edu:22",
-    "remote_user": "my_username",
-    "remote_root_policy": "/scratch/users/{remote_user}/bench/{run_id}"
-  },
-  "account": "my_account_group",
-  "queues": {
-    "cpu": {
-      "partition": "cpu-standard",
-      "qos": "normal",
-      "max_cpus": 64,
-      "max_memory_gb": 256,
-      "max_gpus": 0,
-      "max_walltime_minutes": 240
-    },
-    "gpu": {
-      "partition": "gpu-a100",
-      "qos": "normal",
-      "max_cpus": 32,
-      "max_memory_gb": 128,
-      "max_gpus": 4,
-      "max_walltime_minutes": 120
-    }
-  },
-  "runtime_policy": {
-    "requires_apptainer": true,
-    "apptainer_bin": "apptainer",
-    "runtime_store": "/shared/containers/mlff",
-    "gres_template": "--gres=gpu:{gpus}"
-  }
-}
-```
-
-### Step 2: Create a ComputeProfile
-Copy [`examples/hpc/generic-slurm-compute-profile.json`](../../examples/hpc/generic-slurm-compute-profile.json) to `config/compute-profile.json`:
-
-```json
-{
-  "schema_version": 1,
-  "profile_id": "my-university-hpc",
-  "routes": {
-    "cpu": { "site_profile": "my-university-hpc" },
-    "gpu": { "site_profile": "my-university-hpc" }
-  }
-}
-```
-
-### Step 3: Run Qualification
-Before evaluating candidate agents, verify your Slurm site setup:
-```bash
-# Verify site configuration and cluster connectivity
-bench site qualify --profile ~/cluster_profile.toml
-
-# Qualify the compute profile (Layer 2 verification)
-bench compute qualify --profile ~/compute_profile.json
-```
-When qualification passes, a signed qualification receipt is generated.
+When moving GPU work to your own Slurm cluster, change the site/runtime configuration and qualify it. Existing V100 hardware needs software built for that device's compute capability; a successful CompShare GPU probe cannot qualify a different GPU architecture.

@@ -21,11 +21,12 @@ workspace; environment, solution, reference, tests, and verifier files are
 never exported. A directory name is only a discovery hint: case identity comes
 from `case.toml`, and a numeric-prefix mismatch is reported as an error.
 
-The first paper-pack example is `/path/to/go-water`. Its five
-directories live under `cases/`; cases 001–004 have their existing scientific
-assets unchanged, while 005 has a draft manifest and is intentionally
-`DRAFT_NOT_READY`. Unknown but normalized coverage slugs are accepted as
-extensions and shown as warnings. `suite validate` must pass before publication.
+The external go-water paper pack has five directories under its own `cases/`.
+Readiness belongs to each case: missing scientific references, draft contracts
+and unqualified scientific environments must be reported explicitly. Infra
+changes do not establish scientific readiness. Unknown but normalized coverage
+slugs are accepted as extensions and shown as warnings. Run `suite validate`
+before publishing a case contract.
 
 Compute is operator-selected: `local` runs use the chosen local task runtime;
 CPU HPC requests route through the IKKEM profile and GPU HPC requests through a

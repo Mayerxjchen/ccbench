@@ -1,8 +1,0 @@
-#!/bin/bash
-set -euo pipefail
-# Runtime identity gate: refuse to execute an unverified SIF.
-actual=$(sha256sum /public/home/<site-user>/dftworld2-runs/matclaw-031/runtime/matclaw-cips-2.2.11-gpu-amd64.sif | cut -d' ' -f1)
-[ "$actual" = "99aefeff8f457cd6b4f57e1592db511f167ab493730f970bfd7baa68993250c3" ] || { echo "SIF digest mismatch" >&2; exit 30; }
-mkdir -p /public/home/<site-user>/dftworld2-runs/matclaw-031/dispatcher-qual/run-cpu-echo-probe-containment-8027a8ef/job-0001
-cd /public/home/<site-user>/dftworld2-runs/matclaw-031/dispatcher-qual/run-cpu-echo-probe-containment-8027a8ef/job-0001
-exec /public/software/apptainer/bin/apptainer exec --cleanenv --contain --bind /public/home/<site-user>/dftworld2-runs/matclaw-031/dispatcher-qual/run-cpu-echo-probe-containment-8027a8ef/job-0001:/workspace:rw /public/home/<site-user>/dftworld2-runs/matclaw-031/runtime/matclaw-cips-2.2.11-gpu-amd64.sif /bin/bash -c 'echo HOST=$(hostname); echo USER=$(id --name); date -u +%Y-%m-%dT%H:%M:%SZ; ( touch /workspace/.probe-write && rm /workspace/.probe-write ) && echo '"'"'BENCH_PROBE workspace_rw=pass'"'"' || exit 20;test ! -e /public/home/<site-user>/.bench-sentinel-8027a8ef && echo '"'"'BENCH_PROBE home_sentinel_absent=pass'"'"' || exit 21;test ! -e /public/home/<site-user>/.bench-cred-sentinel-8027a8ef && echo '"'"'BENCH_PROBE credential_sentinel_absent=pass'"'"' || exit 22;test ! -e /public/home/<site-user>/dftworld2-runs/matclaw-031/sentinel-other-run-8027a8ef && echo '"'"'BENCH_PROBE other_run_dir_absent=pass'"'"' || exit 23;ls /public/home/<site-user>/dftworld2-runs >/dev/null 2>&1 && exit 26 || echo '"'"'BENCH_PROBE runs_root_not_listable=pass'"'"'; echo CONTAINMENT_OK'

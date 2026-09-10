@@ -32,7 +32,6 @@ from pathlib import Path
 from urllib.parse import urlparse, unquote
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_EVIDENCE_ROOT = ROOT / "evidence" / "matclaw" / "formal"
 
 
 def _object_path_from_uri(uri: str) -> Path:
@@ -88,7 +87,7 @@ def _check_object(path: Path, digest: str, size: int, via_ssh: str | None) -> di
             "error": "; ".join(errors) or None, "actual_digest": actual_digest}
 
 
-def audit_store(evidence_root: Path = DEFAULT_EVIDENCE_ROOT,
+def audit_store(evidence_root: Path,
                 case_ids: list[str] | None = None,
                 via_ssh: str | None = None) -> dict:
     """Audit every tracked v2 manifest's bundle against both stores."""
@@ -146,7 +145,8 @@ def main(argv: list[str] | None = None) -> int:
     group = ap.add_mutually_exclusive_group(required=True)
     group.add_argument("--all-manifests", action="store_true")
     group.add_argument("--case", action="append", default=[])
-    ap.add_argument("--evidence-root", type=Path, default=DEFAULT_EVIDENCE_ROOT)
+    ap.add_argument("--evidence-root", type=Path, required=True,
+                    help="explicit evidence root to audit")
     ap.add_argument("--via-ssh", default=None,
                     help="check objects on a remote host (stores are cluster-side)")
     args = ap.parse_args(argv)

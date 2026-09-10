@@ -1,8 +1,5 @@
-# bench.verifiers — common verifier infrastructure (P0-F)
+"""Verifier container launcher and native-result normalization.
 
-from bench.verifiers.candidate_agent_verifier import (
-    CandidateAgentVerifier,
-    VerificationVerdict,
-)
-
-__all__ = ["CandidateAgentVerifier", "VerificationVerdict"]
+Candidate qualification is owned by the runtime qualification scripts; this
+package intentionally exposes no host-side agent auditor.
+"""

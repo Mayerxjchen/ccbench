@@ -21,6 +21,7 @@ def _case(root: Path) -> Path:
     case = root / "fixture"
     (case / "input").mkdir(parents=True)
     (case / "input" / "system.json").write_text('{"atoms": 3}\n')
+    (case / "input" / "run_profiles.json").write_text('{}\n')
     (case / "task.md").write_text("Solve the public task.\n")
     (case / "case.toml").write_text(
         'schema_version = "1.2"\n'
@@ -253,7 +254,7 @@ def test_container_pilot_uses_docker_runner_and_keeps_secrets_out(tmp_path: Path
         return {"image_digest": "sha256:" + "a" * 64, "engine": "claude-code"}
 
     monkeypatch.setattr(pilot, "_run_container_candidate", fake_container)
-    state = start("001", run_dir=run_dir)
+    state = start(str(_case(tmp_path)), run_dir=run_dir)
     assert state["runner"] == "container_claude_code"
     assert state["model_id"] == "deepseek-v4-pro[1M]"
     assert state["candidate_image_digest"].startswith("sha256:")
@@ -289,7 +290,7 @@ def test_container_pilot_resume_uses_same_session(tmp_path: Path, monkeypatch) -
             (run_dir / "candidate/final/resumed.txt").write_text("ok")
         return {"image_digest": "sha256:" + "b" * 64, "engine": "claude-code"}
     monkeypatch.setattr("bench.pilot._run_container_candidate", fake_container)
-    first = start("001", run_dir=run_dir)
+    first = start(str(_case(tmp_path)), run_dir=run_dir)
     assert first["state"] == "COMPUTE_REQUIRED"
     operator = tmp_path / "operator" / "compute-results"
     operator.mkdir(parents=True)
@@ -335,7 +336,7 @@ def test_container_pilot_resume_reuses_secret_free_config_snapshot(tmp_path: Pat
         return {"image_digest": "sha256:" + "c" * 64, "engine": "claude-code"}
 
     monkeypatch.setattr("bench.pilot._run_container_candidate", fake_container)
-    first = start("001", run_dir=run_dir, config_path=config_path)
+    first = start(str(_case(tmp_path)), run_dir=run_dir, config_path=config_path)
     assert first["compute_backend"] == "ikkem"
     assert first["candidate_config"]["model"]["cli_model"] == "claude-sonnet-4-6"
     assert "host-only-secret" not in json.dumps(first)
@@ -366,7 +367,7 @@ def test_pilot_passes_config_limits_and_persists_effective_snapshot(tmp_path: Pa
                 "model_gateway": {"turn_count": 1, "tokens_used": 9}}
 
     monkeypatch.setattr("bench.pilot._run_container_candidate", fake_container)
-    state = start("001", run_dir=run_dir, config_path=config_path)
+    state = start(str(_case(tmp_path)), run_dir=run_dir, config_path=config_path)
     assert captured["effective_limits"] == {
         "max_turns": 7, "max_total_tokens": 1234,
         "agent_timeout_sec": 42.0, "max_budget_usd": 0.0,
@@ -425,7 +426,7 @@ def test_resume_rejects_noncanonical_transcript_pointer(tmp_path: Path, monkeypa
         return {"image_digest": "sha256:" + "e" * 64, "engine": "claude-code",
                 "model_gateway": {"turn_count": 1, "tokens_used": 2}}
     monkeypatch.setattr(pilot, "_run_container_candidate", fake_container)
-    first = start("001", run_dir=run_dir)
+    first = start(str(_case(tmp_path)), run_dir=run_dir)
     state_path = run_dir / "run-state.json"
     state = json.loads(state_path.read_text())
     state["transcript"] = str(tmp_path / "other-transcript.jsonl")

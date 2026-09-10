@@ -1,8 +1,8 @@
-"""Agent adapters: the provider-specific half of the Trusted Harness.
+"""Claude Code Candidate adapter and tool policy.
 
-The harness (``bench.core.harness``) owns orchestration and infra;
-it speaks to an ``AgentAdapter`` and never touches pagent, docker, or a
-scheduler.
+The pilot owns run state and this module owns the Candidate container,
+sidecar and model-gateway lifecycle.  A sealed result is evaluated by the
+separate verifier worker; no legacy experiment harness is involved.
 
 Candidate Agent Architecture:
 - Sole Formal Candidate Engine: ``ClaudeCodeAdapter`` driving Claude Code inside

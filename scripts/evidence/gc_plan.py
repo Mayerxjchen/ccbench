@@ -31,7 +31,6 @@ from pathlib import Path
 from urllib.parse import urlparse, unquote
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_EVIDENCE_ROOT = ROOT / "evidence" / "matclaw" / "formal"
 OBJECT_SUFFIX = ".tar.zst"
 GRACE_DAYS = 30
 
@@ -150,7 +149,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--primary", required=True)
     ap.add_argument("--replica", required=True)
-    ap.add_argument("--evidence-root", type=Path, default=DEFAULT_EVIDENCE_ROOT)
+    ap.add_argument("--evidence-root", type=Path, required=True,
+                    help="explicit evidence root to scan")
     ap.add_argument("--git-root", type=Path, default=ROOT)
     ap.add_argument("--grace-days", type=int, default=GRACE_DAYS)
     ap.add_argument("--git-history", action="store_true")

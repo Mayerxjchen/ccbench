@@ -1,22 +1,14 @@
 # Evidence Retention Standard
 
-Normative design for the minimal, independently re-verifiable evidence system
-(plan `2026-08-18-testset-evidence-retention`). Companion schemas live in
-`schemas/`; the executable plan is the change-control source of truth.
+Optional archival tools for paper operators. Companion schemas live in
+`schemas/`; the normal run workflow does not require setting up a storage service.
 
 ## 1. Why this exists
 
-The v1 model retained a full workspace copy per run. Commit `eb8bd61`
-pruned 032/033 workspace bytes "as cleanup" while keeping only `manifest.json`;
-the bytes had never been in git (workspaces are gitignored), and the cluster
-run roots were cleaned too. A fail-closed derive engine then correctly refused
-`manifest-without-bytes`, so 032/033 fell from `benchmark_valid` to
-`constructed` and were unrecoverable without a full re-run.
-
-**Lesson:** a manifest is a *record*, not evidence. Evidence is the bytes, and
-it must survive independent of any one disk. This standard makes the manifest
-point at content-addressed bytes stored twice, restorable on demand, and
-independently re-verifiable.
+A manifest records the identity of evidence; it cannot replace missing bytes.
+Keep the verifier inputs, scientific outputs and provenance in a recoverable
+archive. The archival tools support content-addressed storage, replication and
+restore checks when a paper operator needs them.
 
 ## 2. Case-level vs run-level assets
 
@@ -41,9 +33,8 @@ Every asset has exactly one class:
 | `discardable` | Cache, installed software, duplicate input, scratch | Delete only after bundle restore test passes |
 
 Per-case policies are declared in `<case>/reference/evidence-policy.json` and
-validated against `schemas/evidence-policy.schema.json`. 034's policy stays
-`state: construction` with `finalization_allowed: false` until the case is
-constructed and `benchmark_valid`-eligible.
+validated against `schemas/evidence-policy.schema.json`. A draft case cannot
+claim final scientific evidence until its scientific validation is complete.
 
 ## 4. Content addressing
 
@@ -129,9 +120,8 @@ This gate deliberately does not require the original full workspace to remain.
 - Do not delete or prune any existing workspace until its replacement bundle
   has been built, stored twice, restored into a fresh directory,
   hash-verified, and independently re-verified.
-- Migrate 031 first, then the new 032 reruns, then 033. 034 gets a policy and
-  template now but no formal evidence is finalized until the case is
-  constructed.
+- Paper-specific migration order and scientific readiness belong to the paper
+  repository and operator records.
 - Delete raw caches (local and HPC workspace paths) only after listing exact
   paths + bundle digests + both store URIs + successful restore timestamps,
   and obtaining explicit user approval.

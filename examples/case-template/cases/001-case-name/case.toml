@@ -1,0 +1,35 @@
+schema_version = "1.2"
+case_version = "1.0.0"
+difficulty = "easy"
+
+[task]
+name = "example/001-case-name"
+title = "Sum two integers"
+description = "A small workflow example; replace it with your paper task."
+
+[execution]
+class = "local_sandbox"
+
+[candidate]
+instruction = "task.md"
+submission_root = "final"
+runner = "container_claude_code"
+legacy_submission_layout = false
+files = [{source = "input/**", destination = ".", strip_prefix = "input"}]
+
+[agent]
+profile = "claude-mvp"
+
+[verifier]
+profile = "matclaw-cips-v1"
+timeout_sec = 30
+
+[compute]
+classes = ["cpu"]
+
+[environment]
+cpus = 1
+memory_mb = 1024
+storage_mb = 1024
+gpus = 0
+allow_internet = false

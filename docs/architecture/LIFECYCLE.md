@@ -1,55 +1,11 @@
-# Benchmark Lifecycle (v0)
+# Run lifecycle
 
-**Status:** Normative. The authoritative state machine for every attempt.
+The runner creates a fresh run directory, exports allowlisted public input, records effective configuration and budgets, and starts Candidate plus its model Gateway.
 
-## Canonical sequence
+Candidate completes one phase and is cleaned up before evaluation. The ordering invariant is `CANDIDATE_DESTROYED` before `VERIFYING`: an independent verifier must never share the live Candidate environment.
 
-```text
-CREATED -> PACKAGED -> CANDIDATE_STARTING -> CANDIDATE_RUNNING
-        -> CANDIDATE_STOPPING -> CANDIDATE_FROZEN
-        -> SUBMISSION_COLLECTED -> CANDIDATE_DESTROYED
-        -> QUARANTINED -> SEALED
-        -> VERIFYING -> COMPLETED
-```
+A compute request pauses the run at `COMPUTE_REQUIRED`. Operator output import and resume continue the same session, while preserving previous phase usage and immutable input identities. Missing or inconsistent phase accounting cannot become a fresh zero budget.
 
-**The Verifier never starts while the Candidate is alive.** `VERIFYING` is
-reachable only after `CANDIDATE_DESTROYED`.
+A completed submission is quarantined and sealed. The verifier reads the sealed bytes in a fresh, networkless container. Its result is normalized into a scientific outcome, agent failure or infrastructure-invalid observation.
 
-## States
-
-- `CREATED` — attempt allocated with a fresh `run_id`.
-- `PACKAGED` — allowlisted public bundle produced; bundle digest known.
-- `CANDIDATE_STARTING` / `CANDIDATE_RUNNING` — Agent turn.
-- `CANDIDATE_STOPPING` — new writes disabled; jobs/capabilities disabled (HPC).
-- `CANDIDATE_FROZEN` — Candidate suspended; submission declared.
-- `SUBMISSION_COLLECTED` — raw submission copied to a private host dir.
-- `CANDIDATE_DESTROYED` — Candidate container removed.
-- `QUARANTINED` — unsafe nodes rejected; limits enforced.
-- `SEALED` — normalized clean submission sealed with manifest digest.
-- `VERIFYING` — independent Verifier runs against the sealed submission.
-- `COMPLETED` — result classified and persisted to the run record.
-- `FAILED_AGENT` / `INVALID_INFRA` — terminal failure classes (see
-  `RESULT-TAXONOMY.md`), enterable from any transition.
-
-## Rules
-
-1. **No backward transitions.** A phase cannot be re-entered after it is left.
-2. **No direct jumps.** Every transition is an explicit legal edge.
-3. **Cleanup is idempotent.** Teardown is attempted after timeout, Agent
-   exception, and harness failure; partial cleanup never blocks a later retry.
-4. **Deadlines.** Agent wall-clock, walltime, and submission-size limits are
-   enforced by the Harness/quarantine, not by the Agent.
-5. **Immutable events.** Every transition is an event `{phase, utc_timestamp,
-   reason?}` appended to the run record; the history is never rewritten.
-
-## HPC runs additionally
-
-```text
-CAPABILITY_ISSUED -> (during CANDIDATE_RUNNING)
-SUBMISSIONS_DISABLED -> (during CANDIDATE_STOPPING)
-JOBS_SETTLED -> (queued/running jobs resolved or cancelled)
-CAPABILITY_REVOKED -> (after JOBS_SETTLED, before CANDIDATE_DESTROYED)
-```
-
-Capability revocation precedes destruction so the Candidate can never resume
-an HPC action during quarantine.
+Timeouts and interrupts retain available telemetry and trigger teardown. Failed or incomplete phases cannot silently resume as if they had completed. Status, lifecycle events and messages remain visible in the run directory; the operator must retain these artifacts with the scored result.

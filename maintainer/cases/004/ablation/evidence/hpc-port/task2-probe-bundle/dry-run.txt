@@ -1,6 +1,0 @@
-034 HPC discovery dry-run
-target=<site-host-ip>
-remote_dir=/public/home/<site-user>/034/probe-20260811-055636
-connection_policy=one SSH process, no retry loop
-remote_action=stage read-only scripts, capture login facts, submit one Slurm probe
-DRY_RUN=1; pass --execute only after the remote gate is released
